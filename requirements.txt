@@ -1,0 +1,4 @@
+git+https://github.com/JasonBarrett77/OptivEdge.git@main#egg=optivedge
+python-docx
+docxtpl
+xlsxwriter

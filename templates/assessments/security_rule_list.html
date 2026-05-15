@@ -1,0 +1,1255 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %}Assessment Security Rules{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
+            <div class="flex items-start gap-3 border-b border-slate-200 pb-2">
+                <div class="min-w-0 flex-1">
+                    <input
+                        type="text"
+                        value="{% if search_query or selected_control %}{{ search_summary }}{% endif %}"
+                        placeholder="No query applied"
+                        readonly
+                        class="h-8 w-full border border-slate-300 bg-slate-50 px-2.5 text-[12px] text-slate-900 focus-visible:outline-hidden"
+                    />
+                </div>
+                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
+                <div class="flex shrink-0 items-start gap-3">
+                    <div class="flex items-center gap-2">
+                        <a
+                            href="?edit_search=1{% if search_state_token %}&search_state={{ search_state_token }}{% endif %}"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-[11px] font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        >
+                            Edit Query
+                        </a>
+                        {% if search_state_token %}
+                        <a
+                            href="/assessments/security-rules/"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-[11px] font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        >
+                            Clear
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="pt-2 text-[10px] uppercase tracking-wide text-slate-500">
+                        {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_row_count }}
+                    </div>
+                    <div class="flex items-center gap-1">
+                        {% if page_obj.has_previous %}
+                        <a
+                            href="?page={{ page_obj.previous_page_number }}{% if search_state_token %}&search_state={{ search_state_token }}{% endif %}"
+                            class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            Previous
+                        </a>
+                        {% else %}
+                        <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">
+                            Previous
+                        </span>
+                        {% endif %}
+                        {% for page_number in page_range %}
+                        {% if page_number == page_obj.number %}
+                        <span class="inline-flex h-7 min-w-7 items-center justify-center border border-blue-200 bg-blue-50 px-2 text-[11px] font-medium text-blue-700">
+                            {{ page_number }}
+                        </span>
+                        {% else %}
+                        <a
+                            href="?page={{ page_number }}{% if search_state_token %}&search_state={{ search_state_token }}{% endif %}"
+                            class="inline-flex h-7 min-w-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            {{ page_number }}
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                        {% if page_obj.has_next %}
+                        <a
+                            href="?page={{ page_obj.next_page_number }}{% if search_state_token %}&search_state={{ search_state_token }}{% endif %}"
+                            class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            Next
+                        </a>
+                        {% else %}
+                        <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">
+                            Next
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if search_error %}
+            <div class="pt-2 text-[11px] text-red-700">{{ search_error }}</div>
+            {% endif %}
+            {% if selected_control %}
+            <div class="pt-2">
+                <div class="relative border border-blue-200 bg-blue-50 px-3 py-2">
+                    <a
+                        href="{{ applied_control_close_url }}"
+                        class="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-slate-500 hover:bg-blue-100 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        aria-label="Close applied control"
+                        title="Close"
+                    >
+                        x
+                    </a>
+                    <div class="flex items-start justify-between gap-3 pr-6">
+                        <div>
+                            <div class="text-[11px] font-medium uppercase tracking-wide text-blue-700">Applied Control</div>
+                            <div class="pt-0.5 text-sm text-slate-900">
+                                {{ selected_control.control_id }}: {{ selected_control.name }}
+                            </div>
+                            <div class="pt-0.5 text-[11px] text-slate-600">
+                                Applied {{ selected_control_query_count }} active quer{{ selected_control_query_count|pluralize:"y,ies" }}.
+                                {% if selected_control_skipped_queries %}
+                                Skipped {{ selected_control_skipped_queries }} unsupported or invalid quer{{ selected_control_skipped_queries|pluralize:"y,ies" }}.
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="flex min-h-0 min-w-0 flex-1 flex-col pt-2">
+                <div class="min-h-0 min-w-0 flex-1 border border-slate-200">
+                    <div class="h-full min-h-0 min-w-0 overflow-x-auto overflow-y-auto [scrollbar-gutter:stable]">
+                    <table class="analytical-table w-max min-w-full table-auto">
+                        <thead>
+                            <tr>
+                                {% if show_control_severity %}
+                                <th class="sticky top-0 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2"></th>
+                                {% endif %}
+                                <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">vsys</th>
+                                <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Source</th>
+                                <th colspan="2" class="sticky top-0 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Destination</th>
+                                <th colspan="{% if show_control_severity %}8{% else %}7{% endif %}" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                            </tr>
+                            <tr>
+                                {% if show_control_severity %}
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Severity</th>
+                                {% endif %}
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Station</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">id</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">name</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Order</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Config Source</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Device Group</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Rule</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Zone</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Address</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Zone</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Address</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Application</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Service</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Action</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log Start</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log End</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log Profile</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Profiles</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in security_rule_rows %}
+                            <tr>
+                                {% if show_control_severity %}
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-center text-[11px] leading-3.5 {% if row.control_severity == 'Informational' %}bg-slate-200 text-slate-800{% elif row.control_severity == 'Low' %}bg-emerald-50 text-emerald-800{% elif row.control_severity == 'Medium' %}bg-yellow-50/75 text-yellow-800{% elif row.control_severity == 'High' %}bg-orange-100 text-orange-800{% elif row.control_severity == 'Critical' %}bg-red-100 text-red-800{% else %}text-slate-400{% endif %}">
+                                    {{ row.control_severity|default:"-" }}
+                                </td>
+                                {% endif %}
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.management_station }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.enforcement_point.vsys_name }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.enforcement_point.vsys_display_name %}{{ row.security_rule.enforcement_point.vsys_display_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.effective_order }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.config_source_label }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.provenance %}{{ row.security_rule.provenance }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-900">{{ row.security_rule.name }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.from_zones %}{% for value in row.from_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.to_zones %}{% for value in row.to_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.applications %}{% for value in row.applications %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.services %}{% for value in row.services %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.action|default:"-" }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.log_start is None %}-{% elif row.security_rule.log_start %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.log_end is None %}-{% elif row.security_rule.log_end %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.log_setting|default:"-" }}</td>
+                                <td class="border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+                                    {% if row.profile_groups %}
+                                        {% for value in row.profile_groups %}
+                                            <div>{{ value }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if row.profiles %}
+                                        {% for value in row.profiles %}
+                                            <div class="text-[10px] leading-3 text-slate-500">{{ value }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if not row.profile_groups and not row.profiles %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if show_control_severity %}18{% else %}17{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                    No normalized security rules available.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% if edit_search_open %}
+<div class="absolute inset-0 z-40 flex items-center justify-center bg-slate-900/20 px-6 py-6">
+    <div
+        id="search-builder-overlay"
+        class="flex h-full max-h-full w-full max-w-7xl flex-col border border-slate-200 bg-white shadow-sm transition-[max-width] duration-200"
+    >
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
+            <div class="min-w-0">
+{#                <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Builder</div>#}
+                <div class="flex items-start gap-1">
+                    <h1 class="truncate text-sm font-semibold text-slate-900">Security Rule Query Builder</h1>
+                    <button
+                        type="button"
+                        id="search-builder-help-toggle"
+                        class="inline-flex h-4 w-4 shrink-0 -translate-y-0.5 items-center justify-center text-slate-500 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        aria-expanded="false"
+                        aria-controls="search-builder-help"
+                        aria-label="Open query help"
+                        title="Help"
+                    >
+                        <span class="inline-flex h-4 w-4 items-center justify-center [&_svg]:block [&_svg]:h-4 [&_svg]:w-4">
+                            {% include "components/icons/circle-question-mark.svg" %}
+                        </span>
+                    </button>
+                </div>
+{#                <div class="pt-0.5 text-xs text-slate-600">Build or refine the query used to filter the displayed rules.</div>#}
+            </div>
+            <a
+                href="{{ edit_search_close_url }}"
+                class="inline-flex h-8 w-8 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                aria-label="Close query builder"
+                title="Close"
+            >
+                {% lucide "x" class="h-4 w-4" %}
+            </a>
+        </div>
+        <form method="post" class="flex min-h-0 flex-1 flex-col">
+            {% csrf_token %}
+            <input type="hidden" name="q" value="{{ query_text }}">
+            <div class="min-h-0 flex-1 overflow-auto px-4 py-4">
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-start gap-4">
+                        <div class="min-w-0 flex-1">
+                            <div id="search-builder-root" class="ml-4 mr-4 flex flex-col gap-1"></div>
+                            <div class="mt-4 flex justify-center">
+                                <button
+                                    type="button"
+                                    id="search-builder-add-group"
+                                    class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Add Group
+                                </button>
+                            </div>
+                        </div>
+                        <aside
+                            id="search-builder-help"
+                            class="hidden w-80 shrink-0 border border-slate-200 bg-slate-50"
+                        >
+                            <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                                <div>
+                                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Query Help</div>
+                                    <div class="text-sm font-semibold text-slate-900">Security Rule Search</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    id="search-builder-help-close"
+                                    class="inline-flex h-7 w-7 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                                    aria-label="Close help"
+                                >
+                                    {% lucide "x" class="h-3 w-3" %}
+                                </button>
+                            </div>
+                            <div class="flex flex-col gap-4 px-4 py-4 text-xs leading-5 text-slate-700">
+                                <section class="flex flex-col gap-1">
+                                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Field Types</div>
+                                    <div><code>source_address_name</code> and <code>destination_address_name</code> search raw tokens, resolved object names, and resolved group names.</div>
+                                    <div><code>source_address</code> and <code>destination_address</code> perform semantic IPv4 matching against effective resolved members.</div>
+                                </section>
+                                <section class="flex flex-col gap-1">
+                                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Semantic Operators</div>
+                                    <div><code>matches</code>: every address in the queried IPv4 value must be matched by the rule.</div>
+                                    <div><code>includes</code>: the queried IPv4 value is included in the effective member set.</div>
+                                    <div><code>exactly</code>: an effective member equals the queried IPv4 value exactly.</div>
+                                    <div><code>intersects</code>: any overlap exists with the queried IPv4 value.</div>
+                                    <div><code>equals</code>: the full effective IPv4 set equals the queried IPv4 value.</div>
+                                </section>
+                                <section class="flex flex-col gap-1">
+                                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Value Rules</div>
+                                    <div>Supported semantic values: IPv4 host, CIDR, range, and <code>any</code>.</div>
+                                    <div>Unsupported types like dynamic groups and FQDNs are skipped for semantic evaluation.</div>
+                                    <div><code>Include Any?</code> defaults to <code>No</code>, so <code>any</code> members are ignored unless explicitly included.</div>
+                                </section>
+                                <section class="flex flex-col gap-1">
+                                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Examples</div>
+                                    <div><code>source_address matches 10.0.0.0/8</code></div>
+                                    <div><code>destination_address intersects 172.16.0.0/16</code></div>
+                                    <div><code>source_address_name contains corp-group</code></div>
+                                </section>
+                            </div>
+                        </aside>
+                    </div>
+                    <textarea
+                        id="search-json"
+                        name="search"
+                        rows="1"
+                        class="hidden"
+                    >{{ search_editor_query }}</textarea>
+                    <div
+                        id="search-builder-json-preview"
+                        class="hidden border border-slate-200 bg-slate-50"
+                    >
+                        <div class="border-b border-slate-200 px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                            Canonical Query JSON
+                        </div>
+                        <textarea
+                            id="search-json-preview"
+                            rows="12"
+                            readonly
+                            class="min-h-56 w-full resize-y border-0 bg-slate-50 px-3 py-3 font-mono text-[12px] text-slate-800 focus:outline-none"
+                        ></textarea>
+                    </div>
+                    <span id="search-builder-error" class="text-xs text-red-700"></span>
+                </div>
+            </div>
+            <div class="border-t border-slate-200 px-4 py-3">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                    <button
+                        type="submit"
+                        class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Apply Query
+                    </button>
+                    <button
+                        type="submit"
+                        formaction="/assessments/control-queries/create/"
+                        formmethod="post"
+                        name="load_from_search"
+                        value="1"
+                        class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Save Query
+                    </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if plain_language_edit_url %}
+                        <a
+                            href="{{ plain_language_edit_url }}"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        >
+                            Edit Prompt
+                        </a>
+                        {% endif %}
+                        <button
+                            type="button"
+                            id="search-builder-json-toggle"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            aria-expanded="false"
+                            aria-controls="search-builder-json-preview"
+                        >
+                            Show JSON
+                        </button>
+                    <a
+                        href="{{ edit_search_close_url }}"
+                        class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Cancel
+                    </a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+<script>
+        (function () {
+            const root = document.getElementById("search-builder-root");
+            const jsonField = document.getElementById("search-json");
+            const errorNode = document.getElementById("search-builder-error");
+            const addGroupButton = document.getElementById("search-builder-add-group");
+            const jsonToggleButton = document.getElementById("search-builder-json-toggle");
+            const jsonPreviewPanel = document.getElementById("search-builder-json-preview");
+            const jsonPreviewField = document.getElementById("search-json-preview");
+            const helpToggleButton = document.getElementById("search-builder-help-toggle");
+            const helpDrawer = document.getElementById("search-builder-help");
+            const helpCloseButton = document.getElementById("search-builder-help-close");
+            const overlay = document.getElementById("search-builder-overlay");
+
+            if (!root || !jsonField) {
+                return;
+            }
+
+            const searchModel = "integrations.SecurityRule";
+            const fieldOperatorMap = {
+                config_source: ["eq", "contains"],
+                management_station: ["eq", "contains"],
+                vsys_name: ["eq", "contains"],
+                vsys_display_name: ["eq", "contains"],
+                name: ["eq", "contains"],
+                provenance: ["eq", "contains"],
+                action: ["eq", "contains"],
+                disabled: ["eq"],
+                rule_type: ["eq", "contains"],
+                description: ["eq", "contains"],
+                log_start: ["eq"],
+                log_end: ["eq"],
+                log_setting: ["eq", "contains"],
+                from_zone: ["eq", "contains"],
+                to_zone: ["eq", "contains"],
+                source_address: ["matches", "includes", "exactly", "intersects", "equals"],
+                destination_address: ["matches", "includes", "exactly", "intersects", "equals"],
+                source_address_name: ["eq", "contains"],
+                destination_address_name: ["eq", "contains"],
+                application: ["eq", "contains"],
+                service: ["eq", "contains"],
+            };
+            const fieldOptionsHtml = [
+                '<option value="config_source">config_source</option>',
+                '<option value="management_station">management_station</option>',
+                '<option value="vsys_name">vsys_name</option>',
+                '<option value="vsys_display_name">vsys_display_name</option>',
+                '<option value="name">name</option>',
+                '<option value="provenance">provenance</option>',
+                '<option value="action">action</option>',
+                '<option value="disabled">disabled</option>',
+                '<option value="rule_type">rule_type</option>',
+                '<option value="description">description</option>',
+                '<option value="log_start">log_start</option>',
+                '<option value="log_end">log_end</option>',
+                '<option value="log_setting">log_setting</option>',
+                '<option value="from_zone">from_zone</option>',
+                '<option value="to_zone">to_zone</option>',
+                '<option value="source_address">source_address</option>',
+                '<option value="destination_address">destination_address</option>',
+                '<option value="source_address_name">source_address_name</option>',
+                '<option value="destination_address_name">destination_address_name</option>',
+                '<option value="application">application</option>',
+                '<option value="service">service</option>'
+            ].join("");
+
+            const clauseTemplate = function () {
+                return {
+                    field: "config_source",
+                    op: "eq",
+                    value: "",
+                    negated: false,
+                    case_sensitive: false,
+                };
+            };
+
+            const groupTemplate = function () {
+                return {
+                    operator: "and",
+                    clauses: [clauseTemplate()],
+                };
+            };
+
+            function setError(message) {
+                if (errorNode) {
+                    errorNode.textContent = message || "";
+                }
+            }
+
+            function isGroup(node) {
+                return Boolean(node && typeof node === "object" && "operator" in node);
+            }
+
+            let searchTree;
+            try {
+                searchTree = JSON.parse(jsonField.value);
+            } catch (_error) {
+                searchTree = {
+                    model: searchModel,
+                    operator: "and",
+                    clauses: [groupTemplate()],
+                };
+            }
+
+            function syncJsonField() {
+                const canonicalJson = JSON.stringify(buildCanonicalSearchTree(), null, 2);
+                jsonField.value = canonicalJson;
+                if (jsonPreviewField) {
+                    jsonPreviewField.value = canonicalJson;
+                }
+            }
+
+            function setJsonPreviewOpen(isOpen) {
+                if (!jsonPreviewPanel || !jsonToggleButton) {
+                    return;
+                }
+                jsonPreviewPanel.classList.toggle("hidden", !isOpen);
+                jsonToggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                jsonToggleButton.textContent = isOpen ? "Hide JSON" : "Show JSON";
+            }
+
+            function setHelpDrawerOpen(isOpen) {
+                if (!helpDrawer || !helpToggleButton) {
+                    return;
+                }
+                helpDrawer.classList.toggle("hidden", !isOpen);
+                helpToggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                helpToggleButton.setAttribute("title", isOpen ? "Hide Help" : "Help");
+                helpToggleButton.setAttribute("aria-label", isOpen ? "Hide query help" : "Open query help");
+                if (overlay) {
+                    overlay.classList.toggle("max-w-7xl", !isOpen);
+                    overlay.classList.toggle("max-w-[120rem]", isOpen);
+                }
+            }
+
+            function getNodeAtPath(path) {
+                let current = searchTree;
+                path.forEach(function (index) {
+                    current = current.clauses[index];
+                });
+                return current;
+            }
+
+            function getParentAtPath(path) {
+                if (!path.length) {
+                    return null;
+                }
+                return getNodeAtPath(path.slice(0, -1));
+            }
+
+            function updateNode(path, updater) {
+                const node = getNodeAtPath(path);
+                updater(node);
+                renderBuilder();
+            }
+
+            function patchNode(path, updater) {
+                const node = getNodeAtPath(path);
+                updater(node);
+                syncJsonField();
+                updateGroupAddButtonState(path.slice(0, -1));
+            }
+
+            function removeNode(path) {
+                const parent = getParentAtPath(path);
+                if (!parent) {
+                    return;
+                }
+                parent.clauses.splice(path[path.length - 1], 1);
+                renderBuilder();
+            }
+
+            function groupAdjacentGroups(parentPath, rightIndex) {
+                const parentNode = getNodeAtPath(parentPath);
+                if (!parentNode || !Array.isArray(parentNode.clauses)) {
+                    return;
+                }
+                if (rightIndex <= 0 || rightIndex >= parentNode.clauses.length) {
+                    return;
+                }
+
+                const leftNode = parentNode.clauses[rightIndex - 1];
+                const rightNode = parentNode.clauses[rightIndex];
+                if (!isGroup(leftNode) || !isGroup(rightNode)) {
+                    return;
+                }
+
+                parentNode.clauses.splice(rightIndex - 1, 2, {
+                    operator: parentNode.operator === "or" ? "or" : "and",
+                    clauses: [leftNode, rightNode],
+                });
+                renderBuilder();
+            }
+
+            function expandGroupAtSeam(parentPath, rightIndex) {
+                const parentNode = getNodeAtPath(parentPath);
+                if (!parentNode || !Array.isArray(parentNode.clauses)) {
+                    return false;
+                }
+                if (rightIndex <= 0 || rightIndex >= parentNode.clauses.length) {
+                    return false;
+                }
+
+                const leftNode = parentNode.clauses[rightIndex - 1];
+                const rightNode = parentNode.clauses[rightIndex];
+                const leftIsParentGroup = isGroup(leftNode) && groupContainsGroups(leftNode);
+                const rightIsParentGroup = isGroup(rightNode) && groupContainsGroups(rightNode);
+
+                if (leftIsParentGroup === rightIsParentGroup) {
+                    return false;
+                }
+
+                if (leftIsParentGroup) {
+                    leftNode.clauses.push(rightNode);
+                    parentNode.clauses.splice(rightIndex, 1);
+                } else {
+                    rightNode.clauses.unshift(leftNode);
+                    parentNode.clauses.splice(rightIndex - 1, 1);
+                }
+
+                renderBuilder();
+                return true;
+            }
+
+            function collectLeafGroups(node) {
+                if (!isGroup(node)) {
+                    return [];
+                }
+                if (!groupContainsGroups(node)) {
+                    return [node];
+                }
+
+                return node.clauses.reduce(function (groups, childNode) {
+                    if (!isGroup(childNode)) {
+                        return groups;
+                    }
+                    return groups.concat(collectLeafGroups(childNode));
+                }, []);
+            }
+
+            function flattenTopNestedParent(parentPath) {
+                if (!Array.isArray(parentPath) || !parentPath.length) {
+                    return false;
+                }
+
+                const topNestedParentPath = [parentPath[0]];
+                const topNestedParent = getNodeAtPath(topNestedParentPath);
+                if (!isGroup(topNestedParent) || !groupContainsGroups(topNestedParent)) {
+                    return false;
+                }
+
+                const flattenedGroups = collectLeafGroups(topNestedParent);
+                if (!flattenedGroups.length) {
+                    return false;
+                }
+
+                const ancestorNode = getNodeAtPath(topNestedParentPath.slice(0, -1));
+                const topNestedParentIndex = topNestedParentPath[topNestedParentPath.length - 1];
+                ancestorNode.clauses.splice(topNestedParentIndex, 1, ...flattenedGroups);
+                renderBuilder();
+                return true;
+            }
+
+            function addClause(path) {
+                const groupNode = getNodeAtPath(path);
+                if (!canAddClauseToGroup(groupNode)) {
+                    return;
+                }
+                groupNode.clauses.push(clauseTemplate());
+                renderBuilder();
+            }
+
+            function addGroup(path) {
+                getNodeAtPath(path).clauses.push(groupTemplate());
+                renderBuilder();
+            }
+
+            function createField(labelText, inputNode) {
+                const wrapper = document.createElement("label");
+                wrapper.className = "flex flex-col gap-1";
+                const label = document.createElement("span");
+                label.className = "text-[10px] font-medium uppercase tracking-wide text-slate-600";
+                label.textContent = labelText;
+                wrapper.appendChild(label);
+                wrapper.appendChild(inputNode);
+                return wrapper;
+            }
+
+            function createFieldControl(inputNode, className) {
+                const wrapper = document.createElement("div");
+                wrapper.className = "shrink-0 " + className;
+                wrapper.appendChild(inputNode);
+                return wrapper;
+            }
+
+            function createToggleControl(checked, onChange, inputId, labelOn, labelOff) {
+                const label = document.createElement("label");
+                label.className = "inline-grid cursor-pointer grid-cols-[auto,auto,auto,auto] items-center";
+                label.setAttribute("for", inputId);
+
+                const input = document.createElement("input");
+                input.type = "checkbox";
+                input.id = inputId;
+                input.value = "on";
+                input.checked = checked;
+                input.className = "peer sr-only appearance-none";
+                input.addEventListener("change", onChange);
+
+                const track = document.createElement("span");
+                track.className = "relative inline-flex h-4 w-7 shrink-0 rounded-full bg-slate-300 transition-colors duration-200 peer-checked:bg-blue-600 peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-blue-500/20 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 after:content-[''] peer-checked:after:translate-x-3";
+                track.setAttribute("aria-hidden", "true");
+
+                const spacer = document.createElement("span");
+                spacer.className = "col-start-3 row-start-1 ml-2 text-xs leading-none text-slate-600";
+                spacer.setAttribute("aria-hidden", "true");
+                spacer.innerHTML = "&nbsp;";
+
+                const offLabel = document.createElement("span");
+                offLabel.className = "col-start-4 row-start-1 text-xs leading-none text-slate-600 transition-all duration-200 peer-checked:-translate-y-0.5 peer-checked:opacity-0";
+                offLabel.textContent = labelOff;
+
+                const onLabel = document.createElement("span");
+                onLabel.className = "col-start-4 row-start-1 translate-y-0.5 opacity-0 text-xs leading-none text-slate-600 transition-all duration-200 peer-checked:translate-y-0 peer-checked:opacity-100";
+                onLabel.textContent = labelOn;
+
+                label.appendChild(input);
+                label.appendChild(track);
+                label.appendChild(spacer);
+                label.appendChild(offLabel);
+                label.appendChild(onLabel);
+                return label;
+            }
+
+            function setFieldWidth(wrapper, className) {
+                wrapper.classList.add(className);
+                wrapper.classList.add("shrink-0");
+                return wrapper;
+            }
+
+            function getOperatorOptionsHtml(fieldName) {
+                const operators = fieldOperatorMap[fieldName] || ["eq", "contains"];
+                return operators.map(function (operator) {
+                    return '<option value="' + operator + '">' + operator + "</option>";
+                }).join("");
+            }
+
+            function normalizeClause(node) {
+                const fieldName = typeof node?.field === "string" && node.field.trim() ? node.field : "config_source";
+                const supportedOperators = fieldOperatorMap[fieldName] || ["eq", "contains"];
+                const normalizedOp = typeof node?.op === "string" && supportedOperators.includes(node.op)
+                    ? node.op
+                    : supportedOperators[0];
+                return {
+                    field: fieldName,
+                    op: normalizedOp,
+                    value: typeof node?.value === "string" ? node.value : "",
+                    negated: Boolean(node?.negated),
+                    case_sensitive: Boolean(node?.case_sensitive),
+                    include_any: Boolean(node?.include_any),
+                };
+            }
+
+            function normalizeVisibleGroup(node) {
+                if (!isGroup(node)) {
+                    return {
+                        operator: "and",
+                        clauses: [normalizeClause(node)],
+                    };
+                }
+
+                const childClauses = Array.isArray(node.clauses) ? node.clauses : [];
+                if (childClauses.some(isGroup)) {
+                    return {
+                        operator: node.operator === "or" ? "or" : "and",
+                        clauses: childClauses.filter(isGroup).map(normalizeVisibleGroup),
+                    };
+                }
+
+                const normalizedGroup = {
+                    operator: node.operator === "or" ? "or" : "and",
+                    clauses: childClauses.filter(function (child) {
+                        return !isGroup(child);
+                    }).map(normalizeClause),
+                };
+
+                if (!normalizedGroup.clauses.length) {
+                    normalizedGroup.clauses.push(clauseTemplate());
+                }
+
+                return normalizedGroup;
+            }
+
+            function normalizeBuilderTree(node) {
+                if (!isGroup(node)) {
+                    return {
+                        model: searchModel,
+                        operator: "and",
+                        clauses: [normalizeVisibleGroup(node)],
+                    };
+                }
+
+                const rawClauses = Array.isArray(node.clauses) ? node.clauses : [];
+                const containsNestedGroups = rawClauses.some(isGroup);
+                let visibleGroups;
+
+                if (containsNestedGroups) {
+                    visibleGroups = rawClauses.filter(isGroup).map(normalizeVisibleGroup);
+                } else {
+                    visibleGroups = [
+                        normalizeVisibleGroup({
+                            operator: node.operator === "or" ? "or" : "and",
+                            clauses: rawClauses,
+                        }),
+                    ];
+                }
+
+                if (!visibleGroups.length) {
+                    visibleGroups.push(groupTemplate());
+                }
+
+                return {
+                    model: typeof node.model === "string" && node.model ? node.model : searchModel,
+                    operator: visibleGroups.length > 1 && node.operator === "or" ? "or" : "and",
+                    clauses: visibleGroups,
+                };
+            }
+
+            function buildCanonicalSearchTree() {
+                const normalizedTree = normalizeBuilderTree(searchTree);
+                return {
+                    model: normalizedTree.model,
+                    operator: normalizedTree.operator,
+                    clauses: normalizedTree.clauses,
+                };
+            }
+
+            function isClauseComplete(node) {
+                if (isGroup(node)) {
+                    return true;
+                }
+                return Boolean(
+                    node &&
+                    typeof node.field === "string" &&
+                    node.field.trim() &&
+                    typeof node.op === "string" &&
+                    node.op.trim() &&
+                    typeof node.value === "string" &&
+                    node.value.trim()
+                );
+            }
+
+            function supportsExcludeAny(fieldName) {
+                return fieldName === "source_address" || fieldName === "destination_address";
+            }
+
+            function canAddClauseToGroup(groupNode) {
+                if (!groupNode || !Array.isArray(groupNode.clauses)) {
+                    return false;
+                }
+                return groupNode.clauses.every(isClauseComplete);
+            }
+
+            function groupUsesExcludeAny(groupNode) {
+                if (!groupNode || !Array.isArray(groupNode.clauses)) {
+                    return false;
+                }
+                return groupNode.clauses.some(function (clauseNode) {
+                    return !isGroup(clauseNode) && supportsExcludeAny(clauseNode.field);
+                });
+            }
+
+            function groupContainsGroups(groupNode) {
+                return Boolean(groupNode && Array.isArray(groupNode.clauses) && groupNode.clauses.some(isGroup));
+            }
+
+            function getGroupColorLevel(node) {
+                if (!groupContainsGroups(node)) {
+                    return 0;
+                }
+
+                const childLevels = node.clauses
+                    .filter(isGroup)
+                    .map(getGroupColorLevel);
+
+                if (!childLevels.length) {
+                    return 0;
+                }
+
+                return Math.max.apply(null, childLevels) + 1;
+            }
+
+            function getGroupDepthClasses(node) {
+                const colorLevel = getGroupColorLevel(node);
+                if (colorLevel === 0) {
+                    return "border-slate-200 bg-slate-50";
+                }
+                if (colorLevel === 1) {
+                    return "border-sky-200 bg-sky-50";
+                }
+                if (colorLevel === 2) {
+                    return "border-emerald-200 bg-emerald-50";
+                }
+                if (colorLevel === 3) {
+                    return "border-amber-200 bg-amber-50";
+                }
+                return "border-rose-200 bg-rose-50";
+            }
+
+            function updateGroupAddButtonState(groupPath) {
+                const selector = '[data-add-clause-path="' + groupPath.join("-") + '"]';
+                const addClauseButton = root.querySelector(selector);
+                if (!addClauseButton) {
+                    return;
+                }
+
+                const groupNode = getNodeAtPath(groupPath);
+                const addClauseEnabled = canAddClauseToGroup(groupNode);
+
+                addClauseButton.disabled = !addClauseEnabled;
+                addClauseButton.className = addClauseEnabled
+                    ? "inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    : "inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed";
+            }
+
+            function ensureRootGroup() {
+                searchTree = normalizeBuilderTree(searchTree);
+            }
+
+            function renderClause(
+                node,
+                path,
+                groupPath,
+                groupOperator,
+                showGroupOperatorText,
+                showExcludeAnyColumn
+            ) {
+                const row = document.createElement("div");
+                row.className = "px-3 py-1";
+
+                const layout = document.createElement("div");
+                layout.className = "flex flex-wrap items-center gap-2";
+
+                const groupOperatorDisplay = document.createElement("div");
+                groupOperatorDisplay.className = "inline-flex h-8 w-full items-center justify-center text-sm font-medium uppercase tracking-wide text-slate-600";
+                groupOperatorDisplay.textContent = showGroupOperatorText ? groupOperator : "";
+
+                const fieldSelect = document.createElement("select");
+                fieldSelect.className = "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900";
+                fieldSelect.innerHTML = fieldOptionsHtml;
+                fieldSelect.value = node.field;
+                fieldSelect.addEventListener("change", function () {
+                    patchNode(path, function (target) {
+                        target.field = fieldSelect.value;
+                        const allowedOperators = fieldOperatorMap[target.field] || ["eq", "contains"];
+                        if (!allowedOperators.includes(target.op)) {
+                            target.op = allowedOperators[0];
+                        }
+                        if (!supportsExcludeAny(target.field)) {
+                            target.include_any = false;
+                        }
+                    });
+                    renderBuilder();
+                });
+
+                const opSelect = document.createElement("select");
+                opSelect.className = "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900";
+                opSelect.innerHTML = getOperatorOptionsHtml(node.field);
+                opSelect.value = node.op;
+                opSelect.addEventListener("change", function () {
+                    patchNode(path, function (target) {
+                        target.op = opSelect.value;
+                    });
+                });
+
+                const valueInput = document.createElement("input");
+                valueInput.type = "text";
+                valueInput.value = node.value || "";
+                valueInput.className = "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900";
+                valueInput.addEventListener("input", function () {
+                    patchNode(path, function (target) {
+                        target.value = valueInput.value;
+                    });
+                });
+
+                const negatedInputId = "search-clause-negated-" + path.join("-");
+                const negatedToggle = createToggleControl(Boolean(node.negated), function (event) {
+                    patchNode(path, function (target) {
+                        target.negated = event.target.checked;
+                    });
+                }, negatedInputId, "Yes", "No");
+
+                const caseInputId = "search-clause-case-" + path.join("-");
+                const caseToggle = createToggleControl(Boolean(node.case_sensitive), function (event) {
+                    patchNode(path, function (target) {
+                        target.case_sensitive = event.target.checked;
+                    });
+                }, caseInputId, "Yes", "No");
+
+                const includeAnyInputId = "search-clause-include-any-" + path.join("-");
+                const includeAnyToggle = createToggleControl(Boolean(node.include_any), function (event) {
+                    patchNode(path, function (target) {
+                        target.include_any = event.target.checked;
+                    });
+                }, includeAnyInputId, "Yes", "No");
+
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.className = "inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700";
+                removeButton.setAttribute("aria-label", "Remove clause");
+                removeButton.innerHTML = `{% lucide "x" class="h-3 w-3" %}`;
+                removeButton.addEventListener("click", function () {
+                    removeNode(path);
+                });
+
+                layout.appendChild(createFieldControl(removeButton, "flex w-8 justify-center"));
+                layout.appendChild(createFieldControl(groupOperatorDisplay, "w-10"));
+                layout.appendChild(createFieldControl(fieldSelect, "min-w-0 flex-[1.2_1_0%]"));
+                layout.appendChild(createFieldControl(opSelect, "min-w-0 flex-[0.8_1_0%]"));
+                layout.appendChild(createFieldControl(valueInput, "min-w-0 flex-[1.8_1_0%]"));
+                layout.appendChild(createFieldControl(negatedToggle, "flex w-24 justify-start"));
+                layout.appendChild(createFieldControl(caseToggle, "flex w-24 justify-start"));
+                const excludeAnyWrapper = createFieldControl(includeAnyToggle, "flex w-24 justify-start");
+                excludeAnyWrapper.classList.toggle("invisible", !supportsExcludeAny(node.field));
+                if (showExcludeAnyColumn) {
+                    layout.appendChild(excludeAnyWrapper);
+                }
+
+                row.appendChild(layout);
+                return row;
+            }
+
+            function renderClauseHeaderRow(showExcludeAnyColumn) {
+                const header = document.createElement("div");
+                header.className = "flex flex-wrap items-end gap-2 px-3";
+
+                function addLabel(text, className, centered) {
+                    const node = document.createElement("div");
+                    node.className = className + " shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-600";
+                    node.textContent = text;
+                    if (centered) {
+                        node.classList.add("text-center");
+                    }
+                    header.appendChild(node);
+                }
+
+                addLabel("", "w-8");
+                addLabel("", "w-10");
+                addLabel("Field", "min-w-0 flex-[1.2_1_0%]");
+                addLabel("Operator", "min-w-0 flex-[0.8_1_0%]");
+                addLabel("Value", "min-w-0 flex-[1.8_1_0%]");
+                addLabel("Negate?", "w-24", false);
+                addLabel("Case Sensitive?", "w-24", false);
+                if (showExcludeAnyColumn) {
+                    addLabel("Include Any?", "w-24", false);
+                }
+                return header;
+            }
+
+            function renderGroupStack(parentNode, parentPath) {
+                const stack = document.createElement("div");
+                stack.className = "flex flex-col gap-1";
+
+                parentNode.clauses.forEach(function (groupNode, index) {
+                    const childPath = parentPath.concat(index);
+                    const connector = renderGroupConnector(index, parentPath, parentNode.operator);
+                    if (connector) {
+                        stack.appendChild(connector);
+                    }
+                    stack.appendChild(renderGroup(groupNode, childPath));
+                });
+
+                return stack;
+            }
+
+            function renderGroup(node, path) {
+                const group = document.createElement("div");
+                group.className = "relative flex flex-col gap-3 border px-6 py-4 " + getGroupDepthClasses(node);
+
+                if (!groupContainsGroups(node) && node.clauses.length > 1) {
+                    const toggleGroupOperatorButton = document.createElement("button");
+                    toggleGroupOperatorButton.type = "button";
+                    toggleGroupOperatorButton.className = "absolute top-1/2 left-0 z-10 inline-flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700 shadow-sm hover:bg-blue-50";
+                    toggleGroupOperatorButton.setAttribute("aria-label", "Toggle group operator");
+                    toggleGroupOperatorButton.innerHTML = `{% lucide "refresh-cw" class="h-4 w-4" %}`;
+                    toggleGroupOperatorButton.addEventListener("click", function () {
+                        patchNode(path, function (target) {
+                            target.operator = target.operator === "and" ? "or" : "and";
+                        });
+                        renderBuilder();
+                    });
+                    group.appendChild(toggleGroupOperatorButton);
+                }
+
+                if (path.length >= 1 && !groupContainsGroups(node)) {
+                    const removeGroupButton = document.createElement("button");
+                    removeGroupButton.type = "button";
+                    removeGroupButton.className = "absolute top-1/2 right-0 z-10 inline-flex h-10 w-10 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50";
+                    removeGroupButton.setAttribute("aria-label", "Delete group");
+                    removeGroupButton.innerHTML = `{% lucide "trash-2" class="h-4 w-4" %}`;
+                    removeGroupButton.addEventListener("click", function () {
+                        removeNode(path);
+                    });
+                    group.appendChild(removeGroupButton);
+                }
+
+                const body = document.createElement("div");
+                body.className = "flex flex-col";
+                if (groupContainsGroups(node)) {
+                    body.appendChild(renderGroupStack(node, path));
+                } else {
+                    const showExcludeAnyColumn = groupUsesExcludeAny(node);
+                    body.appendChild(renderClauseHeaderRow(showExcludeAnyColumn));
+                    node.clauses.forEach(function (clause, index) {
+                        const childPath = path.concat(index);
+                        body.appendChild(
+                            renderClause(
+                                clause,
+                                childPath,
+                                path,
+                                node.operator,
+                                index > 0,
+                                showExcludeAnyColumn
+                            )
+                        );
+                    });
+                    if (!node.clauses.length) {
+                        const empty = document.createElement("div");
+                        empty.className = "border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-500";
+                        empty.textContent = "No clauses yet.";
+                        body.appendChild(empty);
+                    }
+
+                    const addClauseRow = document.createElement("div");
+                    addClauseRow.className = "px-3 pt-2";
+
+                    const addClauseLayout = document.createElement("div");
+                    addClauseLayout.className = "flex flex-wrap items-center gap-3";
+
+                    const addClauseSpacer = document.createElement("div");
+                    addClauseSpacer.className = "w-10 shrink-0";
+
+                    const addClauseButtonSlot = document.createElement("div");
+                    addClauseButtonSlot.className = "flex w-8 shrink-0 justify-center";
+
+                    const addClauseButton = document.createElement("button");
+                    const addClauseEnabled = canAddClauseToGroup(node);
+                    addClauseButton.type = "button";
+                    addClauseButton.dataset.addClausePath = path.join("-");
+                    addClauseButton.className = addClauseEnabled
+                        ? "inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                        : "inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed";
+                    addClauseButton.setAttribute("aria-label", "Add clause");
+                    addClauseButton.disabled = !addClauseEnabled;
+                    addClauseButton.innerHTML = `{% lucide "plus" class="h-3 w-3" %}`;
+                    addClauseButton.addEventListener("click", function () {
+                        addClause(path);
+                    });
+
+                    addClauseButtonSlot.appendChild(addClauseButton);
+
+                    addClauseLayout.appendChild(addClauseButtonSlot);
+                    addClauseLayout.appendChild(addClauseSpacer);
+                    addClauseRow.appendChild(addClauseLayout);
+                    body.appendChild(addClauseRow);
+                }
+                group.appendChild(body);
+                return group;
+            }
+
+            function renderGroupConnector(index, parentPath, parentOperator) {
+                if (index === 0) {
+                    return null;
+                }
+                const connector = document.createElement("div");
+                connector.className = "relative z-10 -my-4 flex justify-center";
+                const parentNode = getNodeAtPath(parentPath);
+                const leftNode = parentNode.clauses[index - 1];
+                const rightNode = parentNode.clauses[index];
+                const canExpandGroup = (isGroup(leftNode) && groupContainsGroups(leftNode)) !== (isGroup(rightNode) && groupContainsGroups(rightNode));
+                const isNestedSeam = parentPath.length > 0;
+
+                const controls = document.createElement("div");
+                controls.className = "inline-flex items-center gap-2";
+
+                const operatorToggle = document.createElement("button");
+                operatorToggle.type = "button";
+                operatorToggle.className = parentOperator === "and"
+                    ? "inline-flex h-8 min-w-16 items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-4 text-[11px] font-medium uppercase tracking-wide text-blue-700 shadow-sm hover:bg-blue-100"
+                    : "inline-flex h-8 min-w-16 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 text-[11px] font-medium uppercase tracking-wide text-amber-700 shadow-sm hover:bg-amber-100";
+                operatorToggle.textContent = parentOperator.toUpperCase();
+                operatorToggle.setAttribute("aria-label", "Toggle group operator");
+                operatorToggle.addEventListener("click", function () {
+                    patchNode(parentPath, function (target) {
+                        target.operator = target.operator === "and" ? "or" : "and";
+                    });
+                    renderBuilder();
+                });
+
+                const groupButton = document.createElement("button");
+                groupButton.type = "button";
+                groupButton.className = "inline-flex h-8 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-[11px] font-medium uppercase tracking-wide text-slate-700 shadow-sm hover:bg-slate-50";
+                groupButton.textContent = isNestedSeam ? "Ungroup" : (canExpandGroup ? "Expand Group" : "Group");
+                groupButton.addEventListener("click", function () {
+                    if (isNestedSeam) {
+                        flattenTopNestedParent(parentPath);
+                    } else if (canExpandGroup) {
+                        expandGroupAtSeam(parentPath, index);
+                    } else {
+                        groupAdjacentGroups(parentPath, index);
+                    }
+                });
+
+                controls.appendChild(operatorToggle);
+                controls.appendChild(groupButton);
+                connector.appendChild(controls);
+                return connector;
+            }
+
+            function renderBuilder() {
+                ensureRootGroup();
+                setError("");
+                syncJsonField();
+                root.innerHTML = "";
+                if (!searchTree.clauses.length) {
+                    searchTree.clauses.push(groupTemplate());
+                }
+                root.appendChild(renderGroupStack(searchTree, []));
+            }
+
+            addGroupButton.addEventListener("click", function () {
+                ensureRootGroup();
+                searchTree.clauses.push(groupTemplate());
+                renderBuilder();
+            });
+
+            if (helpToggleButton) {
+                helpToggleButton.addEventListener("click", function () {
+                    const isOpen = helpDrawer && !helpDrawer.classList.contains("hidden");
+                    setHelpDrawerOpen(!isOpen);
+                });
+            }
+
+            if (jsonToggleButton) {
+                jsonToggleButton.addEventListener("click", function () {
+                    const isOpen = jsonPreviewPanel && !jsonPreviewPanel.classList.contains("hidden");
+                    setJsonPreviewOpen(!isOpen);
+                });
+            }
+
+            if (helpCloseButton) {
+                helpCloseButton.addEventListener("click", function () {
+                    setHelpDrawerOpen(false);
+                });
+            }
+
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape") {
+                    setHelpDrawerOpen(false);
+                }
+            });
+            setHelpDrawerOpen(false);
+            setJsonPreviewOpen(false);
+            renderBuilder();
+        }());
+</script>
+{% endblock %}
