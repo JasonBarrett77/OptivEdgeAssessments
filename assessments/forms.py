@@ -146,3 +146,31 @@ class ControlQueryForm(forms.ModelForm):
         if cleaned_data.get("is_baseline"):
             cleaned_data["adjusted_severity"] = None
         return cleaned_data
+
+
+class CatalogCreateForm(forms.Form):
+    label = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": f"h-8 {FORM_CONTROL_CLASS}",
+            }
+        ),
+    )
+    version = forms.CharField(
+        max_length=64,
+        initial="v1",
+        widget=forms.TextInput(
+            attrs={
+                "class": f"h-8 {FORM_CONTROL_CLASS} font-mono",
+            }
+        ),
+    )
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": f"min-h-24 py-2 {FORM_CONTROL_CLASS}",
+            }
+        ),
+    )

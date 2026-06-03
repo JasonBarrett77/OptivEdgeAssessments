@@ -1,0 +1,1 @@
+"""Bundled catalog seed artifacts."""

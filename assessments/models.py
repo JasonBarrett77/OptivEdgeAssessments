@@ -7,8 +7,13 @@ import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.text import slugify
 
-from optivedge.integrations.models import ManagementPlaneProfile, SecurityRule
+from optivedge.integrations.models import (
+    ApplicationEnvironment,
+    ManagementPlaneProfile,
+    SecurityRule,
+)
 
 
 class SecurityRuleSearchState(models.Model):
@@ -325,3 +330,78 @@ class ManagementPlaneFindingControlQuery(models.Model):
 
     def __str__(self) -> str:
         return f"{self.management_plane_finding_id} <- {self.control_query_id}"
+
+
+class Catalog(models.Model):
+    key = models.SlugField(max_length=128, unique=True, blank=True)
+    label = models.CharField(max_length=255)
+    version = models.CharField(max_length=64, default="v1")
+    description = models.TextField(blank=True)
+    payload = models.JSONField(default=dict)
+    is_seeded = models.BooleanField(default=False)
+    is_snapshot = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["is_snapshot", "-is_seeded", "label", "version", "pk"]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.version})"
+
+    @classmethod
+    def generate_unique_key(cls, label: str, *, exclude_pk: int | None = None) -> str:
+        base_key = slugify(label)[:110] or "catalog"
+        candidate = base_key
+        suffix = 2
+        queryset = cls.objects.all()
+        if exclude_pk is not None:
+            queryset = queryset.exclude(pk=exclude_pk)
+        while queryset.filter(key=candidate).exists():
+            candidate = f"{base_key[:110]}-{suffix}"
+            suffix += 1
+        return candidate
+
+    @property
+    def control_count(self) -> int:
+        controls = self.payload.get("controls", [])
+        return len(controls) if isinstance(controls, list) else 0
+
+    @property
+    def query_count(self) -> int:
+        controls = self.payload.get("controls", [])
+        if not isinstance(controls, list):
+            return 0
+        return sum(
+            len(control.get("queries", []))
+            for control in controls
+            if isinstance(control, dict) and isinstance(control.get("queries", []), list)
+        )
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_unique_key(self.label, exclude_pk=self.pk)
+        return super().save(*args, **kwargs)
+
+
+class ApplicationEnvironmentCatalogState(models.Model):
+    application_environment = models.OneToOneField(
+        ApplicationEnvironment,
+        on_delete=models.CASCADE,
+        related_name="assessment_catalog_state",
+    )
+    current_catalog = models.ForeignKey(
+        Catalog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="environment_states",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["application_environment_id"]
+
+    def __str__(self) -> str:
+        catalog_label = self.current_catalog.label if self.current_catalog else "None"
+        return f"{self.application_environment} -> {catalog_label}"

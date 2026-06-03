@@ -1,5 +1,12 @@
 from django.urls import path
 
+from assessments.catalog_views import (
+    CatalogApplyView,
+    CatalogCreateFromCurrentControlsView,
+    CatalogDownloadView,
+    CatalogListView,
+    CatalogSeedDownloadView,
+)
 from assessments.plain_language.views import PlainLanguageSecurityRuleQueryView
 from assessments.views import (
     ControlCreateView,
@@ -21,6 +28,31 @@ from assessments.views import (
 
 
 urlpatterns = [
+    path(
+        "catalogs/",
+        CatalogListView.as_view(),
+        name="assessment_catalog_list",
+    ),
+    path(
+        "catalogs/export-seed/",
+        CatalogSeedDownloadView.as_view(),
+        name="assessment_catalog_seed_download",
+    ),
+    path(
+        "catalogs/create-from-current/",
+        CatalogCreateFromCurrentControlsView.as_view(),
+        name="assessment_catalog_create_from_current",
+    ),
+    path(
+        "catalogs/<int:pk>/apply/",
+        CatalogApplyView.as_view(),
+        name="assessment_catalog_apply",
+    ),
+    path(
+        "catalogs/<int:pk>/download/",
+        CatalogDownloadView.as_view(),
+        name="assessment_catalog_download",
+    ),
     path(
         "controls/",
         ControlListView.as_view(),

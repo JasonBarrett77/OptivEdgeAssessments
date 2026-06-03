@@ -9,6 +9,11 @@ SIDEBAR_SECTION = {
     "label": "Assessments",
     "icon": "clipboard-check",
     "active_names": {
+        "assessment_catalog_list",
+        "assessment_catalog_apply",
+        "assessment_catalog_create_from_current",
+        "assessment_catalog_download",
+        "assessment_catalog_seed_download",
         "assessment_security_rule_list",
         "assessment_security_rule_plain_language",
         "assessment_rule_finding_list",
@@ -23,6 +28,17 @@ SIDEBAR_SECTION = {
         "assessment_control_query_delete",
     },
     "items": [
+        {
+            "label": "Catalogs",
+            "href": "/assessments/catalogs/",
+            "active_names": {
+                "assessment_catalog_list",
+                "assessment_catalog_apply",
+                "assessment_catalog_create_from_current",
+                "assessment_catalog_download",
+                "assessment_catalog_seed_download",
+            },
+        },
         {
             "label": "Security Rules",
             "href": "/assessments/security-rules/",
