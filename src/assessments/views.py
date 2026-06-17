@@ -384,7 +384,7 @@ class ManagementPlaneProfileListView(TemplateView):
 
         if control_id:
             try:
-                selected_control = Control.objects.get(pk=control_id)
+                selected_control = Control.objects.get(pk=int(control_id))
                 if selected_control.control_type != Control.ControlType.MANAGEMENT_PLANE:
                     context["search_error"] = (
                         f"Control {selected_control.control_id} is a "
@@ -412,13 +412,13 @@ class ManagementPlaneProfileListView(TemplateView):
                         f"({len(active_queries)} quer{'y' if len(active_queries) == 1 else 'ies'})"
                     )
                     filter_suffix = f"&control={control_id}"
-            except Control.DoesNotExist:
+            except (Control.DoesNotExist, ValueError, TypeError):
                 context["search_error"] = "Control could not be found."
 
         elif control_query_id:
             try:
                 selected_control_query = ControlQuery.objects.select_related("control").get(
-                    pk=control_query_id
+                    pk=int(control_query_id)
                 )
                 canonical_query = selected_control_query.canonical_query
                 if not isinstance(canonical_query, dict) or canonical_query.get("model") != MANAGEMENT_PLANE_MODEL:
@@ -435,7 +435,7 @@ class ManagementPlaneProfileListView(TemplateView):
                     except SearchSyntaxError as exc:
                         context["search_error"] = str(exc) or "Saved query is invalid."
                         selected_control_query = None
-            except ControlQuery.DoesNotExist:
+            except (ControlQuery.DoesNotExist, ValueError, TypeError):
                 context["search_error"] = "Saved query could not be found."
 
         context["selected_control"] = selected_control
