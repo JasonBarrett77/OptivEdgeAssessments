@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form_mode == "update" %}Edit Control Query{% else %}Create Control Query{% endif %}{% endblock %}
+
+{% block content %}
+{% if form_mode == "update" %}
+{% include "assessments/partials/control_detail_content.html" %}
+{% else %}
+{% include "assessments/partials/control_list_content.html" %}
+{% endif %}
+{% endblock %}
+
+{% block overlay_title %}
+    <h1 class="truncate text-sm font-semibold text-slate-900">{{ form_title|default:"Create Query" }}</h1>
+{% endblock %}
+
+{% block overlay_body %}
+    {% if load_search_error %}
+    <div class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ load_search_error }}</div>
+    {% endif %}
+    <form method="post" class="flex flex-col gap-4 px-4 py-4">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 gap-4">
+            {% for field in form %}
+                {% if field.name == "is_baseline" or field.name == "is_active" %}
+                            <div class="flex flex-col gap-1">
+                                <div class="pt-2">
+                                    {% if field.name == "is_baseline" %}
+                                        {% include "components/toggle.html" with field=field size="md" label_prefix="Baseline:" label_on="Yes" label_off="No" text_color="text-slate-600" text_weight="font-medium" text_size="text-xs" text_tracking="tracking-wide" %}
+                                    {% else %}
+                                        {% include "components/toggle.html" with field=field size="md" label_prefix="Query is" label_on="active" label_off="inactive" text_color="text-slate-600" text_weight="font-medium" text_size="text-xs" text_tracking="tracking-wide" %}
+                                    {% endif %}
+                        </div>
+                        {% for error in field.errors %}
+                            <p class="text-xs text-red-700">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="flex flex-col gap-1">
+                        <label for="{{ field.id_for_label }}"
+                               class="text-xs font-medium uppercase tracking-wide text-slate-600">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <p class="text-xs text-slate-500">{{ field.help_text }}</p>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <p class="text-xs text-red-700">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% if form.non_field_errors %}
+            <div class="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <div class="flex items-center gap-2">
+            <button
+                type="submit"
+                class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+            >
+                {{ submit_label|default:"Save Query" }}
+            </button>
+            <a
+                href="{{ control_query_close_url }}"
+                class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+            >
+                Cancel
+            </a>
+        </div>
+    </form>
+{% endblock %}
+
+{% block head %}
+<script>
+    (function () {
+        function syncBaselineSeverityState() {
+            const baselineInput = document.getElementById("id_is_baseline");
+            const severityInput = document.getElementById("id_adjusted_severity");
+            if (!baselineInput || !severityInput) {
+                return;
+            }
+
+            function applyState() {
+                const isBaseline = baselineInput.checked;
+                if (isBaseline) {
+                    severityInput.value = "";
+                    severityInput.disabled = true;
+                    severityInput.classList.add("bg-slate-100", "text-slate-400", "cursor-not-allowed");
+                } else {
+                    severityInput.disabled = false;
+                    severityInput.classList.remove("bg-slate-100", "text-slate-400", "cursor-not-allowed");
+                }
+            }
+
+            baselineInput.addEventListener("change", applyState);
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", applyState, {once: true});
+            } else {
+                applyState();
+            }
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", syncBaselineSeverityState, {once: true});
+        } else {
+            syncBaselineSeverityState();
+        }
+    }());
+</script>
+{% endblock %}

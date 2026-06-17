@@ -555,6 +555,7 @@ class ControlQueryCreateView(RightOverlayMixin, ControlListBackgroundMixin, Temp
     def get_initial(self):
         selected_control = self.get_selected_control()
         canonical_query = None
+        self._load_search_error = None
         if "load_from_search" in self.request.POST:
             search_payload = self.request.POST.get("search", "").strip()
             if search_payload:
@@ -562,6 +563,21 @@ class ControlQueryCreateView(RightOverlayMixin, ControlListBackgroundMixin, Temp
                     canonical_query = parse_search_payload(search_payload)
                 except SearchSyntaxError:
                     canonical_query = _default_query_for_control(selected_control)
+                else:
+                    if selected_control and isinstance(canonical_query, dict):
+                        query_model = canonical_query.get("model")
+                        expected = {
+                            Control.ControlType.SECURITY_RULE: SECURITY_RULE_QUERY_MODEL,
+                            Control.ControlType.MANAGEMENT_PLANE: MANAGEMENT_PLANE_MODEL,
+                        }.get(selected_control.control_type)
+                        if expected and query_model != expected:
+                            self._load_search_error = (
+                                f"The loaded query targets {query_model}, but "
+                                f"{selected_control.control_id} is a "
+                                f"{selected_control.get_control_type_display()} control "
+                                f"({expected} required). The default query has been restored."
+                            )
+                            canonical_query = _default_query_for_control(selected_control)
         return {
             "control": selected_control.pk if selected_control else None,
             "adjusted_severity": None,
@@ -594,6 +610,7 @@ class ControlQueryCreateView(RightOverlayMixin, ControlListBackgroundMixin, Temp
             context["control"] = None
             context["control_queries"] = []
         context["form"] = form
+        context["load_search_error"] = getattr(self, "_load_search_error", None)
         context["control_query_close_url"] = (
             reverse("assessment_control_detail", kwargs={"pk": selected_control.pk})
             if selected_control

@@ -649,7 +649,7 @@ class ManagementPlaneProfileListViewTests(TestCase):
             management_station=self.station,
             appliance=self.appliance,
             source_type="show_merged_config",
-            collected_at=__import__("django.utils.timezone", fromlist=["now"]).now(),
+            collected_at=timezone.now(),
         )
         self.profile = ManagementPlaneProfile.objects.create(
             management_station=self.station,
@@ -788,6 +788,26 @@ class ManagementPlaneProfileListViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         initial_query = response.context["form"].initial["canonical_query"]
         self.assertEqual(initial_query["model"], "integrations.SecurityRule")
+
+    def test_load_from_search_with_mismatched_model_shows_error_and_restores_default(self):
+        import json
+        sr_payload = json.dumps({
+            "model": "integrations.SecurityRule",
+            "operator": "and",
+            "clauses": [{"field": "from_zone", "op": "eq", "value": "trust"}],
+        })
+        response = self.client.post(
+            f"{reverse('assessment_control_query_create')}?control={self.mgmt_control.pk}",
+            {
+                "search": sr_payload,
+                "load_from_search": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.context["load_search_error"])
+        self.assertIn("integrations.SecurityRule", response.context["load_search_error"])
+        initial_query = response.context["form"].initial["canonical_query"]
+        self.assertEqual(initial_query["model"], "integrations.ManagementPlaneProfile")
 
 
 class ControlQueryFormModelValidationTests(TestCase):
