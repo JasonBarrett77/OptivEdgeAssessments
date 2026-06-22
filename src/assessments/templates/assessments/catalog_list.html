@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Control Catalogs{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    {% include "assessments/partials/controls_tabs.html" with active_tab="catalogs" %}
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col gap-3">
+            <section class="border border-slate-200 bg-white">
+                <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <div>
+                        <p class="text-[11px] uppercase tracking-wide text-slate-500">Assessments</p>
+                        <h1 class="text-sm font-semibold text-slate-900">Control Catalogs</h1>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'assessment_catalog_seed_download' %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download Seed JSON</a>
+                        <a href="{% url 'assessment_control_list' %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">View Controls</a>
+                    </div>
+                </div>
+                {% if messages %}
+                <div class="border-b border-slate-200 px-4 py-3">
+                    <div class="flex flex-col gap-2">
+                        {% for message in messages %}
+                        <div class="border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}">
+                            {{ message }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="grid gap-0 divide-y divide-slate-200">
+                    <div class="grid grid-cols-[10rem,minmax(0,1fr)] gap-3 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-wide text-slate-500">Current Catalog</p>
+                        <div class="text-sm text-slate-900">
+                            {% if current_catalog_state and current_catalog_state.current_catalog %}
+                            {{ current_catalog_state.current_catalog.label }} <span class="font-mono text-slate-500">({{ current_catalog_state.current_catalog.version }})</span>
+                            {% else %}
+                            <span class="text-slate-500">No catalog applied yet.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-[10rem,minmax(0,1fr)] gap-3 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-wide text-slate-500">Environment</p>
+                        <div class="text-sm text-slate-900">
+                            {% if application_environment %}
+                            {{ application_environment.client_short_name }} / {{ application_environment.opportunity_number }}
+                            {% else %}
+                            <span class="text-slate-500">Configure Application Environment before applying a catalog.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-[10rem,minmax(0,1fr)] gap-3 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-wide text-slate-500">Live Controls</p>
+                        <div class="text-sm text-slate-900">{{ live_control_count }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="border border-slate-200 bg-white">
+                <div class="border-b border-slate-200 px-4 py-3">
+                    <h2 class="text-sm font-semibold text-slate-900">Create Catalog From Current Controls</h2>
+                    <p class="mt-1 text-sm text-slate-600">Export the current live control state into a reusable catalog row.</p>
+                </div>
+                <form method="post" action="{% url 'assessment_catalog_create_from_current' %}" class="grid gap-4 px-4 py-4">
+                    {% csrf_token %}
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="grid gap-1">
+                            <label for="{{ catalog_create_form.label.id_for_label }}" class="text-xs font-medium uppercase tracking-wide text-slate-500">Label</label>
+                            {{ catalog_create_form.label }}
+                        </div>
+                        <div class="grid gap-1">
+                            <label for="{{ catalog_create_form.version.id_for_label }}" class="text-xs font-medium uppercase tracking-wide text-slate-500">Version</label>
+                            {{ catalog_create_form.version }}
+                        </div>
+                    </div>
+                    <div class="grid gap-1">
+                        <label for="{{ catalog_create_form.description.id_for_label }}" class="text-xs font-medium uppercase tracking-wide text-slate-500">Description</label>
+                        {{ catalog_create_form.description }}
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Create Catalog</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="flex min-h-0 flex-1 flex-col border border-slate-200 bg-white">
+                <div class="border-b border-slate-200 px-4 py-3">
+                    <h2 class="text-sm font-semibold text-slate-900">Available Catalogs</h2>
+                </div>
+                <div class="min-h-0 flex-1 overflow-auto">
+                    <table class="min-w-full table-auto border-separate border-spacing-0">
+                        <thead>
+                            <tr>
+                                <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Catalog</th>
+                                <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Description</th>
+                                <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Counts</th>
+                                <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Source</th>
+                                <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for catalog in catalogs %}
+                            <tr>
+                                <td class="border-b border-slate-200 px-3 py-3 align-top">
+                                    <div class="flex flex-col gap-1">
+                                        <div class="text-sm font-medium text-slate-900">{{ catalog.label }}</div>
+                                        <div class="font-mono text-xs text-slate-500">{{ catalog.key }} / {{ catalog.version }}</div>
+                                        <div class="flex items-center gap-2">
+                                            {% if catalog.is_seeded %}
+                                            <span class="inline-flex items-center border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-emerald-700">Seeded</span>
+                                            {% endif %}
+                                            {% if catalog.is_snapshot %}
+                                            <span class="inline-flex items-center border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-700">Snapshot</span>
+                                            {% endif %}
+                                            {% if current_catalog_state and current_catalog_state.current_catalog_id == catalog.id %}
+                                            <span class="inline-flex items-center border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-blue-700">Current</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="border-b border-slate-200 px-3 py-3 align-top text-sm text-slate-700">
+                                    {% if catalog.description %}{{ catalog.description }}{% else %}<span class="text-slate-400">No description</span>{% endif %}
+                                </td>
+                                <td class="border-b border-slate-200 px-3 py-3 align-top text-sm text-slate-700">
+                                    {{ catalog.control_count }} controls / {{ catalog.query_count }} queries
+                                </td>
+                                <td class="border-b border-slate-200 px-3 py-3 align-top text-sm text-slate-700">
+                                    {% if catalog.is_snapshot %}Automatic snapshot{% elif catalog.is_seeded %}Seed file{% else %}Local catalog{% endif %}
+                                </td>
+                                <td class="border-b border-slate-200 px-3 py-3 align-top">
+                                    <div class="flex items-center gap-2">
+                                        <form method="post" action="{% url 'assessment_catalog_apply' pk=catalog.pk %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.path }}">
+                                            <button type="submit" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Apply</button>
+                                        </form>
+                                        <a href="{% url 'assessment_catalog_download' pk=catalog.pk %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="border-b border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                                    No catalogs are loaded yet. Add catalogs to the seed artifact or create one from current controls.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+{% endblock %}

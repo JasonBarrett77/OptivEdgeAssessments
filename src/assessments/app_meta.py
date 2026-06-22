@@ -30,15 +30,23 @@ SIDEBAR_SECTION = {
     },
     "items": [
         {
-            "label": "Catalogs",
-            "href": "/assessments/catalogs/",
-            "icon": "book-marked",
+            "label": "Controls",
+            "href": "/assessments/controls/",
+            "icon": "list-checks",
             "active_names": {
                 "assessment_catalog_list",
                 "assessment_catalog_apply",
                 "assessment_catalog_create_from_current",
                 "assessment_catalog_download",
                 "assessment_catalog_seed_download",
+                "assessment_control_list",
+                "assessment_control_detail",
+                "assessment_control_create",
+                "assessment_control_update",
+                "assessment_control_delete",
+                "assessment_control_query_create",
+                "assessment_control_query_update",
+                "assessment_control_query_delete",
             },
         },
         {
@@ -55,21 +63,6 @@ SIDEBAR_SECTION = {
             "icon": "wand-sparkles",
             "active_names": {
                 "assessment_security_rule_plain_language",
-            },
-        },
-        {
-            "label": "Control List",
-            "href": "/assessments/controls/",
-            "icon": "list-checks",
-            "active_names": {
-                "assessment_control_list",
-                "assessment_control_detail",
-                "assessment_control_create",
-                "assessment_control_update",
-                "assessment_control_delete",
-                "assessment_control_query_create",
-                "assessment_control_query_update",
-                "assessment_control_query_delete",
             },
         },
         {

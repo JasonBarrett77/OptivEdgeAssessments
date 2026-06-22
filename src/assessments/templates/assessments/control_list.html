@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Controls{% endblock %}
+
+{% block content %}
+<div class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    {% include "assessments/partials/controls_tabs.html" with active_tab="controls" %}
+    <div class="min-h-0 flex-1">
+        {% include "assessments/partials/control_list_content.html" %}
+    </div>
+</div>
+{% endblock %}
