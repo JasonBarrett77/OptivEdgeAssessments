@@ -26,7 +26,9 @@ from assessments.reporting import (
 )
 from assessments.findings import regenerate_rule_findings
 from assessments.management_findings import regenerate_management_plane_findings
+from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.models import (
+    ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
     ManagementPlaneFinding,
@@ -200,6 +202,25 @@ class ControlListView(ListView):
 
     def get_queryset(self):
         return get_control_list_queryset()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        application_environment = get_application_environment()
+        current_catalog_state = None
+        if application_environment is not None:
+            current_catalog_state = (
+                ApplicationEnvironmentCatalogState.objects.filter(
+                    application_environment=application_environment,
+                )
+                .select_related("current_catalog")
+                .first()
+            )
+        drifted = False
+        if current_catalog_state and current_catalog_state.current_catalog:
+            drifted = catalog_has_drifted(current_catalog_state.current_catalog.payload)
+        context["current_catalog_state"] = current_catalog_state
+        context["catalog_drifted"] = drifted
+        return context
 
 
 class RuleFindingListView(TemplateView):
