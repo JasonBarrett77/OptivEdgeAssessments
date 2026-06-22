@@ -123,6 +123,16 @@ def _validate_control_payload(control_payload: dict) -> dict:
         seen_query_names.add(normalized_query["name"])
         normalized_queries.append(normalized_query)
 
+    target_model = str(control_payload.get("target_model", "") or "")
+    if target_model:
+        for query in normalized_queries:
+            q_model = query["canonical_query"].get("model")
+            if q_model and q_model != target_model:
+                _raise_validation_error(
+                    f"Control '{control_id}' query '{query['name']}' targets "
+                    f"{q_model} but control target_model is {target_model}."
+                )
+
     return {
         "control_id": control_id,
         "name": _require_string(control_payload, "name", context=f"Control '{control_id}'"),
@@ -137,7 +147,7 @@ def _validate_control_payload(control_payload: dict) -> dict:
         "remediation": str(control_payload.get("remediation", "") or ""),
         "default_severity": default_severity,
         "implementation_version": str(control_payload.get("implementation_version", "v1") or "v1"),
-        "target_model": str(control_payload.get("target_model", "") or ""),
+        "target_model": target_model,
         "is_active": _require_bool(
             control_payload,
             "is_active",

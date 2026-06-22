@@ -3,11 +3,13 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
+from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.controls_catalog.io.importers import (
     apply_catalog,
     create_catalog_from_current_controls,
     seed_catalogs_if_empty,
 )
+from assessments.controls_catalog.schemas import validate_catalog_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
     AssessmentRun,
@@ -208,3 +210,85 @@ class ControlsCatalogTests(TestCase):
         self.assertEqual(catalog_response.status_code, 200)
         self.assertContains(catalog_response, "Catalogs")
         self.assertContains(catalog_response, "Snapshot Current")
+
+
+class CatalogDriftTargetModelTests(TestCase):
+    """Verify that target_model is included in the drift fingerprint."""
+
+    def _make_payload(self, target_model):
+        # Minimal payload with no queries so the only variable is target_model.
+        return {
+            "type": "optivedge.assessments.catalog",
+            "schema_version": "1.0",
+            "catalog": {"key": "test", "label": "Test", "version": "v1", "description": ""},
+            "controls": [{
+                "control_id": "TM-DRIFT-001",
+                "name": "Test",
+                "control_type": "security_rule",
+                "description": "test",
+                "rationale": "", "audit": "", "remediation": "",
+                "default_severity": "medium",
+                "implementation_version": "v1",
+                "target_model": target_model,
+                "is_active": True,
+                "queries": [],
+            }],
+        }
+
+    def setUp(self):
+        # Live control with no queries — matches the minimal payload structure.
+        Control.objects.create(
+            control_id="TM-DRIFT-001",
+            name="Test",
+            control_type=Control.ControlType.SECURITY_RULE,
+            description="test",
+            default_severity=Control.Severity.MEDIUM,
+        )
+        # target_model auto-set to "integrations.SecurityRule" by save()
+
+    def test_matching_target_model_no_drift(self):
+        payload = self._make_payload("integrations.SecurityRule")
+        self.assertFalse(catalog_has_drifted(payload))
+
+    def test_different_target_model_reports_drift(self):
+        payload = self._make_payload("integrations.OtherModel")
+        self.assertTrue(catalog_has_drifted(payload))
+
+
+class CatalogSchemaTargetModelValidationTests(TestCase):
+    def _base_payload(self, target_model, query_model):
+        return {
+            "type": "optivedge.assessments.catalog",
+            "schema_version": "1.0",
+            "catalog": {"key": "test", "label": "Test", "version": "v1", "description": ""},
+            "controls": [{
+                "control_id": "SCHEMA-TM-001",
+                "name": "Test",
+                "control_type": "security_rule",
+                "description": "test",
+                "rationale": "", "audit": "", "remediation": "",
+                "default_severity": "medium",
+                "implementation_version": "v1",
+                "target_model": target_model,
+                "is_active": True,
+                "queries": [{
+                    "name": "Baseline",
+                    "short_description": "",
+                    "canonical_query": {"model": query_model, "operator": "and", "clauses": [{"field": "from_zone", "op": "eq", "value": "trust"}]},
+                    "is_baseline": True,
+                    "adjusted_severity": None,
+                    "is_active": True,
+                }],
+            }],
+        }
+
+    def test_matching_target_and_query_model_valid(self):
+        payload = self._base_payload("integrations.SecurityRule", "integrations.SecurityRule")
+        result = validate_catalog_payload(payload)
+        self.assertEqual(result["controls"][0]["target_model"], "integrations.SecurityRule")
+
+    def test_mismatched_target_and_query_model_invalid(self):
+        from django.core.exceptions import ValidationError
+        payload = self._base_payload("integrations.ManagementPlaneProfile", "integrations.SecurityRule")
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload)

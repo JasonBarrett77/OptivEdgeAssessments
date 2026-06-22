@@ -4,13 +4,15 @@ Computes a SHA-256 hash over the assessment-relevant fields of controls and
 queries, sorted deterministically. Two hashes that match mean the live control
 state is identical to the catalog payload for assessment purposes.
 
-Fields included: control_id, control_type, default_severity, is_active,
-implementation_version, and per-query name, canonical_query, is_baseline,
-adjusted_severity, is_active.
+Control fields included: control_id, control_type, default_severity, is_active,
+implementation_version, target_model.
 
-Fields excluded: pk, created_at, updated_at, name, description, rationale,
-audit, remediation, short_description — these do not affect query evaluation
-or finding generation.
+Query fields included: name, canonical_query, is_baseline, adjusted_severity,
+is_active.
+
+Fields excluded: pk, created_at, updated_at, name (control), description,
+rationale, audit, remediation, short_description — these do not affect query
+evaluation or finding generation.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ def _control_fingerprint(
     default_severity: str,
     is_active: bool,
     implementation_version: str,
+    target_model: str,
     queries: list[dict],
 ) -> dict:
     return {
@@ -35,6 +38,7 @@ def _control_fingerprint(
         "default_severity": default_severity,
         "is_active": is_active,
         "implementation_version": implementation_version,
+        "target_model": target_model,
         "queries": sorted(queries, key=lambda q: q["name"]),
     }
 
@@ -78,6 +82,7 @@ def hash_live_controls() -> str:
             control.default_severity,
             control.is_active,
             control.implementation_version,
+            control.target_model,
             queries,
         ))
     return _fingerprint_to_hash(fingerprints)
@@ -98,6 +103,7 @@ def hash_catalog_payload(payload: dict) -> str:
             control["default_severity"],
             control["is_active"],
             control["implementation_version"],
+            control.get("target_model", ""),
             queries,
         ))
     return _fingerprint_to_hash(fingerprints)

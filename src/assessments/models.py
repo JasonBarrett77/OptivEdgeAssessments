@@ -78,17 +78,20 @@ class Control(models.Model):
         return f"{self.control_id} - {self.name}"
 
     def save(self, *args, **kwargs):
-        if not self.target_model and self.control_type:
+        # For recognized control types, always derive target_model from the mapping
+        # so it can never go stale when control_type changes.
+        # For unrecognized types (future extension), preserve explicit target_model.
+        if self.control_type in {c.value for c in self.ControlType}:
             self.target_model = self._CONTROL_TYPE_TARGET_MODEL.get(self.control_type, "")
         super().save(*args, **kwargs)
 
     @property
     def supports_security_rule_ui(self) -> bool:
-        return self.control_type == self.ControlType.SECURITY_RULE
+        return self.target_model == "integrations.SecurityRule"
 
     @property
     def supports_management_plane_ui(self) -> bool:
-        return self.control_type == self.ControlType.MANAGEMENT_PLANE
+        return self.target_model == "integrations.ManagementPlaneProfile"
 
 
 class AssessmentRun(models.Model):
@@ -157,6 +160,16 @@ class ControlQuery(models.Model):
 
     def clean(self) -> None:
         super().clean()
+        if self.control_id and isinstance(self.canonical_query, dict):
+            q_model = self.canonical_query.get("model")
+            control_target = self.control.target_model if self.control_id else ""
+            if q_model and control_target and q_model != control_target:
+                raise ValidationError({
+                    "canonical_query": (
+                        f"Query targets {q_model} but control "
+                        f"{self.control.control_id} requires {control_target}."
+                    )
+                })
         if not self.is_baseline:
             return
         if self.adjusted_severity not in (None, ""):

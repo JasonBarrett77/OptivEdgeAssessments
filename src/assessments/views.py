@@ -205,7 +205,8 @@ class ControlListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        application_environment = get_application_environment()
+        from assessments.environment import get_application_environment as _get_env_safe
+        application_environment = _get_env_safe()
         current_catalog_state = None
         if application_environment is not None:
             current_catalog_state = (
@@ -802,16 +803,33 @@ class SecurityRuleListView(TemplateView):
         if control_query_id:
             try:
                 selected_control_query = ControlQuery.objects.select_related("control").get(
-                    pk=control_query_id
+                    pk=int(control_query_id)
                 )
-            except ControlQuery.DoesNotExist:
+                q_model = (
+                    selected_control_query.canonical_query.get("model")
+                    if isinstance(selected_control_query.canonical_query, dict)
+                    else None
+                )
+                if q_model and q_model != SECURITY_RULE_QUERY_MODEL:
+                    context["search_error"] = (
+                        f"This query targets {q_model} and cannot be applied to security rules."
+                    )
+                    selected_control_query = None
+                    context["edit_search_open"] = True
+            except (ControlQuery.DoesNotExist, ValueError, TypeError):
                 context["search_error"] = "Saved query could not be found."
                 context["edit_search_open"] = True
 
         if control_id:
             try:
-                selected_control = Control.objects.get(pk=control_id)
-            except Control.DoesNotExist:
+                selected_control = Control.objects.get(pk=int(control_id))
+                if selected_control.target_model and selected_control.target_model != SECURITY_RULE_QUERY_MODEL:
+                    context["search_error"] = (
+                        f"Control {selected_control.control_id} targets "
+                        f"{selected_control.target_model} and cannot be applied to security rules."
+                    )
+                    selected_control = None
+            except (Control.DoesNotExist, ValueError, TypeError):
                 context["search_error"] = "Control could not be found."
 
         if context["search_state_token"]:

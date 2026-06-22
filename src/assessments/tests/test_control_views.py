@@ -857,3 +857,163 @@ class ControlQueryFormModelValidationTests(TestCase):
         form = self._post_query(self.sr_control, "integrations.ManagementPlaneProfile")
         self.assertFalse(form.is_valid())
         self.assertIn("canonical_query", form.errors)
+
+
+class ControlTargetModelTests(TestCase):
+    def test_security_rule_control_sets_target_model(self):
+        c = Control.objects.create(
+            control_id="SR-TM-001", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertEqual(c.target_model, "integrations.SecurityRule")
+
+    def test_management_plane_control_sets_target_model(self):
+        c = Control.objects.create(
+            control_id="MP-TM-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertEqual(c.target_model, "integrations.ManagementPlaneProfile")
+
+    def test_config_control_has_empty_target_model(self):
+        c = Control.objects.create(
+            control_id="CFG-TM-001", name="CFG", control_type=Control.ControlType.CONFIG,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertEqual(c.target_model, "")
+
+    def test_changing_to_config_clears_target_model(self):
+        c = Control.objects.create(
+            control_id="SR-TM-002", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertEqual(c.target_model, "integrations.SecurityRule")
+        c.control_type = Control.ControlType.CONFIG
+        c.save()
+        self.assertEqual(c.target_model, "")
+
+    def test_changing_to_management_plane_updates_target_model(self):
+        c = Control.objects.create(
+            control_id="SR-TM-003", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertEqual(c.target_model, "integrations.SecurityRule")
+        c.control_type = Control.ControlType.MANAGEMENT_PLANE
+        c.save()
+        self.assertEqual(c.target_model, "integrations.ManagementPlaneProfile")
+
+    def test_supports_security_rule_ui_uses_target_model(self):
+        c = Control.objects.create(
+            control_id="SR-TM-004", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertTrue(c.supports_security_rule_ui)
+        self.assertFalse(c.supports_management_plane_ui)
+
+    def test_supports_management_plane_ui_uses_target_model(self):
+        c = Control.objects.create(
+            control_id="MP-TM-002", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.assertFalse(c.supports_security_rule_ui)
+        self.assertTrue(c.supports_management_plane_ui)
+
+
+class ControlQueryTargetModelValidationTests(TestCase):
+    def setUp(self):
+        self.sr_control = Control.objects.create(
+            control_id="SR-QVAL-001", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.mp_control = Control.objects.create(
+            control_id="MP-QVAL-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+
+    def _make_query(self, control, model_label):
+        return ControlQuery(
+            control=control,
+            name="Test",
+            canonical_query={"model": model_label, "operator": "and", "clauses": []},
+            is_baseline=True,
+        )
+
+    def test_matching_model_passes_clean(self):
+        q = self._make_query(self.sr_control, "integrations.SecurityRule")
+        q.full_clean()  # should not raise
+
+    def test_mismatched_model_fails_clean(self):
+        from django.core.exceptions import ValidationError
+        q = self._make_query(self.sr_control, "integrations.ManagementPlaneProfile")
+        with self.assertRaises(ValidationError) as ctx:
+            q.full_clean()
+        self.assertIn("canonical_query", ctx.exception.message_dict)
+
+    def test_mp_mismatched_model_fails_clean(self):
+        from django.core.exceptions import ValidationError
+        q = self._make_query(self.mp_control, "integrations.SecurityRule")
+        with self.assertRaises(ValidationError) as ctx:
+            q.full_clean()
+        self.assertIn("canonical_query", ctx.exception.message_dict)
+
+
+class SecurityRuleListViewGuardTests(TestCase):
+    def setUp(self):
+        self.sr_control = Control.objects.create(
+            control_id="SR-GUARD-001", name="SR", control_type=Control.ControlType.SECURITY_RULE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.mp_control = Control.objects.create(
+            control_id="MP-GUARD-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            description="test", default_severity=Control.Severity.MEDIUM,
+        )
+        self.mp_query = ControlQuery.objects.create(
+            control=self.mp_control,
+            name="Baseline",
+            canonical_query={"model": "integrations.ManagementPlaneProfile", "operator": "and", "clauses": [{"field": "ha_required", "op": "eq", "value": True}]},
+            is_baseline=True,
+        )
+
+    def test_management_plane_control_rejected(self):
+        response = self.client.get(
+            reverse("assessment_security_rule_list"),
+            {"control": self.mp_control.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        ctx = response.context
+        self.assertIsNone(ctx["selected_control"])
+        self.assertTrue(ctx["search_error"])
+        self.assertIn("integrations.ManagementPlaneProfile", ctx["search_error"])
+
+    def test_management_plane_query_rejected(self):
+        response = self.client.get(
+            reverse("assessment_security_rule_list"),
+            {"control_query": self.mp_query.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        ctx = response.context
+        self.assertIsNone(ctx["selected_control_query"])
+        self.assertTrue(ctx["search_error"])
+
+    def test_malformed_control_param_does_not_500(self):
+        response = self.client.get(
+            reverse("assessment_security_rule_list"),
+            {"control": "abc"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["search_error"])
+
+    def test_malformed_control_query_param_does_not_500(self):
+        response = self.client.get(
+            reverse("assessment_security_rule_list"),
+            {"control_query": "abc"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["search_error"])
+
+
+class ControlListViewNoEnvironmentTests(TestCase):
+    def test_renders_without_application_environment(self):
+        response = self.client.get(reverse("assessment_control_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["current_catalog_state"])
+        self.assertFalse(response.context["catalog_drifted"])
