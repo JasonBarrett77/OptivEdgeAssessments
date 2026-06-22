@@ -59,7 +59,7 @@ SIDEBAR_SECTION = [
                 },
             },
             {
-                "label": "Findings",
+                "label": "Security Rule Findings",
                 "href": "/assessments/findings/",
                 "icon": "flag",
                 "active_names": {
@@ -67,7 +67,7 @@ SIDEBAR_SECTION = [
                 },
             },
             {
-                "label": "Management Profiles",
+                "label": "Management Plane",
                 "href": "/assessments/management-plane-profiles/",
                 "icon": "monitor",
                 "active_names": {
@@ -75,7 +75,7 @@ SIDEBAR_SECTION = [
                 },
             },
             {
-                "label": "Management Findings",
+                "label": "Management Plane Findings",
                 "href": "/assessments/management-findings/",
                 "icon": "triangle-alert",
                 "active_names": {
@@ -91,7 +91,7 @@ SIDEBAR_SECTION = [
         },
         "items": [
             {
-                "label": "Plain Language Rules",
+                "label": "Plain-Language Security Rule Query",
                 "href": "/assessments/security-rules/plain-language/",
                 "icon": "wand-sparkles",
                 "active_names": {

@@ -104,15 +104,15 @@ class ControlViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.control.control_id)
-        self.assertContains(response, "Run Findings")
-        self.assertContains(response, "Run Management Findings")
+        self.assertContains(response, "Run Security Rule Findings")
+        self.assertContains(response, "Run Management Plane Findings")
         self.assertContains(response, "/assessments/findings/")
 
     def test_rule_finding_list_view_renders_empty_state(self):
         response = self.client.get(reverse("assessment_rule_finding_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Rule Findings")
+        self.assertContains(response, "Security Rule Findings")
         self.assertContains(response, "No rule findings available.")
         self.assertContains(response, reverse("assessment_rule_finding_docx_download"))
         self.assertContains(response, reverse("assessment_rule_finding_xlsx_download"))

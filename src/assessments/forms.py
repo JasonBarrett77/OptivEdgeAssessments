@@ -76,6 +76,9 @@ class ControlForm(forms.ModelForm):
                 }
             ),
         }
+        labels = {
+            "control_type": "Control Category",
+        }
 
 
 class ControlQueryForm(forms.ModelForm):

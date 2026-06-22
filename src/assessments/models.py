@@ -85,6 +85,15 @@ class Control(models.Model):
             self.target_model = self._CONTROL_TYPE_TARGET_MODEL.get(self.control_type, "")
         super().save(*args, **kwargs)
 
+    _TARGET_MODEL_LABELS = {
+        "integrations.SecurityRule": "Security Rule",
+        "integrations.ManagementPlaneProfile": "Management Plane",
+    }
+
+    @property
+    def assessment_target_label(self) -> str:
+        return self._TARGET_MODEL_LABELS.get(self.target_model, "Configuration")
+
     @property
     def supports_security_rule_ui(self) -> bool:
         return self.target_model == "integrations.SecurityRule"

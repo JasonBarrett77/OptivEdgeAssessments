@@ -206,8 +206,7 @@ class ControlsCatalogTests(TestCase):
         catalog_response = self.client.get(reverse("assessment_catalog_list"))
 
         self.assertEqual(home_response.status_code, 200)
-        self.assertContains(home_response, "Control Catalog")
-        self.assertContains(home_response, "Base Controls")
+        self.assertContains(home_response, "Client Settings")
         self.assertEqual(catalog_response.status_code, 200)
         self.assertContains(catalog_response, "Catalogs")
         self.assertContains(catalog_response, "Snapshot Current")
