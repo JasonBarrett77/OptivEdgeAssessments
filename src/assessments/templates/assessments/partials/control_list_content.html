@@ -1,0 +1,93 @@
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+            <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
+                <div>
+                    <h1 class="text-sm font-semibold text-slate-900">Active Control List</h1>
+                    <p class="pt-0.5 text-xs text-slate-500">The controls and queries currently loaded in the system. Apply a catalog from the Catalogs tab to replace this list.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/assessments/findings/" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">View Findings</a>
+                    <a href="/assessments/management-findings/" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">View Management Findings</a>
+                    <form method="post" action="/assessments/controls/run-findings/">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Findings</button>
+                    </form>
+                    <form method="post" action="/assessments/controls/run-management-findings/">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Management Findings</button>
+                    </form>
+                    <a href="/assessments/controls/create/" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Create</a>
+                </div>
+            </div>
+            {% if messages %}
+            <div class="border-y border-slate-200 bg-slate-50 px-4 py-2">
+                <div class="flex flex-col gap-2">
+                    {% for message in messages %}
+                    <div class="border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="min-w-full table-fixed border-separate border-spacing-0">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Control ID</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Name</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Severity</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Version</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Queries</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for control in controls %}
+                        <tr
+                            class="cursor-pointer transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+                            onclick="window.location.href='/assessments/controls/{{ control.pk }}/'"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='/assessments/controls/{{ control.pk }}/'; }"
+                            tabindex="0"
+                            role="link"
+                        >
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-900">{{ control.control_id }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ control.name }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ control.get_default_severity_display }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ control.implementation_version }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ control.query_count }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{% if control.is_active %}Active{% else %}Inactive{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="border-b border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                                No controls configured.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2">
+                <p class="text-xs text-slate-500">
+                    {{ controls|length }} configured control{{ controls|length|pluralize }}
+                </p>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        disabled
+                        class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        Previous
+                    </button>
+                    <button
+                        type="button"
+                        disabled
+                        class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
