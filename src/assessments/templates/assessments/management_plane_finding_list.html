@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %} | Management Findings{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+            <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
+                <div>
+                    <h1 class="text-sm font-semibold text-slate-900">Management Findings</h1>
+                    <p class="pt-0.5 text-xs text-slate-500">
+                        Persisted management-plane findings generated from normalized appliance profiles.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/assessments/controls/" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Controls</a>
+                </div>
+            </div>
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="min-w-full table-fixed border-separate border-spacing-0">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Control</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Severity</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Status</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Station</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Appliance</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">HA Group</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Profile Details</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Queries</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for finding in management_findings %}
+                        <tr>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-900">
+                                <div class="font-medium">{{ finding.control.control_id }}</div>
+                                <div class="text-slate-600">{{ finding.title }}</div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ finding.get_severity_display }}</td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ finding.get_status_display }}</td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ finding.management_profile.management_station }}</td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
+                                <div>{{ finding.management_profile.appliance.hostname|default:finding.management_profile.appliance.serial_number }}</div>
+                                <div class="pt-1 text-xs text-slate-500">{{ finding.management_profile.appliance.serial_number }}</div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
+                                {% if finding.management_profile.appliance_group %}
+                                <div>{{ finding.management_profile.appliance_group.name }}</div>
+                                <div class="pt-1 text-xs text-slate-500">{{ finding.management_profile.appliance_group.get_group_type_display }}</div>
+                                {% else %}
+                                <span class="text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
+                                <div>HA required: {% if finding.management_profile.ha_required %}Yes{% else %}No{% endif %}</div>
+                                <div class="pt-1 text-xs text-slate-500">
+                                    NTP: {% if finding.management_profile.ntp_primary_server %}{{ finding.management_profile.ntp_primary_server }}{% else %}-{% endif %}
+                                    / {% if finding.management_profile.ntp_secondary_server %}{{ finding.management_profile.ntp_secondary_server }}{% else %}-{% endif %}
+                                </div>
+                                <div class="pt-1 text-xs text-slate-500">
+                                    Permitted IPs: {{ finding.management_profile.permitted_ip_count }}
+                                    {% if finding.management_profile.has_unrestricted_permitted_ips %}(unrestricted){% endif %}
+                                </div>
+                                <div class="pt-1 text-xs text-slate-500">
+                                    Idle timeout: {{ finding.management_profile.idle_timeout_minutes }} min
+                                </div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
+                                <div>{{ finding.control_queries.count }}</div>
+                                <div class="pt-1 text-xs text-slate-500">
+                                    {% for query in finding.control_queries.all %}
+                                    <div>{{ query.name }}</div>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{% if finding.summary %}{{ finding.summary }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="border-b border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                                No management findings available.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2">
+                <p class="text-xs text-slate-500">
+                    {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} finding{{ page_obj.paginator.count|pluralize }}
+                </p>
+                <div class="flex items-center gap-1">
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Previous</a>
+                    {% else %}
+                    <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Previous</span>
+                    {% endif %}
+                    {% for page_number in page_range %}
+                    {% if page_number == page_obj.number %}
+                    <span class="inline-flex h-7 min-w-7 items-center justify-center border border-blue-200 bg-blue-50 px-2 text-[11px] font-medium text-blue-700">{{ page_number }}</span>
+                    {% else %}
+                    <a href="?page={{ page_number }}" class="inline-flex h-7 min-w-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Next</a>
+                    {% else %}
+                    <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Next</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

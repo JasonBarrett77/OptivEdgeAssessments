@@ -1,0 +1,72 @@
+<section class="border border-slate-200 bg-white">
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-500">Assessment Controls</p>
+            <h2 class="text-sm font-semibold text-slate-900">Control Catalog</h2>
+        </div>
+        <a
+            href="{% url 'assessment_catalog_list' %}"
+            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+        >
+            Manage Catalogs
+        </a>
+    </div>
+    {% if catalog_error_message %}
+    <div class="px-4 py-4 text-sm text-red-700">
+        {{ catalog_error_message }}
+    </div>
+    {% elif not application_environment %}
+    <div class="px-4 py-4 text-sm text-slate-500">
+        Configure Application Environment before applying a control catalog.
+    </div>
+    {% elif current_catalog_state and current_catalog_state.current_catalog %}
+    <div class="grid gap-0 divide-y divide-slate-200">
+        <div class="grid grid-cols-[8rem,minmax(0,1fr)] gap-3 px-4 py-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500">Current</p>
+            <div class="text-sm text-slate-900">
+                {{ current_catalog_state.current_catalog.label }}
+                <span class="font-mono text-slate-500">({{ current_catalog_state.current_catalog.version }})</span>
+            </div>
+        </div>
+        <div class="grid grid-cols-[8rem,minmax(0,1fr)] gap-3 px-4 py-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500">Available</p>
+            <div class="flex flex-wrap gap-2">
+                {% for catalog in catalogs %}
+                <form method="post" action="{% url 'assessment_catalog_apply' pk=catalog.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="inline-flex h-8 items-center justify-center border {% if current_catalog_state.current_catalog_id == catalog.id %}border-blue-300 bg-blue-50 text-blue-700{% else %}border-slate-200 bg-white text-slate-700 hover:bg-slate-50{% endif %} px-3 text-sm font-medium whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        {{ catalog.label }}
+                    </button>
+                </form>
+                {% empty %}
+                <span class="text-sm text-slate-500">No catalogs loaded yet.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="grid gap-0 divide-y divide-slate-200">
+        <div class="grid grid-cols-[8rem,minmax(0,1fr)] gap-3 px-4 py-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500">Status</p>
+            <p class="text-sm text-slate-500">No catalog has been applied yet.</p>
+        </div>
+        <div class="grid grid-cols-[8rem,minmax(0,1fr)] gap-3 px-4 py-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500">Select</p>
+            <div class="flex flex-wrap gap-2">
+                {% for catalog in catalogs %}
+                <form method="post" action="{% url 'assessment_catalog_apply' pk=catalog.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        Apply {{ catalog.label }}
+                    </button>
+                </form>
+                {% empty %}
+                <span class="text-sm text-slate-500">No catalogs loaded yet.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</section>

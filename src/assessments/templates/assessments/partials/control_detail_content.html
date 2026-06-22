@@ -1,0 +1,187 @@
+{% load lucide %}
+<section class="flex h-full w-full min-h-0 min-w-0">
+    <div class="min-h-0 flex-1 overflow-auto">
+        <div class="flex flex-col px-4 py-3">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
+                <div class="min-w-0 space-y-1">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Control</div>
+                    <h1 class="text-[15px] font-semibold leading-5 text-slate-950">{{ control.name }}</h1>
+                    <div class="font-mono text-[13px] leading-5 text-slate-800">{{ control.control_id }}</div>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                    <a
+                        href="/assessments/controls/{{ control.pk }}/edit/"
+                        class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Edit
+                    </a>
+                    <a
+                        href="/assessments/controls/{{ control.pk }}/delete/"
+                        class="inline-flex h-8 items-center justify-center border border-red-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-red-700 hover:bg-red-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Delete
+                    </a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-y-3 border-b border-slate-200 py-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div class="flex min-w-0 flex-col gap-0.5 xl:border-r xl:border-slate-200 xl:pr-4">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Control Type</div>
+                    <div class="text-sm leading-5 text-slate-900">{{ control.get_control_type_display }}</div>
+                </div>
+                <div class="flex min-w-0 flex-col gap-0.5 xl:border-r xl:border-slate-200 xl:px-4">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Default Severity</div>
+                    <div class="text-sm leading-5 text-slate-900">{{ control.get_default_severity_display }}</div>
+                </div>
+                <div class="flex min-w-0 flex-col gap-0.5 xl:border-r xl:border-slate-200 xl:px-4">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Status</div>
+                    <div class="text-sm leading-5 text-slate-900">{% if control.is_active %}Active{% else %}Inactive{% endif %}</div>
+                </div>
+                <div class="flex min-w-0 flex-col gap-0.5 xl:border-r xl:border-slate-200 xl:px-4">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Implementation Version</div>
+                    <div class="text-sm leading-5 text-slate-900">{{ control.implementation_version }}</div>
+                </div>
+                <div class="flex min-w-0 flex-col gap-0.5 xl:pl-4">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Related Queries</div>
+                    <div class="text-sm leading-5 text-slate-900">{{ control_queries|length }}</div>
+                </div>
+            </div>
+
+            <div class="border-b border-slate-200 py-3">
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Description</div>
+                    {% if control.description %}
+                        <div class="whitespace-pre-wrap break-words text-left text-sm leading-6 text-slate-900">{{ control.description }}</div>
+                    {% else %}
+                        <div class="text-left text-sm leading-6 text-slate-400">-</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="border-b border-slate-200 py-3">
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Rationale</div>
+                    {% if control.rationale %}
+                        <div class="whitespace-pre-wrap break-words text-left text-sm leading-6 text-slate-900">{{ control.rationale }}</div>
+                    {% else %}
+                        <div class="text-left text-sm leading-6 text-slate-400">-</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="border-b border-slate-200 py-3">
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Audit</div>
+                    {% if control.audit %}
+                        <div class="whitespace-pre-wrap break-words text-left text-sm leading-6 text-slate-900">{{ control.audit }}</div>
+                    {% else %}
+                        <div class="text-left text-sm leading-6 text-slate-400">-</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="border-b border-slate-200 py-3">
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Remediation</div>
+                    {% if control.remediation %}
+                        <div class="whitespace-pre-wrap break-words text-left text-sm leading-6 text-slate-900">{{ control.remediation }}</div>
+                    {% else %}
+                        <div class="text-left text-sm leading-6 text-slate-400">-</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="pt-4">
+                <div class="border border-slate-200 bg-slate-50 px-4 py-2.5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h2 class="min-w-0 text-sm font-semibold text-slate-950">Related Queries</h2>
+                        <div class="flex shrink-0 items-center gap-3">
+                            {% if control.supports_security_rule_ui %}
+                                <a
+                                    href="/assessments/security-rules/?control={{ control.pk }}"
+                                    class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                >
+                                    View Query Results
+                                </a>
+                            {% endif %}
+                            <div class="text-sm text-slate-600">
+                                {{ control_queries|length }} row{{ control_queries|length|pluralize }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-auto border-x border-b border-slate-200">
+                    <table class="min-w-full table-auto border-separate border-spacing-0">
+                        <thead>
+                            <tr>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Name</th>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Type</th>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Severity</th>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Status</th>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Description</th>
+                                <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for control_query in control_queries %}
+                            <tr>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-900">{{ control_query.name }}</td>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">{% if control_query.is_baseline %}Baseline{% else %}Calibration{% endif %}</td>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
+                                    {% if control_query.adjusted_severity %}
+                                        {{ control_query.get_adjusted_severity_display }}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">{% if control_query.is_active %}Active{% else %}Inactive{% endif %}</td>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
+                                    {% if control_query.short_description %}
+                                        {{ control_query.short_description }}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
+                                    <div class="flex items-center gap-1.5">
+                                        <a
+                                            href="/assessments/security-rules/?control_query={{ control_query.pk }}"
+                                            class="inline-flex h-7 w-7 items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                            aria-label="View query results"
+                                            title="View query results"
+                                        >
+                                            {% lucide "eye" class="h-3.5 w-3.5" %}
+                                        </a>
+                                        <a
+                                            href="/assessments/controls/{{ control.pk }}/queries/{{ control_query.pk }}/edit/"
+                                            class="inline-flex h-7 w-7 items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                            aria-label="Edit query"
+                                            title="Edit query"
+                                        >
+                                            {% lucide "settings" class="h-3.5 w-3.5" %}
+                                        </a>
+                                        <a
+                                            href="/assessments/controls/{{ control.pk }}/queries/{{ control_query.pk }}/delete/"
+                                            class="inline-flex h-7 w-7 items-center justify-center border border-red-200 bg-white text-red-700 hover:bg-red-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                            aria-label="Delete query"
+                                            title="Delete query"
+                                        >
+                                            {% lucide "trash-2" class="h-3.5 w-3.5" %}
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">
+                                    No queries configured for this control.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
