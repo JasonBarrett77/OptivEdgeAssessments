@@ -1,0 +1,92 @@
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+            <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
+                <div>
+                    <h1 class="text-sm font-semibold text-slate-900">Catalogs</h1>
+                    <p class="pt-0.5 text-xs text-slate-500">
+                        Current:
+                        {% if current_catalog_state and current_catalog_state.current_catalog %}
+                            {{ current_catalog_state.current_catalog.label }} ({{ current_catalog_state.current_catalog.version }})
+                        {% else %}
+                            None
+                        {% endif %}
+                        &middot; {{ live_control_count }} live control{{ live_control_count|pluralize }}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{% url 'assessment_catalog_seed_download' %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download Seed</a>
+                    <a href="{% url 'assessment_catalog_create_from_current' %}" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Snapshot Current</a>
+                </div>
+            </div>
+            {% if messages %}
+            <div class="border-y border-slate-200 bg-slate-50 px-4 py-2">
+                <div class="flex flex-col gap-2">
+                    {% for message in messages %}
+                    <div class="border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="min-w-full table-fixed border-separate border-spacing-0">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Catalog</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Description</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Controls</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Tags</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for catalog in catalogs %}
+                        <tr>
+                            <td class="border-b border-slate-200 px-3 py-2 align-middle">
+                                <div class="text-sm font-medium text-slate-900">{{ catalog.label }}</div>
+                                <div class="font-mono text-xs text-slate-400">{{ catalog.key }} / {{ catalog.version }}</div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-middle text-sm text-slate-700">
+                                {% if catalog.description %}{{ catalog.description }}{% else %}<span class="text-slate-400">—</span>{% endif %}
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-middle text-sm text-slate-700 whitespace-nowrap">
+                                {{ catalog.control_count }} / {{ catalog.query_count }}
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-middle">
+                                <div class="flex flex-wrap items-center gap-1">
+                                    {% if current_catalog_state and current_catalog_state.current_catalog_id == catalog.id %}
+                                    <span class="inline-flex items-center border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-blue-700">Current</span>
+                                    {% endif %}
+                                    {% if catalog.is_seeded %}
+                                    <span class="inline-flex items-center border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-emerald-700">Seeded</span>
+                                    {% endif %}
+                                    {% if catalog.is_snapshot %}
+                                    <span class="inline-flex items-center border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-700">Snapshot</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="border-b border-slate-200 px-3 py-2 align-middle">
+                                <div class="flex items-center gap-2">
+                                    <form method="post" action="{% url 'assessment_catalog_apply' pk=catalog.pk %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.path }}">
+                                        <button type="submit" class="inline-flex h-7 items-center justify-center border border-blue-300 bg-blue-50 px-2.5 text-xs font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Apply</button>
+                                    </form>
+                                    <a href="{% url 'assessment_catalog_download' pk=catalog.pk %}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2.5 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="border-b border-slate-200 px-4 py-8 text-center text-sm text-slate-500">No catalogs loaded yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex shrink-0 items-center border-t border-slate-200 px-4 py-2">
+                <p class="text-xs text-slate-500">{{ catalogs|length }} catalog{{ catalogs|length|pluralize }}</p>
+            </div>
+        </div>
+    </div>
+</section>
