@@ -10,6 +10,7 @@ from assessments.catalog_views import (
 from assessments.plain_language.views import PlainLanguageSecurityRuleQueryView
 from assessments.views import (
     ControlCreateView,
+    SystemView,
     ControlDeleteView,
     ControlDetailView,
     ControlListView,
@@ -93,6 +94,11 @@ urlpatterns = [
         "management-findings/",
         ManagementPlaneFindingListView.as_view(),
         name="assessment_management_finding_list",
+    ),
+    path(
+        "system/",
+        SystemView.as_view(),
+        name="assessment_system",
     ),
     path(
         "management-plane-profiles/",

@@ -352,6 +352,10 @@ class ManagementPlaneFindingListView(ListView):
         return context
 
 
+class SystemView(TemplateView):
+    template_name = "assessments/system.html"
+
+
 class ManagementPlaneProfileListView(TemplateView):
     template_name = "assessments/management_plane_profile_list.html"
 
