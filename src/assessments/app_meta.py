@@ -52,7 +52,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Plain Language Rules",
             "href": "/assessments/security-rules/plain-language/",
-            "icon": "wand-2",
+            "icon": "wand-sparkles",
             "active_names": {
                 "assessment_security_rule_plain_language",
             },
