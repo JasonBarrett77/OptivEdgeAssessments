@@ -150,10 +150,7 @@ class ControlQueryForm(forms.ModelForm):
         canonical_query = cleaned_data.get("canonical_query")
         if control and isinstance(canonical_query, dict):
             query_model = canonical_query.get("model")
-            expected = {
-                Control.ControlType.SECURITY_RULE: "integrations.SecurityRule",
-                Control.ControlType.MANAGEMENT_PLANE: "integrations.ManagementPlaneProfile",
-            }.get(control.control_type)
+            expected = control.target_model or None
             if expected and query_model != expected:
                 self.add_error(
                     "canonical_query",

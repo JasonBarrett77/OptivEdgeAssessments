@@ -70,7 +70,7 @@ def build_profile_rows(profiles, severity_by_profile_id=None):
 
 
 def _default_query_for_control(control):
-    if control and control.control_type == Control.ControlType.MANAGEMENT_PLANE:
+    if control and control.target_model == MANAGEMENT_PLANE_MODEL:
         return default_management_plane_search_query()
     return default_security_rule_search_query()
 
@@ -410,7 +410,7 @@ class ManagementPlaneProfileListView(TemplateView):
         if control_id:
             try:
                 selected_control = Control.objects.get(pk=int(control_id))
-                if selected_control.control_type != Control.ControlType.MANAGEMENT_PLANE:
+                if selected_control.target_model != MANAGEMENT_PLANE_MODEL:
                     context["search_error"] = (
                         f"Control {selected_control.control_id} is a "
                         f"{selected_control.get_control_type_display()} control and cannot "
@@ -591,10 +591,7 @@ class ControlQueryCreateView(RightOverlayMixin, ControlListBackgroundMixin, Temp
                 else:
                     if selected_control and isinstance(canonical_query, dict):
                         query_model = canonical_query.get("model")
-                        expected = {
-                            Control.ControlType.SECURITY_RULE: SECURITY_RULE_QUERY_MODEL,
-                            Control.ControlType.MANAGEMENT_PLANE: MANAGEMENT_PLANE_MODEL,
-                        }.get(selected_control.control_type)
+                        expected = selected_control.target_model or None
                         if expected and query_model != expected:
                             self._load_search_error = (
                                 f"The loaded query targets {query_model}, but "
