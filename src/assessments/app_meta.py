@@ -58,7 +58,7 @@ SIDEBAR_SECTION = {
             },
         },
         {
-            "label": "Controls",
+            "label": "Control List",
             "href": "/assessments/controls/",
             "icon": "list-checks",
             "active_names": {
