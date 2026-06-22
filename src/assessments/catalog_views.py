@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
+from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.controls_catalog.io.exporters import export_catalog_seed_payload
 from assessments.controls_catalog.io.importers import (
     apply_catalog,
@@ -43,11 +44,16 @@ def _build_catalog_list_context() -> dict:
             .select_related("current_catalog")
             .first()
         )
+    drifted = False
+    if current_catalog_state and current_catalog_state.current_catalog:
+        drifted = catalog_has_drifted(current_catalog_state.current_catalog.payload)
+
     return {
         "application_environment": application_environment,
         "current_catalog_state": current_catalog_state,
         "catalogs": Catalog.objects.order_by("is_snapshot", "-is_seeded", "label", "version", "pk"),
         "live_control_count": Control.objects.count(),
+        "catalog_drifted": drifted,
     }
 
 

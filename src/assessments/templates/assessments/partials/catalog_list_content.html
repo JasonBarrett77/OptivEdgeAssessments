@@ -8,6 +8,7 @@
                         Current:
                         {% if current_catalog_state and current_catalog_state.current_catalog %}
                             {{ current_catalog_state.current_catalog.label }} ({{ current_catalog_state.current_catalog.version }})
+                            {% if catalog_drifted %}<span class="ml-1 text-amber-600">&#x26A0; Modified since apply</span>{% endif %}
                         {% else %}
                             None
                         {% endif %}
@@ -55,6 +56,7 @@
                                 <div class="flex flex-wrap items-center gap-1">
                                     {% if current_catalog_state and current_catalog_state.current_catalog_id == catalog.id %}
                                     <span class="inline-flex items-center border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-blue-700">Current</span>
+                                    {% if catalog_drifted %}<span class="inline-flex items-center border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-700">Modified</span>{% endif %}
                                     {% endif %}
                                     {% if catalog.is_seeded %}
                                     <span class="inline-flex items-center border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-emerald-700">Seeded</span>
