@@ -124,13 +124,27 @@ def _validate_control_payload(control_payload: dict) -> dict:
         normalized_queries.append(normalized_query)
 
     target_model = str(control_payload.get("target_model", "") or "")
+
+    _RECOGNIZED_TYPE_TARGET_MODEL = {
+        "security_rule": "integrations.SecurityRule",
+        "management_plane": "integrations.ManagementPlaneProfile",
+        "config": "",
+    }
+    if control_type in _RECOGNIZED_TYPE_TARGET_MODEL:
+        expected = _RECOGNIZED_TYPE_TARGET_MODEL[control_type]
+        if target_model != expected:
+            _raise_validation_error(
+                f"Control '{control_id}' has control_type '{control_type}' which requires "
+                f"target_model '{expected}' but got '{target_model}'."
+            )
+
     if target_model:
         for query in normalized_queries:
             q_model = query["canonical_query"].get("model")
-            if q_model and q_model != target_model:
+            if q_model != target_model:
                 _raise_validation_error(
                     f"Control '{control_id}' query '{query['name']}' targets "
-                    f"{q_model} but control target_model is {target_model}."
+                    f"{q_model!r} but control target_model is '{target_model}'."
                 )
 
     return {

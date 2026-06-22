@@ -12,7 +12,6 @@ from assessments.forms import ControlForm, ControlQueryForm
 from assessments.control_queries import (
     MANAGEMENT_PLANE_MODEL,
     SECURITY_RULE_QUERY_MODEL,
-    default_management_plane_search_query,
     default_security_rule_search_query,
     evaluate_control_queries,
     evaluate_management_plane_control_queries,
@@ -70,8 +69,8 @@ def build_profile_rows(profiles, severity_by_profile_id=None):
 
 
 def _default_query_for_control(control):
-    if control and control.target_model == MANAGEMENT_PLANE_MODEL:
-        return default_management_plane_search_query()
+    if control and control.target_model:
+        return {"model": control.target_model, "operator": "and", "clauses": []}
     return default_security_rule_search_query()
 
 

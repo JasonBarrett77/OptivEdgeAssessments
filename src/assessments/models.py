@@ -162,12 +162,14 @@ class ControlQuery(models.Model):
         super().clean()
         if self.control_id and isinstance(self.canonical_query, dict):
             q_model = self.canonical_query.get("model")
-            control_target = self.control.target_model if self.control_id else ""
-            if q_model and control_target and q_model != control_target:
+            control_target = self.control.target_model
+            if control_target and q_model != control_target:
                 raise ValidationError({
                     "canonical_query": (
-                        f"Query targets {q_model} but control "
-                        f"{self.control.control_id} requires {control_target}."
+                        f"Query model must be {control_target} for control "
+                        f"{self.control.control_id}"
+                        + (f" but got {q_model!r}" if q_model else " — model key is missing")
+                        + "."
                     )
                 })
         if not self.is_baseline:

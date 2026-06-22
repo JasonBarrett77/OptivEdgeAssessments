@@ -118,6 +118,7 @@ class ControlsCatalogTests(TestCase):
                         "remediation": "Tighten rule scope.",
                         "default_severity": "high",
                         "implementation_version": "v1",
+                        "target_model": "integrations.SecurityRule",
                         "is_active": True,
                         "queries": [
                             {
@@ -290,5 +291,27 @@ class CatalogSchemaTargetModelValidationTests(TestCase):
     def test_mismatched_target_and_query_model_invalid(self):
         from django.core.exceptions import ValidationError
         payload = self._base_payload("integrations.ManagementPlaneProfile", "integrations.SecurityRule")
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload)
+
+    def test_security_rule_with_management_plane_target_model_invalid(self):
+        from django.core.exceptions import ValidationError
+        payload = self._base_payload("integrations.ManagementPlaneProfile", "integrations.ManagementPlaneProfile")
+        # control_type=security_rule but target_model=ManagementPlaneProfile — contradicts save() derivation
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload)
+
+    def test_management_plane_control_with_sr_target_model_invalid(self):
+        from django.core.exceptions import ValidationError
+        payload = self._base_payload("integrations.SecurityRule", "integrations.SecurityRule")
+        # swap control_type to management_plane
+        payload["controls"][0]["control_type"] = "management_plane"
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload)
+
+    def test_config_control_with_nonempty_target_model_invalid(self):
+        from django.core.exceptions import ValidationError
+        payload = self._base_payload("integrations.SecurityRule", "integrations.SecurityRule")
+        payload["controls"][0]["control_type"] = "config"
         with self.assertRaises(ValidationError):
             validate_catalog_payload(payload)

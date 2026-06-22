@@ -955,6 +955,18 @@ class ControlQueryTargetModelValidationTests(TestCase):
             q.full_clean()
         self.assertIn("canonical_query", ctx.exception.message_dict)
 
+    def test_missing_model_key_fails_clean_when_target_model_set(self):
+        from django.core.exceptions import ValidationError
+        q = ControlQuery(
+            control=self.sr_control,
+            name="No model",
+            canonical_query={"operator": "and", "clauses": []},
+            is_baseline=True,
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            q.full_clean()
+        self.assertIn("canonical_query", ctx.exception.message_dict)
+
 
 class SecurityRuleListViewGuardTests(TestCase):
     def setUp(self):
