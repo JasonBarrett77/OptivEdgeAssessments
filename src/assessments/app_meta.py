@@ -44,6 +44,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Security Rules",
             "href": "/assessments/security-rules/",
+            "icon": "shield",
             "active_names": {
                 "assessment_security_rule_list",
             },
@@ -51,6 +52,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Plain Language Rules",
             "href": "/assessments/security-rules/plain-language/",
+            "icon": "wand-2",
             "active_names": {
                 "assessment_security_rule_plain_language",
             },
@@ -58,6 +60,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Controls",
             "href": "/assessments/controls/",
+            "icon": "list-checks",
             "active_names": {
                 "assessment_control_list",
                 "assessment_control_detail",
@@ -72,6 +75,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Findings",
             "href": "/assessments/findings/",
+            "icon": "flag",
             "active_names": {
                 "assessment_rule_finding_list",
             },
@@ -79,6 +83,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Management Profiles",
             "href": "/assessments/management-plane-profiles/",
+            "icon": "monitor",
             "active_names": {
                 "assessment_management_plane_profile_list",
             },
@@ -86,6 +91,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Management Findings",
             "href": "/assessments/management-findings/",
+            "icon": "triangle-alert",
             "active_names": {
                 "assessment_management_finding_list",
             },
