@@ -32,6 +32,7 @@ SIDEBAR_SECTION = {
         {
             "label": "Catalogs",
             "href": "/assessments/catalogs/",
+            "icon": "book-marked",
             "active_names": {
                 "assessment_catalog_list",
                 "assessment_catalog_apply",
