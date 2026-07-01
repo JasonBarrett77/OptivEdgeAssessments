@@ -15,6 +15,9 @@ dependencies = [
     "XlsxWriter",
 ]
 
+[project.scripts]
+optivedge-assessments = "assessments.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["assessments*"]
