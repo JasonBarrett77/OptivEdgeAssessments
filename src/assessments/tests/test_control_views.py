@@ -15,7 +15,7 @@ from optivedge.integrations.models import (
     Appliance,
     ApplianceGroup,
     EnforcementPoint,
-    ManagementPlaneProfile,
+    DeviceConfigurationProfile,
     ManagementStation,
     SecurityRule,
     SecurityRuleFromZone,
@@ -82,7 +82,6 @@ class ControlViewTests(TestCase):
             effective_order=1,
             rule_position=1,
             name=name,
-            provenance="test",
             action="allow",
             disabled=False,
             rule_type="universal",
@@ -105,11 +104,11 @@ class ControlViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.control.control_id)
         self.assertContains(response, "Run Security Rule Findings")
-        self.assertContains(response, "Run Management Plane Findings")
-        self.assertContains(response, "/assessments/findings/")
+        self.assertContains(response, "Run Device Configuration Findings")
+        self.assertContains(response, "View Findings")
 
-    def test_rule_finding_list_view_renders_empty_state(self):
-        response = self.client.get(reverse("assessment_rule_finding_list"))
+    def test_finding_list_view_renders_empty_state(self):
+        response = self.client.get(reverse("assessment_finding_list"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Security Rule Findings")
@@ -538,7 +537,7 @@ class ControlViewTests(TestCase):
         self.assertEqual(finding.control_queries.first(), baseline_query)
         self.assertContains(response, "Rule findings regenerated.")
 
-    def test_rule_finding_list_view_renders_persisted_findings(self):
+    def test_finding_list_view_renders_persisted_findings(self):
         security_rule = self.create_security_rule()
         assessment_run = AssessmentRun.objects.create(
             name="Rule Findings Run",
@@ -560,7 +559,7 @@ class ControlViewTests(TestCase):
             control_query=self.control.queries.first(),
         )
 
-        response = self.client.get(reverse("assessment_rule_finding_list"))
+        response = self.client.get(reverse("assessment_finding_list"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.control.control_id)
@@ -634,7 +633,7 @@ class ControlViewTests(TestCase):
         self.assertTrue(response.content.startswith(b"PK"))
 
 
-class ManagementPlaneProfileListViewTests(TestCase):
+class DeviceConfigurationProfileListViewTests(TestCase):
     def setUp(self):
         self.station = ManagementStation.objects.create(
             station_type=ManagementStation.StationType.PAN_PANORAMA,
@@ -651,7 +650,7 @@ class ManagementPlaneProfileListViewTests(TestCase):
             source_type="show_merged_config",
             collected_at=timezone.now(),
         )
-        self.profile = ManagementPlaneProfile.objects.create(
+        self.profile = DeviceConfigurationProfile.objects.create(
             management_station=self.station,
             appliance=self.appliance,
             source_snapshot=self.snapshot,
@@ -664,7 +663,7 @@ class ManagementPlaneProfileListViewTests(TestCase):
         self.mgmt_control = Control.objects.create(
             control_id="MGMT-TEST-001",
             name="Test management control",
-            control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="Test",
             default_severity=Control.Severity.HIGH,
         )
@@ -672,7 +671,7 @@ class ManagementPlaneProfileListViewTests(TestCase):
             control=self.mgmt_control,
             name="Baseline",
             canonical_query={
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "and",
                 "clauses": [{"field": "ha_required", "op": "eq", "value": True}],
             },
@@ -697,25 +696,25 @@ class ManagementPlaneProfileListViewTests(TestCase):
         )
 
     def test_profile_list_returns_200(self):
-        response = self.client.get(reverse("assessment_management_plane_profile_list"))
+        response = self.client.get(reverse("assessment_device_configuration_profile_list"))
         self.assertEqual(response.status_code, 200)
 
     def test_url_name_reverses(self):
-        url = reverse("assessment_management_plane_profile_list")
-        self.assertEqual(url, "/assessments/management-plane-profiles/")
+        url = reverse("assessment_device_configuration_profile_list")
+        self.assertEqual(url, "/assessments/device-configuration/")
 
     def test_sidebar_includes_new_route(self):
         from optivedge.app_registry import sidebar_sections
         sections = sidebar_sections()
         assessments = next(s for s in sections if s["label"] == "Assessments")
         active_names = assessments["active_names"]
-        self.assertIn("assessment_management_plane_profile_list", active_names)
+        self.assertIn("assessment_device_configuration_profile_list", active_names)
         item_hrefs = [item["href"] for item in assessments["items"]]
-        self.assertIn("/assessments/management-plane-profiles/", item_hrefs)
+        self.assertIn("/assessments/device-configuration/", item_hrefs)
 
     def test_control_filter_returns_matching_profiles(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control": self.mgmt_control.pk},
         )
         self.assertEqual(response.status_code, 200)
@@ -726,18 +725,18 @@ class ManagementPlaneProfileListViewTests(TestCase):
 
     def test_security_rule_control_is_rejected(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control": self.sr_control.pk},
         )
         self.assertEqual(response.status_code, 200)
         ctx = response.context
         self.assertIsNone(ctx["selected_control"])
-        self.assertIn("cannot be applied to management plane profiles", ctx["search_error"])
+        self.assertIn("cannot be applied to device configuration profiles", ctx["search_error"])
         self.assertFalse(ctx["show_control_severity"])
 
     def test_control_query_filter_returns_matching_profiles(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control_query": self.mgmt_query.pk},
         )
         self.assertEqual(response.status_code, 200)
@@ -747,17 +746,17 @@ class ManagementPlaneProfileListViewTests(TestCase):
 
     def test_security_rule_query_is_rejected(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control_query": self.sr_query.pk},
         )
         self.assertEqual(response.status_code, 200)
         ctx = response.context
         self.assertIsNone(ctx["selected_control_query"])
-        self.assertIn("does not target management plane profiles", ctx["search_error"])
+        self.assertIn("does not target device configuration profiles", ctx["search_error"])
 
     def test_malformed_control_param_does_not_500(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control": "abc"},
         )
         self.assertEqual(response.status_code, 200)
@@ -765,20 +764,20 @@ class ManagementPlaneProfileListViewTests(TestCase):
 
     def test_malformed_control_query_param_does_not_500(self):
         response = self.client.get(
-            reverse("assessment_management_plane_profile_list"),
+            reverse("assessment_device_configuration_profile_list"),
             {"control_query": "abc"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn("could not be found", response.context["search_error"])
 
-    def test_control_query_create_seeds_management_plane_default(self):
+    def test_control_query_create_seeds_device_configuration_default(self):
         response = self.client.get(
             reverse("assessment_control_query_create"),
             {"control": self.mgmt_control.pk},
         )
         self.assertEqual(response.status_code, 200)
         initial_query = response.context["form"].initial["canonical_query"]
-        self.assertEqual(initial_query["model"], "integrations.ManagementPlaneProfile")
+        self.assertEqual(initial_query["model"], "integrations.DeviceConfigurationProfile")
 
     def test_control_query_create_seeds_security_rule_default(self):
         response = self.client.get(
@@ -807,7 +806,7 @@ class ManagementPlaneProfileListViewTests(TestCase):
         self.assertIsNotNone(response.context["load_search_error"])
         self.assertIn("integrations.SecurityRule", response.context["load_search_error"])
         initial_query = response.context["form"].initial["canonical_query"]
-        self.assertEqual(initial_query["model"], "integrations.ManagementPlaneProfile")
+        self.assertEqual(initial_query["model"], "integrations.DeviceConfigurationProfile")
 
 
 class ControlQueryFormModelValidationTests(TestCase):
@@ -815,7 +814,7 @@ class ControlQueryFormModelValidationTests(TestCase):
         self.mgmt_control = Control.objects.create(
             control_id="MGMT-FORM-001",
             name="Form validation mgmt control",
-            control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="Test",
             default_severity=Control.Severity.MEDIUM,
         )
@@ -845,7 +844,7 @@ class ControlQueryFormModelValidationTests(TestCase):
         return form
 
     def test_matching_model_is_valid(self):
-        form = self._post_query(self.mgmt_control, "integrations.ManagementPlaneProfile")
+        form = self._post_query(self.mgmt_control, "integrations.DeviceConfigurationProfile")
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_mismatched_model_is_invalid_for_mgmt_control(self):
@@ -854,7 +853,7 @@ class ControlQueryFormModelValidationTests(TestCase):
         self.assertIn("canonical_query", form.errors)
 
     def test_mismatched_model_is_invalid_for_sr_control(self):
-        form = self._post_query(self.sr_control, "integrations.ManagementPlaneProfile")
+        form = self._post_query(self.sr_control, "integrations.DeviceConfigurationProfile")
         self.assertFalse(form.is_valid())
         self.assertIn("canonical_query", form.errors)
 
@@ -867,12 +866,12 @@ class ControlTargetModelTests(TestCase):
         )
         self.assertEqual(c.target_model, "integrations.SecurityRule")
 
-    def test_management_plane_control_sets_target_model(self):
+    def test_device_configuration_control_sets_target_model(self):
         c = Control.objects.create(
-            control_id="MP-TM-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_id="MP-TM-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
-        self.assertEqual(c.target_model, "integrations.ManagementPlaneProfile")
+        self.assertEqual(c.target_model, "integrations.DeviceConfigurationProfile")
 
     def test_config_control_has_empty_target_model(self):
         c = Control.objects.create(
@@ -891,15 +890,15 @@ class ControlTargetModelTests(TestCase):
         c.save()
         self.assertEqual(c.target_model, "")
 
-    def test_changing_to_management_plane_updates_target_model(self):
+    def test_changing_to_device_configuration_updates_target_model(self):
         c = Control.objects.create(
             control_id="SR-TM-003", name="SR", control_type=Control.ControlType.SECURITY_RULE,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.assertEqual(c.target_model, "integrations.SecurityRule")
-        c.control_type = Control.ControlType.MANAGEMENT_PLANE
+        c.control_type = Control.ControlType.DEVICE_CONFIGURATION
         c.save()
-        self.assertEqual(c.target_model, "integrations.ManagementPlaneProfile")
+        self.assertEqual(c.target_model, "integrations.DeviceConfigurationProfile")
 
     def test_supports_security_rule_ui_uses_target_model(self):
         c = Control.objects.create(
@@ -907,15 +906,15 @@ class ControlTargetModelTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.assertTrue(c.supports_security_rule_ui)
-        self.assertFalse(c.supports_management_plane_ui)
+        self.assertFalse(c.supports_device_configuration_ui)
 
-    def test_supports_management_plane_ui_uses_target_model(self):
+    def test_supports_device_configuration_ui_uses_target_model(self):
         c = Control.objects.create(
-            control_id="MP-TM-002", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_id="MP-TM-002", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.assertFalse(c.supports_security_rule_ui)
-        self.assertTrue(c.supports_management_plane_ui)
+        self.assertTrue(c.supports_device_configuration_ui)
 
 
 class ControlQueryTargetModelValidationTests(TestCase):
@@ -925,7 +924,7 @@ class ControlQueryTargetModelValidationTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_control = Control.objects.create(
-            control_id="MP-QVAL-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_id="MP-QVAL-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
 
@@ -943,7 +942,7 @@ class ControlQueryTargetModelValidationTests(TestCase):
 
     def test_mismatched_model_fails_clean(self):
         from django.core.exceptions import ValidationError
-        q = self._make_query(self.sr_control, "integrations.ManagementPlaneProfile")
+        q = self._make_query(self.sr_control, "integrations.DeviceConfigurationProfile")
         with self.assertRaises(ValidationError) as ctx:
             q.full_clean()
         self.assertIn("canonical_query", ctx.exception.message_dict)
@@ -975,17 +974,17 @@ class SecurityRuleListViewGuardTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_control = Control.objects.create(
-            control_id="MP-GUARD-001", name="MP", control_type=Control.ControlType.MANAGEMENT_PLANE,
+            control_id="MP-GUARD-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_query = ControlQuery.objects.create(
             control=self.mp_control,
             name="Baseline",
-            canonical_query={"model": "integrations.ManagementPlaneProfile", "operator": "and", "clauses": [{"field": "ha_required", "op": "eq", "value": True}]},
+            canonical_query={"model": "integrations.DeviceConfigurationProfile", "operator": "and", "clauses": [{"field": "ha_required", "op": "eq", "value": True}]},
             is_baseline=True,
         )
 
-    def test_management_plane_control_rejected(self):
+    def test_device_configuration_control_rejected(self):
         response = self.client.get(
             reverse("assessment_security_rule_list"),
             {"control": self.mp_control.pk},
@@ -994,9 +993,9 @@ class SecurityRuleListViewGuardTests(TestCase):
         ctx = response.context
         self.assertIsNone(ctx["selected_control"])
         self.assertTrue(ctx["search_error"])
-        self.assertIn("integrations.ManagementPlaneProfile", ctx["search_error"])
+        self.assertIn("integrations.DeviceConfigurationProfile", ctx["search_error"])
 
-    def test_management_plane_query_rejected(self):
+    def test_device_configuration_query_rejected(self):
         response = self.client.get(
             reverse("assessment_security_rule_list"),
             {"control_query": self.mp_query.pk},

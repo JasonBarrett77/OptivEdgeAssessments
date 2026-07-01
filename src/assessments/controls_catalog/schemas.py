@@ -127,7 +127,7 @@ def _validate_control_payload(control_payload: dict) -> dict:
 
     _RECOGNIZED_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
-        "management_plane": "integrations.ManagementPlaneProfile",
+        "device_configuration": "integrations.DeviceConfigurationProfile",
         "config": "",
     }
     if control_type in _RECOGNIZED_TYPE_TARGET_MODEL:

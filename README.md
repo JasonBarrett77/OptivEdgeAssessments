@@ -1,8 +1,8 @@
 # OptivEdgeAssessments
 
-`OptivEdgeAssessments` is a downstream Django project built on the `OptivEdge` framework.
+`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdge` framework. It is not intended to be deployed directly as a standalone Django project. Host Django projects install this package and include its app, URLs, templates, migrations, and assessment workflows.
 
-This project owns firewall assessment workflows that consume normalized firewall integration data provided by the installed OptivEdge package.
+This package owns firewall assessment workflows that consume normalized firewall integration data provided by OptivEdge.
 
 OptivEdge provides the framework layer:
 
@@ -26,42 +26,46 @@ OptivEdge provides the framework layer:
 
 ```text
 OptivEdgeAssessments/
-├── AGENTS.md
+├── pyproject.toml
 ├── README.md
-├── requirements.txt
-├── manage.py
-├── config/
-│   ├── settings.py
-│   ├── urls.py
-│   ├── asgi.py
-│   └── wsgi.py
-├── assessments/
-│   ├── app_meta.py
-│   ├── models.py
-│   ├── views.py
-│   ├── urls.py
-│   ├── search/
-│   ├── reporting/
-│   ├── plain_language/
-│   └── controls_catalog/
-└── templates/
-    └── assessments/
+├── DEPLOYMENT.md
+└── src/
+    └── assessments/          # installable Django app
+        ├── __init__.py
+        ├── app_meta.py
+        ├── apps.py
+        ├── models.py
+        ├── urls.py
+        ├── migrations/
+        ├── templates/
+        ├── templatetags/
+        ├── settings/
+        ├── controls_catalog/
+        ├── search/
+        ├── reporting/
+        └── plain_language/
 ```
+
+Only `src/assessments` is packaged for installation. Downstream host projects remain responsible for `manage.py`, root settings, URL configuration, database, environment variables, and deployment configuration.
 
 ## Dependency Model
 
-This project depends on OptivEdge through `requirements.txt`.
-
-During active development, `@main` may be used:
+This repository is packaged as the `optivedge-assessments` Python distribution, which installs the local `assessments` Django app. The app depends on OptivEdge through `pyproject.toml`:
 
 ```text
-git+https://github.com/JasonBarrett77/OptivEdge.git@main#egg=optivedge
+optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main
 ```
 
-For repeatable installs, prefer a tag or commit SHA:
+A downstream project can install this assessment app from GitHub in the same style:
 
-```text
-git+https://github.com/JasonBarrett77/OptivEdge.git@v0.1.0#egg=optivedge
+```bash
+python -m pip install "git+https://github.com/JasonBarrett77/OptivEdgeAssessments.git@main#egg=optivedge-assessments"
+```
+
+For repeatable installs, prefer a tag or commit SHA instead of `@main`:
+
+```bash
+python -m pip install "git+https://github.com/JasonBarrett77/OptivEdgeAssessments.git@v0.1.0#egg=optivedge-assessments"
 ```
 
 ## Requirements
@@ -71,7 +75,7 @@ git+https://github.com/JasonBarrett77/OptivEdge.git@v0.1.0#egg=optivedge
 * OptivEdge installed from GitHub
 * SQLite for local development unless another database is configured
 
-## Local Setup
+## Local Development
 
 Create and activate a virtual environment:
 
@@ -80,57 +84,32 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install dependencies:
+Install the assessment package in editable mode:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-Run migrations:
+Run a package import check:
 
 ```bash
-python manage.py migrate
+python - <<'PY'
+import assessments
+import assessments.apps
+import assessments.settings.components
+
+print("OptivEdgeAssessments import check passed")
+PY
 ```
 
-Run validation:
+Build a wheel to verify distributable package contents:
 
 ```bash
-python manage.py check
+python -m pip wheel --no-deps . -w /tmp/optivedge-assessments-wheel
 ```
 
-Start the development server:
-
-```bash
-python manage.py runserver
-```
-
-Open:
-
-```text
-http://127.0.0.1:8000/
-```
-
-## Common Development Commands
-
-```bash
-source .venv/bin/activate
-python manage.py check
-python manage.py migrate
-python manage.py runserver
-```
-
-Force-refresh OptivEdge from GitHub during development:
-
-```bash
-python -m pip install --force-reinstall --no-deps "git+https://github.com/JasonBarrett77/OptivEdge.git@main#egg=optivedge"
-```
-
-Inspect installed package versions:
-
-```bash
-python -m pip freeze
-```
+Full Django checks, migrations, and browser smoke tests should be run from a downstream host Django project that installs this package.
 
 ## Application Boundaries
 
@@ -235,28 +214,20 @@ Default import behavior:
 
 ## Development Validation
 
-After meaningful changes, run:
+This repository does not include a root Django project. Run package-local validation here:
 
 ```bash
-python manage.py check
-python manage.py migrate
+python -m pip install -e .
+python -m pip wheel --no-deps . -w /tmp/optivedge-assessments-wheel
 ```
 
-For UI or view changes, also run the development server and smoke-test relevant pages:
-
-```text
-/
-/assessments/controls/
-/assessments/security-rules/
-/assessments/findings/
-/assessments/management-findings/
-```
+Run Django checks, migrations, and browser smoke tests from a downstream host project that installs this package.
 
 ## Reporting
 
 The assessment app includes report export support for Word and Excel outputs.
 
-Reporting dependencies are installed through `requirements.txt`, including:
+Reporting dependencies are declared in `pyproject.toml`, including:
 
 ```text
 python-docx
@@ -268,26 +239,13 @@ Report templates and generated report artifacts may contain client-sensitive dat
 
 ## Documentation
 
-General guidance:
+Repository guidance lives in:
 
+* `README.md`
+* `DEPLOYMENT.md`
 * `AGENTS.md`
-* `docs/architecture.md`
-* `docs/current-state.md`
-* `docs/data-handling.md`
-* `docs/controls-catalog.md`
 
-UI guidance:
-
-* `docs/style-standard.md`
-* `docs/ux-decision-rules.md`
-* `docs/design-tokens.md`
-* `docs/component-spec.md`
-* `docs/ui-open-questions.md`
-
-Deployment guidance:
-
-* `requirements.txt`
-* `docs/deployment.md`
+Package-local workflow notes that are used by the app live under `src/assessments/docs/`.
 
 ## Git Notes
 
@@ -295,7 +253,6 @@ Do not commit local runtime artifacts:
 
 ```text
 .venv/
-db.sqlite3
 .env
 *.sqlite3
 __pycache__/
@@ -314,7 +271,7 @@ Do not commit Windows alternate data stream artifacts:
 
 ### OptivEdge version drift
 
-If `requirements.txt` uses `@main`, installs may change whenever OptivEdge changes. Use tags or commit SHAs for repeatable deployments.
+`pyproject.toml` currently depends on OptivEdge from `@main`. Use tags or commit SHAs for repeatable deployments.
 
 ### Wrong import style
 

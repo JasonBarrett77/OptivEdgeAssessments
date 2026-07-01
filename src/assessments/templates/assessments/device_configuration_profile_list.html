@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Device Configuration{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
+
+            <div class="flex items-start gap-3 border-b border-slate-200 pb-2">
+                <div class="min-w-0 flex-1">
+                    <input
+                        type="text"
+                        value="{% if selected_control or selected_control_query %}{{ search_summary }}{% endif %}"
+                        placeholder="No filter applied"
+                        readonly
+                        class="h-8 w-full border border-slate-300 bg-slate-50 px-2.5 text-[12px] text-slate-900 focus-visible:outline-hidden"
+                    />
+                </div>
+                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
+                <div class="flex shrink-0 items-center gap-3">
+                    <div class="pt-2 text-[10px] uppercase tracking-wide text-slate-500">
+                        {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_row_count }}
+                    </div>
+                    <div class="flex items-center gap-1">
+                        {% if page_obj.has_previous %}
+                        <a href="?page={{ page_obj.previous_page_number }}{{ filter_suffix }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Previous</a>
+                        {% else %}
+                        <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Previous</span>
+                        {% endif %}
+                        {% for page_number in page_range %}
+                        {% if page_number == page_obj.number %}
+                        <span class="inline-flex h-7 min-w-7 items-center justify-center border border-blue-200 bg-blue-50 px-2 text-[11px] font-medium text-blue-700">{{ page_number }}</span>
+                        {% else %}
+                        <a href="?page={{ page_number }}{{ filter_suffix }}" class="inline-flex h-7 min-w-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                        {% endif %}
+                        {% endfor %}
+                        {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{{ filter_suffix }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Next</a>
+                        {% else %}
+                        <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Next</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if search_error %}
+            <div class="pt-2 text-[11px] text-red-700">{{ search_error }}</div>
+            {% endif %}
+
+            {% if selected_control %}
+            <div class="pt-2">
+                <div class="relative border border-blue-200 bg-blue-50 px-3 py-2">
+                    <a href="{{ applied_control_close_url }}" class="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-slate-500 hover:bg-blue-100 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20" aria-label="Clear control filter" title="Clear">x</a>
+                    <div class="pr-6">
+                        <div class="text-[11px] font-medium uppercase tracking-wide text-blue-700">Applied Control</div>
+                        <div class="pt-0.5 text-sm text-slate-900">{{ selected_control.control_id }}: {{ selected_control.name }}</div>
+                        <div class="pt-0.5 text-[11px] text-slate-600">
+                            Applied {{ selected_control_query_count }} active quer{{ selected_control_query_count|pluralize:"y,ies" }}.
+                            {% if selected_control_skipped_queries %}Skipped {{ selected_control_skipped_queries }} unsupported or invalid quer{{ selected_control_skipped_queries|pluralize:"y,ies" }}.{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if selected_control_query %}
+            <div class="pt-2">
+                <div class="relative border border-blue-200 bg-blue-50 px-3 py-2">
+                    <a href="{{ applied_control_close_url }}" class="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-slate-500 hover:bg-blue-100 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20" aria-label="Clear query filter" title="Clear">x</a>
+                    <div class="pr-6">
+                        <div class="text-[11px] font-medium uppercase tracking-wide text-blue-700">Applied Query</div>
+                        <div class="pt-0.5 text-sm text-slate-900">{{ selected_control_query.control.control_id }} / {{ selected_control_query.name }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="flex min-h-0 min-w-0 flex-1 flex-col pt-2">
+                <div class="min-h-0 min-w-0 flex-1 border border-slate-200">
+                    <div class="h-full min-h-0 min-w-0 overflow-x-auto overflow-y-auto [scrollbar-gutter:stable]">
+                    <table class="analytical-table w-max min-w-full table-auto">
+                        <thead>
+                            <tr>
+                                {% if show_control_severity %}<th class="sticky top-0 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2"></th>{% endif %}
+                                <th colspan="3" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                <th colspan="4" class="sticky top-0 z-10 h-7 border-l border-r border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">High Availability</th>
+                                <th colspan="6" class="sticky top-0 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Services Disabled</th>
+                                <th colspan="3" class="sticky top-0 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Permitted IPs</th>
+                                <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                            </tr>
+                            <tr>
+                                {% if show_control_severity %}<th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Severity</th>{% endif %}
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Station</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Appliance</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Group</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-b border-sky-200 bg-sky-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Required</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Enabled</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">State Sync</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-sky-200 bg-sky-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Link Mon</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">HTTP</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">HTTPS</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Telnet</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SSH</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SNMP</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">ICMP</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Restricted</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Unrestricted</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Count</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Banner</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Idle (min)</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">NTP Primary</th>
+                                <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">NTP Secondary</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in profile_rows %}
+                            <tr>
+                                {% if show_control_severity %}
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-center text-[11px] leading-3.5 {% if row.control_severity == 'Informational' %}bg-slate-200 text-slate-800{% elif row.control_severity == 'Low' %}bg-emerald-50 text-emerald-800{% elif row.control_severity == 'Medium' %}bg-yellow-50 text-yellow-800{% elif row.control_severity == 'High' %}bg-orange-100 text-orange-800{% elif row.control_severity == 'Critical' %}bg-red-100 text-red-800{% else %}text-slate-400{% endif %}">{{ row.control_severity|default:"-" }}</td>
+                                {% endif %}
+                                <td class="border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.management_station }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+                                    <div>{{ row.profile.appliance.hostname|default:row.profile.appliance.serial_number }}</div>
+                                    <div class="text-[10px] text-slate-500">{{ row.profile.appliance.serial_number }}</div>
+                                </td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.appliance_group %}{{ row.profile.appliance_group.name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-b border-sky-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ha_required %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-sky-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ha_enabled is None %}<span class="text-slate-400">-</span>{% elif row.profile.ha_enabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-sky-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ha_state_sync_enabled is None %}<span class="text-slate-400">-</span>{% elif row.profile.ha_state_sync_enabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-r border-b border-sky-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ha_link_monitoring_enabled is None %}<span class="text-slate-400">-</span>{% elif row.profile.ha_link_monitoring_enabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.http_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.https_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.telnet_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ssh_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.snmp_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-r border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.icmp_disabled %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.has_permitted_ip_restrictions %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.has_unrestricted_permitted_ips %}Yes{% else %}No{% endif %}</td>
+                                <td class="border-r border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.permitted_ip_count }}</td>
+                                <td class="border-b border-slate-200 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800" style="max-width:16rem">
+                                    {% if row.profile.login_banner %}<span title="{{ row.profile.login_banner }}">{{ row.profile.login_banner|truncatechars:60 }}</span>{% else %}<span class="text-slate-400">-</span>{% endif %}
+                                </td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.idle_timeout_minutes is not None %}{{ row.profile.idle_timeout_minutes }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.ntp_primary_server|default:"—" }}</td>
+                                <td class="border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.ntp_secondary_server|default:"—" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if show_control_severity %}21{% else %}20{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                    No device configuration profiles available.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+{% endblock %}

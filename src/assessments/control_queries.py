@@ -8,7 +8,7 @@ from assessments.search.exceptions import SearchSyntaxError
 
 
 SECURITY_RULE_QUERY_MODEL = "integrations.SecurityRule"
-MANAGEMENT_PLANE_MODEL = "integrations.ManagementPlaneProfile"
+DEVICE_CONFIGURATION_MODEL = "integrations.DeviceConfigurationProfile"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -25,8 +25,8 @@ def default_security_rule_search_query():
     return {"model": SECURITY_RULE_QUERY_MODEL, "operator": "and", "clauses": []}
 
 
-def default_management_plane_search_query():
-    return {"model": MANAGEMENT_PLANE_MODEL, "operator": "and", "clauses": []}
+def default_device_configuration_search_query():
+    return {"model": DEVICE_CONFIGURATION_MODEL, "operator": "and", "clauses": []}
 
 
 def severity_label(severity_value: str) -> str:
@@ -92,9 +92,9 @@ def evaluate_control_queries(queryset, control):
     )
 
 
-def evaluate_management_plane_control_queries(queryset, control):
+def evaluate_device_configuration_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,
         control,
-        model_name=control.target_model or MANAGEMENT_PLANE_MODEL,
+        model_name=control.target_model or DEVICE_CONFIGURATION_MODEL,
     )

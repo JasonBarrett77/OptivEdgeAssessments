@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optivedge-assessments"
+version = "0.1.0"
+description = "Assessment workflows for the OptivEdge Django framework."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
+    "python-docx",
+    "docxtpl",
+    "XlsxWriter",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["assessments*"]
+exclude = ["assessments.tests*"]
+
+[tool.setuptools.package-data]
+assessments = [
+    "controls_catalog/catalogs/*.json",
+    "docs/*.md",
+    "reporting/docx/*.docx",
+    "templates/**/*.html",
+]

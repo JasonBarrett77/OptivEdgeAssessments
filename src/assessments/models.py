@@ -11,7 +11,7 @@ from django.utils.text import slugify
 
 from optivedge.integrations.models import (
     ApplicationEnvironment,
-    ManagementPlaneProfile,
+    DeviceConfigurationProfile,
     SecurityRule,
 )
 
@@ -35,7 +35,7 @@ class Control(models.Model):
     class ControlType(models.TextChoices):
         SECURITY_RULE = "security_rule", "Security Rule"
         CONFIG = "config", "Configuration"
-        MANAGEMENT_PLANE = "management_plane", "Management Plane"
+        DEVICE_CONFIGURATION = "device_configuration", "Device Configuration"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -68,7 +68,7 @@ class Control(models.Model):
 
     _CONTROL_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
-        "management_plane": "integrations.ManagementPlaneProfile",
+        "device_configuration": "integrations.DeviceConfigurationProfile",
     }
 
     class Meta:
@@ -87,7 +87,7 @@ class Control(models.Model):
 
     _TARGET_MODEL_LABELS = {
         "integrations.SecurityRule": "Security Rule",
-        "integrations.ManagementPlaneProfile": "Management Plane",
+        "integrations.DeviceConfigurationProfile": "Device Configuration",
     }
 
     @property
@@ -99,8 +99,8 @@ class Control(models.Model):
         return self.target_model == "integrations.SecurityRule"
 
     @property
-    def supports_management_plane_ui(self) -> bool:
-        return self.target_model == "integrations.ManagementPlaneProfile"
+    def supports_device_configuration_ui(self) -> bool:
+        return self.target_model == "integrations.DeviceConfigurationProfile"
 
 
 class AssessmentRun(models.Model):
@@ -282,7 +282,7 @@ class RuleFindingControlQuery(models.Model):
         return f"{self.rule_finding_id} <- {self.control_query_id}"
 
 
-class ManagementPlaneFinding(models.Model):
+class DeviceConfigurationFinding(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         SUPPRESSED = "suppressed", "Suppressed"
@@ -291,15 +291,15 @@ class ManagementPlaneFinding(models.Model):
     assessment_run = models.ForeignKey(
         AssessmentRun,
         on_delete=models.CASCADE,
-        related_name="management_plane_findings",
+        related_name="device_configuration_findings",
     )
     control = models.ForeignKey(
         Control,
         on_delete=models.PROTECT,
-        related_name="management_plane_findings",
+        related_name="device_configuration_findings",
     )
-    management_profile = models.ForeignKey(
-        ManagementPlaneProfile,
+    device_configuration_profile = models.ForeignKey(
+        DeviceConfigurationProfile,
         on_delete=models.CASCADE,
         related_name="findings",
     )
@@ -316,8 +316,8 @@ class ManagementPlaneFinding(models.Model):
     summary = models.TextField(blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery,
-        through="ManagementPlaneFindingControlQuery",
-        related_name="management_plane_findings",
+        through="DeviceConfigurationFindingControlQuery",
+        related_name="device_configuration_findings",
         blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -326,31 +326,31 @@ class ManagementPlaneFinding(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["assessment_run", "control"]),
-            models.Index(fields=["management_profile"]),
+            models.Index(fields=["device_configuration_profile"]),
             models.Index(fields=["status"]),
             models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["assessment_run", "control", "management_profile"],
-                name="unique_management_finding_per_run_control_profile",
+                fields=["assessment_run", "control", "device_configuration_profile"],
+                name="unique_device_configuration_finding_per_run_control_profile",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.control.control_id} on profile {self.management_profile_id}"
+        return f"{self.control.control_id} on profile {self.device_configuration_profile_id}"
 
 
-class ManagementPlaneFindingControlQuery(models.Model):
-    management_plane_finding = models.ForeignKey(
-        ManagementPlaneFinding,
+class DeviceConfigurationFindingControlQuery(models.Model):
+    device_configuration_finding = models.ForeignKey(
+        DeviceConfigurationFinding,
         on_delete=models.CASCADE,
         related_name="query_links",
     )
     control_query = models.ForeignKey(
         ControlQuery,
         on_delete=models.CASCADE,
-        related_name="management_finding_links",
+        related_name="device_configuration_finding_links",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -358,13 +358,13 @@ class ManagementPlaneFindingControlQuery(models.Model):
         ordering = ["created_at", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["management_plane_finding", "control_query"],
-                name="unique_management_finding_control_query_link",
+                fields=["device_configuration_finding", "control_query"],
+                name="unique_device_configuration_finding_control_query_link",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.management_plane_finding_id} <- {self.control_query_id}"
+        return f"{self.device_configuration_finding_id} <- {self.control_query_id}"
 
 
 class Catalog(models.Model):

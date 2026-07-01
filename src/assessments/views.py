@@ -10,11 +10,11 @@ from pathlib import Path
 
 from assessments.forms import ControlForm, ControlQueryForm
 from assessments.control_queries import (
-    MANAGEMENT_PLANE_MODEL,
+    DEVICE_CONFIGURATION_MODEL,
     SECURITY_RULE_QUERY_MODEL,
     default_security_rule_search_query,
     evaluate_control_queries,
-    evaluate_management_plane_control_queries,
+    evaluate_device_configuration_control_queries,
     severity_label,
 )
 from assessments.reporting import (
@@ -24,13 +24,13 @@ from assessments.reporting import (
     render_health_check_workbook,
 )
 from assessments.findings import regenerate_rule_findings
-from assessments.management_findings import regenerate_management_plane_findings
+from assessments.device_configuration_findings import regenerate_device_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
-    ManagementPlaneFinding,
+    DeviceConfigurationFinding,
     RuleFinding,
     SecurityRuleSearchState,
 )
@@ -51,7 +51,7 @@ from optivedge.integrations.presentation import (
     listed_member_values,
     security_rule_config_source_label,
 )
-from optivedge.integrations.models import ApplicationEnvironment, ManagementPlaneProfile, SecurityRule
+from optivedge.integrations.models import ApplicationEnvironment, DeviceConfigurationProfile, SecurityRule
 
 
 PAGE_SIZE = 100
@@ -223,11 +223,22 @@ class ControlListView(ListView):
         return context
 
 
-class RuleFindingListView(TemplateView):
-    template_name = "assessments/rule_finding_list.html"
+class FindingListView(TemplateView):
+    template_name = "assessments/finding_list.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        tab = self.request.GET.get("tab", "security-rules")
+        if tab not in {"security-rules", "device-configuration"}:
+            tab = "security-rules"
+        context["active_tab"] = tab
+        if tab == "security-rules":
+            context.update(self._security_rule_context())
+        else:
+            context.update(self._device_configuration_context())
+        return context
+
+    def _security_rule_context(self):
         security_rules = (
             SecurityRule.objects.filter(rule_findings__isnull=False)
             .select_related(
@@ -262,26 +273,43 @@ class RuleFindingListView(TemplateView):
         security_rule_rows = build_security_rule_rows(page_obj.object_list)
         for row in security_rule_rows:
             findings = []
-            for finding in row["security_rule"].rule_findings.all().order_by(
-                "-created_at",
-                "-pk",
-            ):
-                findings.append(
-                    {
-                        "control_id": finding.control.control_id,
-                        "title": finding.title,
-                        "severity": finding.get_severity_display(),
-                        "status": finding.get_status_display(),
-                        "query_count": finding.control_queries.count(),
-                        "query_names": [query.name for query in finding.control_queries.all()],
-                        "summary": finding.summary,
-                    }
-                )
+            for finding in row["security_rule"].rule_findings.all().order_by("-created_at", "-pk"):
+                findings.append({
+                    "control_id": finding.control.control_id,
+                    "title": finding.title,
+                    "severity": finding.get_severity_display(),
+                    "status": finding.get_status_display(),
+                    "query_count": finding.control_queries.count(),
+                    "query_names": [query.name for query in finding.control_queries.all()],
+                    "summary": finding.summary,
+                })
             row["findings"] = findings
-        context["security_rule_rows"] = security_rule_rows
-        context["page_obj"] = page_obj
-        context["page_range"] = pagination_range(page_obj)
-        return context
+        return {
+            "security_rule_rows": security_rule_rows,
+            "page_obj": page_obj,
+            "page_range": pagination_range(page_obj),
+        }
+
+    def _device_configuration_context(self):
+        queryset = (
+            DeviceConfigurationFinding.objects.select_related(
+                "assessment_run",
+                "control",
+                "device_configuration_profile",
+                "device_configuration_profile__management_station",
+                "device_configuration_profile__appliance",
+                "device_configuration_profile__appliance_group",
+            )
+            .prefetch_related("control_queries")
+            .order_by("-created_at", "-pk")
+        )
+        paginator = Paginator(queryset, PAGE_SIZE)
+        page_obj = paginator.get_page(self.request.GET.get("page"))
+        return {
+            "device_configuration_findings": page_obj.object_list,
+            "page_obj": page_obj,
+            "page_range": pagination_range(page_obj),
+        }
 
 
 class RuleFindingDocxDownloadView(View):
@@ -347,44 +375,19 @@ class RuleFindingXlsxDownloadView(View):
         return response
 
 
-class ManagementPlaneFindingListView(ListView):
-    model = ManagementPlaneFinding
-    context_object_name = "management_findings"
-    template_name = "assessments/management_plane_finding_list.html"
-    paginate_by = PAGE_SIZE
-
-    def get_queryset(self):
-        return (
-            ManagementPlaneFinding.objects.select_related(
-                "assessment_run",
-                "control",
-                "management_profile",
-                "management_profile__management_station",
-                "management_profile__appliance",
-                "management_profile__appliance_group",
-            )
-            .prefetch_related("control_queries")
-            .order_by("-created_at", "-pk")
-        )
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_range"] = pagination_range(context["page_obj"])
-        return context
-
 
 class SystemView(TemplateView):
     template_name = "assessments/system.html"
 
 
-class ManagementPlaneProfileListView(TemplateView):
-    template_name = "assessments/management_plane_profile_list.html"
+class DeviceConfigurationProfileListView(TemplateView):
+    template_name = "assessments/device_configuration_profile_list.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         profiles = (
-            ManagementPlaneProfile.objects.select_related(
+            DeviceConfigurationProfile.objects.select_related(
                 "management_station",
                 "appliance",
                 "appliance_group",
@@ -398,11 +401,11 @@ class ManagementPlaneProfileListView(TemplateView):
         filter_suffix = ""
 
         context["show_control_severity"] = False
-        context["search_summary"] = "All management plane profiles"
+        context["search_summary"] = "All device configuration profiles"
         context["search_error"] = ""
         context["selected_control_query_count"] = 0
         context["selected_control_skipped_queries"] = 0
-        context["applied_control_close_url"] = reverse("assessment_management_plane_profile_list")
+        context["applied_control_close_url"] = reverse("assessment_device_configuration_profile_list")
 
         control_id = self.request.GET.get("control")
         control_query_id = self.request.GET.get("control_query")
@@ -410,11 +413,11 @@ class ManagementPlaneProfileListView(TemplateView):
         if control_id:
             try:
                 selected_control = Control.objects.get(pk=int(control_id))
-                if selected_control.target_model != MANAGEMENT_PLANE_MODEL:
+                if selected_control.target_model != DEVICE_CONFIGURATION_MODEL:
                     context["search_error"] = (
                         f"Control {selected_control.control_id} is a "
                         f"{selected_control.get_control_type_display()} control and cannot "
-                        f"be applied to management plane profiles."
+                        f"be applied to device configuration profiles."
                     )
                     selected_control = None
                 else:
@@ -424,7 +427,7 @@ class ManagementPlaneProfileListView(TemplateView):
                         skipped_queries,
                         _matched_by_profile,
                         severity_by_profile_id,
-                    ) = evaluate_management_plane_control_queries(profiles, selected_control)
+                    ) = evaluate_device_configuration_control_queries(profiles, selected_control)
                     severity_by_profile_id = {
                         profile_id: severity_label(severity_value)
                         for profile_id, severity_value in severity_by_profile_id.items()
@@ -446,8 +449,8 @@ class ManagementPlaneProfileListView(TemplateView):
                     pk=int(control_query_id)
                 )
                 canonical_query = selected_control_query.canonical_query
-                if not isinstance(canonical_query, dict) or canonical_query.get("model") != MANAGEMENT_PLANE_MODEL:
-                    context["search_error"] = "This query does not target management plane profiles."
+                if not isinstance(canonical_query, dict) or canonical_query.get("model") != DEVICE_CONFIGURATION_MODEL:
+                    context["search_error"] = "This query does not target device configuration profiles."
                     selected_control_query = None
                 else:
                     try:
@@ -496,13 +499,13 @@ class ControlRunFindingsView(View):
         return HttpResponseRedirect(reverse("assessment_control_list"))
 
 
-class ControlRunManagementFindingsView(View):
+class ControlRunDeviceConfigurationFindingsView(View):
     def post(self, request, *args, **kwargs):
-        result = regenerate_management_plane_findings()
+        result = regenerate_device_configuration_findings()
         messages.success(
             request,
             (
-                f"Management findings regenerated. Controls: {result.controls_evaluated}. "
+                f"Device configuration findings regenerated. Controls: {result.controls_evaluated}. "
                 f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
                 f"Skipped queries: {result.skipped_queries}."
             ),

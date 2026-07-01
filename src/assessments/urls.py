@@ -18,12 +18,11 @@ from assessments.views import (
     ControlQueryDeleteView,
     ControlQueryUpdateView,
     ControlRunFindingsView,
-    ControlRunManagementFindingsView,
+    ControlRunDeviceConfigurationFindingsView,
     ControlUpdateView,
-    ManagementPlaneFindingListView,
-    ManagementPlaneProfileListView,
+    DeviceConfigurationProfileListView,
+    FindingListView,
     RuleFindingDocxDownloadView,
-    RuleFindingListView,
     RuleFindingXlsxDownloadView,
     SecurityRuleListView,
 )
@@ -71,14 +70,14 @@ urlpatterns = [
         name="assessment_control_run_findings",
     ),
     path(
-        "controls/run-management-findings/",
-        ControlRunManagementFindingsView.as_view(),
-        name="assessment_control_run_management_findings",
+        "controls/run-device-configuration-findings/",
+        ControlRunDeviceConfigurationFindingsView.as_view(),
+        name="assessment_control_run_device_configuration_findings",
     ),
     path(
         "findings/",
-        RuleFindingListView.as_view(),
-        name="assessment_rule_finding_list",
+        FindingListView.as_view(),
+        name="assessment_finding_list",
     ),
     path(
         "findings/report.docx",
@@ -91,19 +90,14 @@ urlpatterns = [
         name="assessment_rule_finding_xlsx_download",
     ),
     path(
-        "management-findings/",
-        ManagementPlaneFindingListView.as_view(),
-        name="assessment_management_finding_list",
-    ),
-    path(
         "system/",
         SystemView.as_view(),
         name="assessment_system",
     ),
     path(
-        "management-plane-profiles/",
-        ManagementPlaneProfileListView.as_view(),
-        name="assessment_management_plane_profile_list",
+        "device-configuration/",
+        DeviceConfigurationProfileListView.as_view(),
+        name="assessment_device_configuration_profile_list",
     ),
     path(
         "controls/<int:pk>/",

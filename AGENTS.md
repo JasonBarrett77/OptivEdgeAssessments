@@ -2,18 +2,30 @@
 
 ## Purpose
 
-`OptivEdgeAssessments` is a downstream Django project built on the `OptivEdge` framework.
+`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdge` framework. It is installed into downstream Django host projects; it is not a standalone Django project.
 
-This repository owns assessment workflows that consume normalized firewall integration data provided by the installed OptivEdge package.
+This repository owns only the installable `assessments` app under `src/assessments`. Downstream host projects own `manage.py`, root settings, root URLs, databases, environment variables, and deployment configuration.
 
-OptivEdge provides the shared framework layer:
+## Authoritative Documents
 
-* `optivedge.integrations`
-* normalized firewall data models
-* PAN-OS collection and normalization logic
-* shared shell, templates, template tags, and framework URLs
+* `README.md`
+* `DEPLOYMENT.md`
+* `pyproject.toml`
 
-This repository owns the local `assessments` app:
+Package-local workflow notes that are used by the app live under `src/assessments/docs/`.
+
+## Repository Boundaries
+
+OptivEdge owns framework concerns:
+
+* vendor collection logic
+* PAN-OS session handling
+* normalized integration models
+* shared framework templates
+* shared framework navigation composition
+* shared integration views
+
+OptivEdgeAssessments owns assessment concerns:
 
 * assessment controls
 * control queries
@@ -25,231 +37,60 @@ This repository owns the local `assessments` app:
 * control catalog import/export workflows
 * assessment-specific templates
 
-Framework-level integration work belongs in the separate `OptivEdge` repository.
+Do not move OptivEdge framework concerns into this repository.
 
-## Authoritative Documents
+## Package Layout
 
-General guidance:
-
-* `README.md`
-* `docs/architecture.md`
-* `docs/current-state.md`
-* `docs/data-handling.md`
-* `docs/controls-catalog.md`
-
-UI guidance:
-
-* `docs/style-standard.md`
-* `docs/ux-decision-rules.md`
-* `docs/design-tokens.md`
-* `docs/component-spec.md`
-* `docs/ui-open-questions.md`
-
-Deployment guidance:
-
-* `requirements.txt`
-* `docs/deployment.md`
-
-## Development Posture
-
-* Prefer simplicity over cleverness.
-* Prefer maintainability over abstraction unless a pattern is already proving reusable.
-* Optimize for future maintainers who may be stronger in network security than in Python application design.
-* Keep packages and modules narrowly scoped.
-* Call out ambiguity, scope drift, conflicting instructions, and unnecessary complexity.
-* Treat `OptivEdge` as the framework dependency and `assessments` as the downstream consumer app.
-* Do not re-embed vendor API collection, normalization, or persistence logic inside `assessments`.
-
-## Repository Boundaries
-
-### OptivEdge dependency
-
-This repository should consume OptivEdge through `requirements.txt`.
-
-Use a tag or commit SHA for repeatable installs:
+Expected top-level layout:
 
 ```text
-git+https://github.com/JasonBarrett77/OptivEdge.git@v0.1.0#egg=optivedge
+OptivEdgeAssessments/
+├── AGENTS.md
+├── DEPLOYMENT.md
+├── README.md
+├── pyproject.toml
+└── src/
+    └── assessments/
 ```
 
-Using `@main` is acceptable during active development, but it creates version drift.
+Do not add root-level Django project scaffolding such as `manage.py`, `config/settings.py`, root `templates/`, SQLite databases, or root deployment settings.
 
-### Local assessment app
+## Development Workflow
 
-The local `assessments` app should build on normalized OptivEdge integration data.
-
-Assessment code may import OptivEdge models:
-
-```python
-from optivedge.integrations.models import SecurityRule
-```
-
-Canonical query payloads should continue using Django model labels:
-
-```text
-integrations.SecurityRule
-integrations.ManagementPlaneProfile
-```
-
-Do not change canonical model labels to Python import paths.
-
-## Control Catalogs
-
-Control catalog functionality belongs under:
-
-```text
-assessments/controls_catalog/
-```
-
-Recommended structure:
-
-```text
-assessments/controls_catalog/
-├── catalogs/
-├── io/
-├── registry.py
-└── schemas.py
-```
-
-Use this package for:
-
-* exporting current `Control` and `ControlQuery` records
-* importing catalog payloads
-* loading bundled catalogs
-* validating catalog shape and schema version
-* supporting future industry-specific catalogs such as base, banking, and health insurance
-
-Views should call the `controls_catalog` service layer. Do not put import/export business logic directly in views.
-
-Control catalog imports should be explicit and idempotent.
-
-Identity rules:
-
-* `Control`: `control_id`
-* `ControlQuery`: `control_id + query name`
-* catalog: catalog id and version
-
-Default import behavior:
-
-* create missing controls
-* update existing controls
-* create missing queries
-* update existing queries
-* do not delete missing controls or queries
-
-Avoid pruning or deactivation unless explicitly requested.
-
-## Environment and Workflow
-
-This repository assumes a local virtual environment.
-
-Typical setup:
+Use a local virtual environment:
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python manage.py migrate
+python -m pip install -e .
 ```
 
-Common commands:
+Run package-level validation here:
 
 ```bash
-source .venv/bin/activate
-python manage.py check
-python manage.py migrate
-python manage.py runserver
+python -m pip wheel --no-deps . -w /tmp/optivedge-assessments-wheel
+python - <<'PY'
+import assessments
+import assessments.apps
+import assessments.settings.components
+
+print("OptivEdgeAssessments import check passed")
+PY
 ```
 
-During active OptivEdge framework development, a local editable install may be used temporarily:
-
-```bash
-python -m pip install -e ~/PythonProjects/OptivEdge
-```
-
-Do not commit local editable paths into `requirements.txt`.
-
-To force-refresh OptivEdge from GitHub during development:
-
-```bash
-python -m pip install --force-reinstall --no-deps "git+https://github.com/JasonBarrett77/OptivEdge.git@main#egg=optivedge"
-```
+Run Django checks, migrations, and UI smoke tests from a downstream host Django project that installs this package.
 
 ## Core Behavior Rules
 
-### Preserve the framework boundary
-
-Do not move OptivEdge framework concerns into this repository.
-
-Framework concerns include:
-
-* vendor collection logic
-* PAN-OS session handling
-* normalized integration models
-* shared framework templates
-* shared framework navigation composition
-* shared integration views
-
-Assessment concerns belong here.
-
-### Consume normalized data
-
-Assessment workflows should use normalized OptivEdge models such as:
-
-* security rules
-* management-plane profiles
-* address objects
-* enforcement scopes
-
-Do not add vendor-specific API calls to assessment views, reporting modules, catalog modules, or control-query evaluation code.
-
-### Keep views thin
-
-Views should coordinate request/response behavior only.
-
-Move reusable logic into focused modules, for example:
-
-* `assessments/search/`
-* `assessments/reporting/`
-* `assessments/controls_catalog/`
-* `assessments/findings.py`
-* `assessments/management_findings.py`
-
-### Preserve working behavior
-
-Existing implemented behavior is the minimum expected behavior unless explicitly changed.
-
-When extending incomplete flows, preserve current behavior first, then layer new behavior carefully.
+* Consume normalized OptivEdge data models such as security rules, management-plane profiles, address objects, and enforcement scopes.
+* Do not add vendor-specific API calls to assessment views, reporting modules, catalog modules, or control-query evaluation code.
+* Keep views thin; put reusable logic in focused modules such as `controls_catalog`, `search`, `reporting`, `findings.py`, and `management_findings.py`.
+* Preserve canonical query model labels such as `integrations.SecurityRule`; do not replace them with Python import paths.
 
 ## UI Rules
 
-Use the OptivEdge shell and existing template patterns.
-
-Do not create a second application shell inside assessment templates.
-
-Reuse documented patterns for:
-
-* dense analytical tables
-* right-side overlays
-* list views
-* detail views
-* CRUD forms
-* delete confirmations
-* severity badges
-* buttons
-* app-local subnavigation
-
-Respect density and overflow rules:
-
-* avoid body-level scrolling
-* local data regions own scrolling
-* structural flex containers should use `min-h-0`
-* dense tables should use local `overflow-auto` regions
-* use `table-auto` by default
-* use `table-fixed` only for specific constrained-column layouts
-
-Tailwind utility classes are preferred. Avoid custom CSS unless utility-only implementation is brittle or harms alignment, scrolling, or table behavior.
+Use the OptivEdge shell and existing template patterns. Do not create a second application shell inside assessment templates.
 
 Use the existing Lucide template tag pattern:
 
@@ -258,119 +99,15 @@ Use the existing Lucide template tag pattern:
 {% lucide "icon-name" class="h-4 w-4" %}
 ```
 
-Do not inline duplicate SVGs when a Lucide icon already exists.
+Do not inline duplicate SVGs when a Lucide icon exists.
 
-## Code Shaping
+## Data And Security
 
-Prefer durable production names over temporary explanatory names.
-
-Good examples:
-
-* `controls_catalog`
-* `importers`
-* `exporters`
-* `registry`
-* `schemas`
-
-Keep modules scoped around one responsibility.
-
-Examples:
-
-* `controls_catalog/io/importers.py` imports catalog payloads
-* `controls_catalog/io/exporters.py` exports current database state
-* `controls_catalog/registry.py` lists and loads bundled catalogs
-* `controls_catalog/schemas.py` validates payload structure
-
-Avoid generalized plugin systems or broad framework abstractions unless multiple real use cases already justify them.
-
-## Data and Security
-
-* Assessment data may be engagement-specific.
-* Report exports may include client-sensitive information.
-* Do not casually commit generated client artifacts, exported reports, databases, or environment files.
-* Keep `.env`, SQLite databases, generated exports, and local artifacts ignored unless explicitly intended as versioned fixtures or catalogs.
-* Credential and secret handling belongs primarily in OptivEdge integration configuration. Do not spread credential handling into assessment modules unless explicitly required.
-
-## Testing and Validation
-
-Testing should be pragmatic and protect working behavior.
-
-Minimum validation after meaningful changes:
-
-```bash
-python manage.py check
-python manage.py migrate
-python manage.py runserver
-```
-
-Smoke-test relevant pages when touched:
-
-```text
-/
-/assessments/controls/
-/assessments/security-rules/
-/assessments/findings/
-/assessments/management-findings/
-```
-
-Add tests when they materially protect:
-
-* control catalog import/export behavior
-* canonical query parsing/evaluation
-* finding regeneration
-* reporting output behavior
-* view behavior that has broken before or is likely to regress
-
-Do not impose a heavy testing regime unless requested.
-
-## Documentation Expectations
-
-Documentation should stay concise and durable.
-
-Update docs when a change materially affects:
-
-* repo setup
-* OptivEdge dependency behavior
-* assessment architecture
-* control catalog workflows
-* UI patterns
-* data handling
-* deployment steps
-
-Keep `AGENTS.md` focused on operating guidance. Put deeper architecture and workflow detail in dedicated docs.
+Assessment data and report exports may be client-sensitive. Do not commit generated client reports, local exports, databases, `.env` files, or other local runtime artifacts unless they are intentionally versioned fixtures or bundled catalogs.
 
 ## Known Pitfalls
 
-### OptivEdge version drift
-
-If `requirements.txt` uses `@main`, downstream installs may change as OptivEdge changes. Prefer tags or commit SHAs for repeatable installs.
-
-### Python imports versus model labels
-
-Use Python imports for code:
-
-```python
-from optivedge.integrations.models import SecurityRule
-```
-
-Use Django model labels in canonical query payloads:
-
-```text
-integrations.SecurityRule
-```
-
-Do not confuse the two.
-
-### Missing OptivEdge route or template
-
-If a framework route, template, or shared shell behavior is missing, check OptivEdge first. The issue may belong in the framework repo, not in `OptivEdgeAssessments`.
-
-### Windows artifacts
-
-Do not commit files such as:
-
-```text
-*:Zone.Identifier
-```
-
-Keep `.gitattributes` and `.gitignore` aligned with WSL/Windows development.
+* `pyproject.toml` currently depends on OptivEdge from `@main`; prefer tags or commit SHAs for repeatable deployments.
+* Use Python imports in code, for example `from optivedge.integrations.models import SecurityRule`.
+* Use Django model labels in canonical query payloads, for example `integrations.SecurityRule`.
+* If a framework route, shared shell behavior, template, or template tag is missing, check OptivEdge first.

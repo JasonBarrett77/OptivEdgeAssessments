@@ -189,7 +189,7 @@
         {
           "control_id": "HA-001",
           "name": "Ensure High Availability is enabled where required",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "High Availability should be enabled on firewalls that are expected to operate as part of a redundant firewall pair.",
           "rationale": "Firewalls that enforce critical network paths can become single points of failure if High Availability is not configured. Enabling HA supports service continuity during device failure, maintenance, or controlled failover events.",
           "audit": "Review the High Availability configuration and verify that HA is enabled for firewalls that require redundant operation.",
@@ -200,9 +200,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "and",
                 "clauses": [
                   {
@@ -222,12 +222,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "HA-002",
           "name": "Ensure High Availability session synchronization is enabled",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "High Availability state synchronization should be enabled for HA firewall pairs where session preservation is required during failover.",
           "rationale": "Without session synchronization, active sessions may be dropped during failover, which can disrupt business applications, user access, VPN traffic, and long-lived connections.",
           "audit": "Review the HA state synchronization setting and verify that state synchronization is enabled on both HA peers where session preservation is required.",
@@ -238,9 +238,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "and",
                 "clauses": [
                   {
@@ -265,12 +265,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "HA-003",
           "name": "Ensure High Availability link monitoring is enabled where required",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "High Availability link monitoring should be enabled for critical dataplane interfaces or interface groups where link failure should trigger HA failover.",
           "rationale": "If link monitoring is not configured, a firewall may remain active even when critical dataplane links have failed, causing traffic disruption without triggering failover to the peer device.",
           "audit": "Review the HA monitoring configuration and verify that link monitoring is enabled for critical interfaces or interface groups.",
@@ -281,9 +281,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "and",
                 "clauses": [
                   {
@@ -308,12 +308,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "MGMT-001",
           "name": "Ensure insecure management services are disabled",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "Management access should use secure administrative services only. Insecure or unnecessary services such as HTTP and Telnet should be disabled on the management interface.",
           "rationale": "Unencrypted or unnecessary management services increase the risk of credential exposure, unauthorized access, and attack surface exposure on the firewall management plane.",
           "audit": "Review the management interface service settings and verify that only required secure services are enabled. HTTP and Telnet should be disabled. HTTPS and SSH may be enabled if required and restricted to trusted management sources.",
@@ -324,9 +324,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "or",
                 "clauses": [
                   {
@@ -421,12 +421,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "MGMT-002",
           "name": "Ensure management interface permitted IP addresses are configured",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "The firewall management interface should restrict administrative access to approved management networks or hosts.",
           "rationale": "Restricting permitted IP addresses reduces exposure of the management plane and limits administrative access attempts to trusted networks or jump hosts.",
           "audit": "Review the management interface permitted IP address list and verify that only approved administrative networks or hosts are allowed.",
@@ -437,9 +437,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "or",
                 "clauses": [
                   {
@@ -459,12 +459,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "MGMT-003",
           "name": "Ensure a login banner is configured",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "A login banner should be configured to notify users that access is restricted to authorized users and that activity may be monitored.",
           "rationale": "A login banner supports administrative accountability and provides legal or policy notice before access to the firewall management interface.",
           "audit": "Review the system login banner configuration and verify that a non-empty approved login banner is configured.",
@@ -475,9 +475,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "or",
                 "clauses": [
                   {
@@ -497,12 +497,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "MGMT-004",
           "name": "Ensure the device management idle timeout is less than or equal to 10 minutes",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "The device management idle timeout should be configured to automatically close inactive administrative sessions after 10 minutes or less.",
           "rationale": "Inactive administrative sessions can be misused if an administrator leaves a workstation unattended. A short idle timeout reduces the opportunity for unauthorized use of an existing management session.",
           "audit": "Review the management authentication settings and verify that the idle timeout is configured to 10 minutes or less and is not set to never timeout.",
@@ -513,9 +513,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "or",
                 "clauses": [
                   {
@@ -535,12 +535,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
           "control_id": "TIME-001",
           "name": "Ensure redundant NTP servers are configured",
-          "control_type": "management_plane",
+          "control_type": "device_configuration",
           "description": "The firewall should be configured with primary and secondary NTP servers.",
           "rationale": "Accurate and consistent time is required for reliable log correlation, event investigation, certificate validation, authentication, and forensic analysis. Redundant NTP servers reduce the risk of time drift if one time source is unavailable.",
           "audit": "Review the device service settings and verify that both primary and secondary NTP servers are configured.",
@@ -551,9 +551,9 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default management-plane baseline query.",
+              "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.ManagementPlaneProfile",
+                "model": "integrations.DeviceConfigurationProfile",
                 "operator": "or",
                 "clauses": [
                   {
@@ -573,7 +573,7 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.ManagementPlaneProfile"
+          "target_model": "integrations.DeviceConfigurationProfile"
         }
       ]
     }
