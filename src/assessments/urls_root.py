@@ -3,6 +3,5 @@ from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("", include("optivedge.integrations.urls")),
-    path("assessments/", include("assessments.urls")),
+    path("", include("optivedge.urls")),
 ]
