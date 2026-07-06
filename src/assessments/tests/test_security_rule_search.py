@@ -12,7 +12,7 @@ from assessments.models import (
 )
 from assessments.search.compiler import apply_search
 from assessments.search.exceptions import SearchSyntaxError
-from optivedge.integrations.models import (
+from optivedge_integrations.integrations.models import (
     AddressGroup,
     AddressGroupMember,
     AddressObject,

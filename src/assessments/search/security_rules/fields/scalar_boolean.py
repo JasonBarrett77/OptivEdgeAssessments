@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from assessments.search.exceptions import SearchSyntaxError
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 
 
 SUPPORTED_OPERATORS = {"eq"}

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from django.db import OperationalError, ProgrammingError
 
-from optivedge.integrations.models import SecurityRuleSearchVocabularyEntry
+from optivedge_integrations.integrations.models import SecurityRuleSearchVocabularyEntry
 
 
 STOPWORDS = {

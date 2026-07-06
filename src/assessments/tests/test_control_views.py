@@ -10,8 +10,8 @@ from assessments.models import (
     RuleFinding,
     RuleFindingControlQuery,
 )
-from optivedge.integrations.models import (
-    ApplicationEnvironment,
+from optivedge.models import ApplicationEnvironment
+from optivedge_integrations.integrations.models import (
     Appliance,
     ApplianceGroup,
     EnforcementPoint,

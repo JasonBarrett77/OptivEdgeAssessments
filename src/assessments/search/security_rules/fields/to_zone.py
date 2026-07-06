@@ -6,7 +6,7 @@ from assessments.search.security_rules.fields.repeated_value import (
     SUPPORTED_OPERATORS,
     compile_repeated_value_clause,
 )
-from optivedge.integrations.models import SecurityRuleToZone
+from optivedge_integrations.integrations.models import SecurityRuleToZone
 
 
 def compile_to_zone_clause(clause):

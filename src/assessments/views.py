@@ -46,12 +46,13 @@ from django.views.generic import DetailView, ListView, TemplateView
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.views import View
 
-from optivedge.integrations.presentation import (
+from optivedge_integrations.integrations.presentation import (
     listed_address_ref_values,
     listed_member_values,
     security_rule_config_source_label,
 )
-from optivedge.integrations.models import ApplicationEnvironment, DeviceConfigurationProfile, SecurityRule
+from optivedge.models import ApplicationEnvironment
+from optivedge_integrations.integrations.models import DeviceConfigurationProfile, SecurityRule
 
 
 PAGE_SIZE = 100

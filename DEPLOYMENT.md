@@ -4,7 +4,7 @@ OptivEdgeAssessments is a reusable Django assessment app package. It is not inte
 
 ## Repository Purpose
 
-This repository provides the assessment application layer for OptivEdge, including:
+This repository provides the assessment application layer for OptivEdgeIntegrations, including:
 
 * assessment controls
 * control queries
@@ -16,7 +16,7 @@ This repository provides the assessment application layer for OptivEdge, includi
 * control catalog import/export workflows
 * assessment templates and template tags
 
-OptivEdge remains responsible for the shared framework layer, including:
+OptivEdgeIntegrations remains responsible for the shared framework layer, including:
 
 * normalized firewall integration models
 * PAN-OS collection and normalization logic
@@ -67,17 +67,17 @@ OptivEdgeAssessments currently targets:
 
 ```text
 Python >= 3.12
-OptivEdge installed from GitHub
-Django >= 6.0, < 6.1 through OptivEdge
+OptivEdgeIntegrations installed from GitHub
+Django >= 6.0, < 6.1 through OptivEdgeIntegrations
 ```
 
-The OptivEdge dependency is declared in `pyproject.toml`:
+The OptivEdgeIntegrations dependency is declared in `pyproject.toml`:
 
 ```toml
 [project]
 requires-python = ">=3.12"
 dependencies = [
-    "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
+    "optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main",
     "python-docx",
     "docxtpl",
     "XlsxWriter",
@@ -112,18 +112,18 @@ For local development against a checked-out copy:
 python -m pip install -e ~/PythonProjects/OptivEdgeAssessments
 ```
 
-### Co-development with a local OptivEdge checkout
+### Co-development with a local OptivEdgeIntegrations checkout
 
-When a downstream project is developing against local checkouts of both `OptivEdge` and `OptivEdgeAssessments` simultaneously, installing them together with a single `pip install` command will fail. `optivedge-assessments` declares its `optivedge` dependency as a GitHub URL, which pip treats as a different distribution from a local editable install. pip raises a `ResolutionImpossible` conflict.
+When a downstream project is developing against local checkouts of both `OptivEdgeIntegrations` and `OptivEdgeAssessments` simultaneously, installing them together with a single `pip install` command will fail. `optivedge-assessments` declares its `optivedge` dependency as a GitHub URL, which pip treats as a different distribution from a local editable install. pip raises a `ResolutionImpossible` conflict.
 
 Install them in three steps instead:
 
 ```bash
-# 1. Install the local OptivEdge editable first.
-python -m pip install -e ~/PythonProjects/OptivEdge
+# 1. Install the local OptivEdgeIntegrations editable first.
+python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations
 
 # 2. Install OptivEdgeAssessments editable without resolving its declared
-#    optivedge dependency — the editable from step 1 satisfies it.
+#    optivedge-integrations dependency — the editable from step 1 satisfies it.
 python -m pip install -e ~/PythonProjects/OptivEdgeAssessments --no-deps
 
 # 3. Install the remaining OptivEdgeAssessments dependencies that --no-deps skipped.
@@ -142,18 +142,18 @@ django-admin startproject config .
 
 Edit `config/settings.py`.
 
-Import OptivEdge settings components:
+Import OptivEdgeIntegrations settings components:
 
 ```python
 from assessments.settings.components import OPTIVEDGE_ASSESSMENTS_APPS
-from optivedge.settings.components import (
+from optivedge_integrations.settings.components import (
     OPTIVEDGE_APPS,
     OPTIVEDGE_CONTEXT_PROCESSORS,
     OPTIVEDGE_TEMPLATE_LIBRARIES,
 )
 ```
 
-Add OptivEdgeAssessments and OptivEdge apps to `INSTALLED_APPS`:
+Add OptivEdgeAssessments and OptivEdgeIntegrations apps to `INSTALLED_APPS`:
 
 ```python
 INSTALLED_APPS = [
@@ -201,12 +201,12 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path("", include("optivedge.urls")),
+    path("", include("optivedge_integrations.urls")),
     path("admin/", admin.site.urls),
 ]
 ```
 
-OptivEdge composes registered app navigation and routes. The assessment app publishes its mount metadata in `assessments.app_meta`.
+OptivEdgeIntegrations composes registered app navigation and routes. The assessment app publishes its mount metadata in `assessments.app_meta`.
 
 ## Running Django Checks And Migrations
 
@@ -217,7 +217,7 @@ python manage.py check
 python manage.py migrate
 ```
 
-Expected migrations include the OptivEdge `integrations` app and the OptivEdgeAssessments `assessments` app.
+Expected migrations include the OptivEdgeIntegrations `integrations` app and the OptivEdgeAssessments `assessments` app.
 
 ## Running The Development Server
 
@@ -231,7 +231,7 @@ Open:
 http://127.0.0.1:8000/
 ```
 
-If the OptivEdge shell renders and the Assessments navigation/routes are available, the framework package, assessment app, templates, URLs, and migrations are working.
+If the OptivEdgeIntegrations shell renders and the Assessments navigation/routes are available, the framework package, assessment app, templates, URLs, and migrations are working.
 
 ## Development Workflow For OptivEdgeAssessments
 
@@ -276,7 +276,7 @@ OptivEdgeAssessments should keep URL ownership in the assessment app:
 src/assessments/urls.py
 ```
 
-The downstream project's root URL configuration should include `optivedge.urls`. OptivEdge handles framework-level URL composition and app-local mounts.
+The downstream project's root URL configuration should include `optivedge_integrations.urls`. OptivEdgeIntegrations handles framework-level URL composition and app-local mounts.
 
 ## Packaging Rules
 

@@ -10,7 +10,7 @@ from assessments.reporting.context import (
 )
 from django.contrib.contenttypes.models import ContentType
 
-from optivedge.integrations.models import (
+from optivedge_integrations.integrations.models import (
     Appliance,
     ApplianceGroup,
     EnforcementPoint,

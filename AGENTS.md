@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdge` framework. It is installed into downstream Django host projects; it is not a standalone Django project.
+`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdgeIntegrations` framework. It is installed into downstream Django host projects; it is not a standalone Django project.
 
 This repository owns only the installable `assessments` app under `src/assessments`. Downstream host projects own `manage.py`, root settings, root URLs, databases, environment variables, and deployment configuration.
 
@@ -16,7 +16,7 @@ Package-local workflow notes that are used by the app live under `src/assessment
 
 ## Repository Boundaries
 
-OptivEdge owns framework concerns:
+OptivEdgeIntegrations owns framework concerns:
 
 * vendor collection logic
 * PAN-OS session handling
@@ -37,7 +37,7 @@ OptivEdgeAssessments owns assessment concerns:
 * control catalog import/export workflows
 * assessment-specific templates
 
-Do not move OptivEdge framework concerns into this repository.
+Do not move OptivEdgeIntegrations framework concerns into this repository.
 
 ## Package Layout
 
@@ -83,14 +83,14 @@ Run Django checks, migrations, and UI smoke tests from a downstream host Django 
 
 ## Core Behavior Rules
 
-* Consume normalized OptivEdge data models such as security rules, management-plane profiles, address objects, and enforcement scopes.
+* Consume normalized OptivEdgeIntegrations data models such as security rules, management-plane profiles, address objects, and enforcement scopes.
 * Do not add vendor-specific API calls to assessment views, reporting modules, catalog modules, or control-query evaluation code.
 * Keep views thin; put reusable logic in focused modules such as `controls_catalog`, `search`, `reporting`, `findings.py`, and `management_findings.py`.
 * Preserve canonical query model labels such as `integrations.SecurityRule`; do not replace them with Python import paths.
 
 ## UI Rules
 
-Use the OptivEdge shell and existing template patterns. Do not create a second application shell inside assessment templates.
+Use the OptivEdgeIntegrations shell and existing template patterns. Do not create a second application shell inside assessment templates.
 
 Use the existing Lucide template tag pattern:
 
@@ -107,7 +107,7 @@ Assessment data and report exports may be client-sensitive. Do not commit genera
 
 ## Known Pitfalls
 
-* `pyproject.toml` currently depends on OptivEdge from `@main`; prefer tags or commit SHAs for repeatable deployments.
-* Use Python imports in code, for example `from optivedge.integrations.models import SecurityRule`.
+* `pyproject.toml` currently depends on OptivEdgeIntegrations from `@main`; prefer tags or commit SHAs for repeatable deployments.
+* Use Python imports in code, for example `from optivedge_integrations.integrations.models import SecurityRule`.
 * Use Django model labels in canonical query payloads, for example `integrations.SecurityRule`.
-* If a framework route, shared shell behavior, template, or template tag is missing, check OptivEdge first.
+* If a framework route, shared shell behavior, template, or template tag is missing, check OptivEdgeIntegrations first.

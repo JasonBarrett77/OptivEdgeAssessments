@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "optivedge-assessments"
 version = "0.1.0"
-description = "Assessment workflows for the OptivEdge Django framework."
+description = "Assessment workflows for the OptivEdgeIntegrations Django framework."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
+    "optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main",
     "python-docx",
     "docxtpl",
     "XlsxWriter",

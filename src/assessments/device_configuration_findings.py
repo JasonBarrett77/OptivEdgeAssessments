@@ -14,7 +14,7 @@ from assessments.models import (
     DeviceConfigurationFinding,
     DeviceConfigurationFindingControlQuery,
 )
-from optivedge.integrations.models import DeviceConfigurationProfile
+from optivedge_integrations.integrations.models import DeviceConfigurationProfile
 
 
 @dataclass

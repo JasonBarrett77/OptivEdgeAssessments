@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import Q
 
 from assessments.search.exceptions import SearchSyntaxError
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 
 
 SUPPORTED_OPERATORS = {"eq", "contains"}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from assessments.search.exceptions import SearchSyntaxError
-from optivedge.integrations.models import DeviceConfigurationProfile
+from optivedge_integrations.integrations.models import DeviceConfigurationProfile
 
 
 SUPPORTED_OPERATORS = {"eq", "contains", "is_empty"}

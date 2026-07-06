@@ -1,12 +1,12 @@
 # OptivEdgeAssessments
 
-`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdge` framework. It is not intended to be deployed directly as a standalone Django project. Host Django projects install this package and include its app, URLs, templates, migrations, and assessment workflows.
+`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdgeIntegrations` framework. It is not intended to be deployed directly as a standalone Django project. Host Django projects install this package and include its app, URLs, templates, migrations, and assessment workflows.
 
-This package owns firewall assessment workflows that consume normalized firewall integration data provided by OptivEdge.
+This package owns firewall assessment workflows that consume normalized firewall integration data provided by OptivEdgeIntegrations.
 
-OptivEdge provides the framework layer:
+OptivEdgeIntegrations provides the framework layer:
 
-* `optivedge.integrations`
+* `optivedge_integrations.integrations`
 * normalized firewall data models
 * PAN-OS collection and normalization logic
 * shared shell, templates, template tags, and framework URLs
@@ -50,10 +50,10 @@ Only `src/assessments` is packaged for installation. Downstream host projects re
 
 ## Dependency Model
 
-This repository is packaged as the `optivedge-assessments` Python distribution, which installs the local `assessments` Django app. The app depends on OptivEdge through `pyproject.toml`:
+This repository is packaged as the `optivedge-assessments` Python distribution, which installs the local `assessments` Django app. The app depends on OptivEdgeIntegrations through `pyproject.toml`:
 
 ```text
-optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main
+optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main
 ```
 
 A downstream project can install this assessment app from GitHub in the same style:
@@ -72,7 +72,7 @@ python -m pip install "git+https://github.com/JasonBarrett77/OptivEdgeAssessment
 
 * Python 3.12+
 * Django 6.0.x
-* OptivEdge installed from GitHub
+* OptivEdgeIntegrations installed from GitHub
 * SQLite for local development unless another database is configured
 
 ## Local Development
@@ -113,9 +113,9 @@ Full Django checks, migrations, and browser smoke tests should be run from a dow
 
 ## Application Boundaries
 
-### OptivEdge
+### OptivEdgeIntegrations
 
-OptivEdge owns framework and integration concerns:
+OptivEdgeIntegrations owns framework and integration concerns:
 
 * vendor collection logic
 * PAN-OS session handling
@@ -126,7 +126,7 @@ OptivEdge owns framework and integration concerns:
 * shared template tags
 * integration-facing routes and views
 
-Framework-level changes should be made in the `OptivEdge` repository.
+Framework-level changes should be made in the `OptivEdgeIntegrations` repository.
 
 ### OptivEdgeAssessments
 
@@ -141,7 +141,7 @@ This repository owns assessment concerns:
 * control catalog workflows
 * assessment-specific views and templates
 
-Assessment code should consume normalized OptivEdge data. It should not call vendor APIs directly.
+Assessment code should consume normalized OptivEdgeIntegrations data. It should not call vendor APIs directly.
 
 ## Canonical Query Model Labels
 
@@ -157,10 +157,10 @@ integrations.ManagementPlaneProfile
 Correct Python imports:
 
 ```python
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 ```
 
-Do not replace canonical query model labels with `optivedge.integrations...` paths.
+Do not replace canonical query model labels with `optivedge_integrations.integrations...` paths.
 
 ## Control Catalogs
 
@@ -269,16 +269,16 @@ Do not commit Windows alternate data stream artifacts:
 
 ## Known Pitfalls
 
-### OptivEdge version drift
+### OptivEdgeIntegrations version drift
 
-`pyproject.toml` currently depends on OptivEdge from `@main`. Use tags or commit SHAs for repeatable deployments.
+`pyproject.toml` currently depends on OptivEdgeIntegrations from `@main`. Use tags or commit SHAs for repeatable deployments.
 
 ### Wrong import style
 
 Use Python imports for code:
 
 ```python
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 ```
 
 Use Django model labels in canonical query payloads:
@@ -289,7 +289,7 @@ integrations.SecurityRule
 
 ### Missing framework routes or templates
 
-If a shared shell route, integration route, template, or template tag is missing, check the OptivEdge framework first. The fix may belong in the `OptivEdge` repository, not in `OptivEdgeAssessments`.
+If a shared shell route, integration route, template, or template tag is missing, check the OptivEdgeIntegrations framework first. The fix may belong in the `OptivEdgeIntegrations` repository, not in `OptivEdgeAssessments`.
 
 ### Generated files
 

@@ -6,7 +6,7 @@ from assessments.search.security_rules.fields.repeated_value import (
     SUPPORTED_OPERATORS,
     compile_repeated_value_clause,
 )
-from optivedge.integrations.models import SecurityRuleApplication
+from optivedge_integrations.integrations.models import SecurityRuleApplication
 
 
 def compile_application_clause(clause):

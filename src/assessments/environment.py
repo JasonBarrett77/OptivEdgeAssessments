@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.core.exceptions import ImproperlyConfigured
 
-from optivedge.integrations.models import ApplicationEnvironment
+from optivedge.models import ApplicationEnvironment
 
 
 def get_application_environment(*, required: bool = False) -> ApplicationEnvironment | None:

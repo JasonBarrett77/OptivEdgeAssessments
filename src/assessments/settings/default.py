@@ -15,8 +15,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "optivedge",
-    "optivedge.integrations",
+    "optivedge.apps.OptivEdgeConfig",
+    "optivedge_integrations.integrations",
     "assessments",
 ]
 

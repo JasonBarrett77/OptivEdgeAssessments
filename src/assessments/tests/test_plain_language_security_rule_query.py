@@ -19,7 +19,7 @@ from assessments.plain_language.security_rules.translator import (
     translate_plain_language_security_rule_query,
 )
 from assessments.search.exceptions import SearchSyntaxError
-from optivedge.integrations.models import ManagementStation, SecurityRuleSearchVocabularyEntry
+from optivedge_integrations.integrations.models import ManagementStation, SecurityRuleSearchVocabularyEntry
 
 
 class FakeResponsesClient:

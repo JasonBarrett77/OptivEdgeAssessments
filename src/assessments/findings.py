@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from assessments.control_queries import evaluate_control_queries
 from assessments.models import AssessmentRun, Control, RuleFinding, RuleFindingControlQuery
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 
 
 @dataclass

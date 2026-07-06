@@ -6,7 +6,7 @@ from assessments.search.security_rules.fields.address_semantic import (
     SUPPORTED_OPERATORS,
     compile_semantic_address_clause,
 )
-from optivedge.integrations.models import SecurityRuleDestinationAddressRef
+from optivedge_integrations.integrations.models import SecurityRuleDestinationAddressRef
 
 
 def compile_destination_address_semantic_clause(clause):

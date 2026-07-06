@@ -9,8 +9,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.text import slugify
 
-from optivedge.integrations.models import (
-    ApplicationEnvironment,
+from optivedge.models import ApplicationEnvironment
+from optivedge_integrations.integrations.models import (
     DeviceConfigurationProfile,
     SecurityRule,
 )

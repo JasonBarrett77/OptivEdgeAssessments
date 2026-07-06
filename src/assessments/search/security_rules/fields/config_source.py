@@ -6,7 +6,7 @@ from assessments.search.security_rules.fields.scalar_choice import (
     SUPPORTED_OPERATORS,
     compile_scalar_choice_clause,
 )
-from optivedge.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import SecurityRule
 
 
 def compile_config_source_clause(clause):

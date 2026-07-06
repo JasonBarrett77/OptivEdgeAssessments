@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 
 from assessments.models import Control, DeviceConfigurationFinding, RuleFinding
 from assessments.reporting.context import build_report_context, get_latest_device_configuration_assessment_run, get_latest_rule_assessment_run
-from optivedge.integrations.models import ApplicationEnvironment
+from optivedge.models import ApplicationEnvironment
 
 
 SHEET_NAME_LIMIT = 31

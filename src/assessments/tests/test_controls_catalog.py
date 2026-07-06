@@ -17,7 +17,7 @@ from assessments.models import (
     Control,
     ControlQuery,
 )
-from optivedge.integrations.models import ApplicationEnvironment
+from optivedge.models import ApplicationEnvironment
 
 
 def build_security_rule_query(value: str) -> dict:

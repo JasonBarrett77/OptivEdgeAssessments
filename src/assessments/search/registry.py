@@ -17,7 +17,7 @@ from assessments.search.security_rules.compiler import (
     SECURITY_RULE_MODEL,
     compile_security_rule_search_node,
 )
-from optivedge.integrations.models import DeviceConfigurationProfile, SecurityRule
+from optivedge_integrations.integrations.models import DeviceConfigurationProfile, SecurityRule
 
 
 MODEL_REGISTRY = {

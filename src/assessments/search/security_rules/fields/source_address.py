@@ -6,7 +6,7 @@ from assessments.search.security_rules.fields.address_ref import (
     SUPPORTED_OPERATORS,
     compile_address_ref_clause,
 )
-from optivedge.integrations.models import SecurityRuleSourceAddressRef
+from optivedge_integrations.integrations.models import SecurityRuleSourceAddressRef
 
 
 def compile_source_address_clause(clause):
