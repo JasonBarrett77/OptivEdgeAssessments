@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 
 from assessments.models import Control, DeviceConfigurationFinding, RuleFinding
 from assessments.reporting.context import build_report_context, get_latest_device_configuration_assessment_run, get_latest_rule_assessment_run
+from assessments.security_rule_queries import SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS
 from optivedge.models import ApplicationEnvironment
 
 
@@ -57,14 +58,10 @@ def build_workbook_export_data(*, generated_date: str) -> WorkbookExportData:
         )
         .prefetch_related(
             "control_queries",
-            "security_rule__securityrulefromzones",
-            "security_rule__securityruletozones",
-            "security_rule__source_address_refs__address_object",
-            "security_rule__source_address_refs__address_group",
-            "security_rule__destination_address_refs__address_object",
-            "security_rule__destination_address_refs__address_group",
-            "security_rule__securityruleapplications",
-            "security_rule__securityruleservices",
+            *(
+                f"security_rule__{relation}"
+                for relation in SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS
+            ),
         )
     )
     device_configuration_findings = list(

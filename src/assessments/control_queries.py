@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from assessments.models import Control
-from assessments.search.compiler import apply_search_node
+from assessments.search.compiler import compile_predicate
 from assessments.search.exceptions import SearchSyntaxError
 
 
@@ -49,27 +49,42 @@ def derive_control_query_severity_value(control, matched_queries):
 
 
 def evaluate_queryset_control_queries(queryset, control, *, model_name):
+    """Match `queryset` against every active ControlQuery on `control`.
+
+    Runs one broad union query to find every matching object, then attributes matches
+    to individual queries (needed for severity ranking) only against that narrowed
+    subset - instead of running each active query as its own full-table query.
+    """
     active_queries = list(control.queries.filter(is_active=True).order_by("-is_baseline", "name", "pk"))
-    matched_by_object = {}
+    predicates_by_query = []
+    combined_predicate = None
     skipped_queries = 0
 
     for control_query in active_queries:
         canonical_query = control_query.canonical_query
-        if not isinstance(canonical_query, dict):
-            skipped_queries += 1
-            continue
-        if canonical_query.get("model") != model_name:
+        if not isinstance(canonical_query, dict) or canonical_query.get("model") != model_name:
             skipped_queries += 1
             continue
         try:
-            matched_object_ids = apply_search_node(queryset, canonical_query).values_list("pk", flat=True)
-            for object_id in matched_object_ids:
-                matched_by_object.setdefault(object_id, []).append(control_query)
+            predicate = compile_predicate(queryset.model, canonical_query)
         except SearchSyntaxError:
             skipped_queries += 1
+            continue
+        predicates_by_query.append((control_query, predicate))
+        combined_predicate = predicate if combined_predicate is None else combined_predicate | predicate
 
-    if not matched_by_object:
+    if combined_predicate is None:
         return queryset.none(), active_queries, skipped_queries, {}, {}
+
+    matched_ids = set(queryset.filter(combined_predicate).values_list("pk", flat=True))
+    if not matched_ids:
+        return queryset.none(), active_queries, skipped_queries, {}, {}
+
+    narrowed_queryset = queryset.filter(pk__in=matched_ids)
+    matched_by_object = {}
+    for control_query, predicate in predicates_by_query:
+        for object_id in narrowed_queryset.filter(predicate).values_list("pk", flat=True):
+            matched_by_object.setdefault(object_id, []).append(control_query)
 
     severity_by_object_id = {
         object_id: derive_control_query_severity_value(control, matched_queries)

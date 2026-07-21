@@ -36,6 +36,10 @@ from assessments.models import (
 )
 from assessments.search.compiler import apply_search, apply_search_node, parse_search_payload
 from assessments.search.exceptions import SearchSyntaxError
+from assessments.security_rule_queries import (
+    build_security_rule_display_queryset,
+    get_cached_security_rule_pks,
+)
 from django.contrib import messages
 from django.db.models import Count
 from django.http import HttpResponse, HttpResponseRedirect
@@ -753,33 +757,7 @@ class SecurityRuleListView(TemplateView):
         context = super().get_context_data(**kwargs)
         selected_control_query = None
         selected_control = None
-        security_rules = (
-            SecurityRule.objects.select_related(
-                "management_station",
-                "enforcement_point",
-                "enforcement_point__appliance_group",
-                "source_snapshot",
-            )
-            .prefetch_related(
-                "securityrulefromzones",
-                "securityruletozones",
-                "source_address_refs__address_object",
-                "source_address_refs__address_group",
-                "destination_address_refs__address_object",
-                "destination_address_refs__address_group",
-                "securityruleapplications",
-                "securityruleservices",
-                "securityruleprofilegroups",
-                "securityruleprofiles",
-            )
-            .order_by(
-                "management_station__hostname",
-                "enforcement_point__vsys_name",
-                "effective_order",
-                "name",
-                "pk",
-            )
-        )
+        security_rules = build_security_rule_display_queryset()
         context["query_text"] = ""
         context["search_payload"] = ""
         context["search_error"] = ""
@@ -909,14 +887,35 @@ class SecurityRuleListView(TemplateView):
         )
         context["selected_control_query"] = selected_control_query
         context.setdefault("selected_control", selected_control)
-        paginator = Paginator(security_rules, PAGE_SIZE)
-        page_obj = paginator.get_page(self.request.GET.get("page"))
+
+        filter_applied = bool(
+            context["search_state_token"] or selected_control or selected_control_query
+        )
+        if filter_applied:
+            paginator = Paginator(security_rules, PAGE_SIZE)
+            page_obj = paginator.get_page(self.request.GET.get("page"))
+            page_rules = page_obj.object_list
+            total_row_count = paginator.count
+        else:
+            # No search/control filter active - serve the unfiltered listing from the
+            # cached pk order instead of re-running the full ordering query on every
+            # request. Paginator accepts plain sequences (count falls back to len()),
+            # so page_obj's interface is identical either way.
+            pks = get_cached_security_rule_pks()
+            paginator = Paginator(pks, PAGE_SIZE)
+            page_obj = paginator.get_page(self.request.GET.get("page"))
+            page_pks = list(page_obj.object_list)
+            # build_security_rule_display_queryset()'s own order_by is the same
+            # deterministic total order the pks were cached with, so filtering to just
+            # this page's pks reproduces the correct order without re-sorting in Python.
+            page_rules = list(build_security_rule_display_queryset().filter(pk__in=page_pks))
+            total_row_count = paginator.count
 
         context["security_rule_rows"] = build_security_rule_rows(
-            page_obj.object_list,
+            page_rules,
             severity_by_rule_id=severity_by_rule_id,
         )
         context["page_obj"] = page_obj
         context["page_range"] = pagination_range(page_obj)
-        context["total_row_count"] = paginator.count
+        context["total_row_count"] = total_row_count
         return context
