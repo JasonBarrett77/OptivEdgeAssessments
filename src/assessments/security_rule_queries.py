@@ -37,13 +37,18 @@ def build_security_rule_display_queryset() -> QuerySet:
     rather than dereferenced joined string columns (hostname/vsys_name) - same visual
     grouping, but satisfiable with a single composite index on SecurityRule alone
     instead of forcing a join purely to sort.
+
+    Deliberately does NOT select_related("source_snapshot") - it's never read by any
+    display consumer, but Snapshot.payload is a JSONField holding the full raw collected
+    device config (often multi-megabyte), so joining and hydrating it for every row is
+    pure, expensive dead weight. Measured on a real dataset: adding source_snapshot to
+    select_related took a 100-row page fetch from ~10ms to ~10s.
     """
     return (
         SecurityRule.objects.select_related(
             "management_station",
             "enforcement_point",
             "enforcement_point__appliance_group",
-            "source_snapshot",
         )
         .prefetch_related(*SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS)
         .order_by(
