@@ -16,6 +16,7 @@ from optivedge_integrations.integrations.models import (
     AddressGroup,
     AddressGroupMember,
     AddressObject,
+    AddressObjectResolvedEntry,
     ApplianceGroup,
     EnforcementPoint,
     ManagementStation,
@@ -609,6 +610,72 @@ class SecurityRuleSearchTests(TestCase):
                     ']}'
                 ),
             )
+
+    def create_fqdn_object(self, *, name):
+        return AddressObject.objects.create(
+            management_station=self.station,
+            enforcement_point=self.enforcement_point,
+            source_snapshot=self.snapshot,
+            config_source=SecurityRule.SOURCE_LOCAL,
+            name=name,
+            namespace_type="local_vsys",
+            namespace_value="vsys1",
+            precedence_rank=10,
+            address_type=AddressObject.TYPE_FQDN,
+            value=name,
+            normalized_value=name,
+        )
+
+    def test_source_address_fqdn_without_resolved_entries_is_excluded(self):
+        fqdn_object = self.create_fqdn_object(name="unrefreshed.example.com")
+        rule = self.create_rule("rule-fqdn-unrefreshed")
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule,
+            raw_value="unrefreshed.example.com",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=fqdn_object,
+            position=1,
+        )
+
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"intersects","value":"5.6.7.8"}'
+                ']}'
+            ),
+        )
+
+        self.assertNotIn(rule, list(queryset))
+
+    def test_source_address_fqdn_with_resolved_entries_matches_semantic_query(self):
+        fqdn_object = self.create_fqdn_object(name="refreshed.example.com")
+        AddressObjectResolvedEntry.objects.create(
+            address_object=fqdn_object,
+            ipv4_start_int=int(ipaddress.IPv4Address("5.6.7.8")),
+            ipv4_end_int=int(ipaddress.IPv4Address("5.6.7.8")),
+            source_snapshot=self.snapshot,
+            collected_at=timezone.now(),
+        )
+        rule = self.create_rule("rule-fqdn-refreshed")
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule,
+            raw_value="refreshed.example.com",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=fqdn_object,
+            position=1,
+        )
+
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"includes","value":"5.6.7.8"}'
+                ']}'
+            ),
+        )
+
+        self.assertQuerySetEqual(queryset, [rule], transform=lambda result: result)
 
     def test_semantic_address_clause_rejects_non_boolean_include_any(self):
         with self.assertRaises(SearchSyntaxError):

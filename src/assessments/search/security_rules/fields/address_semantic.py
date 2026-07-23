@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from django.db.models import Q
 
 from assessments.search.exceptions import SearchSyntaxError
+from optivedge_integrations.integrations.models import AddressObject
 
 
 SUPPORTED_OPERATORS = {"matches", "includes", "exactly", "intersects", "equals"}
@@ -67,39 +68,74 @@ def parse_ipv4_query_value(field_name: str, value) -> IPv4Interval:
 
 
 def supported_member_query(*, include_any=False):
-    predicate = (
-        Q(address_object__ipv4_start_int__isnull=False)
-        & Q(address_object__ipv4_end_int__isnull=False)
-        & ~Q(address_object__address_type="fqdn")
-        & ~Q(ref_type="dynamic_address_group")
-    )
+    """Refs excluded from every semantic address operator regardless of the specific interval
+    comparison: dynamic groups are never IP-resolvable, and is_any is opt-in via include_any.
+
+    Deliberately does NOT gate on address_type="fqdn" or on ipv4_start_int/end_int being set -
+    an EDL(ip)/FQDN object can now carry real interval data via its resolved_entries (populated
+    by the "Refresh EDL/FQDN cache" action) even though its own scalar ipv4_start_int/end_int
+    stay null. Each operator below combines this gate with its own "own field OR resolved_entries"
+    interval comparison instead, since a single shared clause can't express both shapes at once.
+    """
+    predicate = ~Q(ref_type="dynamic_address_group")
     if not include_any:
         predicate &= ~Q(address_object__is_any=True)
     return predicate
 
 
+def address_object_intervals(address_object) -> list[IPv4Interval]:
+    """Every disjoint IPv4 interval this address object represents.
+
+    A plain object (ip_netmask/ip_range/builtin any) uses its own scalar ipv4_start_int/end_int,
+    unchanged. An EDL(ip)/FQDN object instead uses its resolved_entries - possibly several
+    disjoint ranges, populated only by the "Refresh EDL/FQDN cache" action. An EDL/FQDN object
+    with no resolved entries yet (never refreshed, or nothing parseable) contributes nothing,
+    same as it does today.
+    """
+    if address_object.address_type in (AddressObject.TYPE_EDL, AddressObject.TYPE_FQDN):
+        return [
+            IPv4Interval(entry.ipv4_start_int, entry.ipv4_end_int)
+            for entry in address_object.resolved_entries.all()
+        ]
+    if address_object.ipv4_start_int is not None and address_object.ipv4_end_int is not None:
+        return [IPv4Interval(address_object.ipv4_start_int, address_object.ipv4_end_int)]
+    return []
+
+
 def member_covers_query(interval: IPv4Interval, *, include_any=False):
-    return (
-        supported_member_query(include_any=include_any)
+    own_covers = (
+        Q(address_object__ipv4_start_int__isnull=False)
+        & Q(address_object__ipv4_end_int__isnull=False)
         & Q(address_object__ipv4_start_int__lte=interval.start)
         & Q(address_object__ipv4_end_int__gte=interval.end)
     )
+    resolved_entry_covers = Q(address_object__resolved_entries__ipv4_start_int__lte=interval.start) & Q(
+        address_object__resolved_entries__ipv4_end_int__gte=interval.end
+    )
+    return supported_member_query(include_any=include_any) & (own_covers | resolved_entry_covers)
 
 
 def member_equals_query(interval: IPv4Interval, *, include_any=False):
-    return (
-        supported_member_query(include_any=include_any)
-        & Q(address_object__ipv4_start_int=interval.start)
-        & Q(address_object__ipv4_end_int=interval.end)
+    own_equals = Q(address_object__ipv4_start_int=interval.start) & Q(
+        address_object__ipv4_end_int=interval.end
     )
+    resolved_entry_equals = Q(address_object__resolved_entries__ipv4_start_int=interval.start) & Q(
+        address_object__resolved_entries__ipv4_end_int=interval.end
+    )
+    return supported_member_query(include_any=include_any) & (own_equals | resolved_entry_equals)
 
 
 def member_intersects_query(interval: IPv4Interval, *, include_any=False):
-    return (
-        supported_member_query(include_any=include_any)
+    own_intersects = (
+        Q(address_object__ipv4_start_int__isnull=False)
+        & Q(address_object__ipv4_end_int__isnull=False)
         & Q(address_object__ipv4_start_int__lte=interval.end)
         & Q(address_object__ipv4_end_int__gte=interval.start)
     )
+    resolved_entry_intersects = Q(address_object__resolved_entries__ipv4_start_int__lte=interval.end) & Q(
+        address_object__resolved_entries__ipv4_end_int__gte=interval.start
+    )
+    return supported_member_query(include_any=include_any) & (own_intersects | resolved_entry_intersects)
 
 
 def normalize_and_merge(intervals: list[IPv4Interval]) -> list[IPv4Interval]:
@@ -144,13 +180,14 @@ def compile_semantic_address_clause(
     matching_rule_ids = []
     queryset = (
         model_class.objects.select_related("security_rule", "address_object")
+        .prefetch_related("address_object__resolved_entries")
         .filter(
-            address_object__ipv4_start_int__isnull=False,
-            address_object__ipv4_end_int__isnull=False,
+            Q(address_object__ipv4_start_int__isnull=False, address_object__ipv4_end_int__isnull=False)
+            | Q(address_object__resolved_entries__isnull=False)
         )
-        .exclude(address_object__address_type="fqdn")
         .exclude(ref_type=model_class.RefType.DYNAMIC_ADDRESS_GROUP)
         .order_by("security_rule_id", "position", "id")
+        .distinct()
     )
     if not include_any:
         queryset = queryset.exclude(address_object__is_any=True)
@@ -160,10 +197,8 @@ def compile_semantic_address_clause(
         address_object = ref.address_object
         if address_object is None:
             continue
-        if address_object.ipv4_start_int is None or address_object.ipv4_end_int is None:
-            continue
-        intervals_by_rule_id.setdefault(ref.security_rule_id, []).append(
-            IPv4Interval(address_object.ipv4_start_int, address_object.ipv4_end_int)
+        intervals_by_rule_id.setdefault(ref.security_rule_id, []).extend(
+            address_object_intervals(address_object)
         )
 
     for rule_id, member_intervals in intervals_by_rule_id.items():
