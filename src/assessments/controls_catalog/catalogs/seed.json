@@ -51,6 +51,14 @@
                         "include_any": false
                       }
                     ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
                   }
                 ]
               },
@@ -77,6 +85,14 @@
                         "include_any": true
                       }
                     ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
                   }
                 ]
               },
@@ -103,6 +119,14 @@
                         "include_any": true
                       }
                     ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
                   }
                 ]
               },
@@ -176,6 +200,14 @@
                         "include_any": false
                       }
                     ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
                   }
                 ]
               },
