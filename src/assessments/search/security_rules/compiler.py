@@ -24,6 +24,8 @@ from assessments.search.security_rules.fields.management_station import (
     compile_management_station_clause,
 )
 from assessments.search.security_rules.fields.name import compile_name_clause
+from assessments.search.security_rules.fields.negate_destination import compile_negate_destination_clause
+from assessments.search.security_rules.fields.negate_source import compile_negate_source_clause
 from assessments.search.security_rules.fields.provenance import compile_provenance_clause
 from assessments.search.security_rules.fields.rule_type import compile_rule_type_clause
 from assessments.search.security_rules.fields.service import compile_service_clause
@@ -55,6 +57,8 @@ FIELD_COMPILERS = {
     "log_start": compile_log_start_clause,
     "management_station": compile_management_station_clause,
     "name": compile_name_clause,
+    "negate_destination": compile_negate_destination_clause,
+    "negate_source": compile_negate_source_clause,
     "provenance": compile_provenance_clause,
     "rule_type": compile_rule_type_clause,
     "service": compile_service_clause,
@@ -78,6 +82,8 @@ FIELD_OPERATOR_REGISTRY = {
     "log_start": compile_log_start_clause.SUPPORTED_OPERATORS,
     "management_station": compile_management_station_clause.SUPPORTED_OPERATORS,
     "name": compile_name_clause.SUPPORTED_OPERATORS,
+    "negate_destination": compile_negate_destination_clause.SUPPORTED_OPERATORS,
+    "negate_source": compile_negate_source_clause.SUPPORTED_OPERATORS,
     "provenance": compile_provenance_clause.SUPPORTED_OPERATORS,
     "rule_type": compile_rule_type_clause.SUPPORTED_OPERATORS,
     "service": compile_service_clause.SUPPORTED_OPERATORS,

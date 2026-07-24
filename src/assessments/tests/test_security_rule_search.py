@@ -677,6 +677,104 @@ class SecurityRuleSearchTests(TestCase):
 
         self.assertQuerySetEqual(queryset, [rule], transform=lambda result: result)
 
+    def test_source_address_negated_rule_with_complement_matches_effective_range(self):
+        excluded_object = self.create_interval_object(name="excluded-host", value="10.30.30.30")
+        rule = self.create_rule("rule-negated-with-complement")
+        rule.negate_source = True
+        rule.save(update_fields=["negate_source"])
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule,
+            raw_value="excluded-host",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=excluded_object,
+            position=1,
+        )
+
+        complement_object = AddressObject.objects.create(
+            management_station=self.station,
+            enforcement_point=self.enforcement_point,
+            source_snapshot=self.snapshot,
+            config_source=SecurityRule.SOURCE_LOCAL,
+            name="__negated_complement__rule-negated-with-complement__source",
+            namespace_type="local_vsys",
+            namespace_value="vsys1",
+            precedence_rank=10,
+            address_type=AddressObject.TYPE_NEGATED_COMPLEMENT,
+            is_synthetic=True,
+            synthetic_kind=AddressObject.SYNTHETIC_KIND_NEGATED_COMPLEMENT,
+        )
+        excluded_int = int(ipaddress.IPv4Address("10.30.30.30"))
+        AddressObjectResolvedEntry.objects.create(
+            address_object=complement_object,
+            ipv4_start_int=0,
+            ipv4_end_int=excluded_int - 1,
+            source_snapshot=self.snapshot,
+            collected_at=timezone.now(),
+        )
+        AddressObjectResolvedEntry.objects.create(
+            address_object=complement_object,
+            ipv4_start_int=excluded_int + 1,
+            ipv4_end_int=4_294_967_295,
+            source_snapshot=self.snapshot,
+            collected_at=timezone.now(),
+        )
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule,
+            raw_value="__negated_complement__rule-negated-with-complement__source",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=complement_object,
+            position=2,
+        )
+
+        # An address outside the excluded host matches (falls within the complement).
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"includes","value":"10.30.30.31"}'
+                ']}'
+            ),
+        )
+        self.assertIn(rule, list(queryset))
+
+        # The excluded host itself does not match.
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"includes","value":"10.30.30.30"}'
+                ']}'
+            ),
+        )
+        self.assertNotIn(rule, list(queryset))
+
+    def test_source_address_negated_rule_without_complement_is_excluded_from_semantic_search(self):
+        excluded_object = self.create_interval_object(name="excluded-host-2", value="10.40.40.40")
+        rule = self.create_rule("rule-negated-without-complement")
+        rule.negate_source = True
+        rule.save(update_fields=["negate_source"])
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule,
+            raw_value="excluded-host-2",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=excluded_object,
+            position=1,
+        )
+
+        # No complement was computed/materialized for this rule. A query matching the
+        # excluded member's own range must NOT match - if it did, that would mean the
+        # original (excluded) ref was incorrectly treated as a positive match, exactly the
+        # bug this gate exists to prevent.
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"includes","value":"10.40.40.40"}'
+                ']}'
+            ),
+        )
+        self.assertNotIn(rule, list(queryset))
+
     def test_semantic_address_clause_rejects_non_boolean_include_any(self):
         with self.assertRaises(SearchSyntaxError):
             apply_search(

@@ -185,6 +185,8 @@ def _build_rule_row(finding: RuleFinding) -> dict:
         "disabled": "Yes" if security_rule.disabled else "No",
         "rule_type": security_rule.rule_type,
         "description": security_rule.description,
+        "negate_source": "Yes" if security_rule.negate_source else "No",
+        "negate_destination": "Yes" if security_rule.negate_destination else "No",
         "from_zones": ", ".join(value.value for value in security_rule.securityrulefromzones.all()),
         "to_zones": ", ".join(value.value for value in security_rule.securityruletozones.all()),
         "source_addresses": ", ".join(_address_label(ref) for ref in security_rule.source_address_refs.all()),

@@ -67,9 +67,28 @@ def parse_ipv4_query_value(field_name: str, value) -> IPv4Interval:
         raise SearchSyntaxError(f"{field_name} IPv4 CIDR is invalid.") from exc
 
 
-def supported_member_query(*, include_any=False):
+def _negate_field_name(model_class) -> str:
+    """Which SecurityRule boolean field governs this ref model's negation state."""
+    return "negate_source" if "Source" in model_class.__name__ else "negate_destination"
+
+
+def _negated_complement_gate(negate_field: str) -> Q:
+    """Excludes a negated rule's ORIGINAL (excluded-member) refs from positive semantic
+    matching - those represent what's NOT allowed, not what is. Only a synthetic
+    negated-complement ref (materialized at normalize time when the complement was
+    computable) is let through for a negated rule; if no complement was computed, every ref
+    on that rule/side fails this gate, so the rule is safely excluded from semantic matching
+    entirely rather than matched backwards. A no-op for non-negated rules (first branch)."""
+    return Q(**{f"security_rule__{negate_field}": False}) | Q(
+        address_object__is_synthetic=True,
+        address_object__synthetic_kind=AddressObject.SYNTHETIC_KIND_NEGATED_COMPLEMENT,
+    )
+
+
+def supported_member_query(*, include_any=False, negate_field: str):
     """Refs excluded from every semantic address operator regardless of the specific interval
-    comparison: dynamic groups are never IP-resolvable, and is_any is opt-in via include_any.
+    comparison: dynamic groups are never IP-resolvable, is_any is opt-in via include_any, and
+    a negated rule's original member refs are excluded per _negated_complement_gate().
 
     Deliberately does NOT gate on address_type="fqdn" or on ipv4_start_int/end_int being set -
     an EDL(ip)/FQDN object can now carry real interval data via its resolved_entries (populated
@@ -77,7 +96,7 @@ def supported_member_query(*, include_any=False):
     stay null. Each operator below combines this gate with its own "own field OR resolved_entries"
     interval comparison instead, since a single shared clause can't express both shapes at once.
     """
-    predicate = ~Q(ref_type="dynamic_address_group")
+    predicate = ~Q(ref_type="dynamic_address_group") & _negated_complement_gate(negate_field)
     if not include_any:
         predicate &= ~Q(address_object__is_any=True)
     return predicate
@@ -86,23 +105,25 @@ def supported_member_query(*, include_any=False):
 def address_object_intervals(address_object) -> list[IPv4Interval]:
     """Every disjoint IPv4 interval this address object represents.
 
-    A plain object (ip_netmask/ip_range/builtin any) uses its own scalar ipv4_start_int/end_int,
-    unchanged. An EDL(ip)/FQDN object instead uses its resolved_entries - possibly several
-    disjoint ranges, populated only by the "Refresh EDL/FQDN cache" action. An EDL/FQDN object
-    with no resolved entries yet (never refreshed, or nothing parseable) contributes nothing,
-    same as it does today.
+    Checks resolved_entries first, regardless of address_type - covers EDL(ip)/FQDN objects
+    (populated only by the "Refresh EDL/FQDN cache" action) and negated-complement objects
+    (populated at rule-normalization time, possibly several disjoint ranges) via the same
+    mechanism. Falls back to the object's own scalar ipv4_start_int/end_int for a plain object
+    (ip_netmask/ip_range/builtin any), unchanged. An object with neither (e.g. an EDL/FQDN never
+    refreshed) contributes nothing, same as it does today.
     """
-    if address_object.address_type in (AddressObject.TYPE_EDL, AddressObject.TYPE_FQDN):
+    resolved_entries = list(address_object.resolved_entries.all())
+    if resolved_entries:
         return [
             IPv4Interval(entry.ipv4_start_int, entry.ipv4_end_int)
-            for entry in address_object.resolved_entries.all()
+            for entry in resolved_entries
         ]
     if address_object.ipv4_start_int is not None and address_object.ipv4_end_int is not None:
         return [IPv4Interval(address_object.ipv4_start_int, address_object.ipv4_end_int)]
     return []
 
 
-def member_covers_query(interval: IPv4Interval, *, include_any=False):
+def member_covers_query(interval: IPv4Interval, *, include_any=False, negate_field: str):
     own_covers = (
         Q(address_object__ipv4_start_int__isnull=False)
         & Q(address_object__ipv4_end_int__isnull=False)
@@ -112,20 +133,24 @@ def member_covers_query(interval: IPv4Interval, *, include_any=False):
     resolved_entry_covers = Q(address_object__resolved_entries__ipv4_start_int__lte=interval.start) & Q(
         address_object__resolved_entries__ipv4_end_int__gte=interval.end
     )
-    return supported_member_query(include_any=include_any) & (own_covers | resolved_entry_covers)
+    return supported_member_query(include_any=include_any, negate_field=negate_field) & (
+        own_covers | resolved_entry_covers
+    )
 
 
-def member_equals_query(interval: IPv4Interval, *, include_any=False):
+def member_equals_query(interval: IPv4Interval, *, include_any=False, negate_field: str):
     own_equals = Q(address_object__ipv4_start_int=interval.start) & Q(
         address_object__ipv4_end_int=interval.end
     )
     resolved_entry_equals = Q(address_object__resolved_entries__ipv4_start_int=interval.start) & Q(
         address_object__resolved_entries__ipv4_end_int=interval.end
     )
-    return supported_member_query(include_any=include_any) & (own_equals | resolved_entry_equals)
+    return supported_member_query(include_any=include_any, negate_field=negate_field) & (
+        own_equals | resolved_entry_equals
+    )
 
 
-def member_intersects_query(interval: IPv4Interval, *, include_any=False):
+def member_intersects_query(interval: IPv4Interval, *, include_any=False, negate_field: str):
     own_intersects = (
         Q(address_object__ipv4_start_int__isnull=False)
         & Q(address_object__ipv4_end_int__isnull=False)
@@ -135,7 +160,9 @@ def member_intersects_query(interval: IPv4Interval, *, include_any=False):
     resolved_entry_intersects = Q(address_object__resolved_entries__ipv4_start_int__lte=interval.end) & Q(
         address_object__resolved_entries__ipv4_end_int__gte=interval.start
     )
-    return supported_member_query(include_any=include_any) & (own_intersects | resolved_entry_intersects)
+    return supported_member_query(include_any=include_any, negate_field=negate_field) & (
+        own_intersects | resolved_entry_intersects
+    )
 
 
 def normalize_and_merge(intervals: list[IPv4Interval]) -> list[IPv4Interval]:
@@ -164,17 +191,18 @@ def compile_semantic_address_clause(
 
     interval = parse_ipv4_query_value(field_name, clause["value"])
     include_any = clause.get("include_any", False)
+    negate_field = _negate_field_name(model_class)
 
     if op == "includes":
-        predicate = member_covers_query(interval, include_any=include_any)
+        predicate = member_covers_query(interval, include_any=include_any, negate_field=negate_field)
         return model_class.objects.filter(predicate).values("security_rule_id")
 
     if op == "exactly":
-        predicate = member_equals_query(interval, include_any=include_any)
+        predicate = member_equals_query(interval, include_any=include_any, negate_field=negate_field)
         return model_class.objects.filter(predicate).values("security_rule_id")
 
     if op == "intersects":
-        predicate = member_intersects_query(interval, include_any=include_any)
+        predicate = member_intersects_query(interval, include_any=include_any, negate_field=negate_field)
         return model_class.objects.filter(predicate).values("security_rule_id")
 
     matching_rule_ids = []
@@ -185,6 +213,7 @@ def compile_semantic_address_clause(
             Q(address_object__ipv4_start_int__isnull=False, address_object__ipv4_end_int__isnull=False)
             | Q(address_object__resolved_entries__isnull=False)
         )
+        .filter(_negated_complement_gate(negate_field))
         .exclude(ref_type=model_class.RefType.DYNAMIC_ADDRESS_GROUP)
         .order_by("security_rule_id", "position", "id")
         .distinct()

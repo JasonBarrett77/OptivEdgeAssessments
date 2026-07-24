@@ -172,9 +172,15 @@
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.provenance %}{{ row.security_rule.provenance }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-900">{{ row.security_rule.name }}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.from_zones %}{% for value in row.from_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+                                    {% if row.security_rule.negate_source %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-source: matches everything EXCEPT the addresses listed below">NOT</span>{% endif %}
+                                    {% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}
+                                </td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.to_zones %}{% for value in row.to_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+                                    {% if row.security_rule.negate_destination %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-destination: matches everything EXCEPT the addresses listed below">NOT</span>{% endif %}
+                                    {% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}
+                                </td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.applications %}{% for value in row.applications %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.services %}{% for value in row.services %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.action|default:"-" }}</td>
@@ -301,7 +307,8 @@
                                 <section class="flex flex-col gap-1">
                                     <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Value Rules</div>
                                     <div>Supported semantic values: IPv4 host, CIDR, range, and <code>any</code>.</div>
-                                    <div>Unsupported types like dynamic groups, FQDNs, and EDLs are skipped for semantic evaluation.</div>
+                                    <div>Dynamic groups and Regions are always skipped for semantic evaluation. EDLs and FQDNs are included once their runtime content has been collected via "Refresh EDL/FQDN Cache" - until then they're skipped too.</div>
+                                    <div>A rule with <code>negate-source</code>/<code>negate-destination</code> set matches the effective range <em>excluding</em> its listed addresses. This is computed automatically when every listed address is itself resolvable; if not (e.g. it includes a dynamic group or Region), the rule is skipped for semantic evaluation on that side rather than matched backwards.</div>
                                     <div><code>Include Any?</code> defaults to <code>No</code>, so <code>any</code> members are ignored unless explicitly included.</div>
                                 </section>
                                 <section class="flex flex-col gap-1">
@@ -417,6 +424,8 @@
                 disabled: ["eq"],
                 rule_type: ["eq", "contains"],
                 description: ["eq", "contains"],
+                negate_source: ["eq"],
+                negate_destination: ["eq"],
                 log_start: ["eq"],
                 log_end: ["eq"],
                 log_setting: ["eq", "contains"],
@@ -440,6 +449,8 @@
                 '<option value="disabled">disabled</option>',
                 '<option value="rule_type">rule_type</option>',
                 '<option value="description">description</option>',
+                '<option value="negate_source">negate_source</option>',
+                '<option value="negate_destination">negate_destination</option>',
                 '<option value="log_start">log_start</option>',
                 '<option value="log_end">log_end</option>',
                 '<option value="log_setting">log_setting</option>',

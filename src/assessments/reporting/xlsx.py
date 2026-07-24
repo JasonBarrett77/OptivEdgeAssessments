@@ -144,6 +144,8 @@ def _write_sheet_table(*, worksheet, sheet, formats, table_start_row: int) -> No
         "action": 10,
         "disabled": 10,
         "rule_type": 14,
+        "negate_source": 12,
+        "negate_destination": 14,
         "description": 34,
         "from_zones": 18,
         "to_zones": 18,
@@ -320,6 +322,8 @@ def _default_headers_for_sheet(control_type: str) -> list[str]:
             "vsys_name",
             "disabled",
             "rule_type",
+            "negate_source",
+            "negate_destination",
         ]
     return [
         "severity",
