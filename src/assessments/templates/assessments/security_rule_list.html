@@ -126,7 +126,7 @@
                                 <th class="sticky top-0 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2"></th>
                                 {% endif %}
                                 <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
-                                <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">vsys</th>
+                                <th colspan="3" class="sticky top-0 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">vsys</th>
                                 <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
                                 <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Source</th>
                                 <th colspan="2" class="sticky top-0 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Destination</th>
@@ -137,7 +137,8 @@
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Severity</th>
                                 {% endif %}
                                 <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Station</th>
-                                <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">id</th>
+                                <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
+                                <th class="sticky top-7 z-10 h-7 border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">id</th>
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">name</th>
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Order</th>
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Config Source</th>
@@ -165,6 +166,9 @@
                                 </td>
                                 {% endif %}
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.management_station }}</td>
+                                <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+                                    {% if row.security_rule.enforcement_point.appliance %}{{ row.security_rule.enforcement_point.appliance }}{% elif row.security_rule.enforcement_point.appliance_group.active_appliance %}{{ row.security_rule.enforcement_point.appliance_group.active_appliance }}{% else %}<span class="text-slate-400">-</span>{% endif %}
+                                </td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.enforcement_point.vsys_name }}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.security_rule.enforcement_point.vsys_display_name %}{{ row.security_rule.enforcement_point.vsys_display_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
                                 <td class="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.security_rule.effective_order }}</td>
@@ -205,7 +209,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="{% if show_control_severity %}18{% else %}17{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                <td colspan="{% if show_control_severity %}19{% else %}18{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
                                     No normalized security rules available.
                                 </td>
                             </tr>

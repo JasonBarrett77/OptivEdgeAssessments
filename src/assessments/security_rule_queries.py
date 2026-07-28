@@ -48,7 +48,9 @@ def build_security_rule_display_queryset() -> QuerySet:
         SecurityRule.objects.select_related(
             "management_station",
             "enforcement_point",
+            "enforcement_point__appliance",
             "enforcement_point__appliance_group",
+            "enforcement_point__appliance_group__active_appliance",
         )
         .prefetch_related(*SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS)
         .order_by(
