@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 from django.core.exceptions import ValidationError
@@ -16,6 +17,7 @@ from optivedge_integrations.integrations.models import (
     ApplianceGroup,
     EnforcementPoint,
     DeviceConfigurationProfile,
+    FieldProvenance,
     ManagementStation,
     SecurityRule,
     SecurityRuleFromZone,
@@ -1020,6 +1022,80 @@ class SecurityRuleListViewGuardTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["search_error"])
+
+
+class SecurityRuleListDeviceGroupTests(TestCase):
+    """Covers the "Device Group" column on the Security Rules list page - previously always
+    rendered "-" because the template read a nonexistent `security_rule.provenance` attribute."""
+
+    def setUp(self):
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA,
+            hostname="panorama.local",
+        )
+        appliance = Appliance.objects.create(
+            management_station=station,
+            serial_number="SR-DG-001",
+            hostname="fw-01",
+        )
+        enforcement_point = EnforcementPoint.objects.create(
+            management_station=station,
+            appliance=appliance,
+            vsys_name="vsys1",
+        )
+        snapshot = Snapshot.objects.create(
+            management_station=station,
+            appliance=appliance,
+            source_type="test",
+            collected_at=timezone.now(),
+        )
+        self.rule_with_device_group = SecurityRule.objects.create(
+            management_station=station,
+            enforcement_point=enforcement_point,
+            source_snapshot=snapshot,
+            config_source=SecurityRule.SOURCE_PUSHED_PRE,
+            effective_order=1,
+            rule_position=1,
+            name="rule-branch-dg",
+            action="allow",
+        )
+        FieldProvenance.objects.create(
+            content_type=ContentType.objects.get_for_model(SecurityRule),
+            object_id=self.rule_with_device_group.pk,
+            field_name="__entry__",
+            provenance_type=FieldProvenance.ProvenanceType.DEVICE_GROUP,
+            raw_key="@loc",
+            raw_value="branch-office-dg",
+        )
+        self.rule_local = SecurityRule.objects.create(
+            management_station=station,
+            enforcement_point=enforcement_point,
+            source_snapshot=snapshot,
+            config_source=SecurityRule.SOURCE_LOCAL,
+            effective_order=2,
+            rule_position=2,
+            name="rule-local",
+            action="allow",
+        )
+        FieldProvenance.objects.create(
+            content_type=ContentType.objects.get_for_model(SecurityRule),
+            object_id=self.rule_local.pk,
+            field_name="__entry__",
+            provenance_type=FieldProvenance.ProvenanceType.LOCAL,
+        )
+
+    def test_security_rule_list_shows_device_group_name(self):
+        response = self.client.get(reverse("assessment_security_rule_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "branch-office-dg")
+
+    def test_security_rule_list_shows_dash_for_local_rule(self):
+        response = self.client.get(reverse("assessment_security_rule_list"))
+
+        rows = {row["security_rule"].pk: row for row in response.context["security_rule_rows"]}
+        self.assertEqual(rows[self.rule_with_device_group.pk]["device_group_name"], "branch-office-dg")
+        self.assertEqual(rows[self.rule_local.pk]["device_group_name"], "")
 
 
 class ControlListViewNoEnvironmentTests(TestCase):

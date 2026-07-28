@@ -27,6 +27,7 @@ SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS = (
     "securityruleservices",
     "securityruleprofilegroups",
     "securityruleprofiles",
+    "field_provenance",
 )
 
 

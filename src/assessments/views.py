@@ -51,6 +51,7 @@ from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.views import View
 
 from optivedge_integrations.integrations.presentation import (
+    entry_device_group_name,
     listed_address_ref_values,
     listed_member_values,
     security_rule_config_source_label,
@@ -119,6 +120,7 @@ def build_security_rule_rows(security_rules, severity_by_rule_id=None):
             {
                 "security_rule": security_rule,
                 "config_source_label": security_rule_config_source_label(security_rule.config_source),
+                "device_group_name": entry_device_group_name(security_rule),
                 "from_zones": listed_member_values(security_rule, "securityrulefromzones"),
                 "to_zones": listed_member_values(security_rule, "securityruletozones"),
                 "source_addresses": listed_address_ref_values(
@@ -261,6 +263,7 @@ class FindingListView(TemplateView):
                 "destination_address_refs__address_group",
                 "securityruleapplications",
                 "securityruleservices",
+                "field_provenance",
                 "rule_findings__control",
                 "rule_findings__control_queries",
             )
