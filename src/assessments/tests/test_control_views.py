@@ -387,42 +387,6 @@ class ControlViewTests(TestCase):
         )
         self.assertIsNone(second_baseline.adjusted_severity)
 
-    def test_control_query_create_view_allows_blank_baseline_severity(self):
-        response = self.client.post(
-            reverse("assessment_control_query_create"),
-            {
-                "control": self.control.pk,
-                "name": "Blank severity baseline",
-                "short_description": "Baseline without explicit severity.",
-                "is_baseline": "on",
-                "adjusted_severity": "",
-                "is_active": "on",
-                "canonical_query": """
-                {
-                  "model": "integrations.SecurityRule",
-                  "operator": "and",
-                  "clauses": [
-                    {
-                      "field": "application",
-                      "op": "eq",
-                      "value": "any"
-                    }
-                  ]
-                }
-                """,
-            },
-        )
-
-        self.assertRedirects(
-            response,
-            reverse("assessment_control_detail", kwargs={"pk": self.control.pk}),
-        )
-        query = ControlQuery.objects.get(
-            control=self.control,
-            name="Blank severity baseline",
-        )
-        self.assertIsNone(query.adjusted_severity)
-
     def test_control_query_create_view_ignores_posted_baseline_severity(self):
         response = self.client.post(
             reverse("assessment_control_query_create"),

@@ -188,3 +188,31 @@ class DeviceConfigurationSearchTests(TestCase):
         self.assertContains(response, "Device Configuration Findings")
         self.assertContains(response, self.control.control_id)
         self.assertContains(response, self.profile.appliance.hostname)
+
+    def test_control_run_device_configuration_findings_view_regenerates_findings(self):
+        ControlQuery.objects.create(
+            control=self.control,
+            name="Baseline",
+            short_description="Flags missing secondary NTP.",
+            canonical_query={
+                "model": self.model_name,
+                "operator": "and",
+                "clauses": [
+                    {
+                        "field": "ntp_secondary_server",
+                        "op": "is_empty",
+                        "value": "",
+                    }
+                ],
+            },
+            is_baseline=True,
+        )
+
+        response = self.client.post(
+            reverse("assessment_control_run_device_configuration_findings"),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("assessment_control_list"))
+        self.assertEqual(DeviceConfigurationFinding.objects.count(), 1)
+        self.assertContains(response, "Device configuration findings regenerated.")

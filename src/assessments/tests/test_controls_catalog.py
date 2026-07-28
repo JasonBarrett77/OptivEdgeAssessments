@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -437,3 +438,110 @@ class CatalogSchemaTargetModelValidationTests(TestCase):
         payload["controls"][0]["control_type"] = "config"
         with self.assertRaises(ValidationError):
             validate_catalog_payload(payload)
+
+
+def build_minimal_catalog_payload(*, key: str, label: str) -> dict:
+    return {
+        "type": "optivedge.assessments.catalog",
+        "schema_version": "1.0",
+        "catalog": {"key": key, "label": label, "version": "1.0.0", "description": ""},
+        "controls": [],
+    }
+
+
+class CatalogViewTests(TestCase):
+    def setUp(self):
+        self.application_environment = ApplicationEnvironment.objects.create(
+            client_name="Example Corp",
+            client_short_name="EXAMPLE",
+            opportunity_number="OP-1234567",
+        )
+
+    def test_create_from_current_view_creates_catalog_and_redirects(self):
+        Control.objects.create(
+            control_id="FW-RULE-VIEW-001",
+            name="View Control",
+            control_type=Control.ControlType.SECURITY_RULE,
+            description="desc",
+            remediation="remediate",
+            default_severity=Control.Severity.MEDIUM,
+        )
+
+        response = self.client.post(
+            reverse("assessment_catalog_create_from_current"),
+            {"label": "View Snapshot", "version": "v1", "description": "created via view"},
+        )
+
+        self.assertRedirects(response, reverse("assessment_catalog_list"))
+        self.assertTrue(Catalog.objects.filter(label="View Snapshot").exists())
+
+    def test_create_from_current_view_errors_when_no_live_controls(self):
+        response = self.client.post(
+            reverse("assessment_catalog_create_from_current"),
+            {"label": "Empty Snapshot", "version": "v1", "description": ""},
+        )
+
+        self.assertRedirects(response, reverse("assessment_catalog_list"))
+        self.assertFalse(Catalog.objects.filter(label="Empty Snapshot").exists())
+
+    def test_apply_view_applies_catalog_and_redirects(self):
+        catalog = Catalog.objects.create(
+            key="view-apply",
+            label="View Apply",
+            version="1.0.0",
+            description="",
+            payload=build_minimal_catalog_payload(key="view-apply", label="View Apply"),
+        )
+
+        response = self.client.post(
+            reverse("assessment_catalog_apply", kwargs={"pk": catalog.pk}),
+        )
+
+        self.assertRedirects(response, reverse("assessment_catalog_list"))
+        state = ApplicationEnvironmentCatalogState.objects.get(
+            application_environment=self.application_environment,
+        )
+        self.assertEqual(state.current_catalog, catalog)
+
+    def test_apply_view_requires_application_environment(self):
+        self.application_environment.delete()
+        catalog = Catalog.objects.create(
+            key="view-apply-2",
+            label="View Apply 2",
+            version="1.0.0",
+            description="",
+            payload=build_minimal_catalog_payload(key="view-apply-2", label="View Apply 2"),
+        )
+
+        response = self.client.post(
+            reverse("assessment_catalog_apply", kwargs={"pk": catalog.pk}),
+        )
+
+        self.assertRedirects(response, reverse("home"))
+        self.assertFalse(ApplicationEnvironmentCatalogState.objects.exists())
+
+    def test_download_view_returns_catalog_payload_as_json_attachment(self):
+        catalog = Catalog.objects.create(
+            key="view-download",
+            label="View Download",
+            version="1.0.0",
+            description="",
+            payload=build_minimal_catalog_payload(key="view-download", label="View Download"),
+        )
+
+        response = self.client.get(reverse("assessment_catalog_download", kwargs={"pk": catalog.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        payload = json.loads(response.content)
+        self.assertEqual(payload["catalog"]["key"], "view-download")
+
+    def test_seed_download_view_returns_seed_payload_as_json_attachment(self):
+        response = self.client.get(reverse("assessment_catalog_seed_download"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        payload = json.loads(response.content)
+        self.assertEqual(payload["type"], "optivedge.assessments.catalog_seed")
