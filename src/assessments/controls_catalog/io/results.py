@@ -13,6 +13,12 @@ class CatalogSeedResult:
 
 
 @dataclass(frozen=True)
+class CatalogRefreshResult:
+    catalogs_created: int
+    catalogs_updated: int
+
+
+@dataclass(frozen=True)
 class CatalogApplyResult:
     catalog: Catalog
     snapshot_catalog: Catalog | None

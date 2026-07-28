@@ -7,6 +7,7 @@ from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.controls_catalog.io.importers import (
     apply_catalog,
     create_catalog_from_current_controls,
+    refresh_seeded_catalogs,
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import validate_catalog_payload
@@ -177,6 +178,128 @@ class ControlsCatalogTests(TestCase):
         self.assertEqual(result.catalogs_created, 1)
         self.assertEqual(Catalog.objects.count(), 1)
         self.assertTrue(Catalog.objects.get().is_seeded)
+
+    @patch("assessments.controls_catalog.io.importers.load_seed_payload")
+    def test_refresh_seeded_catalogs_updates_existing_catalog_in_place(self, mock_load_seed_payload):
+        stale_catalog = Catalog.objects.create(
+            key="base-controls",
+            label="Base Controls",
+            version="1.0.0",
+            description="stale description",
+            payload={
+                "type": "optivedge.assessments.catalog",
+                "schema_version": "1.0",
+                "catalog": {
+                    "key": "base-controls",
+                    "label": "Base Controls",
+                    "version": "1.0.0",
+                    "description": "stale description",
+                },
+                "controls": [],
+            },
+            is_seeded=True,
+        )
+        original_pk = stale_catalog.pk
+        mock_load_seed_payload.return_value = {
+            "type": "optivedge.assessments.catalog_seed",
+            "schema_version": "1.0",
+            "catalogs": [
+                {
+                    "type": "optivedge.assessments.catalog",
+                    "schema_version": "1.0",
+                    "catalog": {
+                        "key": "base-controls",
+                        "label": "Base Controls",
+                        "version": "1.0.1",
+                        "description": "refreshed description",
+                    },
+                    "controls": [
+                        {
+                            "control_id": "FW-RULE-NEW-001",
+                            "name": "New Control",
+                            "control_type": "security_rule",
+                            "description": "New control description",
+                            "rationale": "",
+                            "audit": "",
+                            "remediation": "Tighten rule scope.",
+                            "default_severity": "high",
+                            "implementation_version": "v1",
+                            "target_model": "integrations.SecurityRule",
+                            "is_active": True,
+                            "queries": [
+                                {
+                                    "name": "Baseline",
+                                    "short_description": "Trust zone query.",
+                                    "canonical_query": build_security_rule_query("dmz"),
+                                    "is_baseline": True,
+                                    "adjusted_severity": None,
+                                    "is_active": True,
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        result = refresh_seeded_catalogs()
+
+        self.assertEqual(result.catalogs_created, 0)
+        self.assertEqual(result.catalogs_updated, 1)
+        refreshed = Catalog.objects.get(key="base-controls")
+        self.assertEqual(refreshed.pk, original_pk)
+        self.assertEqual(refreshed.version, "1.0.1")
+        self.assertEqual(refreshed.description, "refreshed description")
+        self.assertEqual(refreshed.payload["controls"][0]["control_id"], "FW-RULE-NEW-001")
+        # Live controls are untouched - refresh only updates the Catalog row.
+        self.assertFalse(Control.objects.exists())
+
+    @patch("assessments.controls_catalog.io.importers.load_seed_payload")
+    def test_refresh_seeded_catalogs_creates_catalog_if_missing(self, mock_load_seed_payload):
+        mock_load_seed_payload.return_value = {
+            "type": "optivedge.assessments.catalog_seed",
+            "schema_version": "1.0",
+            "catalogs": [
+                {
+                    "type": "optivedge.assessments.catalog",
+                    "schema_version": "1.0",
+                    "catalog": {
+                        "key": "base-controls",
+                        "label": "Base Controls",
+                        "version": "1.0.0",
+                        "description": "Reusable baseline controls.",
+                    },
+                    "controls": [],
+                }
+            ],
+        }
+
+        result = refresh_seeded_catalogs()
+
+        self.assertEqual(result.catalogs_created, 1)
+        self.assertEqual(result.catalogs_updated, 0)
+        self.assertTrue(Catalog.objects.get(key="base-controls").is_seeded)
+
+    def test_refresh_catalog_seed_view_updates_catalog_and_redirects(self):
+        Catalog.objects.create(
+            key="base",
+            label="Base",
+            version="v1",
+            description="stale",
+            payload={
+                "type": "optivedge.assessments.catalog",
+                "schema_version": "1.0",
+                "catalog": {"key": "base", "label": "Base", "version": "v1", "description": "stale"},
+                "controls": [],
+            },
+            is_seeded=True,
+        )
+
+        response = self.client.post(reverse("assessment_catalog_refresh_seed"))
+
+        self.assertRedirects(response, reverse("assessment_system"))
+        refreshed = Catalog.objects.get(key="base")
+        self.assertNotEqual(refreshed.description, "stale")
 
     def test_catalog_pages_render_home_and_management_views(self):
         catalog = Catalog.objects.create(

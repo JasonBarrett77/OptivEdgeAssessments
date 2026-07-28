@@ -16,6 +16,7 @@ from assessments.controls_catalog.io.exporters import export_catalog_seed_payloa
 from assessments.controls_catalog.io.importers import (
     apply_catalog,
     create_catalog_from_current_controls,
+    refresh_seeded_catalogs,
     seed_catalogs_if_empty,
 )
 from assessments.environment import get_application_environment
@@ -151,6 +152,29 @@ class CatalogApplyView(View):
                 f"Removed {result.assessment_runs_deleted} assessment run records. Re-run findings after catalog changes.",
             )
         return HttpResponseRedirect(request.POST.get("next") or reverse("assessment_catalog_list"))
+
+
+class CatalogRefreshSeedView(View):
+    def post(self, request, *args, **kwargs):
+        seed_catalogs_if_empty()
+        result = refresh_seeded_catalogs()
+        if result.catalogs_updated:
+            messages.success(
+                request,
+                (
+                    f"Refreshed {result.catalogs_updated} seeded catalog(s) from the bundled "
+                    "seed file. Apply the catalog on the Catalogs tab to push these changes "
+                    "into live controls."
+                ),
+            )
+        if result.catalogs_created:
+            messages.success(
+                request,
+                f"Created {result.catalogs_created} new seeded catalog(s) from the bundled seed file.",
+            )
+        if not result.catalogs_updated and not result.catalogs_created:
+            messages.error(request, "No catalogs found in the bundled seed file.")
+        return HttpResponseRedirect(request.POST.get("next") or reverse("assessment_system"))
 
 
 class CatalogDownloadView(View):

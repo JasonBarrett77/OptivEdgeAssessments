@@ -5,6 +5,7 @@ from assessments.catalog_views import (
     CatalogCreateFromCurrentControlsView,
     CatalogDownloadView,
     CatalogListView,
+    CatalogRefreshSeedView,
     CatalogSeedDownloadView,
 )
 from assessments.plain_language.views import PlainLanguageSecurityRuleQueryView
@@ -43,6 +44,11 @@ urlpatterns = [
         "catalogs/create-from-current/",
         CatalogCreateFromCurrentControlsView.as_view(),
         name="assessment_catalog_create_from_current",
+    ),
+    path(
+        "catalogs/refresh-seed/",
+        CatalogRefreshSeedView.as_view(),
+        name="assessment_catalog_refresh_seed",
     ),
     path(
         "catalogs/<int:pk>/apply/",

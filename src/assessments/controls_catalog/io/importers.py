@@ -6,7 +6,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from assessments.controls_catalog.io.exporters import export_control_catalog
-from assessments.controls_catalog.io.results import CatalogApplyResult, CatalogSeedResult
+from assessments.controls_catalog.io.results import (
+    CatalogApplyResult,
+    CatalogRefreshResult,
+    CatalogSeedResult,
+)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.controls_catalog.schemas import validate_catalog_payload
 from assessments.models import (
@@ -32,6 +36,43 @@ def seed_catalogs_if_empty() -> CatalogSeedResult:
         )
         created_count += 1
     return CatalogSeedResult(catalogs_created=created_count)
+
+
+def refresh_seeded_catalogs() -> CatalogRefreshResult:
+    """Re-read the bundled catalog seed file from disk (same CATALOG_SEED_PATH used by
+    seed_catalogs_if_empty()) and update the matching seeded Catalog row(s) in place.
+
+    Unlike seed_catalogs_if_empty(), this runs regardless of whether catalogs already exist -
+    it's the only way an edited seed.json ever reaches a database that's already been seeded
+    once, since seed_catalogs_if_empty() is a permanent no-op after that first run.
+
+    Updates the existing Catalog row in place (matched by key, e.g. "base") rather than
+    delete-and-recreate, so its pk - and anything referencing it, such as
+    ApplicationEnvironmentCatalogState.current_catalog - stays valid. Deliberately does not
+    touch live Control/ControlQuery rows; use apply_catalog() on the refreshed catalog
+    afterward to push its updated queries into live controls.
+    """
+    seed_payload = load_seed_payload()
+    created_count = 0
+    updated_count = 0
+    for catalog_payload in seed_payload["catalogs"]:
+        normalized_payload = validate_catalog_payload(catalog_payload)
+        metadata = normalized_payload["catalog"]
+        _catalog, created = Catalog.objects.update_or_create(
+            key=metadata["key"],
+            defaults={
+                "label": metadata["label"],
+                "version": metadata["version"],
+                "description": metadata["description"],
+                "payload": normalized_payload,
+                "is_seeded": True,
+            },
+        )
+        if created:
+            created_count += 1
+        else:
+            updated_count += 1
+    return CatalogRefreshResult(catalogs_created=created_count, catalogs_updated=updated_count)
 
 
 def create_catalog_from_payload(
