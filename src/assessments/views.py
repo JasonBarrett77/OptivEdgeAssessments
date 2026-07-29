@@ -7,6 +7,7 @@ integration data. Keep collector and normalization logic in `integrations`.
 import json
 import tempfile
 from pathlib import Path
+from urllib.parse import urlencode
 
 from assessments.forms import ControlForm, ControlQueryForm
 from assessments.control_queries import (
@@ -147,6 +148,66 @@ def pagination_range(page_obj, window=2):
     return range(start, end + 1)
 
 
+# --- Findings presentation (security-rules tab) ------------------------------
+# Findings are grouped (by control or rule), severity-ranked, and shown with
+# semantic badges; heavy per-rule context lives in the detail overlay, not the row.
+FINDING_GROUP_PAGE_SIZE = 50
+
+_SEVERITY_ORDER = ["critical", "high", "medium", "low", "informational"]
+_SEVERITY_RANK = {value: rank for rank, value in enumerate(reversed(_SEVERITY_ORDER))}
+_SEVERITY_LABELS = {value: label for value, label in Control.Severity.choices}
+
+# One place color lives: severity and status badges. Everything else stays neutral.
+_SEVERITY_BADGE_CLASSES = {
+    "critical": "text-red-700 bg-red-50 border-red-200",
+    "high": "text-orange-700 bg-orange-50 border-orange-200",
+    "medium": "text-amber-700 bg-amber-50 border-amber-200",
+    "low": "text-slate-600 bg-slate-100 border-slate-300",
+    "informational": "text-slate-500 bg-slate-50 border-slate-200",
+}
+_SEVERITY_SWATCH_CLASSES = {
+    "critical": "bg-red-500",
+    "high": "bg-orange-500",
+    "medium": "bg-amber-500",
+    "low": "bg-slate-400",
+    "informational": "bg-slate-300",
+}
+_STATUS_BADGE = {
+    "open": ("text-slate-700", "bg-orange-500"),
+    "suppressed": ("text-slate-400", "bg-slate-300"),
+    "resolved": ("text-emerald-700", "bg-emerald-500"),
+}
+
+
+def _severity_rank(value):
+    return _SEVERITY_RANK.get(value, -1)
+
+
+def build_finding_querystring(*, group, severities, hide_suppressed, page=None, finding=None):
+    """Canonical query string for the findings (security-rules tab) view, so grouping,
+    filters, pagination, and the selected finding round-trip together."""
+    params = [("tab", "security-rules"), ("group", group)]
+    for severity in severities:
+        params.append(("severity", severity))
+    if hide_suppressed:
+        params.append(("hide_suppressed", "1"))
+    if page:
+        params.append(("page", str(page)))
+    if finding:
+        params.append(("finding", str(finding)))
+    return "?" + urlencode(params, doseq=True)
+
+
+def _finding_scope_label(security_rule):
+    enforcement_point = security_rule.enforcement_point
+    if enforcement_point is None:
+        return str(security_rule.management_station)
+    scope = enforcement_point.vsys_name
+    if enforcement_point.vsys_display_name:
+        scope = f"{scope} · {enforcement_point.vsys_display_name}"
+    return scope
+
+
 def get_control_list_queryset():
     return Control.objects.annotate(
         query_count=Count("queries", distinct=True),
@@ -245,57 +306,214 @@ class FindingListView(TemplateView):
             context.update(self._device_configuration_context())
         return context
 
-    def _security_rule_context(self):
-        security_rules = (
-            SecurityRule.objects.filter(rule_findings__isnull=False)
-            .select_related(
-                "management_station",
-                "enforcement_point",
-                "enforcement_point__appliance_group",
-                "source_snapshot",
-            )
-            .prefetch_related(
-                "securityrulefromzones",
-                "securityruletozones",
-                "source_address_refs__address_object",
-                "source_address_refs__address_group",
-                "destination_address_refs__address_object",
-                "destination_address_refs__address_group",
-                "securityruleapplications",
-                "securityruleservices",
-                "field_provenance",
-                "rule_findings__control",
-                "rule_findings__control_queries",
-            )
-            .distinct()
-            .order_by(
-                "management_station__hostname",
-                "enforcement_point__vsys_name",
-                "effective_order",
-                "name",
-                "pk",
-            )
+    def _finding_display(self, finding):
+        status_text_class, status_dot_class = _STATUS_BADGE.get(
+            finding.status, ("text-slate-700", "bg-slate-400")
         )
-        paginator = Paginator(security_rules, PAGE_SIZE)
-        page_obj = paginator.get_page(self.request.GET.get("page"))
-        security_rule_rows = build_security_rule_rows(page_obj.object_list)
-        for row in security_rule_rows:
-            findings = []
-            for finding in row["security_rule"].rule_findings.all().order_by("-created_at", "-pk"):
-                findings.append({
-                    "control_id": finding.control.control_id,
-                    "title": finding.title,
-                    "severity": finding.get_severity_display(),
-                    "status": finding.get_status_display(),
-                    "query_count": finding.control_queries.count(),
-                    "query_names": [query.name for query in finding.control_queries.all()],
-                    "summary": finding.summary,
-                })
-            row["findings"] = findings
         return {
-            "security_rule_rows": security_rule_rows,
+            "id": finding.pk,
+            "severity": finding.severity,
+            "severity_label": finding.get_severity_display(),
+            "severity_classes": _SEVERITY_BADGE_CLASSES.get(finding.severity, ""),
+            "status": finding.status,
+            "status_label": finding.get_status_display(),
+            "status_text_class": status_text_class,
+            "status_dot_class": status_dot_class,
+            "control_id": finding.control.control_id,
+            "control_name": finding.control.name,
+            "title": finding.title,
+            "summary": finding.summary,
+            "query_count": len(finding.control_queries.all()),
+            "rule_name": finding.security_rule.name,
+            "rule_order": finding.security_rule.effective_order,
+            "rule_scope": _finding_scope_label(finding.security_rule),
+        }
+
+    def _security_rule_context(self):
+        request = self.request
+        group_by = request.GET.get("group", "control")
+        if group_by not in {"control", "rule"}:
+            group_by = "control"
+        selected_severities = [
+            value for value in request.GET.getlist("severity") if value in _SEVERITY_RANK
+        ]
+        hide_suppressed = request.GET.get("hide_suppressed") == "1"
+
+        base_findings = RuleFinding.objects.select_related(
+            "control",
+            "security_rule",
+            "security_rule__management_station",
+            "security_rule__enforcement_point",
+        ).prefetch_related("control_queries")
+
+        # Severity summary — stable totals across the whole tab, so the chips also
+        # read as "how bad is it overall", independent of the active filters.
+        severity_counts = {
+            row["severity"]: row["n"]
+            for row in RuleFinding.objects.values("severity").annotate(n=Count("id"))
+        }
+
+        list_findings = base_findings
+        if selected_severities:
+            list_findings = list_findings.filter(severity__in=selected_severities)
+        if hide_suppressed:
+            list_findings = list_findings.exclude(status=RuleFinding.Status.SUPPRESSED)
+        findings = list(list_findings)
+
+        groups_map = {}
+        for finding in findings:
+            if group_by == "control":
+                key = finding.control.control_id
+                header = {
+                    "kind": "control",
+                    "mono_primary": True,
+                    "primary": finding.control.control_id,
+                    "secondary": finding.control.name,
+                }
+            else:
+                key = finding.security_rule_id
+                header = {
+                    "kind": "rule",
+                    "mono_primary": False,
+                    "primary": finding.security_rule.name,
+                    "secondary": f"order {finding.security_rule.effective_order} · "
+                    f"{_finding_scope_label(finding.security_rule)}",
+                }
+            group = groups_map.get(key)
+            if group is None:
+                group = {"header": header, "findings": [], "max_rank": -1}
+                groups_map[key] = group
+            group["findings"].append(self._finding_display(finding))
+            group["max_rank"] = max(group["max_rank"], _severity_rank(finding.severity))
+
+        groups = list(groups_map.values())
+        for group in groups:
+            group["findings"].sort(key=lambda item: -_severity_rank(item["severity"]))
+            worst = _SEVERITY_ORDER[len(_SEVERITY_ORDER) - 1 - group["max_rank"]]
+            group["count"] = len(group["findings"])
+            group["worst_label"] = _SEVERITY_LABELS.get(worst, worst)
+            group["worst_classes"] = _SEVERITY_BADGE_CLASSES.get(worst, "")
+        groups.sort(
+            key=lambda group: (-group["max_rank"], -group["count"], str(group["header"]["primary"]))
+        )
+
+        paginator = Paginator(groups, FINDING_GROUP_PAGE_SIZE)
+        page_obj = paginator.get_page(request.GET.get("page"))
+
+        # Row links carry the current page so closing the detail overlay returns here.
+        for group in page_obj.object_list:
+            for item in group["findings"]:
+                item["detail_url"] = build_finding_querystring(
+                    group=group_by,
+                    severities=selected_severities,
+                    hide_suppressed=hide_suppressed,
+                    page=page_obj.number,
+                    finding=item["id"],
+                )
+
+        severity_summary = []
+        for value in _SEVERITY_ORDER:
+            count = severity_counts.get(value, 0)
+            if value == "informational" and count == 0:
+                continue
+            if value in selected_severities:
+                toggled = [s for s in selected_severities if s != value]
+            else:
+                toggled = selected_severities + [value]
+            severity_summary.append({
+                "value": value,
+                "label": _SEVERITY_LABELS.get(value, value),
+                "count": count,
+                "active": value in selected_severities,
+                "swatch_class": _SEVERITY_SWATCH_CLASSES.get(value, "bg-slate-300"),
+                "url": build_finding_querystring(
+                    group=group_by, severities=toggled, hide_suppressed=hide_suppressed
+                ),
+            })
+
+        pagination_base = urlencode(
+            [("tab", "security-rules"), ("group", group_by)]
+            + [("severity", value) for value in selected_severities]
+            + ([("hide_suppressed", "1")] if hide_suppressed else []),
+            doseq=True,
+        )
+
+        context = {
+            "security_group_by": group_by,
+            "severity_summary": severity_summary,
+            "selected_severities": selected_severities,
+            "hide_suppressed": hide_suppressed,
+            "hide_suppressed_url": build_finding_querystring(
+                group=group_by, severities=selected_severities, hide_suppressed=not hide_suppressed
+            ),
+            "group_control_url": build_finding_querystring(
+                group="control", severities=selected_severities, hide_suppressed=hide_suppressed
+            ),
+            "group_rule_url": build_finding_querystring(
+                group="rule", severities=selected_severities, hide_suppressed=hide_suppressed
+            ),
+            "finding_groups": page_obj.object_list,
+            "total_findings": len(findings),
             "page_obj": page_obj,
             "page_range": pagination_range(page_obj),
+            "pagination_base": pagination_base,
+        }
+        context.update(
+            self._selected_finding_context(
+                group_by=group_by,
+                selected_severities=selected_severities,
+                hide_suppressed=hide_suppressed,
+                page_number=page_obj.number,
+            )
+        )
+        return context
+
+    def _selected_finding_context(self, *, group_by, selected_severities, hide_suppressed, page_number):
+        finding_id = self.request.GET.get("finding")
+        if not finding_id:
+            return {}
+        finding = (
+            RuleFinding.objects.select_related("control", "security_rule")
+            .prefetch_related("control_queries")
+            .filter(pk=finding_id)
+            .first()
+        )
+        if finding is None:
+            return {}
+        rule = build_security_rule_display_queryset().filter(pk=finding.security_rule_id).first()
+        rule_row = build_security_rule_rows([rule])[0] if rule is not None else None
+        status_text_class, status_dot_class = _STATUS_BADGE.get(
+            finding.status, ("text-slate-700", "bg-slate-400")
+        )
+        selected_finding = {
+            "control_id": finding.control.control_id,
+            "control_name": finding.control.name,
+            "title": finding.title,
+            "summary": finding.summary,
+            "severity_label": finding.get_severity_display(),
+            "severity_classes": _SEVERITY_BADGE_CLASSES.get(finding.severity, ""),
+            "status_label": finding.get_status_display(),
+            "status_text_class": status_text_class,
+            "status_dot_class": status_dot_class,
+            "description": finding.control.description,
+            "rationale": finding.control.rationale,
+            "remediation": finding.control.remediation,
+            "queries": [
+                {"name": query.name, "is_baseline": query.is_baseline}
+                for query in finding.control_queries.all()
+            ],
+            "rule_row": rule_row,
+        }
+        return {
+            "selected_finding": selected_finding,
+            "overlay_is_open": True,
+            "overlay_panel_class": "w-[34rem] max-w-[calc(100vw-15rem)]",
+            "overlay_close_url": build_finding_querystring(
+                group=group_by,
+                severities=selected_severities,
+                hide_suppressed=hide_suppressed,
+                page=page_number,
+            ),
         }
 
     def _device_configuration_context(self):

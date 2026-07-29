@@ -4,6 +4,12 @@
 {% block title %} | Findings{% endblock %}
 
 {% block content %}
+<style>
+    details.fgroup > summary { list-style: none; }
+    details.fgroup > summary::-webkit-details-marker { display: none; }
+    details.fgroup > summary .fchev { transition: transform .15s ease; }
+    details.fgroup[open] > summary .fchev { transform: rotate(90deg); }
+</style>
 <section class="flex h-full w-full min-h-0 min-w-0 flex-col">
     <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
         <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
@@ -39,104 +45,112 @@
                 </a>
             </div>
 
+            {% if active_tab == "security-rules" %}
+            <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2">
+                <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Severity</span>
+                {% for sev in severity_summary %}
+                <a
+                    href="{{ sev.url }}"
+                    aria-pressed="{% if sev.active %}true{% else %}false{% endif %}"
+                    class="inline-flex h-7 items-center gap-2 rounded-full border px-2.5 text-xs transition-colors {% if sev.active %}border-blue-400 bg-blue-50 text-blue-700{% else %}border-slate-200 bg-white text-slate-600 hover:border-slate-300{% endif %}"
+                >
+                    <span class="h-2 w-2 rounded-sm {{ sev.swatch_class }}"></span>
+                    {{ sev.label }}
+                    <span class="font-semibold tabular-nums text-slate-900">{{ sev.count }}</span>
+                </a>
+                {% endfor %}
+                <div class="ml-auto flex items-center gap-4">
+                    <a href="{{ hide_suppressed_url }}" class="inline-flex items-center gap-1.5 text-xs {% if hide_suppressed %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900">
+                        <span class="flex h-3.5 w-3.5 items-center justify-center rounded border {% if hide_suppressed %}border-blue-500 bg-blue-500 text-white{% else %}border-slate-300 bg-white{% endif %}">
+                            {% if hide_suppressed %}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="h-2.5 w-2.5"><path d="M20 6 9 17l-5-5"/></svg>
+                            {% endif %}
+                        </span>
+                        Hide suppressed
+                    </a>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Group by</span>
+                        <div class="inline-flex overflow-hidden rounded-md border border-slate-200">
+                            <a href="{{ group_control_url }}" class="inline-flex h-7 items-center px-2.5 text-xs {% if security_group_by == 'control' %}bg-blue-50 font-medium text-blue-700{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">Control</a>
+                            <a href="{{ group_rule_url }}" class="inline-flex h-7 items-center border-l border-slate-200 px-2.5 text-xs {% if security_group_by == 'rule' %}bg-blue-50 font-medium text-blue-700{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">Rule</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="min-h-0 flex-1 overflow-auto">
-                {% if active_tab == "security-rules" %}
-                <table class="min-w-full table-fixed border-separate border-spacing-0">
-                    <thead>
-                        <tr>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Station</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">vsys</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Rule</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Rule Details</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Source</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Destination</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">App / Service</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Control</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Severity</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Status</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Queries</th>
-                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Summary</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in security_rule_rows %}
-                            {% for finding in row.findings %}
-                            <tr>
-                                {% if forloop.first %}
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ row.security_rule.management_station }}</td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{{ row.security_rule.enforcement_point.vsys_name }}</div>
-                                    {% if row.security_rule.enforcement_point.vsys_display_name %}
-                                    <div class="pt-1 text-xs text-slate-500">{{ row.security_rule.enforcement_point.vsys_display_name }}</div>
-                                    {% endif %}
-                                </td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-900">
-                                    <div class="font-medium">{{ row.security_rule.name }}</div>
-                                    <div class="pt-1 text-xs text-slate-500">Order {{ row.security_rule.effective_order }}</div>
-                                </td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{{ row.config_source_label }}</div>
-                                    <div class="pt-1 text-xs text-slate-500">
-                                        {% if row.device_group_name %}{{ row.device_group_name }}{% else %}No device-group label{% endif %}
-                                    </div>
-                                    <div class="pt-1 text-xs text-slate-500">
-                                        Action: {{ row.security_rule.action|default:"-" }}
-                                    </div>
-                                    <div class="pt-1 text-xs text-slate-500">
-                                        Log start:
-                                        {% if row.security_rule.log_start is None %}-{% elif row.security_rule.log_start %}Yes{% else %}No{% endif %}
-                                        ·
-                                        Log end:
-                                        {% if row.security_rule.log_end is None %}-{% elif row.security_rule.log_end %}Yes{% else %}No{% endif %}
-                                    </div>
-                                    {% if row.security_rule.negate_source or row.security_rule.negate_destination %}
-                                    <div class="pt-1 text-xs font-medium text-rose-700">
-                                        {% if row.security_rule.negate_source %}Negated source{% endif %}
-                                        {% if row.security_rule.negate_source and row.security_rule.negate_destination %}·{% endif %}
-                                        {% if row.security_rule.negate_destination %}Negated destination{% endif %}
-                                    </div>
-                                    {% endif %}
-                                </td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{% if row.from_zones %}{{ row.from_zones|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                    <div class="pt-1 text-xs text-slate-500">{% if row.source_addresses %}{{ row.source_addresses|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                </td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{% if row.to_zones %}{{ row.to_zones|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                    <div class="pt-1 text-xs text-slate-500">{% if row.destination_addresses %}{{ row.destination_addresses|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                </td>
-                                <td rowspan="{{ row.findings|length }}" class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{% if row.applications %}{{ row.applications|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                    <div class="pt-1 text-xs text-slate-500">{% if row.services %}{{ row.services|join:", " }}{% else %}<span class="text-slate-400">-</span>{% endif %}</div>
-                                </td>
+                {% for group in finding_groups %}
+                <details open class="fgroup border-b border-slate-200">
+                    <summary class="sticky top-0 z-10 flex cursor-pointer items-center gap-3 bg-white px-4 py-2.5 hover:bg-slate-50">
+                        <svg class="fchev h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        <span class="inline-flex h-5 shrink-0 items-center rounded border px-2 text-[11px] font-semibold {{ group.worst_classes }}">{{ group.worst_label }}</span>
+                        <span class="flex min-w-0 items-baseline gap-2">
+                            <span class="{% if group.header.mono_primary %}font-mono text-xs text-slate-600{% else %}text-sm font-semibold text-slate-900{% endif %} shrink-0">{{ group.header.primary }}</span>
+                            <span class="truncate {% if group.header.mono_primary %}text-sm font-semibold text-slate-900{% else %}text-xs text-slate-500{% endif %}">{{ group.header.secondary }}</span>
+                        </span>
+                        <span class="ml-auto shrink-0 text-xs tabular-nums text-slate-500">
+                            {% if group.header.kind == "control" %}{{ group.count }} affected rule{{ group.count|pluralize }}{% else %}{{ group.count }} finding{{ group.count|pluralize }}{% endif %}
+                        </span>
+                    </summary>
+                    <div>
+                        {% for item in group.findings %}
+                        <a
+                            href="{{ item.detail_url }}"
+                            class="grid grid-cols-[90px_minmax(0,1fr)_128px_88px] items-center gap-3 border-t border-slate-100 py-2 pr-4 pl-11 text-sm hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}"
+                        >
+                            <span class="inline-flex h-5 w-fit items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span>
+                            <span class="min-w-0">
+                                {% if group.header.kind == "control" %}
+                                <span class="block truncate font-medium text-slate-900">{{ item.rule_name }}</span>
+                                <span class="block truncate text-[11.5px] text-slate-500">{{ item.rule_scope }}</span>
+                                {% else %}
+                                <span class="block truncate font-mono text-[12.5px] text-slate-700">{{ item.control_id }}</span>
+                                <span class="block truncate text-[11.5px] text-slate-500">{{ item.control_name }}</span>
                                 {% endif %}
-                                <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-900">
-                                    <div class="font-medium">{{ finding.control_id }}</div>
-                                    <div class="pt-1 text-xs text-slate-500">{{ finding.title }}</div>
-                                </td>
-                                <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ finding.severity }}</td>
-                                <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{{ finding.status }}</td>
-                                <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">
-                                    <div>{{ finding.query_count }}</div>
-                                    {% if finding.query_names %}
-                                    <div class="pt-1 text-xs text-slate-500">{{ finding.query_names|join:", " }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="border-b border-slate-200 px-3 py-2 align-top text-sm text-slate-700">{% if finding.summary %}{{ finding.summary }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                            </tr>
-                            {% endfor %}
-                        {% empty %}
-                        <tr>
-                            <td colspan="12" class="border-b border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                                No rule findings available.
-                            </td>
-                        </tr>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 text-xs {{ item.status_text_class }}">
+                                <span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}
+                            </span>
+                            <span class="text-[11.5px] tabular-nums text-slate-400">{{ item.query_count }} quer{{ item.query_count|pluralize:"y,ies" }}</span>
+                        </a>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </div>
+                </details>
+                {% empty %}
+                <div class="px-4 py-10 text-center text-sm text-slate-500">
+                    {% if selected_severities or hide_suppressed %}No findings match the current filters.{% else %}No rule findings available.{% endif %}
+                </div>
+                {% endfor %}
+            </div>
 
-                {% else %}
+            <div class="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2">
+                <p class="text-xs text-slate-500">
+                    {{ total_findings }} finding{{ total_findings|pluralize }} across {{ page_obj.paginator.count }} {% if security_group_by == "control" %}control{{ page_obj.paginator.count|pluralize }}{% else %}rule{{ page_obj.paginator.count|pluralize }}{% endif %}{% if selected_severities or hide_suppressed %} (filtered){% endif %}
+                </p>
+                <div class="flex items-center gap-1">
+                    {% if page_obj.has_previous %}
+                    <a href="?{{ pagination_base }}&page={{ page_obj.previous_page_number }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Previous</a>
+                    {% else %}
+                    <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Previous</span>
+                    {% endif %}
+                    {% for page_number in page_range %}
+                    {% if page_number == page_obj.number %}
+                    <span class="inline-flex h-7 min-w-7 items-center justify-center border border-blue-200 bg-blue-50 px-2 text-[11px] font-medium text-blue-700">{{ page_number }}</span>
+                    {% else %}
+                    <a href="?{{ pagination_base }}&page={{ page_number }}" class="inline-flex h-7 min-w-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?{{ pagination_base }}&page={{ page_obj.next_page_number }}" class="inline-flex h-7 items-center justify-center border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Next</a>
+                    {% else %}
+                    <span class="inline-flex h-7 items-center justify-center border border-slate-200 bg-slate-100 px-2 text-[11px] font-medium text-slate-400">Next</span>
+                    {% endif %}
+                </div>
+            </div>
 
+            {% else %}
+
+            <div class="min-h-0 flex-1 overflow-auto">
                 <table class="min-w-full table-fixed border-separate border-spacing-0">
                     <thead>
                         <tr>
@@ -206,16 +220,11 @@
                         {% endfor %}
                     </tbody>
                 </table>
-                {% endif %}
             </div>
 
             <div class="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2">
                 <p class="text-xs text-slate-500">
-                    {% if active_tab == "security-rules" %}
-                        {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} security rule{{ page_obj.paginator.count|pluralize }} with findings
-                    {% else %}
-                        {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} finding{{ page_obj.paginator.count|pluralize }}
-                    {% endif %}
+                    {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} finding{{ page_obj.paginator.count|pluralize }}
                 </p>
                 <div class="flex items-center gap-1">
                     {% if page_obj.has_previous %}
@@ -237,7 +246,78 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block overlay_title %}
+{% if selected_finding %}<p class="truncate text-sm font-semibold text-slate-900">{{ selected_finding.control_name }}</p>{% endif %}
+{% endblock %}
+
+{% block overlay_subtitle %}
+{% if selected_finding %}<p class="truncate font-mono text-xs text-slate-500">{{ selected_finding.control_id }}</p>{% endif %}
+{% endblock %}
+
+{% block overlay_body %}
+{% if selected_finding %}
+<div class="flex flex-col">
+    <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+        <span class="inline-flex h-5 items-center rounded border px-2 text-[11px] font-semibold {{ selected_finding.severity_classes }}">{{ selected_finding.severity_label }}</span>
+        <span class="inline-flex items-center gap-1.5 text-xs {{ selected_finding.status_text_class }}">
+            <span class="h-1.5 w-1.5 rounded-full {{ selected_finding.status_dot_class }}"></span>{{ selected_finding.status_label }}
+        </span>
+    </div>
+
+    <div class="border-b border-slate-100 px-4 py-3">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Why this matters</h3>
+        <p class="pt-2 text-[12.5px] text-slate-600">{{ selected_finding.title }}</p>
+        {% if selected_finding.description %}<p class="pt-2 text-[12.5px] text-slate-600">{{ selected_finding.description }}</p>{% endif %}
+        {% if selected_finding.rationale %}<p class="pt-2 text-[12.5px] text-slate-600">{{ selected_finding.rationale }}</p>{% endif %}
+        {% if selected_finding.summary %}<p class="pt-2 text-[12.5px] text-slate-600">{{ selected_finding.summary }}</p>{% endif %}
+    </div>
+
+    {% if selected_finding.remediation %}
+    <div class="border-b border-slate-100 px-4 py-3">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Remediation</h3>
+        <p class="pt-2 text-[12.5px] text-slate-600">{{ selected_finding.remediation }}</p>
+    </div>
+    {% endif %}
+
+    {% if selected_finding.rule_row %}
+    <div class="border-b border-slate-100 px-4 py-3">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Affected rule</h3>
+        <dl class="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1.5 pt-2 text-[12.5px]">
+            <dt class="text-slate-400">Rule</dt>
+            <dd class="text-slate-900">{{ selected_finding.rule_row.security_rule.name }} <span class="text-slate-400">· order {{ selected_finding.rule_row.security_rule.effective_order }}</span></dd>
+            <dt class="text-slate-400">Scope</dt>
+            <dd class="text-slate-700">{{ selected_finding.rule_row.security_rule.management_station }}<br>{{ selected_finding.rule_row.security_rule.enforcement_point.vsys_name }}{% if selected_finding.rule_row.security_rule.enforcement_point.vsys_display_name %} · {{ selected_finding.rule_row.security_rule.enforcement_point.vsys_display_name }}{% endif %}</dd>
+            <dt class="text-slate-400">Source</dt>
+            <dd class="text-slate-700">{% if selected_finding.rule_row.from_zones %}{{ selected_finding.rule_row.from_zones|join:", " }} / {% endif %}{% if selected_finding.rule_row.source_addresses %}{{ selected_finding.rule_row.source_addresses|join:", " }}{% else %}any{% endif %}</dd>
+            <dt class="text-slate-400">Destination</dt>
+            <dd class="text-slate-700">{% if selected_finding.rule_row.to_zones %}{{ selected_finding.rule_row.to_zones|join:", " }} / {% endif %}{% if selected_finding.rule_row.destination_addresses %}{{ selected_finding.rule_row.destination_addresses|join:", " }}{% else %}any{% endif %}</dd>
+            <dt class="text-slate-400">App / Service</dt>
+            <dd class="text-slate-700">{% if selected_finding.rule_row.applications %}{{ selected_finding.rule_row.applications|join:", " }}{% else %}any{% endif %}<br><span class="text-slate-400">{% if selected_finding.rule_row.services %}{{ selected_finding.rule_row.services|join:", " }}{% else %}any{% endif %}</span></dd>
+            <dt class="text-slate-400">Action</dt>
+            <dd class="text-slate-700">{{ selected_finding.rule_row.security_rule.action|default:"-" }}</dd>
+        </dl>
+    </div>
+    {% endif %}
+
+    {% if selected_finding.queries %}
+    <div class="px-4 py-3">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Evidence — matched queries</h3>
+        <div class="flex flex-col gap-1.5 pt-2">
+            {% for query in selected_finding.queries %}
+            <div class="flex items-baseline gap-2 text-[12.5px]">
+                {% if query.is_baseline %}<span class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-blue-700">baseline</span>{% endif %}
+                <span class="font-mono text-slate-700">{{ query.name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}

@@ -532,7 +532,93 @@ class ControlViewTests(TestCase):
         self.assertContains(response, security_rule.name)
         self.assertContains(response, "High")
         self.assertContains(response, "Open")
-        self.assertContains(response, ">1<", html=False)
+        self.assertContains(response, "1 query", html=False)
+
+    def _seed_findings_for_grouping(self):
+        """Two rules and two controls with a spread of severities, for the grouped
+        findings views. Returns (run, control_b, rule_a, rule_b, findings-by-key)."""
+        run = AssessmentRun.objects.create(
+            name="Grouping Run", status=AssessmentRun.Status.COMPLETED,
+            started_at=timezone.now(), completed_at=timezone.now(),
+        )
+        control_b = Control.objects.create(
+            control_id="FW-RULE-LOGGING-002",
+            name="Ensure logging at session end",
+            control_type=Control.ControlType.SECURITY_RULE,
+            description="Prototype logging control",
+            default_severity=Control.Severity.LOW,
+        )
+        rule_a = self.create_security_rule(name="rule-a")
+        rule_b = self.create_security_rule(name="rule-b")
+        f = {}
+        f["a_high"] = RuleFinding.objects.create(
+            assessment_run=run, control=self.control, security_rule=rule_a,
+            status=RuleFinding.Status.OPEN, severity=Control.Severity.HIGH, title=self.control.name,
+        )
+        f["a_low"] = RuleFinding.objects.create(
+            assessment_run=run, control=control_b, security_rule=rule_a,
+            status=RuleFinding.Status.OPEN, severity=Control.Severity.LOW, title=control_b.name,
+        )
+        f["b_med"] = RuleFinding.objects.create(
+            assessment_run=run, control=self.control, security_rule=rule_b,
+            status=RuleFinding.Status.SUPPRESSED, severity=Control.Severity.MEDIUM, title=self.control.name,
+        )
+        return run, control_b, rule_a, rule_b, f
+
+    def test_finding_list_groups_by_control_by_default(self):
+        self._seed_findings_for_grouping()
+
+        response = self.client.get(reverse("assessment_finding_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["security_group_by"], "control")
+        groups = response.context["finding_groups"]
+        primaries = [g["header"]["primary"] for g in groups]
+        # Worst-severity control (HIGH) sorts ahead of the LOW-only control.
+        self.assertEqual(primaries, [self.control.control_id, "FW-RULE-LOGGING-002"])
+        self.assertEqual(groups[0]["count"], 2)
+        self.assertEqual(groups[0]["worst_label"], "High")
+
+    def test_finding_list_group_by_rule(self):
+        _, _, rule_a, rule_b, _ = self._seed_findings_for_grouping()
+
+        response = self.client.get(reverse("assessment_finding_list") + "?group=rule")
+
+        self.assertEqual(response.context["security_group_by"], "rule")
+        primaries = {g["header"]["primary"] for g in response.context["finding_groups"]}
+        self.assertEqual(primaries, {rule_a.name, rule_b.name})
+
+    def test_finding_list_filters_by_severity(self):
+        self._seed_findings_for_grouping()
+
+        response = self.client.get(reverse("assessment_finding_list") + "?severity=low")
+
+        groups = response.context["finding_groups"]
+        self.assertEqual([g["header"]["primary"] for g in groups], ["FW-RULE-LOGGING-002"])
+        self.assertEqual(response.context["total_findings"], 1)
+
+    def test_finding_list_hides_suppressed(self):
+        self._seed_findings_for_grouping()
+
+        response = self.client.get(reverse("assessment_finding_list") + "?hide_suppressed=1")
+
+        # The only suppressed finding (b_med) is excluded; 2 open findings remain.
+        self.assertEqual(response.context["total_findings"], 2)
+        self.assertTrue(response.context["hide_suppressed"])
+
+    def test_finding_list_detail_overlay_shows_control_and_rule(self):
+        _, _, rule_a, _, f = self._seed_findings_for_grouping()
+
+        response = self.client.get(
+            reverse("assessment_finding_list") + f"?finding={f['a_high'].pk}"
+        )
+
+        self.assertTrue(response.context["overlay_is_open"])
+        selected = response.context["selected_finding"]
+        self.assertEqual(selected["control_id"], self.control.control_id)
+        self.assertEqual(selected["rule_row"]["security_rule"], rule_a)
+        self.assertContains(response, "Remediation")
+        self.assertContains(response, self.control.remediation)
 
     def test_rule_finding_docx_download_returns_attachment(self):
         security_rule = self.create_security_rule()
