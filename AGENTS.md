@@ -79,7 +79,15 @@ print("OptivEdgeAssessments import check passed")
 PY
 ```
 
-Run Django checks, migrations, and UI smoke tests from a downstream host Django project that installs this package.
+Run this repo's own test suite (`src/assessments/tests/`) via the existing local-dev settings module,
+`assessments.settings.default` (not a downstream integration example - see `DEPLOYMENT.md` for that):
+
+```bash
+DJANGO_SETTINGS_MODULE=assessments.settings.default python -m django test assessments
+```
+
+Run Django checks, migrations, and UI smoke tests beyond the test suite from a downstream host Django
+project that installs this package.
 
 ## Core Behavior Rules
 
