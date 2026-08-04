@@ -9,6 +9,8 @@
     details.fgroup > summary::-webkit-details-marker { display: none; }
     details.fgroup > summary .fchev { transition: transform .15s ease; }
     details.fgroup[open] > summary .fchev { transform: rotate(90deg); }
+    /* Divider between a card's header and its expanded body — only when open. */
+    details.fgroup[open] > summary { border-bottom: 1px solid #e2e8f0; }
 </style>
 <section class="flex h-full w-full min-h-0 min-w-0 flex-col">
     <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
@@ -46,7 +48,7 @@
             </div>
 
             {% if active_tab == "security-rules" %}
-            <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
                 <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Severity</span>
                 {% for sev in severity_summary %}
                 <a
@@ -78,10 +80,10 @@
                 </div>
             </div>
 
-            <div class="min-h-0 flex-1 overflow-auto">
+            <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-slate-100 p-3">
                 {% for group in finding_groups %}
-                <details open class="fgroup border-b border-slate-200">
-                    <summary class="sticky top-0 z-10 flex cursor-pointer items-center gap-3 bg-white px-4 py-2.5 hover:bg-slate-50">
+                <details open class="fgroup shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <summary class="flex cursor-pointer items-center gap-3 bg-slate-50 px-4 py-2.5 hover:bg-slate-100">
                         <svg class="fchev h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         <span class="inline-flex h-5 shrink-0 items-center rounded border px-2 text-[11px] font-semibold {{ group.worst_classes }}">{{ group.worst_label }}</span>
                         <span class="flex min-w-0 items-baseline gap-2">
@@ -94,7 +96,7 @@
                     </summary>
                     {% with th="border-b border-slate-200 bg-slate-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-600" thsrc="border-b border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" thdst="border-b border-amber-200 bg-amber-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" td="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 whitespace-nowrap text-slate-800" %}
                     {% if group.header.kind == "control" %}
-                    <div class="overflow-x-auto border-t border-slate-200">
+                    <div class="overflow-x-auto">
                         <table class="min-w-full border-separate border-spacing-0">
                             <thead>
                                 <tr>
@@ -148,11 +150,11 @@
                     </div>
                     {% else %}
                     {% if group.rule_config %}
-                    <div class="border-t border-slate-200 bg-slate-50 py-2 pr-4 pl-11">
+                    <div class="border-b border-slate-100 bg-white py-2 pr-4 pl-11">
                         {% include "assessments/partials/_rule_config_strip.html" with config=group.rule_config %}
                     </div>
                     {% endif %}
-                    <div class="overflow-x-auto border-t border-slate-100">
+                    <div class="overflow-x-auto">
                         <table class="min-w-full border-separate border-spacing-0">
                             <thead>
                                 <tr>
@@ -180,7 +182,7 @@
                     {% endwith %}
                 </details>
                 {% empty %}
-                <div class="px-4 py-10 text-center text-sm text-slate-500">
+                <div class="rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm">
                     {% if selected_severities or hide_suppressed %}No findings match the current filters.{% else %}No rule findings available.{% endif %}
                 </div>
                 {% endfor %}
