@@ -103,11 +103,11 @@
                         <table class="min-w-full border-separate border-spacing-0">
                             <thead>
                                 <tr>
-                                    <th class="{{ th }}">Severity</th>
                                     <th class="{{ th }}">Status</th>
                                     <th class="{{ th }}">Queries</th>
                                     <th class="{{ th }}">Station</th>
                                     <th class="{{ th }}">vsys</th>
+                                    <th class="{{ th }}">Enforcement Point</th>
                                     <th class="{{ th }}">Rule</th>
                                     <th class="{{ th }}">Order</th>
                                     <th class="{{ th }}">Config Source</th>
@@ -127,11 +127,11 @@
                                 {% for item in group.findings %}
                                 {% with row=item.rule_row %}
                                 <tr class="hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}">
-                                    <td class="{{ td }}"><span class="inline-flex h-5 items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span></td>
                                     <td class="{{ td }}"><span class="inline-flex items-center gap-1.5 {{ item.status_text_class }}"><span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}</span></td>
                                     <td class="{{ td }} tabular-nums text-slate-500">{{ item.query_count }}</td>
                                     <td class="{{ td }}">{% if row %}{{ row.security_rule.management_station }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.enforcement_point.vsys_name }}{% if row.security_rule.enforcement_point.vsys_display_name %} · {{ row.security_rule.enforcement_point.vsys_display_name }}{% endif %}{% endif %}</td>
+                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.enforcement_point.vsys_name }}{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.security_rule.enforcement_point.vsys_display_name %}{{ row.security_rule.enforcement_point.vsys_display_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
                                     <td class="{{ td }}"><a href="{{ item.detail_url }}" class="font-medium text-blue-700 hover:underline">{{ item.rule_name }}</a></td>
                                     <td class="{{ td }} tabular-nums">{{ item.rule_order }}</td>
                                     <td class="{{ td }}">{% if row %}{{ row.config_source_label }}{% endif %}</td>
