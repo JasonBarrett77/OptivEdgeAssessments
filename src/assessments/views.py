@@ -340,7 +340,7 @@ class FindingListView(TemplateView):
             "control_name": finding.control.name,
             "title": finding.title,
             "summary": finding.summary,
-            "query_count": len(finding.control_queries.all()),
+            "matched_query_names": finding.matched_query_names,
             "security_rule_id": finding.security_rule_id,
             "rule_name": finding.security_rule.name,
             "rule_order": finding.security_rule.effective_order,
@@ -357,12 +357,14 @@ class FindingListView(TemplateView):
         ]
         hide_suppressed = request.GET.get("hide_suppressed") == "1"
 
+        # matched_query_names is a stored snapshot on the finding, so the list no longer
+        # needs the control_queries M2M prefetch.
         base_findings = RuleFinding.objects.select_related(
             "control",
             "security_rule",
             "security_rule__management_station",
             "security_rule__enforcement_point",
-        ).prefetch_related("control_queries")
+        )
 
         # Severity summary — stable totals across the whole tab, so the chips also
         # read as "how bad is it overall", independent of the active filters.
@@ -523,7 +525,6 @@ class FindingListView(TemplateView):
             return {}
         finding = (
             RuleFinding.objects.select_related("control", "security_rule")
-            .prefetch_related("control_queries")
             .filter(pk=finding_id)
             .first()
         )
@@ -548,10 +549,8 @@ class FindingListView(TemplateView):
             "description": finding.control.description,
             "rationale": finding.control.rationale,
             "remediation": finding.control.remediation,
-            "queries": [
-                {"name": query.name, "is_baseline": query.is_baseline}
-                for query in finding.control_queries.all()
-            ],
+            # Frozen snapshot of the matched query names, same source as the list column.
+            "matched_query_names": finding.matched_query_names,
             "rule_row": rule_row,
         }
         return {

@@ -65,6 +65,7 @@ def regenerate_rule_findings() -> RuleFindingRunResult:
                         severity=severity_by_rule_id[rule_id],
                         title=control.name,
                         summary=build_rule_finding_summary(matched_queries),
+                        matched_query_names=[query.name for query in matched_queries],
                     )
                     findings_created += 1
 

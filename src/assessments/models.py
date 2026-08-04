@@ -229,6 +229,11 @@ class RuleFinding(models.Model):
     )
     title = models.CharField(max_length=255)
     summary = models.TextField(blank=True)
+    # Point-in-time snapshot of the names of the control queries that matched this rule,
+    # frozen at generation time. Kept separate from the live control_queries M2M (whose
+    # names/links follow later catalog edits and deletes) so a finding stays a faithful
+    # record of its assessment run.
+    matched_query_names = models.JSONField(default=list, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery,
         through="RuleFindingControlQuery",

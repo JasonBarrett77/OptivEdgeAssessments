@@ -503,6 +503,14 @@ class ControlViewTests(TestCase):
         self.assertEqual(finding.control_queries.first(), baseline_query)
         self.assertContains(response, "Rule findings regenerated.")
 
+        # The matched query names are snapshotted onto the finding at generation time and
+        # stay frozen even if the control query is renamed afterwards.
+        self.assertEqual(finding.matched_query_names, ["Trust baseline"])
+        baseline_query.name = "Renamed after the run"
+        baseline_query.save(update_fields=["name"])
+        finding.refresh_from_db()
+        self.assertEqual(finding.matched_query_names, ["Trust baseline"])
+
     def test_finding_list_view_renders_persisted_findings(self):
         security_rule = self.create_security_rule()
         assessment_run = AssessmentRun.objects.create(
