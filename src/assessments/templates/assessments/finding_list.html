@@ -188,7 +188,7 @@
 
             <div class="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2">
                 <p class="text-xs text-slate-500">
-                    {{ total_findings }} finding{{ total_findings|pluralize }} across {{ page_obj.paginator.count }} {% if security_group_by == "control" %}control{{ page_obj.paginator.count|pluralize }}{% else %}rule{{ page_obj.paginator.count|pluralize }}{% endif %}{% if selected_severities or hide_suppressed %} (filtered){% endif %}
+                    {{ total_findings }} finding{{ total_findings|pluralize }} across {{ page_obj.paginator.count }} {% if security_group_by == "control" %}section{{ page_obj.paginator.count|pluralize }}{% else %}rule{{ page_obj.paginator.count|pluralize }}{% endif %}{% if selected_severities or hide_suppressed %} (filtered){% endif %}
                 </p>
                 <div class="flex items-center gap-1">
                     {% if page_obj.has_previous %}

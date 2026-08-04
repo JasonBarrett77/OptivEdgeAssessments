@@ -575,11 +575,21 @@ class ControlViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["security_group_by"], "control")
         groups = response.context["finding_groups"]
-        primaries = [g["header"]["primary"] for g in groups]
-        # Worst-severity control (HIGH) sorts ahead of the LOW-only control.
-        self.assertEqual(primaries, [self.control.control_id, "FW-RULE-LOGGING-002"])
-        self.assertEqual(groups[0]["count"], 2)
+        # self.control has HIGH and MEDIUM findings -> two separate control+severity
+        # sections; control_b contributes one LOW section. Sorted worst-first.
+        self.assertEqual(len(groups), 3)
+        self.assertEqual(groups[0]["header"]["primary"], self.control.control_id)
         self.assertEqual(groups[0]["worst_label"], "High")
+        self.assertEqual(groups[0]["count"], 1)
+        sections = [(g["header"]["primary"], g["worst_label"]) for g in groups]
+        self.assertEqual(
+            sections,
+            [
+                (self.control.control_id, "High"),
+                (self.control.control_id, "Medium"),
+                ("FW-RULE-LOGGING-002", "Low"),
+            ],
+        )
 
     def test_finding_list_group_by_rule(self):
         _, _, rule_a, rule_b, _ = self._seed_findings_for_grouping()

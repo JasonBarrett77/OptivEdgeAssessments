@@ -381,7 +381,9 @@ class FindingListView(TemplateView):
         groups_map = {}
         for finding in findings:
             if group_by == "control":
-                key = finding.control.control_id
+                # A control can yield findings at different (per-query adjusted) severities;
+                # each control+severity is its own section, so a section is uniform severity.
+                key = (finding.control.control_id, finding.severity)
                 header = {
                     "kind": "control",
                     "mono_primary": True,
