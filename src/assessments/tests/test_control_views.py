@@ -649,6 +649,23 @@ class ControlViewTests(TestCase):
         self.assertIsNotNone(group["rule_config"])
         self.assertIn("source_addresses", group["rule_config"])
 
+    def test_finding_list_sections_collapse_by_default_and_open_selected(self):
+        _, _, rule_a, _, f = self._seed_findings_for_grouping()
+
+        # Default load: every section is collapsed.
+        response = self.client.get(reverse("assessment_finding_list"))
+        self.assertFalse(any(g["has_selected"] for g in response.context["finding_groups"]))
+        self.assertNotContains(response, "<details open")
+
+        # With a selected finding, exactly its section renders expanded.
+        response = self.client.get(
+            reverse("assessment_finding_list") + f"?finding={f['a_high'].pk}"
+        )
+        opened = [g for g in response.context["finding_groups"] if g["has_selected"]]
+        self.assertEqual(len(opened), 1)
+        self.assertIn(f["a_high"].pk, [item["id"] for item in opened[0]["findings"]])
+        self.assertContains(response, "<details open")
+
     def test_rule_finding_docx_download_returns_attachment(self):
         security_rule = self.create_security_rule()
         assessment_run = AssessmentRun.objects.create(

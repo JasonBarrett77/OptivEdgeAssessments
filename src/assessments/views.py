@@ -371,6 +371,11 @@ class FindingListView(TemplateView):
             for row in RuleFinding.objects.values("severity").annotate(n=Count("id"))
         }
 
+        try:
+            selected_finding_id = int(request.GET.get("finding"))
+        except (TypeError, ValueError):
+            selected_finding_id = None
+
         list_findings = base_findings
         if selected_severities:
             list_findings = list_findings.filter(severity__in=selected_severities)
@@ -445,6 +450,11 @@ class FindingListView(TemplateView):
                     page=page_obj.number,
                     finding=item["id"],
                 )
+            # The section owning the selected finding renders expanded, so the detail
+            # overlay's context is visible (browsers don't restore <details> state on reload).
+            group["has_selected"] = selected_finding_id is not None and any(
+                item["id"] == selected_finding_id for item in group["findings"]
+            )
             # When grouped by rule, the group *is* one rule — show its config once.
             if group_by == "rule" and group["findings"]:
                 first_row = row_by_rule.get(group["findings"][0]["security_rule_id"])
@@ -525,6 +535,7 @@ class FindingListView(TemplateView):
             finding.status, ("text-slate-700", "bg-slate-400")
         )
         selected_finding = {
+            "id": finding.pk,
             "control_id": finding.control.control_id,
             "control_name": finding.control.name,
             "title": finding.title,
