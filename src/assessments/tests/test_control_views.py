@@ -620,6 +620,21 @@ class ControlViewTests(TestCase):
         self.assertContains(response, "Remediation")
         self.assertContains(response, self.control.remediation)
 
+    def test_finding_list_rows_include_rule_config(self):
+        self._seed_findings_for_grouping()
+
+        # Grouped by control, each expanded row is an affected rule and carries its
+        # rulebase config (source/destination/etc.).
+        response = self.client.get(reverse("assessment_finding_list"))
+        item = response.context["finding_groups"][0]["findings"][0]
+        self.assertIn("config", item)
+        self.assertIn("source_addresses", item["config"])
+        self.assertContains(response, "src")
+
+        # Grouped by rule, the group itself carries the single rule's config.
+        response = self.client.get(reverse("assessment_finding_list") + "?group=rule")
+        self.assertIn("rule_config", response.context["finding_groups"][0])
+
     def test_rule_finding_docx_download_returns_attachment(self):
         security_rule = self.create_security_rule()
         assessment_run = AssessmentRun.objects.create(

@@ -92,26 +92,38 @@
                             {% if group.header.kind == "control" %}{{ group.count }} affected rule{{ group.count|pluralize }}{% else %}{{ group.count }} finding{{ group.count|pluralize }}{% endif %}
                         </span>
                     </summary>
+                    {% if group.header.kind == "rule" and group.rule_config %}
+                    <div class="border-t border-slate-100 bg-slate-50 py-2 pr-4 pl-11">
+                        {% include "assessments/partials/_rule_config_strip.html" with config=group.rule_config %}
+                    </div>
+                    {% endif %}
                     <div>
                         {% for item in group.findings %}
                         <a
                             href="{{ item.detail_url }}"
-                            class="grid grid-cols-[90px_minmax(0,1fr)_128px_88px] items-center gap-3 border-t border-slate-100 py-2 pr-4 pl-11 text-sm hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}"
+                            class="block border-t border-slate-100 py-2 pr-4 pl-11 text-sm hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}"
                         >
-                            <span class="inline-flex h-5 w-fit items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span>
-                            <span class="min-w-0">
-                                {% if group.header.kind == "control" %}
-                                <span class="block truncate font-medium text-slate-900">{{ item.rule_name }}</span>
-                                <span class="block truncate text-[11.5px] text-slate-500">{{ item.rule_scope }}</span>
-                                {% else %}
-                                <span class="block truncate font-mono text-[12.5px] text-slate-700">{{ item.control_id }}</span>
-                                <span class="block truncate text-[11.5px] text-slate-500">{{ item.control_name }}</span>
-                                {% endif %}
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 text-xs {{ item.status_text_class }}">
-                                <span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}
-                            </span>
-                            <span class="text-[11.5px] tabular-nums text-slate-400">{{ item.query_count }} quer{{ item.query_count|pluralize:"y,ies" }}</span>
+                            <div class="grid grid-cols-[90px_minmax(0,1fr)_128px_88px] items-center gap-3">
+                                <span class="inline-flex h-5 w-fit items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span>
+                                <span class="min-w-0">
+                                    {% if group.header.kind == "control" %}
+                                    <span class="block truncate font-medium text-slate-900">{{ item.rule_name }}</span>
+                                    <span class="block truncate text-[11.5px] text-slate-500">{{ item.rule_scope }}</span>
+                                    {% else %}
+                                    <span class="block truncate font-mono text-[12.5px] text-slate-700">{{ item.control_id }}</span>
+                                    <span class="block truncate text-[11.5px] text-slate-500">{{ item.control_name }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 text-xs {{ item.status_text_class }}">
+                                    <span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}
+                                </span>
+                                <span class="text-[11.5px] tabular-nums text-slate-400">{{ item.query_count }} quer{{ item.query_count|pluralize:"y,ies" }}</span>
+                            </div>
+                            {% if group.header.kind == "control" and item.config %}
+                            <div class="mt-1.5 pl-[102px]">
+                                {% include "assessments/partials/_rule_config_strip.html" with config=item.config %}
+                            </div>
+                            {% endif %}
                         </a>
                         {% endfor %}
                     </div>

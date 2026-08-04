@@ -1,0 +1,12 @@
+{% comment %}
+Rulebase-style config summary for a security rule, shown on an expanded finding row.
+Expects `config` in context (see _finding_rule_config in views.py).
+{% endcomment %}
+<div class="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] leading-relaxed text-slate-600">
+    <span><span class="text-slate-400">zone</span> {% if config.from_zones %}{{ config.from_zones|join:", " }}{% else %}any{% endif %} <span class="text-slate-400">&rarr;</span> {% if config.to_zones %}{{ config.to_zones|join:", " }}{% else %}any{% endif %}</span>
+    <span><span class="text-slate-400">src</span> {% if config.source_addresses %}{{ config.source_addresses|join:", " }}{% else %}any{% endif %}{% if config.negate_source %} <span class="text-rose-600">(negated)</span>{% endif %}</span>
+    <span><span class="text-slate-400">dst</span> {% if config.destination_addresses %}{{ config.destination_addresses|join:", " }}{% else %}any{% endif %}{% if config.negate_destination %} <span class="text-rose-600">(negated)</span>{% endif %}</span>
+    <span><span class="text-slate-400">app</span> {% if config.applications %}{{ config.applications|join:", " }}{% else %}any{% endif %}</span>
+    <span><span class="text-slate-400">svc</span> {% if config.services %}{{ config.services|join:", " }}{% else %}any{% endif %}</span>
+    <span><span class="text-slate-400">action</span> {{ config.action|default:"-" }}</span>
+</div>

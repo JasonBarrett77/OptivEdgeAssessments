@@ -208,6 +208,23 @@ def _finding_scope_label(security_rule):
     return scope
 
 
+def _finding_rule_config(rule_row):
+    """The rulebase-style config (zones/source/destination/app/service/action) shown on an
+    expanded finding row, pulled from a build_security_rule_rows() row."""
+    security_rule = rule_row["security_rule"]
+    return {
+        "from_zones": rule_row["from_zones"],
+        "to_zones": rule_row["to_zones"],
+        "source_addresses": rule_row["source_addresses"],
+        "destination_addresses": rule_row["destination_addresses"],
+        "applications": rule_row["applications"],
+        "services": rule_row["services"],
+        "action": security_rule.action,
+        "negate_source": security_rule.negate_source,
+        "negate_destination": security_rule.negate_destination,
+    }
+
+
 def get_control_list_queryset():
     return Control.objects.annotate(
         query_count=Count("queries", distinct=True),
@@ -324,6 +341,7 @@ class FindingListView(TemplateView):
             "title": finding.title,
             "summary": finding.summary,
             "query_count": len(finding.control_queries.all()),
+            "security_rule_id": finding.security_rule_id,
             "rule_name": finding.security_rule.name,
             "rule_order": finding.security_rule.effective_order,
             "rule_scope": _finding_scope_label(finding.security_rule),
@@ -400,9 +418,26 @@ class FindingListView(TemplateView):
         paginator = Paginator(groups, FINDING_GROUP_PAGE_SIZE)
         page_obj = paginator.get_page(request.GET.get("page"))
 
+        # Rule config for the expanded rows — bounded to the rules actually on this page,
+        # so the heavy display prefetch never scales with the full finding count.
+        page_rule_ids = {
+            item["security_rule_id"]
+            for group in page_obj.object_list
+            for item in group["findings"]
+        }
+        config_by_rule = {}
+        if page_rule_ids:
+            page_rows = build_security_rule_rows(
+                list(build_security_rule_display_queryset().filter(pk__in=page_rule_ids))
+            )
+            config_by_rule = {
+                row["security_rule"].pk: _finding_rule_config(row) for row in page_rows
+            }
+
         # Row links carry the current page so closing the detail overlay returns here.
         for group in page_obj.object_list:
             for item in group["findings"]:
+                item["config"] = config_by_rule.get(item["security_rule_id"])
                 item["detail_url"] = build_finding_querystring(
                     group=group_by,
                     severities=selected_severities,
@@ -410,6 +445,9 @@ class FindingListView(TemplateView):
                     page=page_obj.number,
                     finding=item["id"],
                 )
+            # When grouped by rule, the group *is* one rule — show its config once.
+            if group_by == "rule" and group["findings"]:
+                group["rule_config"] = group["findings"][0]["config"]
 
         severity_summary = []
         for value in _SEVERITY_ORDER:
