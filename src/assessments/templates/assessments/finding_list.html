@@ -326,9 +326,11 @@
         // region) minus a card header, so its table scrolls inside the card instead of
         // stretching the page. The list region itself already excludes the page/card
         // header, tabs, summary row, and footer.
+        var LIST_PADDING = 12;  // Tailwind p-3 = 0.75rem, included in clientHeight
+        var CARD_HEADER = 56;
         function sizeSections() {
             var available = list.clientHeight;
-            var max = Math.max(200, available - 56);
+            var max = Math.max(200, available - CARD_HEADER - LIST_PADDING);
             document.documentElement.style.setProperty("--fbody-max", max + "px");
         }
         sizeSections();
