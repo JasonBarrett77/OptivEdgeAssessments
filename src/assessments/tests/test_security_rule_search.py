@@ -567,6 +567,44 @@ class SecurityRuleSearchTests(TestCase):
 
         self.assertQuerySetEqual(queryset, [contiguous_rule], transform=lambda rule: rule)
 
+    def test_source_address_equals_disqualified_by_member_outside_query_interval(self):
+        """Guards the semantic-search optimization: 'equals' scopes materialization to
+        candidate rules (those with a member intersecting the query), but must still load
+        *every* member of a candidate - a member wholly outside the query interval breaks
+        exact equality even though the intersecting member alone equals the query."""
+        exact_object = self.create_interval_object(name="exact-net", value="10.0.0.0/24")
+        outside_object = self.create_interval_object(name="outside-net", value="20.0.0.0/24")
+
+        exact_only_rule = self.create_rule("rule-equals-exact-only")
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=exact_only_rule, raw_value="exact-net",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=exact_object, position=1,
+        )
+
+        with_outside_rule = self.create_rule("rule-equals-with-outside")
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=with_outside_rule, raw_value="exact-net",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=exact_object, position=1,
+        )
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=with_outside_rule, raw_value="outside-net",
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT,
+            address_object=outside_object, position=2,
+        )
+
+        queryset, _search_query = apply_search(
+            SecurityRule.objects.order_by("pk"),
+            (
+                '{"model":"integrations.SecurityRule","operator":"and","clauses":['
+                '{"field":"source_address","op":"equals","value":"10.0.0.0/24"}'
+                ']}'
+            ),
+        )
+
+        self.assertQuerySetEqual(queryset, [exact_only_rule], transform=lambda rule: rule)
+
     def test_source_address_skips_dynamic_group_refs_for_semantic_queries(self):
         dynamic_group = AddressGroup.objects.create(
             management_station=self.station,

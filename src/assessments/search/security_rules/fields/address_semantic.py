@@ -206,23 +206,51 @@ def compile_semantic_address_clause(
         return model_class.objects.filter(predicate).values("security_rule_id")
 
     matching_rule_ids = []
-    queryset = (
-        model_class.objects.select_related("security_rule", "address_object")
-        .prefetch_related("address_object__resolved_entries")
-        .filter(
-            Q(address_object__ipv4_start_int__isnull=False, address_object__ipv4_end_int__isnull=False)
-            | Q(address_object__resolved_entries__isnull=False)
-        )
-        .filter(_negated_complement_gate(negate_field))
-        .exclude(ref_type=model_class.RefType.DYNAMIC_ADDRESS_GROUP)
-        .order_by("security_rule_id", "position", "id")
-        .distinct()
+
+    # 'matches' (query interval covered by the union of a rule's members) and 'equals' (a
+    # rule's merged interval equals the query exactly) can't be expressed in SQL, so they are
+    # evaluated in Python. Rather than materialize every IP-resolvable ref in the dataset
+    # (O(all refs), independent of selectivity), restrict the set to only the refs that can
+    # possibly matter:
+    #   - matches: a member that does not intersect the query interval can never contribute to
+    #     covering it, so only intersecting members are needed - identical result, far less data.
+    #   - equals: exact equality depends on all of a candidate rule's members, but only rules
+    #     with a member intersecting the query can equal it, so load the full member set of just
+    #     those candidate rules.
+    intersecting_gate = member_intersects_query(
+        interval, include_any=include_any, negate_field=negate_field
     )
-    if not include_any:
-        queryset = queryset.exclude(address_object__is_any=True)
+    if op == "matches":
+        member_refs = (
+            model_class.objects.filter(intersecting_gate)
+            .select_related("address_object")
+            .prefetch_related("address_object__resolved_entries")
+            .order_by("security_rule_id", "position", "id")
+            .distinct()
+        )
+    else:  # equals
+        candidate_rule_ids = list(
+            model_class.objects.filter(intersecting_gate)
+            .values_list("security_rule_id", flat=True)
+            .distinct()
+        )
+        member_refs = (
+            model_class.objects.filter(
+                supported_member_query(include_any=include_any, negate_field=negate_field),
+                security_rule_id__in=candidate_rule_ids,
+            )
+            .filter(
+                Q(address_object__ipv4_start_int__isnull=False, address_object__ipv4_end_int__isnull=False)
+                | Q(address_object__resolved_entries__isnull=False)
+            )
+            .select_related("address_object")
+            .prefetch_related("address_object__resolved_entries")
+            .order_by("security_rule_id", "position", "id")
+            .distinct()
+        )
 
     intervals_by_rule_id: dict[int, list[IPv4Interval]] = {}
-    for ref in queryset:
+    for ref in member_refs:
         address_object = ref.address_object
         if address_object is None:
             continue
