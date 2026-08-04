@@ -425,19 +425,17 @@ class FindingListView(TemplateView):
             for group in page_obj.object_list
             for item in group["findings"]
         }
-        config_by_rule = {}
+        row_by_rule = {}
         if page_rule_ids:
             page_rows = build_security_rule_rows(
                 list(build_security_rule_display_queryset().filter(pk__in=page_rule_ids))
             )
-            config_by_rule = {
-                row["security_rule"].pk: _finding_rule_config(row) for row in page_rows
-            }
+            row_by_rule = {row["security_rule"].pk: row for row in page_rows}
 
         # Row links carry the current page so closing the detail overlay returns here.
         for group in page_obj.object_list:
             for item in group["findings"]:
-                item["config"] = config_by_rule.get(item["security_rule_id"])
+                item["rule_row"] = row_by_rule.get(item["security_rule_id"])
                 item["detail_url"] = build_finding_querystring(
                     group=group_by,
                     severities=selected_severities,
@@ -447,7 +445,8 @@ class FindingListView(TemplateView):
                 )
             # When grouped by rule, the group *is* one rule — show its config once.
             if group_by == "rule" and group["findings"]:
-                group["rule_config"] = group["findings"][0]["config"]
+                first_row = row_by_rule.get(group["findings"][0]["security_rule_id"])
+                group["rule_config"] = _finding_rule_config(first_row) if first_row else None
 
         severity_summary = []
         for value in _SEVERITY_ORDER:

@@ -92,41 +92,92 @@
                             {% if group.header.kind == "control" %}{{ group.count }} affected rule{{ group.count|pluralize }}{% else %}{{ group.count }} finding{{ group.count|pluralize }}{% endif %}
                         </span>
                     </summary>
-                    {% if group.header.kind == "rule" and group.rule_config %}
-                    <div class="border-t border-slate-100 bg-slate-50 py-2 pr-4 pl-11">
+                    {% with th="border-b border-slate-200 bg-slate-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-600" thsrc="border-b border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" thdst="border-b border-amber-200 bg-amber-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" td="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 whitespace-nowrap text-slate-800" %}
+                    {% if group.header.kind == "control" %}
+                    <div class="overflow-x-auto border-t border-slate-200">
+                        <table class="min-w-full border-separate border-spacing-0">
+                            <thead>
+                                <tr>
+                                    <th class="{{ th }}">Severity</th>
+                                    <th class="{{ th }}">Status</th>
+                                    <th class="{{ th }}">Queries</th>
+                                    <th class="{{ th }}">Station</th>
+                                    <th class="{{ th }}">vsys</th>
+                                    <th class="{{ th }}">Rule</th>
+                                    <th class="{{ th }}">Order</th>
+                                    <th class="{{ th }}">Config Source</th>
+                                    <th class="{{ th }}">Device Group</th>
+                                    <th class="{{ thsrc }}">Src Zone</th>
+                                    <th class="{{ thsrc }}">Src Address</th>
+                                    <th class="{{ thdst }}">Dst Zone</th>
+                                    <th class="{{ thdst }}">Dst Address</th>
+                                    <th class="{{ th }}">Application</th>
+                                    <th class="{{ th }}">Service</th>
+                                    <th class="{{ th }}">Action</th>
+                                    <th class="{{ th }}">Log End</th>
+                                    <th class="{{ th }}">Profiles</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in group.findings %}
+                                {% with row=item.rule_row %}
+                                <tr class="hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}">
+                                    <td class="{{ td }}"><span class="inline-flex h-5 items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span></td>
+                                    <td class="{{ td }}"><span class="inline-flex items-center gap-1.5 {{ item.status_text_class }}"><span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}</span></td>
+                                    <td class="{{ td }} tabular-nums text-slate-500">{{ item.query_count }}</td>
+                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.management_station }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.enforcement_point.vsys_name }}{% if row.security_rule.enforcement_point.vsys_display_name %} · {{ row.security_rule.enforcement_point.vsys_display_name }}{% endif %}{% endif %}</td>
+                                    <td class="{{ td }}"><a href="{{ item.detail_url }}" class="font-medium text-blue-700 hover:underline">{{ item.rule_name }}</a></td>
+                                    <td class="{{ td }} tabular-nums">{{ item.rule_order }}</td>
+                                    <td class="{{ td }}">{% if row %}{{ row.config_source_label }}{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.device_group_name %}{{ row.device_group_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.from_zones %}{% for value in row.from_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.security_rule.negate_source %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-source: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.to_zones %}{% for value in row.to_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.security_rule.negate_destination %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-destination: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.applications %}{% for value in row.applications %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.services %}{% for value in row.services %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.action|default:"-" }}{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.security_rule.log_end is None %}-{% elif row.security_rule.log_end %}Yes{% else %}No{% endif %}</td>
+                                    <td class="{{ td }}">{% if row.profile_groups %}{% for value in row.profile_groups %}<div>{{ value }}</div>{% endfor %}{% endif %}{% if row.profiles %}{% for value in row.profiles %}<div class="text-[10px] leading-3 text-slate-500">{{ value }}</div>{% endfor %}{% endif %}{% if not row.profile_groups and not row.profiles %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                </tr>
+                                {% endwith %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    {% if group.rule_config %}
+                    <div class="border-t border-slate-200 bg-slate-50 py-2 pr-4 pl-11">
                         {% include "assessments/partials/_rule_config_strip.html" with config=group.rule_config %}
                     </div>
                     {% endif %}
-                    <div>
-                        {% for item in group.findings %}
-                        <a
-                            href="{{ item.detail_url }}"
-                            class="block border-t border-slate-100 py-2 pr-4 pl-11 text-sm hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}"
-                        >
-                            <div class="grid grid-cols-[90px_minmax(0,1fr)_128px_88px] items-center gap-3">
-                                <span class="inline-flex h-5 w-fit items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span>
-                                <span class="min-w-0">
-                                    {% if group.header.kind == "control" %}
-                                    <span class="block truncate font-medium text-slate-900">{{ item.rule_name }}</span>
-                                    <span class="block truncate text-[11.5px] text-slate-500">{{ item.rule_scope }}</span>
-                                    {% else %}
-                                    <span class="block truncate font-mono text-[12.5px] text-slate-700">{{ item.control_id }}</span>
-                                    <span class="block truncate text-[11.5px] text-slate-500">{{ item.control_name }}</span>
-                                    {% endif %}
-                                </span>
-                                <span class="inline-flex items-center gap-1.5 text-xs {{ item.status_text_class }}">
-                                    <span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}
-                                </span>
-                                <span class="text-[11.5px] tabular-nums text-slate-400">{{ item.query_count }} quer{{ item.query_count|pluralize:"y,ies" }}</span>
-                            </div>
-                            {% if group.header.kind == "control" and item.config %}
-                            <div class="mt-1.5 pl-[102px]">
-                                {% include "assessments/partials/_rule_config_strip.html" with config=item.config %}
-                            </div>
-                            {% endif %}
-                        </a>
-                        {% endfor %}
+                    <div class="overflow-x-auto border-t border-slate-100">
+                        <table class="min-w-full border-separate border-spacing-0">
+                            <thead>
+                                <tr>
+                                    <th class="{{ th }}">Severity</th>
+                                    <th class="{{ th }}">Control</th>
+                                    <th class="{{ th }} w-full">Finding</th>
+                                    <th class="{{ th }}">Status</th>
+                                    <th class="{{ th }}">Queries</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in group.findings %}
+                                <tr class="hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}">
+                                    <td class="{{ td }}"><span class="inline-flex h-5 items-center rounded border px-2 text-[11px] font-semibold {{ item.severity_classes }}">{{ item.severity_label }}</span></td>
+                                    <td class="{{ td }}"><a href="{{ item.detail_url }}" class="font-mono text-blue-700 hover:underline">{{ item.control_id }}</a></td>
+                                    <td class="{{ td }} whitespace-normal text-slate-700">{{ item.title }}</td>
+                                    <td class="{{ td }}"><span class="inline-flex items-center gap-1.5 {{ item.status_text_class }}"><span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}</span></td>
+                                    <td class="{{ td }} tabular-nums text-slate-500">{{ item.query_count }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
+                    {% endif %}
+                    {% endwith %}
                 </details>
                 {% empty %}
                 <div class="px-4 py-10 text-center text-sm text-slate-500">

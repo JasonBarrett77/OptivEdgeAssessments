@@ -532,7 +532,9 @@ class ControlViewTests(TestCase):
         self.assertContains(response, security_rule.name)
         self.assertContains(response, "High")
         self.assertContains(response, "Open")
-        self.assertContains(response, "1 query", html=False)
+        # Rows render as a Security-Rules-style rulebase table.
+        self.assertContains(response, "Src Address")
+        self.assertContains(response, "Dst Address")
 
     def _seed_findings_for_grouping(self):
         """Two rules and two controls with a spread of severities, for the grouped
@@ -623,17 +625,19 @@ class ControlViewTests(TestCase):
     def test_finding_list_rows_include_rule_config(self):
         self._seed_findings_for_grouping()
 
-        # Grouped by control, each expanded row is an affected rule and carries its
-        # rulebase config (source/destination/etc.).
+        # Grouped by control, each row is an affected rule carrying its full
+        # build_security_rule_rows() row, rendered as a rulebase-style table.
         response = self.client.get(reverse("assessment_finding_list"))
         item = response.context["finding_groups"][0]["findings"][0]
-        self.assertIn("config", item)
-        self.assertIn("source_addresses", item["config"])
-        self.assertContains(response, "src")
+        self.assertIsNotNone(item["rule_row"])
+        self.assertIn("source_addresses", item["rule_row"])
+        self.assertContains(response, "Src Address")
 
-        # Grouped by rule, the group itself carries the single rule's config.
+        # Grouped by rule, the group itself carries the single rule's config strip.
         response = self.client.get(reverse("assessment_finding_list") + "?group=rule")
-        self.assertIn("rule_config", response.context["finding_groups"][0])
+        group = response.context["finding_groups"][0]
+        self.assertIsNotNone(group["rule_config"])
+        self.assertIn("source_addresses", group["rule_config"])
 
     def test_rule_finding_docx_download_returns_attachment(self):
         security_rule = self.create_security_rule()
