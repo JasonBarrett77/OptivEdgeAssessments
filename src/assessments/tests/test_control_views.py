@@ -532,9 +532,11 @@ class ControlViewTests(TestCase):
         self.assertContains(response, security_rule.name)
         self.assertContains(response, "High")
         self.assertContains(response, "Open")
-        # Rows render as a Security-Rules-style rulebase table.
-        self.assertContains(response, "Src Address")
-        self.assertContains(response, "Dst Address")
+        # Rows render as the Security-Rules-style analytical table (grouped headers).
+        self.assertContains(response, ">Source<")
+        self.assertContains(response, ">Destination<")
+        self.assertContains(response, ">Appliance<")
+        self.assertContains(response, "analytical-table")
 
     def _seed_findings_for_grouping(self):
         """Two rules and two controls with a spread of severities, for the grouped
@@ -641,7 +643,7 @@ class ControlViewTests(TestCase):
         item = response.context["finding_groups"][0]["findings"][0]
         self.assertIsNotNone(item["rule_row"])
         self.assertIn("source_addresses", item["rule_row"])
-        self.assertContains(response, "Src Address")
+        self.assertContains(response, ">Source<")
 
         # Grouped by rule, the group itself carries the single rule's config strip.
         response = self.client.get(reverse("assessment_finding_list") + "?group=rule")

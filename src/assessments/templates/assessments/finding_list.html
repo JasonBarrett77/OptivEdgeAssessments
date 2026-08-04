@@ -4,6 +4,7 @@
 {% block title %} | Findings{% endblock %}
 
 {% block content %}
+{% include "components/partials/analytical_table_styles.html" %}
 <style>
     details.fgroup > summary { list-style: none; }
     details.fgroup > summary::-webkit-details-marker { display: none; }
@@ -14,6 +15,8 @@
     /* Each expanded section scrolls within a bounded box (sized from the content area
        in JS below), so the table gets its own vertical + horizontal scrollbars. */
     .fbody { overflow: auto; max-height: var(--fbody-max, 65vh); }
+    /* The finding whose detail overlay is open stays highlighted over zebra/hover. */
+    .analytical-table tbody tr.fsel td { background-color: #bfdbfe !important; }
 </style>
 <section class="flex h-full w-full min-h-0 min-w-0 flex-col">
     <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
@@ -99,58 +102,76 @@
                     </summary>
                     {% with th="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-600" thsrc="sticky top-0 z-10 border-b border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" thdst="sticky top-0 z-10 border-b border-amber-200 bg-amber-50 px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wide whitespace-nowrap text-slate-700" td="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 whitespace-nowrap text-slate-800" %}
                     {% if group.header.kind == "control" %}
-                    <div class="fbody">
-                        <table class="min-w-full border-separate border-spacing-0">
+                    {% with tdc="border-r border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800" tdlast="border-b border-slate-200 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800" %}
+                    <div class="fbody [scrollbar-gutter:stable]">
+                        <table class="analytical-table w-max min-w-full table-auto">
                             <thead>
                                 <tr>
-                                    <th class="{{ th }}">Status</th>
-                                    <th class="{{ th }}">Queries</th>
-                                    <th class="{{ th }}">Station</th>
-                                    <th class="{{ th }}">vsys</th>
-                                    <th class="{{ th }}">Enforcement Point</th>
-                                    <th class="{{ th }}">Rule</th>
-                                    <th class="{{ th }}">Order</th>
-                                    <th class="{{ th }}">Config Source</th>
-                                    <th class="{{ th }}">Device Group</th>
-                                    <th class="{{ thsrc }}">Src Zone</th>
-                                    <th class="{{ thsrc }}">Src Address</th>
-                                    <th class="{{ thdst }}">Dst Zone</th>
-                                    <th class="{{ thdst }}">Dst Address</th>
-                                    <th class="{{ th }}">Application</th>
-                                    <th class="{{ th }}">Service</th>
-                                    <th class="{{ th }}">Action</th>
-                                    <th class="{{ th }}">Log End</th>
-                                    <th class="{{ th }}">Profiles</th>
+                                    <th class="sticky top-0 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2"></th>
+                                    <th class="sticky top-0 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2"></th>
+                                    <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                    <th colspan="3" class="sticky top-0 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">vsys</th>
+                                    <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                    <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Source</th>
+                                    <th colspan="2" class="sticky top-0 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Destination</th>
+                                    <th colspan="7" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                </tr>
+                                <tr>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Status</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Queries</th>
+                                    <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Station</th>
+                                    <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">id</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-blue-200 bg-blue-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">name</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Order</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Config Source</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Device Group</th>
+                                    <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Rule</th>
+                                    <th class="sticky top-7 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Zone</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Address</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Zone</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Address</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Application</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Service</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Action</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log Start</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log End</th>
+                                    <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Log Profile</th>
+                                    <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Profiles</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in group.findings %}
                                 {% with row=item.rule_row %}
-                                <tr class="hover:bg-slate-50 {% if selected_finding and item.id == selected_finding.id %}bg-blue-50{% endif %}">
-                                    <td class="{{ td }}"><span class="inline-flex items-center gap-1.5 {{ item.status_text_class }}"><span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}</span></td>
-                                    <td class="{{ td }} tabular-nums text-slate-500">{{ item.query_count }}</td>
-                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.management_station }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.enforcement_point.vsys_name }}{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.security_rule.enforcement_point.vsys_display_name %}{{ row.security_rule.enforcement_point.vsys_display_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}"><a href="{{ item.detail_url }}" class="font-medium text-blue-700 hover:underline">{{ item.rule_name }}</a></td>
-                                    <td class="{{ td }} tabular-nums">{{ item.rule_order }}</td>
-                                    <td class="{{ td }}">{% if row %}{{ row.config_source_label }}{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.device_group_name %}{{ row.device_group_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.from_zones %}{% for value in row.from_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.security_rule.negate_source %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-source: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.to_zones %}{% for value in row.to_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.security_rule.negate_destination %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-destination: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.applications %}{% for value in row.applications %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.services %}{% for value in row.services %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
-                                    <td class="{{ td }}">{% if row %}{{ row.security_rule.action|default:"-" }}{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.security_rule.log_end is None %}-{% elif row.security_rule.log_end %}Yes{% else %}No{% endif %}</td>
-                                    <td class="{{ td }}">{% if row.profile_groups %}{% for value in row.profile_groups %}<div>{{ value }}</div>{% endfor %}{% endif %}{% if row.profiles %}{% for value in row.profiles %}<div class="text-[10px] leading-3 text-slate-500">{{ value }}</div>{% endfor %}{% endif %}{% if not row.profile_groups and not row.profiles %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                <tr class="{% if selected_finding and item.id == selected_finding.id %}fsel{% endif %}">
+                                    <td class="{{ tdc }}"><span class="inline-flex items-center gap-1.5 {{ item.status_text_class }}"><span class="h-1.5 w-1.5 rounded-full {{ item.status_dot_class }}"></span>{{ item.status_label }}</span></td>
+                                    <td class="{{ tdc }} tabular-nums text-slate-500">{{ item.query_count }}</td>
+                                    <td class="{{ tdc }}">{% if row %}{{ row.security_rule.management_station }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.enforcement_point.appliance %}{{ row.security_rule.enforcement_point.appliance }}{% elif row.security_rule.enforcement_point.appliance_group.active_appliance %}{{ row.security_rule.enforcement_point.appliance_group.active_appliance }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row %}{{ row.security_rule.enforcement_point.vsys_name }}{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.enforcement_point.vsys_display_name %}{{ row.security_rule.enforcement_point.vsys_display_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }} tabular-nums">{% if row %}{{ row.security_rule.effective_order }}{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row %}{{ row.config_source_label }}{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.device_group_name %}{{ row.device_group_name }}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}"><a href="{{ item.detail_url }}" class="font-medium text-blue-700 hover:underline">{% if row %}{{ row.security_rule.name }}{% else %}{{ item.rule_name }}{% endif %}</a></td>
+                                    <td class="{{ tdc }}">{% if row.from_zones %}{% for value in row.from_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.negate_source %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-source: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.source_addresses %}{% for value in row.source_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.to_zones %}{% for value in row.to_zones %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.negate_destination %}<span class="mr-1 inline-flex items-center border border-rose-300 bg-rose-50 px-1 text-[9px] font-semibold text-rose-700" title="negate-destination: matches everything EXCEPT the addresses below">NOT</span>{% endif %}{% if row.destination_addresses %}{% for value in row.destination_addresses %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.applications %}{% for value in row.applications %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.services %}{% for value in row.services %}<div>{{ value }}</div>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row %}{{ row.security_rule.action|default:"-" }}{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.log_start is None %}-{% elif row.security_rule.log_start %}Yes{% else %}No{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row.security_rule.log_end is None %}-{% elif row.security_rule.log_end %}Yes{% else %}No{% endif %}</td>
+                                    <td class="{{ tdc }}">{% if row %}{{ row.security_rule.log_setting|default:"-" }}{% endif %}</td>
+                                    <td class="{{ tdlast }}">{% if row.profile_groups %}{% for value in row.profile_groups %}<div>{{ value }}</div>{% endfor %}{% endif %}{% if row.profiles %}{% for value in row.profiles %}<div class="text-[10px] leading-3 text-slate-500">{{ value }}</div>{% endfor %}{% endif %}{% if not row.profile_groups and not row.profiles %}<span class="text-slate-400">-</span>{% endif %}</td>
                                 </tr>
                                 {% endwith %}
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    {% endwith %}
                     {% else %}
                     {% if group.rule_config %}
                     <div class="border-b border-slate-100 bg-white py-2 pr-4 pl-11">
