@@ -113,6 +113,40 @@ Do not inline duplicate SVGs when a Lucide icon exists.
 
 Assessment data and report exports may be client-sensitive. Do not commit generated client reports, local exports, databases, `.env` files, or other local runtime artifacts unless they are intentionally versioned fixtures or bundled catalogs.
 
+## Inherited Integrations Data Model
+
+This app assesses models it does not own. Four properties of those models are not obvious
+from their field names, and each has bitten someone. The authoritative account is
+OptivEdgeIntegrations `CLAUDE.md`, sections "Topology model hierarchy" and "Object scope
+resolution (PAN-OS)"; read it before writing anything that reasons about scope, precedence
+or topology.
+
+* **`precedence_rank` values are known wrong and will change.** `PolicyObjectPrecedence`
+  encodes a four-level ladder that device measurement refuted; PAN-OS resolves on two
+  scopes (vsys-specific beats shared), with local-vs-pushed being provenance rather than a
+  precedence level. Test fixtures here hardcode ranks (`precedence_rank=10`, `=90` in
+  `tests/test_security_rule_search.py`). They will need updating when Integrations
+  collapses the ladder. Do not build assessment logic that reads `precedence_rank` as a
+  stable ordering.
+
+* **`ApplianceGroup` is an HA/multi-appliance relationship, not a Panorama marker.** Views
+  and reporting here `select_related` through `enforcement_point__appliance_group` and
+  render its name. Integrations currently uses "has a group" as a proxy for
+  "Panorama-managed", which is a known latent bug there — do not copy that inference.
+  `ManagementStation.station_type` is the explicit discriminant.
+
+* **`DeviceConfigurationProfile` is one row per Appliance, so an HA pair produces two.**
+  Most of its fields (NTP, banner, idle timeout, permitted-IPs, service enablement) are
+  synchronized across the pair, so a control targeting them yields two identical findings
+  for what is one configuration. HA fields genuinely differ per node and should not be
+  collapsed. There is currently nothing comparing the two profiles, so a pair that has
+  *drifted* where it should be synced produces no finding at all.
+
+* **An enforcement point is a vsys, and a single-vsys firewall is still a vsys.** There is
+  no "device-level" assessment target for policy or objects; `Control.target_model` picks
+  between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
+  is the whole vocabulary.
+
 ## Known Pitfalls
 
 * `pyproject.toml` currently depends on OptivEdgeIntegrations from `@main`; prefer tags or commit SHAs for repeatable deployments.
