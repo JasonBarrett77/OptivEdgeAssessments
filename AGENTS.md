@@ -121,19 +121,20 @@ OptivEdgeIntegrations `CLAUDE.md`, sections "Topology model hierarchy" and "Obje
 resolution (PAN-OS)"; read it before writing anything that reasons about scope, precedence
 or topology.
 
-* **`precedence_rank` values are known wrong and will change.** `PolicyObjectPrecedence`
-  encodes a four-level ladder that device measurement refuted; PAN-OS resolves on two
-  scopes (vsys-specific beats shared), with local-vs-pushed being provenance rather than a
-  precedence level. Test fixtures here hardcode ranks (`precedence_rank=10`, `=90` in
-  `tests/test_security_rule_search.py`). They will need updating when Integrations
-  collapses the ladder. Do not build assessment logic that reads `precedence_rank` as a
-  stable ordering.
+* **`precedence_rank` is derived, not chosen.** PAN-OS resolves on two scopes —
+  vsys-specific beats shared — with local-vs-pushed being provenance rather than a
+  precedence level. Integrations now derives the rank from the namespace via
+  `precedence_for()`: vsys-scoped namespaces are 10, shared-scoped 20, vendor 90/95. The
+  fixtures here hardcode `precedence_rank=10` and `=90`, which remain correct under the
+  collapsed scheme, but prefer `precedence_for()` in new fixtures. Equal ranks are now
+  *meaningful*: two objects sharing a name and a rank occupy one scope, which PAN-OS
+  rejects, so it signals a collection fault rather than a tie to break.
 
 * **`ApplianceGroup` is an HA/multi-appliance relationship, not a Panorama marker.** Views
   and reporting here `select_related` through `enforcement_point__appliance_group` and
-  render its name. Integrations currently uses "has a group" as a proxy for
-  "Panorama-managed", which is a known latent bug there — do not copy that inference.
-  `ManagementStation.station_type` is the explicit discriminant.
+  render its name. Do not infer Panorama-management from it — Integrations used to, which
+  was a latent bug, and now reads `ManagementStation.station_type` (`is_panorama_managed()`).
+  That is the explicit discriminant; use it here too.
 
 * **`DeviceConfigurationProfile` is one row per Appliance, so an HA pair produces two.**
   Most of its fields (NTP, banner, idle timeout, permitted-IPs, service enablement) are
