@@ -2,7 +2,9 @@
 
 ## Purpose
 
-`OptivEdgeAssessments` is a reusable Django assessment app package built on the `OptivEdgeIntegrations` framework. It is installed into downstream Django host projects; it is not a standalone Django project.
+`OptivEdgeAssessments` is a reusable Django assessment app package. It plugs into the `OptivEdge` app shell and assesses the normalized firewall data owned by `OptivEdgeIntegrations`. It is installed into downstream Django host projects; it is not a standalone Django project.
+
+`CLAUDE.md` is a symlink to this file — Claude Code and Codex read the same guidance. Edit `AGENTS.md`.
 
 This repository owns only the installable `assessments` app under `src/assessments`. Downstream host projects own `manage.py`, root settings, root URLs, databases, environment variables, and deployment configuration.
 
@@ -16,14 +18,24 @@ Package-local workflow notes that are used by the app live under `src/assessment
 
 ## Repository Boundaries
 
-OptivEdgeIntegrations owns framework concerns:
+The stack is three peer packages, and shell concerns were extracted out of OptivEdgeIntegrations into OptivEdge —
+older notes that credit OptivEdgeIntegrations with the shell are stale.
+
+OptivEdge owns the shared shell:
+
+* `base.html` / `workspace.html` and the shared `components/` templates
+* the `app_registry` plugin convention (`URL_MOUNT` / `SIDEBAR_SECTION`) and the root URL namespace
+* the `lucide` template tag and its icon SVGs
+* shared UI primitives (`optivedge.views.RightOverlayMixin`, the input-class constants in `optivedge.forms`)
+* `ApplicationEnvironment` — client/engagement metadata, consumed here by `environment.py`, `models.py`,
+  `views.py` and `reporting/workbook_data.py`
+
+OptivEdgeIntegrations owns firewall-domain concerns:
 
 * vendor collection logic
 * PAN-OS session handling
 * normalized integration models
-* shared framework templates
-* shared framework navigation composition
-* shared integration views
+* integration views for management stations, appliances and enforcement points
 
 OptivEdgeAssessments owns assessment concerns:
 
@@ -37,7 +49,7 @@ OptivEdgeAssessments owns assessment concerns:
 * control catalog import/export workflows
 * assessment-specific templates
 
-Do not move OptivEdgeIntegrations framework concerns into this repository.
+Do not move OptivEdge shell concerns or OptivEdgeIntegrations firewall concerns into this repository.
 
 ## Package Layout
 
@@ -46,6 +58,7 @@ Expected top-level layout:
 ```text
 OptivEdgeAssessments/
 ├── AGENTS.md
+├── CLAUDE.md -> AGENTS.md
 ├── DEPLOYMENT.md
 ├── README.md
 ├── pyproject.toml
@@ -64,6 +77,17 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e .
+```
+
+When the sibling packages are being worked on together, install all three editable from their checkouts rather
+than letting pip pull the `@main` git dependencies. This cannot be one `pip install` — the git-URL dependencies
+conflict with local editables and pip raises `ResolutionImpossible`. Stage it (see `DEPLOYMENT.md`):
+
+```bash
+python -m pip install -e ~/PythonProjects/OptivEdge
+python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations --no-deps
+python -m pip install -e ~/PythonProjects/OptivEdgeAssessments --no-deps
+python -m pip install requests xmltodict python-docx docxtpl XlsxWriter
 ```
 
 Run package-level validation here:
@@ -98,9 +122,11 @@ project that installs this package.
 
 ## UI Rules
 
-Use the OptivEdgeIntegrations shell and existing template patterns. Do not create a second application shell inside assessment templates.
+Use the OptivEdge shell and existing template patterns — `{% extends "base.html" %}` and the shared
+`components/` includes resolve through Django's app-directories loader with no import. Do not create a second
+application shell inside assessment templates.
 
-Use the existing Lucide template tag pattern:
+Use the existing Lucide template tag pattern (the tag library and its icon SVGs live in OptivEdge):
 
 ```django
 {% load lucide %}
@@ -150,7 +176,8 @@ or topology.
 
 ## Known Pitfalls
 
-* `pyproject.toml` currently depends on OptivEdgeIntegrations from `@main`; prefer tags or commit SHAs for repeatable deployments.
+* `pyproject.toml` depends on both OptivEdge and OptivEdgeIntegrations from `@main`; prefer tags or commit SHAs for repeatable deployments.
 * Use Python imports in code, for example `from optivedge_integrations.integrations.models import SecurityRule`.
 * Use Django model labels in canonical query payloads, for example `integrations.SecurityRule`.
-* If a framework route, shared shell behavior, template, or template tag is missing, check OptivEdgeIntegrations first.
+* If a shell behavior, base template, shared component or template tag is missing, check OptivEdge first; if a
+  firewall model, collector or integration view is missing, check OptivEdgeIntegrations.

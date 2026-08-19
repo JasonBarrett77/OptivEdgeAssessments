@@ -1,82 +1,43 @@
 # OptivEdgeAssessments Deployment Instructions
 
-OptivEdgeAssessments is a reusable Django assessment app package. It is not intended to be deployed directly as a standalone Django project. Downstream Django projects install OptivEdgeAssessments as a dependency and include its Django app, URLs, templates, migrations, and assessment workflows.
+**Host-project wiring is documented in OptivEdge, not here.** `OptivEdge/DEPLOYMENT.md` is the single
+authority for standing up a deployment: creating an engagement project from `deployment_template/`, building
+the offline wheel bundle, and configuring `INSTALLED_APPS` / `TEMPLATES` / root urls for the whole stack. Read
+it first. This file covers only what is specific to *this* package.
 
-## Repository Purpose
+OptivEdgeAssessments is a reusable Django domain package — assessment controls, control queries, findings and
+report exports. It is not deployable on its own: it has no `manage.py` and no host settings, and it requires
+both **OptivEdge** (the shared app shell) and **OptivEdgeIntegrations** (the normalized firewall models it
+assesses) installed alongside it. A downstream host project owns `manage.py`, root settings, root URLs, and the
+database.
 
-This repository provides the assessment application layer for OptivEdgeIntegrations, including:
+## What this package contributes to a host project
 
-* assessment controls
-* control queries
-* canonical query evaluation
-* security-rule findings
-* management-plane findings
-* assessment views
-* report exports
-* control catalog import/export workflows
-* assessment templates and template tags
+| | |
+|---|---|
+| Django app | `assessments`, label `assessments` |
+| Settings component | `OPTIVEDGE_ASSESSMENTS_APPS` (from `assessments.settings.components`) |
+| Routes | mounted at `/assessments/` by OptivEdge's plugin registry, via `assessments/app_meta.py` |
+| Navigation | the "Assessments" and "Experimental" sidebar sections, via the same `app_meta.py` |
+| Migrations | the `assessments` app's own |
 
-OptivEdgeIntegrations remains responsible for the shared framework layer, including:
+It contributes **no** shell, base templates, context processors, template libraries, or root URL patterns —
+those come from OptivEdge, and this package's templates `{% extends "base.html" %}` and `{% load lucide %}`
+out of it. Splice `OPTIVEDGE_ASSESSMENTS_APPS` **after** `OPTIVEDGE_APPS` and `OPTIVEDGE_INTEGRATIONS_APPS`, as
+`deployment_template` does; see the ordering note in `OptivEdge/DEPLOYMENT.md` before changing that.
 
-* normalized firewall integration models
-* PAN-OS collection and normalization logic
-* framework shell, templates, and template tags
-* framework URL composition
-* framework settings components
-
-Downstream projects remain responsible for:
-
-* `manage.py`
-* root Django settings
-* root URL configuration
-* environment variables
-* database configuration
-* deployment configuration
-* project-specific apps and workflows
-
-## Package Layout
-
-Expected repository structure:
-
-```text
-OptivEdgeAssessments/
-├── pyproject.toml
-├── README.md
-├── DEPLOYMENT.md
-└── src/
-    └── assessments/
-        ├── __init__.py
-        ├── app_meta.py
-        ├── apps.py
-        ├── urls.py
-        ├── models.py
-        ├── migrations/
-        ├── templates/
-        ├── templatetags/
-        ├── controls_catalog/
-        ├── search/
-        ├── reporting/
-        └── plain_language/
-```
-
-Only `src/assessments` is packaged for installation. Downstream host projects own `manage.py`, root settings, URL configuration, database, environment variables, and deployment configuration.
-
-## Version Requirements
-
-OptivEdgeAssessments currently targets:
+## Version requirements and dependencies
 
 ```text
 Python >= 3.12
-OptivEdgeIntegrations installed from GitHub
-Django >= 6.0, < 6.1 through OptivEdgeIntegrations
+Django >= 6.0, < 6.1   (via OptivEdge)
 ```
 
-The OptivEdgeIntegrations dependency is declared in `pyproject.toml`:
+Declared in `pyproject.toml`:
 
 ```toml
-[project]
-requires-python = ">=3.12"
 dependencies = [
+    "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
     "optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main",
     "python-docx",
     "docxtpl",
@@ -84,17 +45,11 @@ dependencies = [
 ]
 ```
 
-## Installing OptivEdgeAssessments In A Downstream Project
+Both OptivEdge dependencies float on `@main`; prefer tags or commit SHAs for repeatable deployments.
 
-Create and activate a virtual environment in the downstream project:
+## Installing
 
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-```
-
-Install OptivEdgeAssessments from GitHub:
+From GitHub — pip resolves both OptivEdge dependencies automatically:
 
 ```bash
 python -m pip install "git+https://github.com/JasonBarrett77/OptivEdgeAssessments.git@main#egg=optivedge-assessments"
@@ -106,161 +61,59 @@ For repeatable installs, prefer a tag:
 python -m pip install "git+https://github.com/JasonBarrett77/OptivEdgeAssessments.git@v0.1.0#egg=optivedge-assessments"
 ```
 
-For local development against a checked-out copy:
+Working on this package alongside local checkouts of the other two is **not** a single `pip install -e` — the
+git-URL dependencies conflict with local editables of the same packages, and pip raises `ResolutionImpossible`.
+Follow "Co-development with local checkouts of the whole stack" in `OptivEdge/DEPLOYMENT.md`; the short form
+is:
 
 ```bash
-python -m pip install -e ~/PythonProjects/OptivEdgeAssessments
-```
-
-### Co-development with a local OptivEdgeIntegrations checkout
-
-When a downstream project is developing against local checkouts of both `OptivEdgeIntegrations` and `OptivEdgeAssessments` simultaneously, installing them together with a single `pip install` command will fail. `optivedge-assessments` declares its `optivedge` dependency as a GitHub URL, which pip treats as a different distribution from a local editable install. pip raises a `ResolutionImpossible` conflict.
-
-Install them in three steps instead:
-
-```bash
-# 1. Install the local OptivEdgeIntegrations editable first.
-python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations
-
-# 2. Install OptivEdgeAssessments editable without resolving its declared
-#    optivedge-integrations dependency — the editable from step 1 satisfies it.
+python -m pip install -e ~/PythonProjects/OptivEdge
+python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations --no-deps
 python -m pip install -e ~/PythonProjects/OptivEdgeAssessments --no-deps
-
-# 3. Install the remaining OptivEdgeAssessments dependencies that --no-deps skipped.
-python -m pip install python-docx docxtpl XlsxWriter
+python -m pip install requests xmltodict python-docx docxtpl XlsxWriter
 ```
 
-The result is the same as a normal install: both packages are editable, and changes to files in either `src/` directory take effect immediately without reinstalling.
+## Local development settings and CLI
 
-## Configuring A Downstream Django Project
+`assessments.settings.default` is a local-dev settings module committed inside the package — a SQLite database
+in the current working directory, `ROOT_URLCONF = "assessments.urls_root"` (admin plus `optivedge.urls`), and
+all three apps installed. It is **not** a downstream integration example; a host project writes its own
+settings from `OptivEdge/DEPLOYMENT.md`.
 
-Create or use a normal Django project:
+The `optivedge-assessments` console script is a `manage.py` shim over it, so management commands work from
+this repo without a host project:
 
 ```bash
-django-admin startproject config .
+optivedge-assessments migrate
+optivedge-assessments runserver
 ```
 
-Edit `config/settings.py`.
+## Packaging rules
 
-Import OptivEdgeIntegrations settings components:
+Runtime package data must stay under `src/assessments/` and be declared in `pyproject.toml`:
 
-```python
-from assessments.settings.components import OPTIVEDGE_ASSESSMENTS_APPS
-from optivedge_integrations.settings.components import (
-    OPTIVEDGE_APPS,
-    OPTIVEDGE_CONTEXT_PROCESSORS,
-    OPTIVEDGE_TEMPLATE_LIBRARIES,
-)
-```
-
-Add OptivEdgeAssessments and OptivEdgeIntegrations apps to `INSTALLED_APPS`:
-
-```python
-INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-
-    *OPTIVEDGE_ASSESSMENTS_APPS,
-    *OPTIVEDGE_APPS,
+```toml
+[tool.setuptools.package-data]
+assessments = [
+    "controls_catalog/catalogs/*.json",
+    "docs/*.md",
+    "reporting/docx/*.docx",
+    "templates/**/*.html",
 ]
 ```
 
-Place `OPTIVEDGE_ASSESSMENTS_APPS` before `OPTIVEDGE_APPS` so assessment-owned template overrides win.
+That covers templates, the bundled control catalog JSON, the report document templates, and the package-local
+workflow docs. Do not rely on root-level `templates/` or project-relative file paths — they will not survive
+being installed as a wheel.
 
-Configure templates:
-
-```python
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "libraries": {
-                **OPTIVEDGE_TEMPLATE_LIBRARIES,
-            },
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-                *OPTIVEDGE_CONTEXT_PROCESSORS,
-            ],
-        },
-    },
-]
-```
-
-Edit `config/urls.py`:
-
-```python
-from django.contrib import admin
-from django.urls import include, path
-
-urlpatterns = [
-    path("", include("optivedge_integrations.urls")),
-    path("admin/", admin.site.urls),
-]
-```
-
-OptivEdgeIntegrations composes registered app navigation and routes. The assessment app publishes its mount metadata in `assessments.app_meta`.
-
-## Running Django Checks And Migrations
-
-From the downstream project root:
+## Validating a change to this package
 
 ```bash
-python manage.py check
-python manage.py migrate
+DJANGO_SETTINGS_MODULE=assessments.settings.default python -m django test assessments
 ```
 
-Expected migrations include the OptivEdgeIntegrations `integrations` app and the OptivEdgeAssessments `assessments` app.
-
-## Running The Development Server
-
-```bash
-python manage.py runserver
-```
-
-Open:
-
-```text
-http://127.0.0.1:8000/
-```
-
-If the OptivEdgeIntegrations shell renders and the Assessments navigation/routes are available, the framework package, assessment app, templates, URLs, and migrations are working.
-
-## Development Workflow For OptivEdgeAssessments
-
-When changing OptivEdgeAssessments itself:
-
-```bash
-cd ~/PythonProjects/OptivEdgeAssessments
-source .venv/bin/activate
-```
-
-Install the assessment app editable for local validation:
-
-```bash
-python -m pip install -e .
-```
-
-Run a basic non-Django import check:
-
-```bash
-python - <<'PY'
-import assessments
-import assessments.apps
-import assessments.settings.components
-
-print("OptivEdgeAssessments import check passed")
-PY
-```
-
-Django URL, view, and model imports require a configured Django settings module. Validate full Django behavior from a downstream host project that installs this package:
+Full Django behavior against real collected data — migrations, report exports, the rendered shell — can only
+be validated from a host project:
 
 ```bash
 python manage.py check
@@ -268,23 +121,30 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-## URL Organization Convention
+## Publishing a version
 
-OptivEdgeAssessments should keep URL ownership in the assessment app:
+Only tag a release after a host project can successfully run `check`, `migrate` and `runserver` against it:
 
-```text
-src/assessments/urls.py
+```bash
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-The downstream project's root URL configuration should include `optivedge_integrations.urls`. OptivEdgeIntegrations handles framework-level URL composition and app-local mounts.
+## Troubleshooting
 
-## Packaging Rules
+**`ImportError: cannot import name 'OPTIVEDGE_APPS' from 'optivedge_integrations.settings.components'`** — the
+host project is wired for the pre-split layout. `OPTIVEDGE_APPS`, `OPTIVEDGE_CONTEXT_PROCESSORS` and
+`OPTIVEDGE_TEMPLATE_LIBRARIES` come from `optivedge.settings.components` now; `optivedge_integrations` exports
+only `OPTIVEDGE_INTEGRATIONS_APPS`.
 
-Package data required at runtime must stay under `src/assessments/`, including:
+**`TemplateDoesNotExist: base.html`** — `optivedge` is missing from `INSTALLED_APPS`.
 
-* templates
-* bundled control catalog JSON
-* report document templates
-* package-local documentation used by workflows
+**`LookupError: No installed app with label 'integrations'`** — `OPTIVEDGE_INTEGRATIONS_APPS` was left out of
+`INSTALLED_APPS`. Controls store their targets as Django model labels (`integrations.SecurityRule`), so this
+package cannot resolve a single control target without it.
 
-Do not rely on root-level `templates/` or project-relative file paths for package runtime behavior.
+**`NoReverseMatch` for an `assessment_*` URL name** — `assessments` is missing from `INSTALLED_APPS`, so
+OptivEdge's registry never found its `app_meta.py` and never mounted `/assessments/`.
+
+**Sidebar item stops highlighting on a page** — a route name was added to `assessments/urls.py` without being
+added to the matching `active_names` set in `assessments/app_meta.py`.
