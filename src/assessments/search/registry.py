@@ -17,7 +17,18 @@ from assessments.search.security_rules.compiler import (
     SECURITY_RULE_MODEL,
     compile_security_rule_search_node,
 )
-from optivedge_integrations.integrations.models import DeviceConfigurationProfile, SecurityRule
+from assessments.search.management_interface.compiler import (
+    FIELD_OPERATOR_REGISTRY as MANAGEMENT_INTERFACE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.management_interface.compiler import (
+    MANAGEMENT_INTERFACE_MODEL,
+    compile_management_interface_search_node,
+)
+from optivedge_integrations.integrations.models import (
+    DeviceConfigurationProfile,
+    ManagementInterface,
+    SecurityRule,
+)
 
 
 MODEL_REGISTRY = {
@@ -30,6 +41,11 @@ MODEL_REGISTRY = {
         "model_class": DeviceConfigurationProfile,
         "field_operators": DEVICE_CONFIGURATION_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_device_configuration_search_node,
+    },
+    MANAGEMENT_INTERFACE_MODEL: {
+        "model_class": ManagementInterface,
+        "field_operators": MANAGEMENT_INTERFACE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_management_interface_search_node,
     },
 }
 

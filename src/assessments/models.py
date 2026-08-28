@@ -36,6 +36,7 @@ class Control(models.Model):
         SECURITY_RULE = "security_rule", "Security Rule"
         CONFIG = "config", "Configuration"
         DEVICE_CONFIGURATION = "device_configuration", "Device Configuration"
+        MANAGEMENT_INTERFACE = "management_interface", "Management Interface"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -69,6 +70,7 @@ class Control(models.Model):
     _CONTROL_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
         "device_configuration": "integrations.DeviceConfigurationProfile",
+        "management_interface": "integrations.ManagementInterface",
     }
 
     class Meta:
@@ -88,6 +90,7 @@ class Control(models.Model):
     _TARGET_MODEL_LABELS = {
         "integrations.SecurityRule": "Security Rule",
         "integrations.DeviceConfigurationProfile": "Device Configuration",
+        "integrations.ManagementInterface": "Management Interface",
     }
 
     @property
