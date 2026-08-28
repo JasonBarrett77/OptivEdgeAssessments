@@ -12,6 +12,7 @@ from django.utils.text import slugify
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     DeviceConfigurationProfile,
+    ManagementInterface,
     SecurityRule,
 )
 
@@ -448,3 +449,76 @@ class ApplicationEnvironmentCatalogState(models.Model):
     def __str__(self) -> str:
         catalog_label = self.current_catalog.label if self.current_catalog else "None"
         return f"{self.application_environment} -> {catalog_label}"
+
+
+class ManagementInterfaceFinding(models.Model):
+    """A finding against ONE management surface, not one appliance.
+
+    The subject is what makes the finding useful. "10.0.0.0/8 is allowed" is not
+    actionable; "allowed to ethernet1/1" is. An appliance has several surfaces - MGT,
+    aux-1, aux-2, and one per layer-3 interface carrying a management profile - so a single
+    control against a single appliance produces several findings. They are different doors,
+    not duplicates.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SUPPRESSED = "suppressed", "Suppressed"
+        RESOLVED = "resolved", "Resolved"
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="management_interface_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="management_interface_findings")
+    management_interface = models.ForeignKey(
+        ManagementInterface, on_delete=models.CASCADE, related_name="findings")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    #: Frozen at generation time, like RuleFinding.matched_query_names - a finding stays a
+    #: faithful record of its run even after the catalog is edited.
+    matched_query_names = models.JSONField(default=list, blank=True)
+    #: Also frozen: the surface's reportable name at the time of the run. An interface can
+    #: be renamed or a profile unbound, and a stale finding must still say what it found.
+    subject_name = models.CharField(max_length=64, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ManagementInterfaceFindingControlQuery",
+        related_name="management_interface_findings", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["management_interface"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "management_interface"],
+                name="unique_management_interface_finding_per_run_control_surface"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on {self.subject_name or self.management_interface_id}"
+
+
+class ManagementInterfaceFindingControlQuery(models.Model):
+    management_interface_finding = models.ForeignKey(
+        ManagementInterfaceFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="management_interface_finding_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["management_interface_finding", "control_query"],
+                name="unique_management_interface_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.management_interface_finding_id} <- {self.control_query_id}"
