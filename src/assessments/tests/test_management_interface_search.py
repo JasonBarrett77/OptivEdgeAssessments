@@ -52,7 +52,7 @@ class ManagementInterfaceControlTests(TestCase):
         self._surface(ManagementInterface.PLANE_AUX1)                              # unrestricted
         self._surface(ManagementInterface.PLANE_DATAPLANE, "ethernet1/1", "p1")    # unrestricted
         self._surface(ManagementInterface.PLANE_DATAPLANE, "ethernet1/2", "p2",
-                      sources=[("2001:db8::/32", 6, None, None)])                  # undetermined
+                      sources=[("2001:db8::/32", 6, None, None)])                  # restricted
         self._surface(ManagementInterface.PLANE_DATAPLANE, "loopback.9", "p3",
                       sources=[("192.168.1.1", 4, 3232235777, 3232235777)])        # restricted
 
@@ -61,7 +61,7 @@ class ManagementInterfaceControlTests(TestCase):
         names = sorted(s.display_name for s in matched)
 
         # the finding names the surface, which is the whole point
-        self.assertEqual(names, ["Aux-1", "ethernet1/1", "ethernet1/2"])
+        self.assertEqual(names, ["Aux-1", "ethernet1/1"])
         self.assertNotIn("MGT", names)
         self.assertNotIn("loopback.9", names)
 
@@ -74,14 +74,15 @@ class ManagementInterfaceControlTests(TestCase):
         self.assertEqual(matched.count(), 3)
         self.assertEqual({s.appliance_id for s in matched}, {self.appliance.pk})
 
-    def test_an_ipv6_only_list_is_undetermined_not_restricted(self):
-        """Whether a v6-only list restricts IPv4 is unmeasured; the ACL keeps the families
-        apart and an empty v4 peers list means unrestricted, so this must not read clean."""
+    def test_an_ipv6_only_list_is_restricted(self):
+        """Measured 2026-08-28: a v6-only list denies IPv4 outright, so it genuinely
+        restricts. Connecting over IPv4 to an interface carrying only a v6 entry is
+        refused, while adding a matching v4 range to the same list opens it."""
         self._surface(ManagementInterface.PLANE_DATAPLANE, "ethernet1/8", "p",
                       sources=[("2001:db8::/32", 6, None, None)])
         matched = ManagementInterface.objects.filter(
             compile_predicate(ManagementInterface, MGMT_002))
-        self.assertEqual([s.display_name for s in matched], ["ethernet1/8"])
+        self.assertEqual(list(matched), [])
 
     def test_an_unparseable_source_is_undetermined_not_restricted(self):
         """The failure this control exists to avoid is a false clean result."""

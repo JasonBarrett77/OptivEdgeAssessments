@@ -27,20 +27,25 @@ EXPOSURE_STATES = (UNRESTRICTED, RESTRICTED, UNDETERMINED)
 def classify(values: list[tuple[str, int | None]]) -> str:
     """(value, family) pairs for one surface -> one of EXPOSURE_STATES.
 
-    Anything that is not an IPv4 literal makes the surface UNDETERMINED, and that includes
-    a perfectly valid IPv6 entry. Two reasons, and the second is the one with teeth:
+    A non-empty list restricts, whatever family its entries are. Measured 2026-08-28 on a
+    data-plane interface, by connecting over IPv4 after each commit:
 
-    - the pipeline is IPv4-only, so a v6 entry carries no interval to reason about; and
-    - **UNMEASURED**: whether a v6-only list restricts IPv4 at all. The compiled ACL keeps
-      `peers` and `v6peers` apart, and an empty `peers` is what unrestricted IS - so a
-      v6-only list may leave IPv4 wide open. Calling that `restricted` would be exactly
-      the false clean result this control exists to prevent.
+        no list                       443 OPEN     unrestricted
+        one non-matching IPv4 entry   443 closed   restricted
+        IPv6 entry only               443 closed   restricted - IPv4 is denied outright
+        IPv6 + a matching IPv4 range  443 OPEN     families evaluated independently
 
-    Resolve it by putting a v6-only list on a lab interface and connecting over IPv4.
+    So a v6-only list does NOT leave IPv4 open. An earlier draft classified it
+    `undetermined` on the theory that the compiled ACL keeps `peers` and `v6peers` apart
+    and an empty `peers` is what unrestricted IS - but an empty `peers` only means
+    unrestricted when the whole list is empty. That was a reasonable guess and it was
+    wrong, which is why it was marked unmeasured rather than shipped as fact.
+
+    UNDETERMINED now means only what it should: an entry nothing can evaluate.
     """
     if not values:
         return UNRESTRICTED
-    if any(family != 4 for _, family in values):
+    if any(family is None for _, family in values):
         return UNDETERMINED
     return RESTRICTED
 

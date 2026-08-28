@@ -67,7 +67,7 @@ class ManagementInterfaceFindingTests(TestCase):
         self._surface(ManagementInterface.PLANE_AUX1)                           # unrestricted
         self._surface(ManagementInterface.PLANE_DATAPLANE, "ethernet1/1", "p")  # unrestricted
         self._surface(ManagementInterface.PLANE_DATAPLANE, "ethernet1/4", "p",
-                      sources=[("2001:db8::/32", 6, None, None)])               # undetermined
+                      sources=[("not-an-address", None, None, None)])           # undetermined
 
         result = regenerate_management_interface_findings()
 
