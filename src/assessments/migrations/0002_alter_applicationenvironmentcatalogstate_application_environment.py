@@ -11,6 +11,17 @@ class Migration(migrations.Migration):
         ('optivedge', '0001_initial'),
     ]
 
+    # This app's 0001 creates the FK against integrations.ApplicationEnvironment, which
+    # OptivEdgeIntegrations deletes in its 0006 once the model moved to OptivEdge. Nothing
+    # pinned the order, so the graph happened to sort correctly until a later migration
+    # added a hard edge to a recent integrations migration and flipped it - the delete then
+    # sorted ahead of the create and the FK target did not exist. run_before states the
+    # constraint one-directionally: this app knows it depends on integrations, not the
+    # reverse, so the edge belongs here.
+    run_before = [
+        ("integrations", "0006_delete_applicationenvironment"),
+    ]
+
     operations = [
         migrations.AlterField(
             model_name='applicationenvironmentcatalogstate',
