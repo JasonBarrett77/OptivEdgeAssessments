@@ -1,5 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.contrib import messages
+from django.contrib.messages import get_messages
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -446,6 +448,53 @@ class ControlViewTests(TestCase):
 
         with self.assertRaises(ValidationError):
             query.full_clean()
+
+    def test_control_run_findings_warns_when_a_query_could_not_be_compiled(self):
+        """A skipped query means the control contributed nothing, which reads like a clean
+        result. `ControlQuery.clean()` validates only the model label, so a query naming a
+        field that has since been removed stores fine and fails at compile time - exactly
+        what happens to a stored catalog after a field is renamed."""
+        self.control.queries.all().delete()
+        ControlQuery.objects.create(
+            control=self.control,
+            name="Names a field that no longer exists",
+            canonical_query={
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [{"field": "field_removed_in_a_later_release", "op": "eq", "value": "x"}],
+            },
+            is_baseline=True,
+        )
+        self.create_security_rule()
+
+        response = self.client.post(reverse("assessment_control_run_findings"), follow=True)
+
+        self.assertRedirects(response, reverse("assessment_control_list"))
+        self.assertEqual(RuleFinding.objects.count(), 0)
+
+        message = list(get_messages(response.wsgi_request))[-1]
+        self.assertEqual(message.level, messages.WARNING)
+        self.assertIn("Skipped queries: 1.", str(message))
+
+    def test_control_run_findings_reports_success_when_nothing_was_skipped(self):
+        self.control.queries.all().delete()
+        ControlQuery.objects.create(
+            control=self.control,
+            name="Trust baseline",
+            canonical_query={
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [{"field": "from_zone", "op": "eq", "value": "trust"}],
+            },
+            is_baseline=True,
+        )
+        self.create_security_rule()
+
+        response = self.client.post(reverse("assessment_control_run_findings"), follow=True)
+
+        message = list(get_messages(response.wsgi_request))[-1]
+        self.assertEqual(message.level, messages.SUCCESS)
+        self.assertIn("Skipped queries: 0.", str(message))
 
     def test_control_run_findings_view_recreates_rule_findings(self):
         self.control.queries.all().delete()

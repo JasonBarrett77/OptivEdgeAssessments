@@ -760,16 +760,31 @@ class DeviceConfigurationProfileListView(TemplateView):
         return context
 
 
+def report_finding_run(request, message: str, *, skipped_queries: int) -> None:
+    """Report a findings run, escalating to a warning when a query was dropped.
+
+    A skipped query is one that no longer compiles - a field it names has been removed or
+    renamed. The control then contributes nothing, so if it was the control's only query
+    the run reports zero findings for it, which reads exactly like a clean result. The
+    count has always been in the message; success styling was burying it.
+    """
+    if skipped_queries:
+        messages.warning(request, message)
+    else:
+        messages.success(request, message)
+
+
 class ControlRunFindingsView(View):
     def post(self, request, *args, **kwargs):
         result = regenerate_rule_findings()
-        messages.success(
+        report_finding_run(
             request,
             (
                 f"Rule findings regenerated. Controls: {result.controls_evaluated}. "
                 f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
                 f"Skipped queries: {result.skipped_queries}."
             ),
+            skipped_queries=result.skipped_queries,
         )
         return HttpResponseRedirect(reverse("assessment_control_list"))
 
@@ -777,13 +792,14 @@ class ControlRunFindingsView(View):
 class ControlRunDeviceConfigurationFindingsView(View):
     def post(self, request, *args, **kwargs):
         result = regenerate_device_configuration_findings()
-        messages.success(
+        report_finding_run(
             request,
             (
                 f"Device configuration findings regenerated. Controls: {result.controls_evaluated}. "
                 f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
                 f"Skipped queries: {result.skipped_queries}."
             ),
+            skipped_queries=result.skipped_queries,
         )
         return HttpResponseRedirect(reverse("assessment_control_list"))
 
