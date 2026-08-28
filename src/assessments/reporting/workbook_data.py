@@ -220,7 +220,6 @@ def _build_device_configuration_row(finding: DeviceConfigurationFinding) -> dict
         "ntp_primary_server": profile.ntp_primary_server,
         "ntp_secondary_server": profile.ntp_secondary_server,
         "permitted_ip_count": profile.permitted_ip_count,
-        "has_unrestricted_permitted_ips": "Yes" if profile.has_unrestricted_permitted_ips else "No",
         "idle_timeout_minutes": profile.idle_timeout_minutes,
         "login_banner": profile.login_banner,
         "matched_queries": ", ".join(query.name for query in finding.control_queries.all()),

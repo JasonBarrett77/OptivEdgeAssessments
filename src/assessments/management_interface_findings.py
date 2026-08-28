@@ -16,6 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from assessments.control_queries import evaluate_management_interface_control_queries
+from assessments.management_interface_naming import surface_label
 from assessments.models import (
     AssessmentRun,
     Control,
@@ -37,7 +38,7 @@ class ManagementInterfaceFindingRunResult:
 def build_management_interface_finding_summary(surface, matched_queries) -> str:
     """Lead with the subject - a finding that does not name its door is not actionable."""
     names = [query.name for query in matched_queries]
-    subject = f"{surface.display_name} on {surface.appliance}"
+    subject = f"{surface_label(surface)} on {surface.appliance}"
     if not names:
         return subject + "."
     if len(names) == 1:
@@ -88,7 +89,7 @@ def regenerate_management_interface_findings() -> ManagementInterfaceFindingRunR
                         management_interface=surface,
                         severity=severity_by_surface_id[surface_id],
                         title=control.name,
-                        subject_name=surface.display_name,
+                        subject_name=surface_label(surface),
                         summary=build_management_interface_finding_summary(surface, matched_queries),
                         matched_query_names=[q.name for q in matched_queries],
                     )

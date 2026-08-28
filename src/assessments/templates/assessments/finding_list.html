@@ -284,7 +284,6 @@
                                 </div>
                                 <div class="pt-1 text-xs text-slate-500">
                                     Permitted IPs: {{ finding.device_configuration_profile.permitted_ip_count }}
-                                    {% if finding.device_configuration_profile.has_unrestricted_permitted_ips %}(unrestricted){% endif %}
                                 </div>
                                 <div class="pt-1 text-xs text-slate-500">
                                     Idle timeout: {{ finding.device_configuration_profile.idle_timeout_minutes }} min

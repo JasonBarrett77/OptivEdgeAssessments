@@ -25,8 +25,6 @@ derived from PAN-OS merged configuration snapshots.
 - `ssh_disabled`
 - `icmp_disabled`
 - `snmp_disabled`
-- `has_permitted_ip_restrictions`
-- `has_unrestricted_permitted_ips`
 - `permitted_ip_count`
 - `login_banner`
 - `idle_timeout_minutes`
@@ -62,7 +60,8 @@ Text fields:
   - `icmp_disabled = false`
   - `snmp_disabled = true`
 - `idle_timeout_minutes` defaults to `60` when omitted.
-- `has_unrestricted_permitted_ips` currently means at least one permitted IP entry
+- permitted-source exposure moved to `integrations.ManagementInterface`, which models one
+  row per management surface; see its `exposure` field
   resolves to the full IPv4 space, such as `0.0.0.0/0`.
 
 ## Known Limits

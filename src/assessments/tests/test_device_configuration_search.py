@@ -67,8 +67,6 @@ class DeviceConfigurationSearchTests(TestCase):
             snmp_disabled=True,
             permitted_ip_values=[],
             permitted_ip_count=0,
-            has_permitted_ip_restrictions=False,
-            has_unrestricted_permitted_ips=False,
             login_banner="",
             idle_timeout_minutes=60,
             raw_profile={},

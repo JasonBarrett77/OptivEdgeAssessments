@@ -70,14 +70,6 @@ FIELD_COMPILERS = {
         "ha_state_sync_enabled",
         "ha_state_sync_enabled",
     ),
-    "has_permitted_ip_restrictions": build_boolean_compiler(
-        "has_permitted_ip_restrictions",
-        "has_permitted_ip_restrictions",
-    ),
-    "has_unrestricted_permitted_ips": build_boolean_compiler(
-        "has_unrestricted_permitted_ips",
-        "has_unrestricted_permitted_ips",
-    ),
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
     "http_disabled": build_boolean_compiler("http_disabled", "http_disabled"),
     "https_disabled": build_boolean_compiler("https_disabled", "https_disabled"),

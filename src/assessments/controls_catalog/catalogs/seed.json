@@ -346,7 +346,7 @@
           "control_id": "MGMT-001",
           "name": "Ensure insecure management services are disabled",
           "control_type": "device_configuration",
-          "description": "Management access should use secure administrative services only. Insecure or unnecessary services such as HTTP and Telnet should be disabled on the management interface.",
+          "description": "Management access should use secure administrative services only. Insecure services such as HTTP and Telnet should be disabled on the management interface. Whether access is restricted to approved sources is assessed separately by MGMT-002.",
           "rationale": "Unencrypted or unnecessary management services increase the risk of credential exposure, unauthorized access, and attack surface exposure on the firewall management plane.",
           "audit": "Review the management interface service settings and verify that only required secure services are enabled. HTTP and Telnet should be disabled. HTTPS and SSH may be enabled if required and restricted to trusted management sources.",
           "remediation": "Disable insecure or unnecessary management services. Retain only required secure services, such as HTTPS and SSH, and restrict access using permitted IP addresses.",
@@ -370,81 +370,6 @@
                     "field": "telnet_disabled",
                     "op": "eq",
                     "value": false
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "https_disabled",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "operator": "or",
-                        "clauses": [
-                          {
-                            "field": "has_permitted_ip_restrictions",
-                            "op": "eq",
-                            "value": false
-                          },
-                          {
-                            "field": "has_unrestricted_permitted_ips",
-                            "op": "eq",
-                            "value": true
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "ssh_disabled",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "operator": "or",
-                        "clauses": [
-                          {
-                            "field": "has_permitted_ip_restrictions",
-                            "op": "eq",
-                            "value": false
-                          },
-                          {
-                            "field": "has_unrestricted_permitted_ips",
-                            "op": "eq",
-                            "value": true
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "snmp_disabled",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "operator": "or",
-                        "clauses": [
-                          {
-                            "field": "has_permitted_ip_restrictions",
-                            "op": "eq",
-                            "value": false
-                          },
-                          {
-                            "field": "has_unrestricted_permitted_ips",
-                            "op": "eq",
-                            "value": true
-                          }
-                        ]
-                      }
-                    ]
                   }
                 ]
               },
@@ -458,8 +383,8 @@
         {
           "control_id": "MGMT-002",
           "name": "Ensure management interface permitted IP addresses are configured",
-          "control_type": "device_configuration",
-          "description": "The firewall management interface should restrict administrative access to approved management networks or hosts.",
+          "control_type": "management_interface",
+          "description": "Every management surface - MGT, Aux-1, Aux-2, and any layer-3 interface carrying an interface-management-profile - should restrict administrative access to approved networks or hosts. A surface with no permitted-source list accepts any source that can route to it.",
           "rationale": "Restricting permitted IP addresses reduces exposure of the management plane and limits administrative access attempts to trusted networks or jump hosts.",
           "audit": "Review the management interface permitted IP address list and verify that only approved administrative networks or hosts are allowed.",
           "remediation": "Configure permitted IP addresses for the management interface using approved management subnets or jump-host addresses. Avoid broad ranges unless explicitly justified.",
@@ -471,18 +396,18 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.ManagementInterface",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "has_permitted_ip_restrictions",
+                    "field": "exposure",
                     "op": "eq",
-                    "value": false
+                    "value": "unrestricted"
                   },
                   {
-                    "field": "has_unrestricted_permitted_ips",
+                    "field": "exposure",
                     "op": "eq",
-                    "value": true
+                    "value": "undetermined"
                   }
                 ]
               },
@@ -491,7 +416,7 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.ManagementInterface"
         },
         {
           "control_id": "MGMT-003",

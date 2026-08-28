@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from django.test import TestCase
 
+from assessments.management_interface_naming import surface_label
+
 from assessments.search.compiler import compile_predicate
 from optivedge_integrations.integrations.models import (
     Appliance,
@@ -58,7 +60,7 @@ class ManagementInterfaceControlTests(TestCase):
 
         matched = ManagementInterface.objects.filter(
             compile_predicate(ManagementInterface, MGMT_002))
-        names = sorted(s.display_name for s in matched)
+        names = sorted(surface_label(s) for s in matched)
 
         # the finding names the surface, which is the whole point
         self.assertEqual(names, ["Aux-1", "ethernet1/1"])
@@ -90,7 +92,7 @@ class ManagementInterfaceControlTests(TestCase):
                       sources=[("not-an-address", None, None, None)])
         matched = ManagementInterface.objects.filter(
             compile_predicate(ManagementInterface, MGMT_002))
-        self.assertEqual([s.display_name for s in matched], ["ethernet1/7"])
+        self.assertEqual([surface_label(s) for s in matched], ["ethernet1/7"])
 
     def test_hostname_filter_scopes_to_an_appliance(self):
         self._surface(ManagementInterface.PLANE_MGT)

@@ -168,7 +168,6 @@ def _write_sheet_table(*, worksheet, sheet, formats, table_start_row: int) -> No
         "ntp_primary_server": 22,
         "ntp_secondary_server": 22,
         "permitted_ip_count": 14,
-        "has_unrestricted_permitted_ips": 18,
         "idle_timeout_minutes": 14,
         "login_banner": 36,
     }
@@ -342,7 +341,6 @@ def _default_headers_for_sheet(control_type: str) -> list[str]:
         "ha_link_monitoring_enabled",
         "idle_timeout_minutes",
         "permitted_ip_count",
-        "has_unrestricted_permitted_ips",
         "ntp_primary_server",
         "ntp_secondary_server",
         "login_banner",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from django.test import TestCase
+
+from assessments.management_interface_naming import surface_label
 from django.utils import timezone
 
 from assessments.management_interface_findings import regenerate_management_interface_findings
