@@ -19,7 +19,7 @@ from assessments.views import (
     ControlQueryDeleteView,
     ControlQueryUpdateView,
     ControlRunFindingsView,
-    ControlRunDeviceConfigurationFindingsView,
+    ControlRunConfigurationFindingsView,
     ControlUpdateView,
     DeviceConfigurationProfileListView,
     FindingListView,
@@ -76,9 +76,9 @@ urlpatterns = [
         name="assessment_control_run_findings",
     ),
     path(
-        "controls/run-device-configuration-findings/",
-        ControlRunDeviceConfigurationFindingsView.as_view(),
-        name="assessment_control_run_device_configuration_findings",
+        "controls/run-configuration-findings/",
+        ControlRunConfigurationFindingsView.as_view(),
+        name="assessment_control_run_configuration_findings",
     ),
     path(
         "findings/",

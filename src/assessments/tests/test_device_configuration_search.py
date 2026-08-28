@@ -187,7 +187,7 @@ class DeviceConfigurationSearchTests(TestCase):
         self.assertContains(response, self.control.control_id)
         self.assertContains(response, self.profile.appliance.hostname)
 
-    def test_control_run_device_configuration_findings_view_regenerates_findings(self):
+    def test_control_run_configuration_findings_view_regenerates_findings(self):
         ControlQuery.objects.create(
             control=self.control,
             name="Baseline",
@@ -207,10 +207,10 @@ class DeviceConfigurationSearchTests(TestCase):
         )
 
         response = self.client.post(
-            reverse("assessment_control_run_device_configuration_findings"),
+            reverse("assessment_control_run_configuration_findings"),
             follow=True,
         )
 
         self.assertRedirects(response, reverse("assessment_control_list"))
         self.assertEqual(DeviceConfigurationFinding.objects.count(), 1)
-        self.assertContains(response, "Device configuration findings regenerated.")
+        self.assertContains(response, "Configuration findings regenerated.")

@@ -25,7 +25,7 @@ from assessments.reporting import (
     render_health_check_workbook,
 )
 from assessments.findings import regenerate_rule_findings
-from assessments.device_configuration_findings import regenerate_device_configuration_findings
+from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -789,13 +789,15 @@ class ControlRunFindingsView(View):
         return HttpResponseRedirect(reverse("assessment_control_list"))
 
 
-class ControlRunDeviceConfigurationFindingsView(View):
+class ControlRunConfigurationFindingsView(View):
+    """Everything that is not policy, in one run - see assessments.configuration_findings."""
+
     def post(self, request, *args, **kwargs):
-        result = regenerate_device_configuration_findings()
+        result = regenerate_configuration_findings()
         report_finding_run(
             request,
             (
-                f"Device configuration findings regenerated. Controls: {result.controls_evaluated}. "
+                f"Configuration findings regenerated. Controls: {result.controls_evaluated}. "
                 f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
                 f"Skipped queries: {result.skipped_queries}."
             ),

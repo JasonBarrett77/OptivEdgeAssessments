@@ -35,12 +35,12 @@ def build_device_configuration_finding_summary(matched_queries) -> str:
     return f"Matched control queries: {', '.join(query_names)}."
 
 
-def regenerate_device_configuration_findings() -> DeviceConfigurationFindingRunResult:
-    assessment_run = AssessmentRun.objects.create(
-        name=f"Device Configuration Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        status=AssessmentRun.Status.RUNNING,
-        started_at=timezone.now(),
-    )
+def generate_device_configuration_findings(assessment_run) -> tuple[int, int, int, int]:
+    """Fill an EXISTING run. Returns (controls, findings, links, skipped).
+
+    Separate from the run's lifecycle so several control types can share one
+    AssessmentRun - a user pressing one button expects one run, not one per target model.
+    """
     controls = list(
         Control.objects.filter(
             control_type=Control.ControlType.DEVICE_CONFIGURATION,
@@ -87,16 +87,26 @@ def regenerate_device_configuration_findings() -> DeviceConfigurationFindingRunR
                     DeviceConfigurationFindingControlQuery.objects.bulk_create(links)
                     query_links_created += len(links)
     except Exception:
+        raise
+
+    return len(controls), findings_created, query_links_created, skipped_queries
+
+
+def regenerate_device_configuration_findings() -> DeviceConfigurationFindingRunResult:
+    """One run covering device-configuration controls only. Kept for direct callers."""
+    assessment_run = AssessmentRun.objects.create(
+        name=f"Device Configuration Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        status=AssessmentRun.Status.RUNNING,
+        started_at=timezone.now(),
+    )
+    try:
+        controls, findings, links, skipped = generate_device_configuration_findings(assessment_run)
+    except Exception:
         assessment_run.mark_failed()
         assessment_run.save(update_fields=["status", "completed_at"])
         raise
-
     assessment_run.mark_completed()
     assessment_run.save(update_fields=["status", "completed_at"])
     return DeviceConfigurationFindingRunResult(
-        assessment_run=assessment_run,
-        controls_evaluated=len(controls),
-        findings_created=findings_created,
-        query_links_created=query_links_created,
-        skipped_queries=skipped_queries,
-    )
+        assessment_run=assessment_run, controls_evaluated=controls,
+        findings_created=findings, query_links_created=links, skipped_queries=skipped)

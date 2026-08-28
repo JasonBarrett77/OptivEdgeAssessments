@@ -23,13 +23,13 @@
                 <h1 class="text-sm font-semibold text-slate-900">Active Controls</h1>
                 <div class="flex items-center gap-2">
                     <a href="/assessments/findings/" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">View Findings</a>
-                    <form method="post" action="/assessments/controls/run-findings/">
+                    <form method="post" action="{% url 'assessment_control_run_findings' %}">
                         {% csrf_token %}
-                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Security Rule Findings</button>
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Policy Findings</button>
                     </form>
-                    <form method="post" action="/assessments/controls/run-device-configuration-findings/">
+                    <form method="post" action="{% url 'assessment_control_run_configuration_findings' %}">
                         {% csrf_token %}
-                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Device Configuration Findings</button>
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Configuration Findings</button>
                     </form>
                     <a href="/assessments/controls/create/" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Create</a>
                 </div>

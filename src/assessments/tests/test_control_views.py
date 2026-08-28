@@ -107,8 +107,8 @@ class ControlViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.control.control_id)
-        self.assertContains(response, "Run Security Rule Findings")
-        self.assertContains(response, "Run Device Configuration Findings")
+        self.assertContains(response, "Run Policy Findings")
+        self.assertContains(response, "Run Configuration Findings")
         self.assertContains(response, "View Findings")
 
     def test_finding_list_view_renders_empty_state(self):

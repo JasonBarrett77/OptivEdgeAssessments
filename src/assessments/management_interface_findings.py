@@ -46,12 +46,8 @@ def build_management_interface_finding_summary(surface, matched_queries) -> str:
     return f"{subject}. Matched control queries: {', '.join(names)}."
 
 
-def regenerate_management_interface_findings() -> ManagementInterfaceFindingRunResult:
-    assessment_run = AssessmentRun.objects.create(
-        name=f"Management Interface Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        status=AssessmentRun.Status.RUNNING,
-        started_at=timezone.now(),
-    )
+def generate_management_interface_findings(assessment_run) -> tuple[int, int, int, int]:
+    """Fill an EXISTING run. Returns (controls, findings, links, skipped)."""
     controls = list(
         Control.objects.filter(
             control_type=Control.ControlType.MANAGEMENT_INTERFACE,
@@ -105,16 +101,26 @@ def regenerate_management_interface_findings() -> ManagementInterfaceFindingRunR
                     ManagementInterfaceFindingControlQuery.objects.bulk_create(links)
                     query_links_created += len(links)
     except Exception:
+        raise
+
+    return len(controls), findings_created, query_links_created, skipped_queries
+
+
+def regenerate_management_interface_findings() -> ManagementInterfaceFindingRunResult:
+    """One run covering management-surface controls only. Kept for direct callers."""
+    assessment_run = AssessmentRun.objects.create(
+        name=f"Management Interface Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        status=AssessmentRun.Status.RUNNING,
+        started_at=timezone.now(),
+    )
+    try:
+        controls, findings, links, skipped = generate_management_interface_findings(assessment_run)
+    except Exception:
         assessment_run.mark_failed()
         assessment_run.save(update_fields=["status", "completed_at"])
         raise
-
     assessment_run.mark_completed()
     assessment_run.save(update_fields=["status", "completed_at"])
     return ManagementInterfaceFindingRunResult(
-        assessment_run=assessment_run,
-        controls_evaluated=len(controls),
-        findings_created=findings_created,
-        query_links_created=query_links_created,
-        skipped_queries=skipped_queries,
-    )
+        assessment_run=assessment_run, controls_evaluated=controls,
+        findings_created=findings, query_links_created=links, skipped_queries=skipped)
