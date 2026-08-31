@@ -71,9 +71,6 @@ FIELD_COMPILERS = {
         "ha_state_sync_enabled",
     ),
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
-    "http_disabled": build_boolean_compiler("http_disabled", "http_disabled"),
-    "https_disabled": build_boolean_compiler("https_disabled", "https_disabled"),
-    "icmp_disabled": build_boolean_compiler("icmp_disabled", "icmp_disabled"),
     "idle_timeout_minutes": build_integer_compiler("idle_timeout_minutes", "idle_timeout_minutes"),
     "login_banner": build_text_compiler("login_banner", "login_banner"),
     "management_station": build_text_compiler("management_station", "management_station__hostname"),
@@ -81,9 +78,6 @@ FIELD_COMPILERS = {
     "ntp_secondary_server": build_text_compiler("ntp_secondary_server", "ntp_secondary_server"),
     "permitted_ip_count": build_integer_compiler("permitted_ip_count", "permitted_ip_count"),
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
-    "snmp_disabled": build_boolean_compiler("snmp_disabled", "snmp_disabled"),
-    "ssh_disabled": build_boolean_compiler("ssh_disabled", "ssh_disabled"),
-    "telnet_disabled": build_boolean_compiler("telnet_disabled", "telnet_disabled"),
 }
 
 

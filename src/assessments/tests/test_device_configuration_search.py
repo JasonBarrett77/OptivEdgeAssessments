@@ -59,12 +59,6 @@ class DeviceConfigurationSearchTests(TestCase):
             ha_link_monitoring_enabled=False,
             ntp_primary_server="time1.example.com",
             ntp_secondary_server="",
-            http_disabled=True,
-            https_disabled=False,
-            telnet_disabled=True,
-            ssh_disabled=False,
-            icmp_disabled=False,
-            snmp_disabled=True,
             permitted_ip_values=[],
             permitted_ip_count=0,
             login_banner="",
@@ -78,8 +72,7 @@ class DeviceConfigurationSearchTests(TestCase):
                 field_name=fn, provenance_type=FieldProvenance.ProvenanceType.LOCAL,
                 raw_key="", raw_value="",
             )
-            for fn in ("ha_enabled", "ha_state_sync_enabled", "ntp_primary_server",
-                       "http_disabled", "telnet_disabled")
+            for fn in ("ha_enabled", "ha_state_sync_enabled", "ntp_primary_server")
         ])
         self.control = Control.objects.create(
             control_id="MGMT-TEST-001",

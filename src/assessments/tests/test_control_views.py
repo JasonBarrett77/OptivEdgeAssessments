@@ -814,8 +814,6 @@ class DeviceConfigurationProfileListViewTests(TestCase):
             config_source="local",
             ha_required=True,
             ha_enabled=False,
-            http_disabled=False,
-            telnet_disabled=False,
         )
         self.mgmt_control = Control.objects.create(
             control_id="MGMT-TEST-001",
