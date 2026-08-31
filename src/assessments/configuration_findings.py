@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from django.utils import timezone
 
 from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.interface_management_profile_findings import (
+    generate_interface_management_profile_findings,
+)
 from assessments.management_interface_findings import generate_management_interface_findings
 from assessments.models import AssessmentRun
 
@@ -25,6 +28,7 @@ from assessments.models import AssessmentRun
 GENERATORS = (
     ("device configuration", generate_device_configuration_findings),
     ("management interface", generate_management_interface_findings),
+    ("interface management profile", generate_interface_management_profile_findings),
 )
 
 

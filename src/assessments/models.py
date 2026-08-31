@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    InterfaceManagementProfile,
     DeviceConfigurationProfile,
     ManagementInterface,
     SecurityRule,
@@ -38,6 +39,7 @@ class Control(models.Model):
         CONFIG = "config", "Configuration"
         DEVICE_CONFIGURATION = "device_configuration", "Device Configuration"
         MANAGEMENT_INTERFACE = "management_interface", "Management Interface"
+        INTERFACE_MANAGEMENT_PROFILE = "interface_management_profile", "Interface Management Profile"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -522,3 +524,82 @@ class ManagementInterfaceFindingControlQuery(models.Model):
 
     def __str__(self) -> str:
         return f"{self.management_interface_finding_id} <- {self.control_query_id}"
+
+
+class InterfaceManagementProfileFinding(models.Model):
+    """A finding against one profile ON ONE APPLIANCE.
+
+    Unlike the management-surface findings, the subject here is not a door - it is an
+    object that opens none. An unused profile grants no access; it is configuration debt,
+    and the finding says so rather than implying exposure.
+
+    Per appliance rather than per template, deliberately. A profile pushed from a Panorama
+    template exists in each firewall's merged config separately, and bound on one device
+    but unbound on another is two different facts about two devices. Aggregating them would
+    make the finding easier to read and less true.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SUPPRESSED = "suppressed", "Suppressed"
+        RESOLVED = "resolved", "Resolved"
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="interface_management_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="interface_management_profile_findings")
+    interface_management_profile = models.ForeignKey(
+        InterfaceManagementProfile, on_delete=models.CASCADE, related_name="findings")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    #: Frozen at generation time, as everywhere else - a finding stays a faithful record of
+    #: its run after the catalog is edited.
+    matched_query_names = models.JSONField(default=list, blank=True)
+    #: Also frozen: the profile's name at the time of the run, since a profile can be
+    #: renamed or removed and the finding must still say what it found.
+    subject_name = models.CharField(max_length=64, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="InterfaceManagementProfileFindingControlQuery",
+        related_name="interface_management_profile_findings", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["interface_management_profile"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "interface_management_profile"],
+                name="unique_imp_finding_per_run_control_profile"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on profile {self.subject_name}"
+
+
+class InterfaceManagementProfileFindingControlQuery(models.Model):
+    interface_management_profile_finding = models.ForeignKey(
+        InterfaceManagementProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="interface_management_profile_finding_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["interface_management_profile_finding", "control_query"],
+                name="unique_imp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.interface_management_profile_finding_id} <- {self.control_query_id}"

@@ -160,6 +160,39 @@
           "target_model": "integrations.ManagementInterface"
         },
         {
+          "control_id": "PAN-MGT-013",
+          "name": "Unused Interface Management Profiles",
+          "control_type": "interface_management_profile",
+          "description": "An interface management profile that no interface references is configuration debt. It grants no access while it stays unbound, but it is a definition nobody is maintaining, and binding it later applies whatever it was left enabling.\\n\\nReported per appliance. A profile pushed from a Panorama template exists separately in each firewall's configuration, and bound on one device but unbound on another is two different facts about two devices.",
+          "rationale": "Unused definitions accumulate, are not reviewed with the configuration that is in use, and are the most likely thing to be bound by mistake or in haste. Removing them reduces what has to be read to understand how a device is administered.",
+          "audit": "Review each reported profile and confirm no interface references it. A profile kept deliberately for a planned change is an accepted finding rather than a defect.",
+          "remediation": "Delete the profile, or bind it to the interface it was created for.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Profiles bound to no interface.",
+              "canonical_query": {
+                "model": "integrations.InterfaceManagementProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "binding_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.InterfaceManagementProfile"
+        },
+        {
           "control_id": "FW-RULE-PERMISSIVENESS-001",
           "name": "Ensure firewall rules are not overly permissive",
           "control_type": "security_rule",

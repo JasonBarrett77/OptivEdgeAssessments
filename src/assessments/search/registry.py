@@ -24,7 +24,15 @@ from assessments.search.management_interface.compiler import (
     MANAGEMENT_INTERFACE_MODEL,
     compile_management_interface_search_node,
 )
+from assessments.search.interface_management_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as INTERFACE_MANAGEMENT_PROFILE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.interface_management_profile.compiler import (
+    INTERFACE_MANAGEMENT_PROFILE_MODEL,
+    compile_interface_management_profile_search_node,
+)
 from optivedge_integrations.integrations.models import (
+    InterfaceManagementProfile,
     DeviceConfigurationProfile,
     ManagementInterface,
     SecurityRule,
@@ -46,6 +54,11 @@ MODEL_REGISTRY = {
         "model_class": ManagementInterface,
         "field_operators": MANAGEMENT_INTERFACE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_management_interface_search_node,
+    },
+    INTERFACE_MANAGEMENT_PROFILE_MODEL: {
+        "model_class": InterfaceManagementProfile,
+        "field_operators": INTERFACE_MANAGEMENT_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_interface_management_profile_search_node,
     },
 }
 
