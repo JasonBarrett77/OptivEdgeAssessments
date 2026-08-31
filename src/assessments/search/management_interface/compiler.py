@@ -20,6 +20,10 @@ from assessments.search.management_interface.fields.exposure import (
     SUPPORTED_OPERATORS as EXPOSURE_OPERATORS,
     compile_exposure_clause,
 )
+from assessments.search.management_interface.fields.services import (
+    SUPPORTED_OPERATORS as SERVICE_OPERATORS,
+    compile_service_enabled_clause,
+)
 from assessments.search.device_configuration.fields.scalar_text import (
     SUPPORTED_OPERATORS as TEXT_OPERATORS,
     compile_scalar_text_clause,
@@ -50,6 +54,7 @@ def _text_lookup(clause, field_name, lookup_field):
 
 FIELD_COMPILERS = {
     "exposure": compile_exposure_clause,
+    "service_enabled": compile_service_enabled_clause,
     "plane": build_text_compiler("plane", "plane"),
     "interface_name": build_text_compiler("interface_name", "interface_name"),
     "profile_name": build_text_compiler("profile_name", "profile_name"),

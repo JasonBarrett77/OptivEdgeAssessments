@@ -28,6 +28,10 @@ from assessments.findings import regenerate_rule_findings
 from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
+from assessments.search.management_interface.fields.services import (
+    ADMINISTRATIVE_SERVICES,
+    INSECURE_SERVICES,
+)
 from assessments.search.management_interface.fields.exposure import (
     exposure_by_interface,
 )
@@ -664,6 +668,25 @@ class SystemView(TemplateView):
     template_name = "assessments/system.html"
 
 
+def _administrative_service_cells(surface):
+    """One cell per administrative service, in a fixed order so columns line up.
+
+    All five administrative services exist on both management planes - they fall inside the
+    nine names the deviceconfig planes and interface management profiles share - so no cell
+    is ever "not applicable" and the column set does not vary by row. The six services that
+    differ between planes are all non-administrative, and none of them gets a column.
+    """
+    state = {service.name: service.enabled for service in surface.services.all()}
+    return [
+        {
+            "name": name,
+            "enabled": state.get(name, False),
+            "insecure": name in INSECURE_SERVICES,
+        }
+        for name in ADMINISTRATIVE_SERVICES
+    ]
+
+
 class ManagementInterfaceListView(TemplateView):
     """Management surfaces and their permitted sources - configuration, not findings.
 
@@ -681,7 +704,7 @@ class ManagementInterfaceListView(TemplateView):
 
         surfaces = list(
             ManagementInterface.objects.select_related("appliance", "source_snapshot")
-            .prefetch_related("permitted_sources")
+            .prefetch_related("permitted_sources", "services")
             .order_by("appliance__hostname", "plane", "interface_name")
         )
         exposure = exposure_by_interface()
@@ -700,6 +723,7 @@ class ManagementInterfaceListView(TemplateView):
                 "label": surface_label(surface),
                 "exposure": exposure.get(surface.pk, ""),
                 "sources": list(surface.permitted_sources.all()),
+                "services": _administrative_service_cells(surface),
                 "findings": findings_by_surface.get(surface.pk, []),
             }
             for surface in surfaces

@@ -45,6 +45,7 @@
                     <thead>
                         <tr>
                             <th colspan="3" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                            <th colspan="5" class="sticky top-0 z-10 h-7 border-l border-r border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Administrative Services</th>
                             <th colspan="2" class="sticky top-0 z-10 h-7 border-l border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Permitted Sources</th>
                             <th colspan="2" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
                         </tr>
@@ -52,6 +53,11 @@
                             <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
                             <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Surface</th>
                             <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Profile</th>
+                            <th class="sticky top-7 z-10 h-7 border-b border-l border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">HTTP</th>
+                            <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">HTTPS</th>
+                            <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SSH</th>
+                            <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Telnet</th>
+                            <th class="sticky top-7 z-10 h-7 border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SNMP</th>
                             <th class="sticky top-7 z-10 h-7 border-l border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Exposure</th>
                             <th class="sticky top-7 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Sources</th>
                             <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
@@ -64,6 +70,12 @@
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.surface.appliance }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.label }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.surface.profile_name|default:"&mdash;" }}</td>
+                            {% for service in row.services %}
+                            <td class="border-b border-sky-100 px-2 py-1 text-center align-top whitespace-nowrap text-[11px] leading-3.5 {% if forloop.first %}border-l border-sky-200{% endif %}">
+                                {% if service.enabled %}<span class="{% if service.insecure %}font-medium text-red-700{% else %}text-slate-800{% endif %}">On</span>
+                                {% else %}<span class="text-slate-300">Off</span>{% endif %}
+                            </td>
+                            {% endfor %}
                             <td class="border-l border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
                                 {% if row.exposure == "unrestricted" %}<span class="text-red-700">Unrestricted</span>
                                 {% elif row.exposure == "undetermined" %}<span class="text-amber-700">Undetermined</span>
@@ -79,7 +91,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">
+                            <td colspan="12" class="px-4 py-8 text-center text-sm text-slate-500">
                                 No management interface currently has an open finding.
                             </td>
                         </tr>

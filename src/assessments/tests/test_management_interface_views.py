@@ -11,8 +11,8 @@ from django.utils import timezone
 from assessments.models import (
     AssessmentRun, Control, ManagementInterfaceFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, ManagementInterface, ManagementStation,
-    PermittedSource, Snapshot)
+    Appliance, DeviceConfigurationProfile, ManagementInterface, ManagementService,
+    ManagementStation, PermittedSource, Snapshot)
 
 
 class ManagementInterfaceListViewTests(TestCase):
@@ -114,3 +114,61 @@ class DeviceConfigurationTableShapeTests(TestCase):
         response = self.client.get(reverse("assessment_device_configuration_profile_list"))
         self.assertNotContains(response, "Permitted IPs")
         self.assertContains(response, "Management Interfaces")
+
+
+class ManagementInterfaceTableShapeTests(TestCase):
+    """The same squareness assertion, on the tab that just grew five columns.
+
+    The device-configuration table shifted every column when a header row and a body row
+    disagreed, and this table now has two group headers to keep aligned rather than one.
+    """
+
+    def setUp(self):
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.mishape")
+        appliance = Appliance.objects.create(
+            management_station=station, serial_number="S-MS1", hostname="fw-mishape")
+        snapshot = Snapshot.objects.create(
+            management_station=station, appliance=appliance, source_type="show_merged_config",
+            collected_at=timezone.now(), payload={})
+        self.surface = ManagementInterface.objects.create(
+            management_station=station, appliance=appliance, source_snapshot=snapshot,
+            plane=ManagementInterface.PLANE_MGT)
+        for name, enabled in (("http", True), ("https", True), ("ssh", True),
+                              ("telnet", False), ("snmp", False), ("icmp", True)):
+            ManagementService.objects.create(
+                management_interface=self.surface, name=name, enabled=enabled)
+
+    def test_header_and_body_declare_the_same_number_of_columns(self):
+        html = self.client.get(
+            reverse("assessment_management_interface_list")).content.decode()
+        body = re.search(r"<tbody>(.*?)</tbody>", html, re.S).group(1)
+        first_row = re.search(r"<tr[^>]*>(.*?)</tr>", body, re.S).group(1)
+        header = re.search(r"<thead>(.*?)</thead>", html, re.S).group(1)
+        header_rows = re.findall(r"<tr[^>]*>(.*?)</tr>", header, re.S)
+
+        cells = len(re.findall(r"<td", first_row))
+        columns = len(re.findall(r"<th", header_rows[-1]))
+        spans = sum(int(x) for x in re.findall(r'colspan="(\d+)"', header_rows[0])) \
+            + len(re.findall(r'<th(?![^>]*colspan)', header_rows[0]))
+        self.assertEqual(cells, columns, "body cells must match the column header row")
+        self.assertEqual(spans, columns, "group header spans must cover every column")
+
+    def test_only_administrative_services_get_columns(self):
+        """icmp is on, and must not appear as a column - six services have no column."""
+        response = self.client.get(reverse("assessment_management_interface_list"))
+        cells = response.context["rows"][0]["services"]
+        self.assertEqual([c["name"] for c in cells],
+                         ["http", "https", "ssh", "telnet", "snmp"])
+        self.assertNotContains(response, ">ICMP<")
+        self.assertNotContains(response, ">Ping<")
+        self.assertNotContains(response, ">Response Pages<")
+
+    def test_an_insecure_service_that_is_on_is_highlighted(self):
+        cells = {c["name"]: c for c in self.client.get(
+            reverse("assessment_management_interface_list")).context["rows"][0]["services"]}
+        self.assertTrue(cells["http"]["enabled"] and cells["http"]["insecure"])
+        self.assertTrue(cells["https"]["enabled"])
+        self.assertFalse(cells["https"]["insecure"],
+                         "https is administrative but not something a control says to disable")
+        self.assertFalse(cells["telnet"]["enabled"])

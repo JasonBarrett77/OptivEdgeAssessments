@@ -13,6 +13,153 @@
       },
       "controls": [
         {
+          "control_id": "PAN-MGT-001",
+          "name": "Disable Telnet on Management Surfaces",
+          "control_type": "management_interface",
+          "description": "Telnet transmits credentials and session content in cleartext. It must remain disabled; SSH is the only acceptable CLI transport. Every management surface - MGT, Aux-1, Aux-2, and any layer-3 interface carrying an interface-management-profile - is assessed, because the risk is the same wherever the service is exposed.",
+          "rationale": "Telnet exposes administrator credentials and session content to anyone able to observe the path, and a management surface is by definition reachable by administrators.",
+          "audit": "Review each management surface and verify Telnet is not enabled. Telnet is disabled by default on current releases, so a finding means it was deliberately re-enabled.",
+          "remediation": "Disable Telnet on the surface reporting it and use SSH instead.",
+          "default_severity": "critical",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "telnet"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.ManagementInterface"
+        },
+        {
+          "control_id": "PAN-MGT-002",
+          "name": "Disable HTTP on Management Surfaces",
+          "control_type": "management_interface",
+          "description": "Unencrypted HTTP management exposes credentials and session tokens. HTTPS must be used instead. Every management surface - MGT, Aux-1, Aux-2, and any layer-3 interface carrying an interface-management-profile - is assessed, because the risk is the same wherever the service is exposed.",
+          "rationale": "HTTP management carries administrator credentials and session cookies in cleartext, and offers no assurance that the device being managed is the intended one.",
+          "audit": "Review each management surface and verify HTTP is not enabled. HTTP is disabled by default, so a finding means it was deliberately re-enabled.",
+          "remediation": "Disable HTTP on the surface reporting it and use HTTPS instead.",
+          "default_severity": "critical",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "http"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.ManagementInterface"
+        },
+        {
+          "control_id": "PAN-MGT-003",
+          "name": "Restrict Management Access to Permitted IP Addresses",
+          "control_type": "management_interface",
+          "description": "Limits which source addresses may reach a management surface. A surface with no permitted-source list accepts any host that can route to it. Every management surface - MGT, Aux-1, Aux-2, and any layer-3 interface carrying an interface-management-profile - is assessed, because the risk is the same wherever the service is exposed.",
+          "rationale": "Restricting permitted IP addresses reduces exposure of the management plane and limits administrative access attempts to trusted networks or jump hosts.",
+          "audit": "Review each surface's permitted-source list and verify only approved administrative networks or hosts appear. An absent or empty list means unrestricted.",
+          "remediation": "Configure permitted IP addresses using approved management subnets or jump-host addresses. Avoid broad ranges unless explicitly justified.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "exposure",
+                    "op": "eq",
+                    "value": "unrestricted"
+                  },
+                  {
+                    "field": "exposure",
+                    "op": "eq",
+                    "value": "undetermined"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.ManagementInterface"
+        },
+        {
+          "control_id": "PAN-MGT-006",
+          "name": "Administrative Services on Data-Plane Interfaces",
+          "control_type": "management_interface",
+          "description": "Every data-plane interface with an administrative service enabled is reported, so that those facing untrusted networks can be identified. Management on a data-plane interface bypasses the management-plane isolation model.\n\nThis control enumerates rather than judges. Whether an interface faces an untrusted network cannot be determined from configuration - a zone name carries no trust semantics the device enforces - so the finding states a fact and the assessor decides. Only the five administrative services raise a finding; ping, response pages, HTTP-OCSP and the User-ID listeners are reachability and service functions and are reported as context.",
+          "rationale": "An administrative service on a data-plane interface is reachable from whatever that interface faces, which may include untrusted or Internet-facing networks. The management-plane isolation model assumes administration arrives on the management plane.",
+          "audit": "Review each reported interface. Confirm the interface does not face an untrusted network, or that the exposure is operationally required and restricted by a permitted-source list.",
+          "remediation": "Remove the interface management profile, or reduce it to the services actually required and bind a permitted-source list.",
+          "default_severity": "critical",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "plane",
+                        "op": "eq",
+                        "value": "dataplane"
+                      },
+                      {
+                        "field": "service_enabled",
+                        "op": "eq",
+                        "value": "administrative"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.ManagementInterface"
+        },
+        {
           "control_id": "FW-RULE-PERMISSIVENESS-001",
           "name": "Ensure firewall rules are not overly permissive",
           "control_type": "security_rule",
@@ -341,82 +488,6 @@
             }
           ],
           "target_model": "integrations.DeviceConfigurationProfile"
-        },
-        {
-          "control_id": "MGMT-001",
-          "name": "Ensure insecure management services are disabled",
-          "control_type": "device_configuration",
-          "description": "Management access should use secure administrative services only. Insecure services such as HTTP and Telnet should be disabled on the management interface. Whether access is restricted to approved sources is assessed separately by MGMT-002.",
-          "rationale": "Unencrypted or unnecessary management services increase the risk of credential exposure, unauthorized access, and attack surface exposure on the firewall management plane.",
-          "audit": "Review the management interface service settings and verify that only required secure services are enabled. HTTP and Telnet should be disabled. HTTPS and SSH may be enabled if required and restricted to trusted management sources.",
-          "remediation": "Disable insecure or unnecessary management services. Retain only required secure services, such as HTTPS and SSH, and restrict access using permitted IP addresses.",
-          "default_severity": "high",
-          "implementation_version": "v1",
-          "is_active": true,
-          "queries": [
-            {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
-              "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
-                "operator": "or",
-                "clauses": [
-                  {
-                    "field": "http_disabled",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "telnet_disabled",
-                    "op": "eq",
-                    "value": false
-                  }
-                ]
-              },
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
-            }
-          ],
-          "target_model": "integrations.DeviceConfigurationProfile"
-        },
-        {
-          "control_id": "MGMT-002",
-          "name": "Ensure management interface permitted IP addresses are configured",
-          "control_type": "management_interface",
-          "description": "Every management surface - MGT, Aux-1, Aux-2, and any layer-3 interface carrying an interface-management-profile - should restrict administrative access to approved networks or hosts. A surface with no permitted-source list accepts any source that can route to it.",
-          "rationale": "Restricting permitted IP addresses reduces exposure of the management plane and limits administrative access attempts to trusted networks or jump hosts.",
-          "audit": "Review the management interface permitted IP address list and verify that only approved administrative networks or hosts are allowed.",
-          "remediation": "Configure permitted IP addresses for the management interface using approved management subnets or jump-host addresses. Avoid broad ranges unless explicitly justified.",
-          "default_severity": "high",
-          "implementation_version": "v1",
-          "is_active": true,
-          "queries": [
-            {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
-              "canonical_query": {
-                "model": "integrations.ManagementInterface",
-                "operator": "or",
-                "clauses": [
-                  {
-                    "field": "exposure",
-                    "op": "eq",
-                    "value": "unrestricted"
-                  },
-                  {
-                    "field": "exposure",
-                    "op": "eq",
-                    "value": "undetermined"
-                  }
-                ]
-              },
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
-            }
-          ],
-          "target_model": "integrations.ManagementInterface"
         },
         {
           "control_id": "MGMT-003",
