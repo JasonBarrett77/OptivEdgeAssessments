@@ -18,6 +18,7 @@ SIDEBAR_SECTION = [
             "assessment_security_rule_list",
             "assessment_finding_list",
             "assessment_device_configuration_profile_list",
+            "assessment_management_interface_list",
             "assessment_control_list",
             "assessment_control_detail",
             "assessment_control_create",
@@ -71,6 +72,7 @@ SIDEBAR_SECTION = [
                 "icon": "monitor",
                 "active_names": {
                     "assessment_device_configuration_profile_list",
+                    "assessment_management_interface_list",
                 },
             },
         ],

@@ -12,6 +12,8 @@
     <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
         <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
 
+            {% include "assessments/partials/device_tabs.html" with active_tab="device_configuration" %}
+
             <div class="flex items-start gap-3 border-b border-slate-200 pb-2">
                 <div class="min-w-0 flex-1">
                     <input
@@ -91,8 +93,7 @@
                                 <th colspan="3" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
                                 <th colspan="4" class="sticky top-0 z-10 h-7 border-l border-r border-b border-sky-200 bg-sky-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">High Availability</th>
                                 <th colspan="6" class="sticky top-0 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Services Disabled</th>
-                                <th colspan="3" class="sticky top-0 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Permitted IPs</th>
-                                <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
+                                                                <th colspan="4" class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2"></th>
                             </tr>
                             <tr>
                                 {% if show_control_severity %}<th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-center text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Severity</th>{% endif %}
@@ -109,9 +110,6 @@
                                 <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SSH</th>
                                 <th class="sticky top-7 z-10 h-7 border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">SNMP</th>
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-amber-200 bg-amber-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">ICMP</th>
-                                <th class="sticky top-7 z-10 h-7 border-l border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Restricted</th>
-                                <th class="sticky top-7 z-10 h-7 border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Unrestricted</th>
-                                <th class="sticky top-7 z-10 h-7 border-r border-b border-emerald-200 bg-emerald-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Count</th>
                                 <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Banner</th>
                                 <th class="sticky top-7 z-10 h-7 border-r border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">Idle (min)</th>
                                 <th class="sticky top-7 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-600">NTP Primary</th>
@@ -140,7 +138,6 @@
                                 <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.ssh_disabled %}Yes{% else %}No{% endif %}</td>
                                 <td class="border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.snmp_disabled %}Yes{% else %}No{% endif %}</td>
                                 <td class="border-r border-b border-amber-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{% if row.profile.icmp_disabled %}Yes{% else %}No{% endif %}</td>
-                                <td class="border-r border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.permitted_ip_count }}</td>
                                 <td class="border-b border-slate-200 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800" style="max-width:16rem">
                                     {% if row.profile.login_banner %}<span title="{{ row.profile.login_banner }}">{{ row.profile.login_banner|truncatechars:60 }}</span>{% else %}<span class="text-slate-400">-</span>{% endif %}
                                 </td>
@@ -150,7 +147,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="{% if show_control_severity %}21{% else %}20{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                <td colspan="{% if show_control_severity %}18{% else %}17{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
                                     No device configuration profiles available.
                                 </td>
                             </tr>

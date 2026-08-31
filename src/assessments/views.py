@@ -27,11 +27,16 @@ from assessments.reporting import (
 from assessments.findings import regenerate_rule_findings
 from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
+from assessments.management_interface_naming import surface_label
+from assessments.search.management_interface.fields.exposure import (
+    exposure_by_interface,
+)
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
     DeviceConfigurationFinding,
+    ManagementInterfaceFinding,
     RuleFinding,
     SecurityRuleSearchState,
 )
@@ -58,7 +63,11 @@ from optivedge_integrations.integrations.presentation import (
     security_rule_config_source_label,
 )
 from optivedge.models import ApplicationEnvironment
-from optivedge_integrations.integrations.models import DeviceConfigurationProfile, SecurityRule
+from optivedge_integrations.integrations.models import (
+    DeviceConfigurationProfile,
+    ManagementInterface,
+    SecurityRule,
+)
 
 
 PAGE_SIZE = 100
@@ -653,6 +662,55 @@ class RuleFindingXlsxDownloadView(View):
 
 class SystemView(TemplateView):
     template_name = "assessments/system.html"
+
+
+class ManagementInterfaceListView(TemplateView):
+    """Management surfaces and their permitted sources - configuration, not findings.
+
+    Separate from the device-configuration table because that one was accumulating a column
+    group per subject (HA, services, permitted IPs, banner, NTP) and each new finding type
+    widened it further. A surface is its own row here, which is also the row a finding
+    attaches to.
+    """
+
+    template_name = "assessments/management_interface_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+
+        surfaces = list(
+            ManagementInterface.objects.select_related("appliance", "source_snapshot")
+            .prefetch_related("permitted_sources")
+            .order_by("appliance__hostname", "plane", "interface_name")
+        )
+        exposure = exposure_by_interface()
+
+        findings_by_surface = {}
+        for finding in (
+            ManagementInterfaceFinding.objects.select_related("control")
+            .filter(status=ManagementInterfaceFinding.Status.OPEN)
+            .order_by("control__control_id")
+        ):
+            findings_by_surface.setdefault(finding.management_interface_id, []).append(finding)
+
+        rows = [
+            {
+                "surface": surface,
+                "label": surface_label(surface),
+                "exposure": exposure.get(surface.pk, ""),
+                "sources": list(surface.permitted_sources.all()),
+                "findings": findings_by_surface.get(surface.pk, []),
+            }
+            for surface in surfaces
+        ]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
 
 
 class DeviceConfigurationProfileListView(TemplateView):
