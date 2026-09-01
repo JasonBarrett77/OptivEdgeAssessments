@@ -26,10 +26,19 @@ the only way it stays worth reading.
       and `sdwan`, which neither listed, is on both.*
 - [ ] **The key set is platform-dependent.** Check a second platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
-- [ ] **Establish the implicit value by measurement.** An absent key is not an absent
-      setting. *`disable-http` was recorded implicit `no`; it measures `yes`. Two devices with
-      different configurations reporting the same effective state is what makes it a default
-      rather than one device's coincidence.*
+- [ ] **Establish the implicit value by measurement, per key.** An absent key is not an
+      absent setting, and neighbouring keys do not share a default. *`disable-http` was
+      recorded implicit `no` and measures `yes`. `server-verification` absent means ENABLED
+      while `enable-log-high-dp-load` absent means DISABLED — two keys, opposite defaults, so
+      one assumption would have flagged every device for one control and no device for the
+      other.*
+- [ ] **If writing both values leaves both stored, the default is not discoverable that
+      way.** Some keys are omitted when they match the default, which reveals it; others
+      persist whatever you write, and then absence only means "never written". Use another
+      oracle — the vendor UI on an unconfigured device is usually the fastest, and asking the
+      operator to look is faster than inferring. *`server-verification`, `ack-login-banner`
+      and `enable-log-high-dp-load` all persist `yes` and `no` alike; the checkbox states
+      settled all three in one screenshot.*
 - [ ] **Distinguish absent from empty from default.** Three states, and a config format that
       has all three will use all three. *PAN-OS: an empty `<units/>` and an empty
       `<aggregate-ethernet/>` both parse to `None`, not `{}`.*
@@ -134,6 +143,10 @@ the only way it stays worth reading.
 
 ## 6. Land it
 
+- [ ] **Update `scratch/control-changes.json`.** Move `status` from `decided` to
+      `implemented`, record what was built and what verified it, and add any deviation
+      decided along the way. The file is only worth having if it still matches what shipped —
+      a stale entry is worse than none, because it will be trusted.
 - [ ] **Migration** — and check whether an existing environment needs a data migration.
 - [ ] **Say what the operator must run**: migrate → renormalize → reseed → regenerate
       findings. Renormalize needs no device connection; a sync does.

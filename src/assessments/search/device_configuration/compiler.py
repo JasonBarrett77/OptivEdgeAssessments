@@ -70,7 +70,9 @@ FIELD_COMPILERS = {
         "ha_state_sync_enabled",
         "ha_state_sync_enabled",
     ),
+    "ack_login_banner": build_boolean_compiler("ack_login_banner", "ack_login_banner"),
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
+    "log_on_high_dp_load": build_boolean_compiler("log_on_high_dp_load", "log_on_high_dp_load"),
     "idle_timeout_minutes": build_integer_compiler("idle_timeout_minutes", "idle_timeout_minutes"),
     "login_banner": build_text_compiler("login_banner", "login_banner"),
     "management_station": build_text_compiler("management_station", "management_station__hostname"),
@@ -78,6 +80,8 @@ FIELD_COMPILERS = {
     "ntp_secondary_server": build_text_compiler("ntp_secondary_server", "ntp_secondary_server"),
     "permitted_ip_count": build_integer_compiler("permitted_ip_count", "permitted_ip_count"),
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
+    "server_verification_enabled": build_boolean_compiler(
+        "server_verification_enabled", "server_verification_enabled"),
 }
 
 

@@ -160,6 +160,149 @@
           "target_model": "integrations.ManagementInterface"
         },
         {
+          "control_id": "PAN-MGT-007",
+          "name": "Login Banner Configured",
+          "control_type": "device_configuration",
+          "description": "A login banner presented before authentication states who may use the device and that use is monitored. Absent, an administrator sees nothing before the prompt.\\n\\nThe wording is site-specific and legal rather than technical, so this control asserts only that a banner exists. Whether it carries approved language is an interview question, not a configuration one.",
+          "rationale": "A banner is the notice that makes unauthorised use provable in many jurisdictions, and several frameworks require one before any authentication prompt.",
+          "audit": "Confirm a login banner is present and carries organisation-approved wording.",
+          "remediation": "Set Device > Setup > Management > Login Banner.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "login_banner",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-MGT-008",
+          "name": "Force Admins to Acknowledge Login Banner",
+          "control_type": "device_configuration",
+          "description": "Requires an administrator to positively acknowledge the login banner rather than read past it.\\n\\nAbsent means off. PAN-OS greys the setting out until a banner exists, so a device with no banner cannot satisfy this and PAN-MGT-007 is the finding that matters there.",
+          "rationale": "Acknowledgement converts a passive notice into a recorded action by the administrator, which is what gives the banner evidentiary weight.",
+          "audit": "Confirm administrators must acknowledge the banner before proceeding.",
+          "remediation": "Enable Force Admins to Acknowledge Login Banner, which requires a banner to be set.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "login_banner",
+                        "op": "is_empty",
+                        "value": "",
+                        "negated": true
+                      },
+                      {
+                        "field": "ack_login_banner",
+                        "op": "eq",
+                        "value": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-MGT-009",
+          "name": "Verify Update Server Identity",
+          "control_type": "device_configuration",
+          "description": "Validates the update server's TLS certificate before content is downloaded, so a man-in-the-middle cannot deliver tampered content updates.\\n\\nEnabled by default: absent from configuration means ON, measured 2026-09-01. A finding here therefore means it was deliberately turned off.",
+          "rationale": "Content updates are executable inputs to inspection. Accepting them from an unauthenticated server undermines every signature-based control on the device.",
+          "audit": "Confirm Verify Update Server Identity is enabled.",
+          "remediation": "Enable Device > Setup > Services > Verify Update Server Identity.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "server_verification_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-MGT-011",
+          "name": "Enable Log on High DP Load",
+          "control_type": "device_configuration",
+          "description": "Logs a system event when dataplane CPU is sustained at a high level - an early signal of flooding, decryption overload, or a device outgrowing its sizing.\\n\\nDisabled by default: absent from configuration means OFF, measured 2026-09-01, so an untouched device reports this finding.",
+          "rationale": "Sustained high dataplane load degrades inspection before it degrades throughput, and without this event the first symptom is usually a user complaint.",
+          "audit": "Confirm Enable Log on High DP Load is set.",
+          "remediation": "Enable Device > Setup > Management > Logging and Reporting Settings > Log Export and Reporting > Enable Log on High DP Load.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "log_on_high_dp_load",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
           "control_id": "PAN-MGT-013",
           "name": "Unused Interface Management Profiles",
           "control_type": "interface_management_profile",
@@ -512,44 +655,6 @@
                     "field": "ha_link_monitoring_enabled",
                     "op": "eq",
                     "value": false
-                  }
-                ]
-              },
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
-            }
-          ],
-          "target_model": "integrations.DeviceConfigurationProfile"
-        },
-        {
-          "control_id": "MGMT-003",
-          "name": "Ensure a login banner is configured",
-          "control_type": "device_configuration",
-          "description": "A login banner should be configured to notify users that access is restricted to authorized users and that activity may be monitored.",
-          "rationale": "A login banner supports administrative accountability and provides legal or policy notice before access to the firewall management interface.",
-          "audit": "Review the system login banner configuration and verify that a non-empty approved login banner is configured.",
-          "remediation": "Configure an approved login banner that states authorized-use restrictions and monitoring expectations consistent with organizational policy.",
-          "default_severity": "low",
-          "implementation_version": "v1",
-          "is_active": true,
-          "queries": [
-            {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
-              "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
-                "operator": "or",
-                "clauses": [
-                  {
-                    "field": "login_banner",
-                    "op": "is_empty",
-                    "value": ""
-                  },
-                  {
-                    "field": "login_banner",
-                    "op": "contains",
-                    "value": "placeholder"
                   }
                 ]
               },
