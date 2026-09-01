@@ -50,19 +50,24 @@ def classify(values: list[tuple[str, int | None]], *,
     An all-addresses entry - `0.0.0.0/0`, `::/0` - needs the plane, because the answer
     differs and one half of it is measured.
 
-    ALONE it is UNRESTRICTED on any plane, and that needs no measurement: if PAN-OS honours
-    it the surface permits everything, and if PAN-OS strips it the list is empty, which also
-    permits everything. A real firewall permitted only 0.0.0.0/0 on its management interface
-    and was reported Restricted - the false clean result this classifier exists to prevent.
+    On the measured plane there is ONE rule: PAN-OS drops the entry from the compiled ACL.
+    Both outcomes people describe separately fall out of that - dropped from a list of one
+    leaves an empty list, which is what Palo Alto documents "any" to mean; dropped from a
+    longer list leaves the specific entries as the real restriction.
+
+    ALONE it is UNRESTRICTED on any plane, and that needs no measurement: dropped, the list
+    is empty and permits everything; kept, it permits everything by its own terms. A real
+    firewall permitted only 0.0.0.0/0 on its management interface and was reported Restricted
+    - the false clean result this classifier exists to prevent.
 
     ALONGSIDE other entries the planes differ:
 
-    - On a **deviceconfig plane** PAN-OS strips the wildcard when compiling the ACL, so
-      `[0.0.0.0/0, 10.99.99.99]` permits 10.99.99.99 and nobody else. Measured; see
+    - On a **deviceconfig plane** the entry is dropped, so `[0.0.0.0/0, 10.99.99.99]` permits
+      10.99.99.99 and nobody else. Measured; see
       `docs/palo-alto/pan-os/management/read-device-configuration.md`. Calling that
       unrestricted would be a false positive on a hardened device, which that guide says
       explicitly.
-    - On a **data-plane profile** the same stripping is **unmeasured**, so neither answer can
+    - On a **data-plane profile** the same dropping is **unmeasured**, so neither answer can
       be claimed and the honest result is UNDETERMINED. PAN-MGT-003 matches UNDETERMINED as
       well as UNRESTRICTED, so the surface is reported rather than quietly assumed safe.
     """
@@ -73,8 +78,8 @@ def classify(values: list[tuple[str, int | None]], *,
     if all(_permits_any_address(value) for value, _ in values):
         return UNRESTRICTED
     if any(_permits_any_address(value) for value, _ in values):
-        # The wildcard is stripped on a deviceconfig plane, leaving the specific entries as
-        # the real restriction. Whether a profile behaves the same has never been measured.
+        # The entry is dropped on a deviceconfig plane, leaving the specific entries as the
+        # real restriction. Whether a profile drops it too has never been measured.
         return RESTRICTED if wildcard_is_stripped else UNDETERMINED
     return RESTRICTED
 
