@@ -21,13 +21,13 @@
                 </div>
                 <div class="flex items-center justify-between px-4 py-3">
                     <div>
-                        <p class="text-sm text-slate-800">Refresh Seeded Catalog</p>
-                        <p class="mt-0.5 text-xs text-slate-500">Re-reads the bundled seed.json from disk and updates the seeded catalog's stored content to match. Does not change live controls - use Apply on the Catalogs tab afterward to push the refreshed baseline into live controls.</p>
+                        <p class="text-sm text-slate-800">Reseed From Bundled Catalog</p>
+                        <p class="mt-0.5 text-xs text-slate-500">Re-reads the bundled seed.json from disk and makes the live controls match it in one step. <strong>Discards every control, assessment run, finding and snapshot catalog</strong> and recreates the controls from the seed. Collected configuration is untouched; regenerate findings afterward.</p>
                     </div>
                     <form method="post" action="{% url 'assessment_catalog_refresh_seed' %}" class="ml-6 shrink-0">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.path }}">
-                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Refresh</button>
+                        <button type="submit" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Reseed</button>
                     </form>
                 </div>
             </section>

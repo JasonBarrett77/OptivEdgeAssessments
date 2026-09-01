@@ -25,8 +25,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from assessments.controls_catalog.io.importers import (
-    apply_catalog,
-    refresh_seeded_catalogs,
+    reseed_from_bundled_catalog,
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.registry import load_seed_payload
@@ -86,12 +85,6 @@ class Command(BaseCommand):
 
         seed_catalogs_if_empty()
 
-        if apply_changes:
-            result = refresh_seeded_catalogs()
-            self.stdout.write(
-                f"Refreshed {result.catalogs_updated} catalog(s), created "
-                f"{result.catalogs_created} from the bundled seed file.")
-
         try:
             catalog = Catalog.objects.get(key=key)
         except Catalog.DoesNotExist as exc:
@@ -114,15 +107,14 @@ class Command(BaseCommand):
         # is a copy taken at first seed and is only replaced by the refresh step above, so a
         # dry run reading it would report "no changes" in exactly the environments that most
         # need this command - ones seeded before the seed file was edited.
-        if apply_changes:
-            source, payload = f"catalog {catalog.key} ({catalog.version})", catalog.payload
-        else:
-            source = "the bundled seed file"
-            payload = next(
-                (c for c in load_seed_payload()["catalogs"] if c["catalog"]["key"] == key),
-                None)
-            if payload is None:
-                raise CommandError(f"The bundled seed file defines no catalog with key {key!r}.")
+        # Always compare against the bundled seed file, never the stored payload: the stored
+        # one is a copy taken at first seed, so reading it would report "no changes" in
+        # exactly the environments this exists for.
+        source = "the bundled seed file"
+        payload = next(
+            (c for c in load_seed_payload()["catalogs"] if c["catalog"]["key"] == key), None)
+        if payload is None:
+            raise CommandError(f"The bundled seed file defines no catalog with key {key!r}.")
         payload_ids = [c["control_id"] for c in payload.get("controls", [])]
         live_ids = sorted(Control.objects.values_list("control_id", flat=True))
         self.stdout.write(
@@ -140,35 +132,18 @@ class Command(BaseCommand):
                 f"does, not something this command adds."))
             return
 
-        with transaction.atomic():
-            removed_findings = 0
-            if blocked:
-                controls = Control.objects.filter(control_id__in=list(blocked))
-                for model in FINDING_MODELS:
-                    deleted, _ = model.objects.filter(control__in=controls).delete()
-                    removed_findings += deleted
-                # Safe now: the PROTECT'ing rows are gone. Only the stale controls are
-                # removed, so the snapshot still captures everything that is restorable -
-                # which is the most history that can honestly be kept.
-                controls.delete()
-                self.stdout.write(
-                    f"\nCleared {len(blocked)} stale control(s) and {removed_findings} "
-                    f"related finding row(s).")
-
-            environment = get_application_environment()
-            outcome = apply_catalog(catalog=catalog, application_environment=environment)
-
+        outcome = reseed_from_bundled_catalog(
+            application_environment=(environment := get_application_environment()))
         self.stdout.write(self.style.SUCCESS(
-            f"Applied {catalog.key} ({catalog.version}): {outcome.controls_created} controls, "
-            f"{outcome.queries_created} queries. Deleted {outcome.assessment_runs_deleted} "
-            f"assessment run(s)."))
-        if outcome.snapshot_catalog is not None:
-            self.stdout.write(f"Snapshot saved as {outcome.snapshot_catalog.label}.")
+            f"Reseeded {outcome.catalog.key} ({outcome.catalog.version}): "
+            f"{outcome.controls_created} controls, {outcome.queries_created} queries. "
+            f"Discarded {outcome.controls_deleted} control(s), "
+            f"{outcome.assessment_runs_deleted} assessment run(s) and "
+            f"{outcome.snapshot_catalogs_deleted} snapshot catalog(s)."))
         if environment is None:
             self.stdout.write(self.style.WARNING(
                 "No application environment configured, so the catalog was applied but not "
-                "recorded as current. The UI records this; a command run before the "
-                "environment exists cannot."))
+                "recorded as current."))
 
         if options["regenerate_findings"]:
             from assessments.configuration_findings import regenerate_configuration_findings

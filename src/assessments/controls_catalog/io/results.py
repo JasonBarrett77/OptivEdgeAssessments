@@ -25,3 +25,17 @@ class CatalogApplyResult:
     controls_created: int
     queries_created: int
     assessment_runs_deleted: int
+
+
+@dataclass(frozen=True)
+class CatalogReseedResult:
+    """What a full reseed did. Every number is a deletion except the last two."""
+
+    catalog: Catalog
+    catalogs_refreshed: int
+    catalogs_created: int
+    snapshot_catalogs_deleted: int
+    assessment_runs_deleted: int
+    controls_deleted: int
+    controls_created: int
+    queries_created: int

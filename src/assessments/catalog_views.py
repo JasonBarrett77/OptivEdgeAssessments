@@ -14,9 +14,9 @@ from django.views.generic import TemplateView
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.controls_catalog.io.exporters import export_catalog_seed_payload
 from assessments.controls_catalog.io.importers import (
+    reseed_from_bundled_catalog,
     apply_catalog,
     create_catalog_from_current_controls,
-    refresh_seeded_catalogs,
     seed_catalogs_if_empty,
 )
 from assessments.environment import get_application_environment
@@ -155,25 +155,52 @@ class CatalogApplyView(View):
 
 
 class CatalogRefreshSeedView(View):
+    """Re-read the bundled seed file and make the live controls match it, in one action.
+
+    Refresh used to only rewrite the stored payload and tell the user to go and apply it -
+    which fails the moment any live control references a search field that no longer
+    exists, with no way out of the UI. Doing the whole job here is the difference between
+    a button and a database shell.
+    """
+
     def post(self, request, *args, **kwargs):
         seed_catalogs_if_empty()
-        result = refresh_seeded_catalogs()
-        if result.catalogs_updated:
-            messages.success(
+        application_environment = get_application_environment()
+        try:
+            result = reseed_from_bundled_catalog(
+                application_environment=application_environment)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(
+                request.POST.get("next") or reverse("assessment_system"))
+
+        messages.success(
+            request,
+            (
+                f"Reseeded {result.catalog.label} ({result.catalog.version}) from the "
+                f"bundled seed file: {result.controls_created} controls and "
+                f"{result.queries_created} queries are now live."
+            ),
+        )
+        discarded = []
+        if result.controls_deleted:
+            discarded.append(f"{result.controls_deleted} previous control(s)")
+        if result.assessment_runs_deleted:
+            discarded.append(f"{result.assessment_runs_deleted} assessment run(s) and their findings")
+        if result.snapshot_catalogs_deleted:
+            discarded.append(f"{result.snapshot_catalogs_deleted} snapshot catalog(s)")
+        if discarded:
+            messages.warning(
                 request,
-                (
-                    f"Refreshed {result.catalogs_updated} seeded catalog(s) from the bundled "
-                    "seed file. Apply the catalog on the Catalogs tab to push these changes "
-                    "into live controls."
-                ),
+                "Discarded " + ", ".join(discarded)
+                + ". Collected configuration is untouched; regenerate findings when ready.",
             )
-        if result.catalogs_created:
-            messages.success(
+        if application_environment is None:
+            messages.warning(
                 request,
-                f"Created {result.catalogs_created} new seeded catalog(s) from the bundled seed file.",
+                "No application environment is configured, so the catalog was applied but "
+                "not recorded as the current one.",
             )
-        if not result.catalogs_updated and not result.catalogs_created:
-            messages.error(request, "No catalogs found in the bundled seed file.")
         return HttpResponseRedirect(request.POST.get("next") or reverse("assessment_system"))
 
 

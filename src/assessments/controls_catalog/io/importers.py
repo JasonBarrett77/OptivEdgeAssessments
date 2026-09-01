@@ -9,6 +9,7 @@ from assessments.controls_catalog.io.exporters import export_control_catalog
 from assessments.controls_catalog.io.results import (
     CatalogApplyResult,
     CatalogRefreshResult,
+    CatalogReseedResult,
     CatalogSeedResult,
 )
 from assessments.controls_catalog.registry import load_seed_payload
@@ -182,4 +183,67 @@ def apply_catalog(*, catalog: Catalog, application_environment) -> CatalogApplyR
         controls_created=controls_created,
         queries_created=queries_created,
         assessment_runs_deleted=assessment_runs_deleted,
+    )
+
+
+def reseed_from_bundled_catalog(*, application_environment) -> CatalogReseedResult:
+    """Re-read the bundled seed file and make the live controls match it, in one step.
+
+    Refresh alone only rewrites the stored Catalog payload; the live controls keep whatever
+    they had, and applying them separately fails outright once any of them references a
+    search field that no longer exists - `apply_catalog` snapshots the live controls first
+    and validates that snapshot. Recovering from that needed a database shell, which is the
+    wrong place for a routine seed update to end up.
+
+    So this deletes rather than preserves, deliberately:
+
+        assessment runs      every finding with them, by cascade. They are derived from the
+                             controls being replaced, so keeping them would leave findings
+                             citing controls that no longer exist.
+        controls             all of them. `apply_catalog` recreates every one from the
+                             catalog, so the ones deleted here were about to be replaced -
+                             and with none left, the pre-apply snapshot is skipped rather
+                             than built from controls nobody wants.
+        snapshot catalogs    a snapshot taken before a stale apply cannot be applied either,
+                             since it captured the same dead field. They read as rollback
+                             points and are not.
+
+    Nothing here touches the collected configuration. `Snapshot` in OptivEdgeIntegrations -
+    the merged-config payloads - is a different model with the same word in its name, and
+    losing it would mean re-collecting from every device.
+    """
+    refresh = refresh_seeded_catalogs()
+
+    seeded = list(Catalog.objects.filter(is_seeded=True, is_snapshot=False))
+    if not seeded:
+        raise ValueError("the bundled seed file defines no catalog to apply")
+    if len(seeded) > 1:
+        raise ValueError(
+            "the bundled seed file defines more than one catalog "
+            f"({', '.join(c.key for c in seeded)}); applying one would discard the others, "
+            "so this must be done per catalog rather than as a reseed")
+    catalog = seeded[0]
+
+    with transaction.atomic():
+        runs_deleted = AssessmentRun.objects.count()
+        AssessmentRun.objects.all().delete()
+
+        controls_deleted = Control.objects.count()
+        Control.objects.all().delete()
+
+        snapshots_deleted = Catalog.objects.filter(is_snapshot=True).count()
+        Catalog.objects.filter(is_snapshot=True).delete()
+
+        applied = apply_catalog(
+            catalog=catalog, application_environment=application_environment)
+
+    return CatalogReseedResult(
+        catalog=catalog,
+        catalogs_refreshed=refresh.catalogs_updated,
+        catalogs_created=refresh.catalogs_created,
+        snapshot_catalogs_deleted=snapshots_deleted,
+        assessment_runs_deleted=runs_deleted,
+        controls_deleted=controls_deleted,
+        controls_created=applied.controls_created,
+        queries_created=applied.queries_created,
     )
