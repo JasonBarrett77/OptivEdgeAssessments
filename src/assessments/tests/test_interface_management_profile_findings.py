@@ -168,3 +168,24 @@ class InterfaceManagementProfileListViewTests(TestCase):
         self.assertContains(response, "Device Configuration")
         self.assertContains(response, "Management Interfaces")
         self.assertContains(response, "Management Profiles")
+
+
+class EmptyStateGuidanceTests(TestCase):
+    """The empty state has to name the right action.
+
+    Both of these said "run a sync", which contacts every device. Surfaces and profiles are
+    both built from the stored snapshot, so Renormalize is enough - and on an estate where
+    collection is slow or a device is unreachable, the difference is the whole afternoon.
+    """
+
+    def test_the_profiles_tab_asks_for_a_renormalize_not_a_sync(self):
+        response = self.client.get(reverse("assessment_interface_management_profile_list"))
+        self.assertEqual(response.context["total_count"], 0)
+        self.assertContains(response, "Renormalize")
+        self.assertContains(response, "stored snapshot")
+
+    def test_the_surfaces_tab_asks_for_a_renormalize_not_a_sync(self):
+        response = self.client.get(reverse("assessment_management_interface_list"))
+        self.assertEqual(response.context["total_count"], 0)
+        self.assertContains(response, "Renormalize")
+        self.assertContains(response, "stored snapshot")

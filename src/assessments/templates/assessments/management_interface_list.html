@@ -36,8 +36,11 @@
 
             {% if not total_count %}
             <div class="px-4 py-8 text-center text-sm text-slate-500">
-                No management interfaces have been collected. Run a sync from
-                Firewall Integrations, then regenerate configuration findings.
+                No management surfaces have been normalized. If configuration has already
+                been collected, <strong>Renormalize</strong> on Firewall Integrations is enough
+                &mdash; surfaces are built from the stored snapshot and need no device
+                connection. Run a sync only if this station has never been collected. Then
+                regenerate configuration findings.
             </div>
             {% else %}
             <div class="min-h-0 flex-1 overflow-auto pt-2">
