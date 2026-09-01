@@ -238,6 +238,18 @@ class ProvenanceToggleTests(TestCase):
         self.assertContains(both, 'href="?findings=1&amp;"')
         self.assertContains(both, 'href="?provenance=1&amp;"')
 
+    def test_a_local_value_renders_nothing_at_all(self):
+        """Local is blank, not the word "Local".
+
+        Roughly four in five cells on a real page are local, so printing the word buried the
+        template names that are the only reason to turn the toggle on. Blank also keeps the
+        permitted-sources cell from doubling in height for a list that is entirely local.
+        """
+        response = self.client.get(
+            reverse("assessment_management_interface_list"), {"provenance": "1"})
+        self.assertContains(response, "stack_fw-core-tpa")
+        self.assertNotContains(response, ">Local<")
+
     def test_the_table_stays_square_with_provenance_on(self):
         html = self.client.get(
             reverse("assessment_management_interface_list"),
