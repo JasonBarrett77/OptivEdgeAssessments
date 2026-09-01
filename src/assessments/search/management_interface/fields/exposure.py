@@ -26,7 +26,8 @@ UNDETERMINED = "undetermined"
 EXPOSURE_STATES = (UNRESTRICTED, RESTRICTED, UNDETERMINED)
 
 
-def classify(values: list[tuple[str, int | None]]) -> str:
+def classify(values: list[tuple[str, int | None]], *,
+             wildcard_is_stripped: bool = True) -> str:
     """(value, family) pairs for one surface -> one of EXPOSURE_STATES.
 
     A non-empty list restricts, whatever family its entries are. Measured 2026-08-28 on a
@@ -46,16 +47,24 @@ def classify(values: list[tuple[str, int | None]]) -> str:
     UNDETERMINED now means only what it should: an entry nothing can evaluate, or one whose
     effect is not established.
 
-    An all-addresses entry - `0.0.0.0/0`, `::/0` - is the second kind. Alone it restricts
-    nothing, so the surface is UNRESTRICTED however non-empty the list looks: a real firewall
-    permitted only 0.0.0.0/0 on its management interface and was reported Restricted, which
-    is the false clean result this classifier exists to prevent.
+    An all-addresses entry - `0.0.0.0/0`, `::/0` - needs the plane, because the answer
+    differs and one half of it is measured.
 
-    Beside other entries it is UNDETERMINED, because what PAN-OS does with that combination
-    is **unmeasured** - see docs/palo-alto/pan-os/network/read-an-interface-management-profile.md.
-    It may be honoured, making the surface open, or ignored as it appears to be on MGT,
-    making the other entries the real restriction. Both PAN-MGT-003's baseline clauses match
-    UNDETERMINED, so the surface is reported either way rather than quietly assumed safe.
+    ALONE it is UNRESTRICTED on any plane, and that needs no measurement: if PAN-OS honours
+    it the surface permits everything, and if PAN-OS strips it the list is empty, which also
+    permits everything. A real firewall permitted only 0.0.0.0/0 on its management interface
+    and was reported Restricted - the false clean result this classifier exists to prevent.
+
+    ALONGSIDE other entries the planes differ:
+
+    - On a **deviceconfig plane** PAN-OS strips the wildcard when compiling the ACL, so
+      `[0.0.0.0/0, 10.99.99.99]` permits 10.99.99.99 and nobody else. Measured; see
+      `docs/palo-alto/pan-os/management/read-device-configuration.md`. Calling that
+      unrestricted would be a false positive on a hardened device, which that guide says
+      explicitly.
+    - On a **data-plane profile** the same stripping is **unmeasured**, so neither answer can
+      be claimed and the honest result is UNDETERMINED. PAN-MGT-003 matches UNDETERMINED as
+      well as UNRESTRICTED, so the surface is reported rather than quietly assumed safe.
     """
     if not values:
         return UNRESTRICTED
@@ -64,7 +73,9 @@ def classify(values: list[tuple[str, int | None]]) -> str:
     if all(_permits_any_address(value) for value, _ in values):
         return UNRESTRICTED
     if any(_permits_any_address(value) for value, _ in values):
-        return UNDETERMINED
+        # The wildcard is stripped on a deviceconfig plane, leaving the specific entries as
+        # the real restriction. Whether a profile behaves the same has never been measured.
+        return RESTRICTED if wildcard_is_stripped else UNDETERMINED
     return RESTRICTED
 
 
@@ -78,12 +89,19 @@ def _permits_any_address(value: str) -> bool:
 
 def exposure_by_interface() -> dict[int, str]:
     sources: dict[int, list[tuple[str, int | None]]] = {}
-    for pk in ManagementInterface.objects.values_list("pk", flat=True):
+    #: Wildcard stripping is measured on the deviceconfig planes and unmeasured on a
+    #: profile, so the plane decides how a mixed list is read.
+    stripped: dict[int, bool] = {}
+    for pk, plane in ManagementInterface.objects.values_list("pk", "plane"):
         sources[pk] = []
+        stripped[pk] = plane != ManagementInterface.PLANE_DATAPLANE
     for value, family, owner in PermittedSource.objects.values_list(
             "value", "family", "management_interface_id"):
         sources.setdefault(owner, []).append((value, family))
-    return {pk: classify(rows) for pk, rows in sources.items()}
+    return {
+        pk: classify(rows, wildcard_is_stripped=stripped.get(pk, True))
+        for pk, rows in sources.items()
+    }
 
 
 def compile_exposure_clause(clause):

@@ -284,6 +284,15 @@ class ProvenanceToggleTests(TestCase):
 class AnyAddressExposureTests(TestCase):
     """A list containing 0.0.0.0/0 does not restrict, however non-empty it looks."""
 
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.any")
+        self.appliance = Appliance.objects.create(
+            management_station=self.station, serial_number="S-ANY", hostname="fw-any")
+        self.snapshot = Snapshot.objects.create(
+            management_station=self.station, appliance=self.appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+
     def test_only_an_all_addresses_entry_is_unrestricted(self):
         """Seen on a real firewall: MGT permitted only 0.0.0.0/0 and read Restricted."""
         from assessments.search.management_interface.fields.exposure import (
@@ -292,11 +301,45 @@ class AnyAddressExposureTests(TestCase):
         self.assertEqual(classify([("::/0", 6)]), UNRESTRICTED)
         self.assertEqual(classify([("0.0.0.0/0", 4), ("::/0", 6)]), UNRESTRICTED)
 
-    def test_an_all_addresses_entry_beside_others_is_undetermined(self):
-        """Whether PAN-OS honours or ignores it is unmeasured, so neither is claimed."""
+    def test_alone_it_is_unrestricted_on_every_plane_without_measurement(self):
+        """Honoured, it permits everything; stripped, the list is empty, which also does."""
         from assessments.search.management_interface.fields.exposure import (
-            UNDETERMINED, classify)
-        self.assertEqual(classify([("0.0.0.0/0", 4), ("10.0.0.0/8", 4)]), UNDETERMINED)
+            UNRESTRICTED, classify)
+        for stripped in (True, False):
+            self.assertEqual(
+                classify([("0.0.0.0/0", 4)], wildcard_is_stripped=stripped), UNRESTRICTED)
+
+    def test_beside_other_entries_the_planes_differ(self):
+        """Measured on a deviceconfig plane, unmeasured on a profile.
+
+        PAN-OS strips the wildcard when compiling the ACL, so [0.0.0.0/0, jump host] permits
+        the jump host and nobody else. Reporting that as unrestricted is a false positive on
+        a hardened device, which read-device-configuration.md says explicitly. Whether a
+        profile strips it the same way has never been measured, so there it is undetermined.
+        """
+        from assessments.search.management_interface.fields.exposure import (
+            RESTRICTED, UNDETERMINED, classify)
+        mixed = [("0.0.0.0/0", 4), ("10.99.99.99/32", 4)]
+        self.assertEqual(classify(mixed, wildcard_is_stripped=True), RESTRICTED)
+        self.assertEqual(classify(mixed, wildcard_is_stripped=False), UNDETERMINED)
+
+    def test_the_plane_decides_which_rule_applies(self):
+        """exposure_by_interface must pick the rule per surface, not once for the table."""
+        from assessments.search.management_interface.fields.exposure import (
+            RESTRICTED, UNDETERMINED, exposure_by_interface)
+        for plane, iface, profile in ((ManagementInterface.PLANE_MGT, "", ""),
+                                      (ManagementInterface.PLANE_DATAPLANE, "ethernet1/9", "p")):
+            surface = ManagementInterface.objects.create(
+                management_station=self.station, appliance=self.appliance,
+                source_snapshot=self.snapshot, plane=plane,
+                interface_name=iface, profile_name=profile)
+            for position, value in enumerate(("0.0.0.0/0", "10.99.99.99/32")):
+                PermittedSource.objects.create(
+                    management_interface=surface, position=position, value=value, family=4)
+            setattr(self, f"surface_{plane}", surface)
+        exposure = exposure_by_interface()
+        self.assertEqual(exposure[getattr(self, "surface_mgt").pk], RESTRICTED)
+        self.assertEqual(exposure[getattr(self, "surface_dataplane").pk], UNDETERMINED)
 
     def test_ordinary_entries_still_restrict(self):
         from assessments.search.management_interface.fields.exposure import (
