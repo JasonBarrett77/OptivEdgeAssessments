@@ -8,6 +8,16 @@
 
 This repository owns only the installable `assessments` app under `src/assessments`. Downstream host projects own `manage.py`, root settings, root URLs, databases, environment variables, and deployment configuration.
 
+## Before You Build A Control
+
+**Read `src/assessments/docs/building-a-control.md` first, and again before calling a control
+done.** It is a checklist of everything that has been missed on a control someone believed was
+finished — implicit values assumed rather than measured, key sets hard-coded from a sample,
+controls that returned zero findings and were never made to fire, tables that stopped being
+square. Each item names the incident behind it.
+
+When a control turns out to need work after it looked done, **add the item to that file.**
+
 ## Authoritative Documents
 
 * `README.md`
