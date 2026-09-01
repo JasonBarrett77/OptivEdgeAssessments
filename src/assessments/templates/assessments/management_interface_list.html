@@ -80,7 +80,7 @@
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.surface.appliance }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.label }}
-                                {% if show_provenance and row.surface.provenance %}<div class="mt-0.5 text-[10px] font-normal leading-3 text-sky-700">{{ row.surface.provenance }}</div>{% endif %}</td>
+                                {% if show_provenance and row.provenance %}<div class="mt-0.5 text-[10px] font-normal leading-3 text-sky-700">{{ row.provenance }}</div>{% endif %}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.surface.profile_name|default:"&mdash;" }}</td>
                             {% for service in row.services %}
                             <td class="border-b border-sky-100 px-2 py-1 text-center align-top whitespace-nowrap text-[11px] leading-3.5 {% if forloop.first %}border-l border-sky-200{% endif %}">
@@ -95,7 +95,7 @@
                                 {% else %}<span class="text-slate-800">Restricted</span>{% endif %}
                             </td>
                             <td class="border-r border-b border-emerald-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
-                                {% for source in row.sources %}<div class="whitespace-nowrap font-mono">{{ source.value }}</div>{% if show_provenance and source.provenance %}<div class="mb-1 truncate text-[10px] leading-3 text-sky-700">{{ source.provenance }}</div>{% endif %}{% empty %}<span class="text-slate-400">any source</span>{% endfor %}
+                                {% for row_source in row.sources %}<div class="whitespace-nowrap font-mono">{{ row_source.source.value }}</div>{% if show_provenance and row_source.provenance %}<div class="mb-1 truncate text-[10px] leading-3 text-sky-700">{{ row_source.provenance }}</div>{% endif %}{% empty %}<span class="text-slate-400">any source</span>{% endfor %}
                             </td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
                                 {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }}</div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}

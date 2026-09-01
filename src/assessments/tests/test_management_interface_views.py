@@ -10,9 +10,11 @@ from django.utils import timezone
 
 from assessments.models import (
     AssessmentRun, Control, ManagementInterfaceFinding)
+from django.contrib.contenttypes.models import ContentType
+
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, ManagementInterface, ManagementService,
-    ManagementStation, PermittedSource, Snapshot)  # noqa: F401
+    Appliance, DeviceConfigurationProfile, FieldProvenance, ManagementInterface,
+    ManagementService, ManagementStation, PermittedSource, Snapshot)  # noqa: F401
 
 
 class ManagementInterfaceListViewTests(TestCase):
@@ -187,18 +189,33 @@ class ProvenanceToggleTests(TestCase):
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
         self.surface = ManagementInterface.objects.create(
             management_station=self.station, appliance=self.appliance,
-            source_snapshot=self.snapshot, plane=ManagementInterface.PLANE_AUX2,
-            provenance="stack_fw-core-tpa")
+            source_snapshot=self.snapshot, plane=ManagementInterface.PLANE_AUX2)
+        self._pushed(self.surface)
         # The measured shape: a pushed leaf beside one that was overridden locally.
-        ManagementService.objects.create(
-            management_interface=self.surface, name="https", enabled=True,
-            provenance="stack_fw-core-tpa")
-        ManagementService.objects.create(
-            management_interface=self.surface, name="telnet", enabled=True, provenance="")
-        PermittedSource.objects.create(
+        pushed = ManagementService.objects.create(
+            management_interface=self.surface, name="https", enabled=True)
+        self._pushed(pushed)
+        overridden = ManagementService.objects.create(
+            management_interface=self.surface, name="telnet", enabled=True)
+        self._local(overridden)
+        source = PermittedSource.objects.create(
             management_interface=self.surface, position=0, value="10.0.0.0/8",
-            family=4, ipv4_start_int=167772160, ipv4_end_int=184549375,
-            provenance="stack_fw-core-tpa")
+            family=4, ipv4_start_int=167772160, ipv4_end_int=184549375)
+        self._pushed(source)
+
+    def _provenance_row(self, instance, provenance_type, raw_key, raw_value):
+        FieldProvenance.objects.create(
+            content_type=ContentType.objects.get_for_model(type(instance)),
+            object_id=instance.pk, field_name="__entry__",
+            provenance_type=provenance_type, raw_key=raw_key, raw_value=raw_value)
+
+    def _pushed(self, instance):
+        self._provenance_row(instance, FieldProvenance.ProvenanceType.TEMPLATE,
+                             "@ptpl", "stack_fw-core-tpa")
+
+    def _local(self, instance):
+        """Present in the payload with no marker - written locally, or overridden."""
+        self._provenance_row(instance, FieldProvenance.ProvenanceType.LOCAL, "", "")
 
     def test_provenance_is_off_by_default(self):
         response = self.client.get(reverse("assessment_management_interface_list"))
@@ -217,7 +234,8 @@ class ProvenanceToggleTests(TestCase):
             reverse("assessment_management_interface_list"),
             {"provenance": "1"}).context["rows"][0]["services"]}
         self.assertEqual(cells["https"]["provenance"], "stack_fw-core-tpa")
-        self.assertEqual(cells["telnet"]["provenance"], "")
+        self.assertEqual(cells["telnet"]["provenance"], "",
+                         "a local row has no source name, so it renders blank")
 
     def test_the_two_toggles_compose(self):
         """Turning one on must not silently turn the other off.

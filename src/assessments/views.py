@@ -673,7 +673,30 @@ class SystemView(TemplateView):
     template_name = "assessments/system.html"
 
 
-def _administrative_service_cells(surface):
+def _entry_provenance(instances) -> dict[int, str]:
+    """{pk: source name} for objects carrying an "__entry__" provenance row.
+
+    One query for a whole page rather than a lookup per row. A missing entry means either
+    the value was written locally or PAN-OS defaulted it - both render blank - and the two
+    are distinguishable in the data (a local value HAS a row, typed local, with no name)
+    even though the page does not yet use the difference.
+    """
+    instances = [i for i in instances if i is not None]
+    if not instances:
+        return {}
+    content_type = ContentType.objects.get_for_model(type(instances[0]))
+    return {
+        row.object_id: row.raw_value
+        for row in FieldProvenance.objects.filter(
+            content_type=content_type,
+            object_id__in=[i.pk for i in instances],
+            field_name="__entry__",
+        )
+        if row.raw_value
+    }
+
+
+def _administrative_service_cells(surface, sources_by_pk):
     """One cell per administrative service, in a fixed order so columns line up.
 
     All five administrative services exist on both management planes - they fall inside the
@@ -687,7 +710,7 @@ def _administrative_service_cells(surface):
             "name": name,
             "enabled": by_name[name].enabled if name in by_name else False,
             "insecure": name in INSECURE_SERVICES,
-            "provenance": by_name[name].provenance if name in by_name else "",
+            "provenance": sources_by_pk.get(by_name[name].pk, "") if name in by_name else "",
         }
         for name in ADMINISTRATIVE_SERVICES
     ]
@@ -727,13 +750,24 @@ class ManagementInterfaceListView(TemplateView):
         ):
             findings_by_surface.setdefault(finding.management_interface_id, []).append(finding)
 
+        # Three lookups for the page, not three per row.
+        surface_sources = _entry_provenance(surfaces)
+        all_services = [s for surface in surfaces for s in surface.services.all()]
+        service_sources = _entry_provenance(all_services)
+        all_permitted = [p for surface in surfaces for p in surface.permitted_sources.all()]
+        permitted_sources = _entry_provenance(all_permitted)
+
         rows = [
             {
                 "surface": surface,
                 "label": surface_label(surface),
+                "provenance": surface_sources.get(surface.pk, ""),
                 "exposure": exposure.get(surface.pk, ""),
-                "sources": list(surface.permitted_sources.all()),
-                "services": _administrative_service_cells(surface),
+                "sources": [
+                    {"source": source, "provenance": permitted_sources.get(source.pk, "")}
+                    for source in surface.permitted_sources.all()
+                ],
+                "services": _administrative_service_cells(surface, service_sources),
                 "findings": findings_by_surface.get(surface.pk, []),
             }
             for surface in surfaces
