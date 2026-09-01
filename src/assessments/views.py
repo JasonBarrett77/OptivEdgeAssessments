@@ -28,6 +28,8 @@ from assessments.findings import regenerate_rule_findings
 from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
+from django.contrib.contenttypes.models import ContentType
+
 from assessments.search.management_interface.fields.services import (
     ADMINISTRATIVE_SERVICES,
     INSECURE_SERVICES,
@@ -40,6 +42,7 @@ from assessments.models import (
     Control,
     ControlQuery,
     DeviceConfigurationFinding,
+    InterfaceManagementProfileFinding,
     ManagementInterfaceFinding,
     RuleFinding,
     SecurityRuleSearchState,
@@ -69,6 +72,8 @@ from optivedge_integrations.integrations.presentation import (
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     DeviceConfigurationProfile,
+    FieldProvenance,
+    InterfaceManagementProfile,
     ManagementInterface,
     SecurityRule,
 )
@@ -727,6 +732,63 @@ class ManagementInterfaceListView(TemplateView):
                 "findings": findings_by_surface.get(surface.pk, []),
             }
             for surface in surfaces
+        ]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class InterfaceManagementProfileListView(TemplateView):
+    """Profiles as objects, with a findings-only filter.
+
+    A separate tab from Management Interfaces rather than a section of it, because a
+    profile is not a surface. The surfaces tab answers "what is this door exposed to"; an
+    unused profile opens no door at all, and putting it there would imply exposure the
+    finding is careful not to claim.
+    """
+
+    template_name = "assessments/interface_management_profile_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+
+        profiles = list(
+            InterfaceManagementProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname", "name")
+        )
+
+        findings_by_profile = {}
+        for finding in (
+            InterfaceManagementProfileFinding.objects.select_related("control")
+            .filter(status=InterfaceManagementProfileFinding.Status.OPEN)
+        ):
+            findings_by_profile.setdefault(
+                finding.interface_management_profile_id, []).append(finding)
+
+        # Provenance is a FieldProvenance row rather than a column, and its ABSENCE means
+        # locally defined - so one query, then a lookup that defaults to local.
+        content_type = ContentType.objects.get_for_model(InterfaceManagementProfile)
+        origin_by_profile = {
+            row.object_id: row
+            for row in FieldProvenance.objects.filter(
+                content_type=content_type,
+                object_id__in=[p.pk for p in profiles],
+                field_name="__entry__",
+            )
+        }
+
+        rows = [
+            {
+                "profile": profile,
+                "origin": origin_by_profile.get(profile.pk),
+                "findings": findings_by_profile.get(profile.pk, []),
+            }
+            for profile in profiles
         ]
         shown = [row for row in rows if row["findings"]] if findings_only else rows
 

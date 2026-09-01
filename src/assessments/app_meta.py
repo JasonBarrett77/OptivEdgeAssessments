@@ -19,6 +19,7 @@ SIDEBAR_SECTION = [
             "assessment_finding_list",
             "assessment_device_configuration_profile_list",
             "assessment_management_interface_list",
+            "assessment_interface_management_profile_list",
             "assessment_control_list",
             "assessment_control_detail",
             "assessment_control_create",
@@ -73,6 +74,7 @@ SIDEBAR_SECTION = [
                 "active_names": {
                     "assessment_device_configuration_profile_list",
                     "assessment_management_interface_list",
+                    "assessment_interface_management_profile_list",
                 },
             },
         ],

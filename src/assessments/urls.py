@@ -22,6 +22,7 @@ from assessments.views import (
     ControlRunConfigurationFindingsView,
     ControlUpdateView,
     DeviceConfigurationProfileListView,
+    InterfaceManagementProfileListView,
     ManagementInterfaceListView,
     FindingListView,
     RuleFindingDocxDownloadView,
@@ -105,6 +106,11 @@ urlpatterns = [
         "management-interfaces/",
         ManagementInterfaceListView.as_view(),
         name="assessment_management_interface_list",
+    ),
+    path(
+        "interface-management-profiles/",
+        InterfaceManagementProfileListView.as_view(),
+        name="assessment_interface_management_profile_list",
     ),
     path(
         "device-configuration/",

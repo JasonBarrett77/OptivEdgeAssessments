@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Management Profiles{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
+
+            {% include "assessments/partials/device_tabs.html" with active_tab="interface_management_profiles" %}
+
+            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
+                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
+                    Every interface management profile defined on every appliance, whether or not
+                    an interface uses it. A profile bound to nothing grants no access &mdash; it is
+                    configuration debt rather than exposure.
+                </div>
+                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
+                <a
+                    href="?{% if findings_only %}{% else %}findings=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if findings_only %}Show every profile{% else %}Show only profiles with an open finding{% endif %}"
+                >
+                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if findings_only %}With findings{% else %}All profiles{% endif %}
+                </a>
+                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
+                    {{ shown_count }} of {{ total_count }}
+                </div>
+            </div>
+
+            {% if not total_count %}
+            <div class="px-4 py-8 text-center text-sm text-slate-500">
+                No interface management profiles have been collected. Run a sync from
+                Firewall Integrations, then regenerate configuration findings.
+            </div>
+            {% else %}
+            <div class="min-h-0 flex-1 overflow-auto pt-2">
+                <table class="analytical-table w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Profile</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Defined In</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Bound To</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Collected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.profile.name }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">
+                                {% if row.origin %}{{ row.origin.get_provenance_type_display }} &middot; <span class="font-mono">{{ row.origin.raw_value }}</span>
+                                {% else %}Local{% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+                                {% for interface in row.profile.bound_interface_names %}<div class="whitespace-nowrap font-mono text-slate-800">{{ interface }}</div>{% empty %}<span class="text-amber-700">Nothing</span>{% endfor %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+                                {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }}</div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.profile.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">
+                                No interface management profile currently has an open finding.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}
