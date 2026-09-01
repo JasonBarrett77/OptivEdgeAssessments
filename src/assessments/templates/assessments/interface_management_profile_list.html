@@ -61,7 +61,7 @@
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.profile.name }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">
-                                {% if row.origin %}{{ row.origin.get_provenance_type_display }} &middot; <span class="font-mono">{{ row.origin.raw_value }}</span>
+                                {% if row.origin %}<span class="font-mono">{{ row.origin.raw_value }}</span>
                                 {% else %}Local{% endif %}
                             </td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">

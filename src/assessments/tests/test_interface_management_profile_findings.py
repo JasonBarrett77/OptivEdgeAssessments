@@ -147,12 +147,16 @@ class InterfaceManagementProfileListViewTests(TestCase):
         response = self.client.get(reverse("assessment_interface_management_profile_list"))
         self.assertContains(response, "Nothing")
 
-    def test_provenance_shows_the_template_and_defaults_to_local(self):
-        rows = {r["profile"].name: r for r in self.client.get(
-            reverse("assessment_interface_management_profile_list")).context["rows"]}
+    def test_provenance_shows_the_source_name_alone(self):
+        """The name is enough - a reader knows a template name from a device group name."""
+        response = self.client.get(reverse("assessment_interface_management_profile_list"))
+        rows = {r["profile"].name: r for r in response.context["rows"]}
         self.assertEqual(rows["bound-one"]["origin"].raw_value, "ptpl_fw-core-tpa")
         self.assertIsNone(rows["unused-one"]["origin"],
                           "local is the absence of a provenance row")
+        self.assertContains(response, "ptpl_fw-core-tpa")
+        self.assertNotContains(response, "Template &middot;")
+        self.assertContains(response, "Local")
 
     def test_the_table_stays_square(self):
         html = self.client.get(
