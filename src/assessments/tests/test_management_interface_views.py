@@ -12,7 +12,7 @@ from assessments.models import (
     AssessmentRun, Control, ManagementInterfaceFinding)
 from optivedge_integrations.integrations.models import (
     Appliance, DeviceConfigurationProfile, ManagementInterface, ManagementService,
-    ManagementStation, PermittedSource, Snapshot)
+    ManagementStation, PermittedSource, Snapshot)  # noqa: F401
 
 
 class ManagementInterfaceListViewTests(TestCase):
@@ -172,3 +172,80 @@ class ManagementInterfaceTableShapeTests(TestCase):
         self.assertFalse(cells["https"]["insecure"],
                          "https is administrative but not something a control says to disable")
         self.assertFalse(cells["telnet"]["enabled"])
+
+
+class ProvenanceToggleTests(TestCase):
+    """Provenance is off by default, asked for, and does not disturb the findings filter."""
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.prov")
+        self.appliance = Appliance.objects.create(
+            management_station=self.station, serial_number="S-PROV", hostname="fw-prov")
+        self.snapshot = Snapshot.objects.create(
+            management_station=self.station, appliance=self.appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        self.surface = ManagementInterface.objects.create(
+            management_station=self.station, appliance=self.appliance,
+            source_snapshot=self.snapshot, plane=ManagementInterface.PLANE_AUX2,
+            provenance="stack_fw-core-tpa")
+        # The measured shape: a pushed leaf beside one that was overridden locally.
+        ManagementService.objects.create(
+            management_interface=self.surface, name="https", enabled=True,
+            provenance="stack_fw-core-tpa")
+        ManagementService.objects.create(
+            management_interface=self.surface, name="telnet", enabled=True, provenance="")
+        PermittedSource.objects.create(
+            management_interface=self.surface, position=0, value="10.0.0.0/8",
+            family=4, ipv4_start_int=167772160, ipv4_end_int=184549375,
+            provenance="stack_fw-core-tpa")
+
+    def test_provenance_is_off_by_default(self):
+        response = self.client.get(reverse("assessment_management_interface_list"))
+        self.assertFalse(response.context["show_provenance"])
+        self.assertNotContains(response, "stack_fw-core-tpa")
+
+    def test_provenance_on_shows_the_source_beside_the_value(self):
+        response = self.client.get(
+            reverse("assessment_management_interface_list"), {"provenance": "1"})
+        self.assertTrue(response.context["show_provenance"])
+        self.assertContains(response, "stack_fw-core-tpa")
+
+    def test_an_overridden_value_reads_differently_from_a_pushed_one(self):
+        """The whole point: two services on ONE surface, one pushed and one overridden."""
+        cells = {c["name"]: c for c in self.client.get(
+            reverse("assessment_management_interface_list"),
+            {"provenance": "1"}).context["rows"][0]["services"]}
+        self.assertEqual(cells["https"]["provenance"], "stack_fw-core-tpa")
+        self.assertEqual(cells["telnet"]["provenance"], "")
+
+    def test_the_two_toggles_compose(self):
+        """Turning one on must not silently turn the other off.
+
+        With findings already on, the provenance link has to carry findings forward -
+        otherwise pressing it drops the filter the reader is in the middle of using.
+        """
+        response = self.client.get(
+            reverse("assessment_management_interface_list"), {"findings": "1"})
+        self.assertContains(response, "?findings=1&amp;provenance=1", html=False)
+
+        both = self.client.get(
+            reverse("assessment_management_interface_list"),
+            {"provenance": "1", "findings": "1"})
+        self.assertTrue(both.context["show_provenance"])
+        self.assertTrue(both.context["findings_only"])
+        # Each link now turns its own toggle OFF while preserving the other.
+        self.assertContains(both, 'href="?findings=1&amp;"')
+        self.assertContains(both, 'href="?provenance=1&amp;"')
+
+    def test_the_table_stays_square_with_provenance_on(self):
+        html = self.client.get(
+            reverse("assessment_management_interface_list"),
+            {"provenance": "1"}).content.decode()
+        body = re.search(r"<tbody>(.*?)</tbody>", html, re.S).group(1)
+        first_row = re.search(r"<tr[^>]*>(.*?)</tr>", body, re.S).group(1)
+        header = re.search(r"<thead>(.*?)</thead>", html, re.S).group(1)
+        header_rows = re.findall(r"<tr[^>]*>(.*?)</tr>", header, re.S)
+        self.assertEqual(len(re.findall(r"<td", first_row)),
+                         len(re.findall(r"<th", header_rows[-1])),
+                         "provenance adds lines inside cells, never cells")

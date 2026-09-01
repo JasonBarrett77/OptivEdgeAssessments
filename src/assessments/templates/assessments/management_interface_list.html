@@ -22,7 +22,15 @@
                 </div>
                 <div class="h-8 w-px shrink-0 bg-slate-200"></div>
                 <a
-                    href="?{% if findings_only %}{% else %}findings=1{% endif %}"
+                    href="?{% if findings_only %}findings=1&amp;{% endif %}{% if not show_provenance %}provenance=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if show_provenance %}border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if show_provenance %}Hide where each value came from{% else %}Show which template or stack pushed each value{% endif %}"
+                >
+                    {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if show_provenance %}Provenance on{% else %}Provenance off{% endif %}
+                </a>
+                <a
+                    href="?{% if show_provenance %}provenance=1&amp;{% endif %}{% if not findings_only %}findings=1{% endif %}"
                     class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
                     title="{% if findings_only %}Show every surface{% else %}Show only surfaces with an open finding{% endif %}"
                 >
@@ -71,12 +79,14 @@
                         {% for row in rows %}
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.surface.appliance }}</td>
-                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.label }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.label }}
+                                {% if show_provenance %}<div class="mt-0.5 text-[10px] font-normal leading-3 {% if row.surface.provenance %}text-sky-700{% else %}text-slate-400{% endif %}">{{ row.surface.provenance|default:"Local" }}</div>{% endif %}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.surface.profile_name|default:"&mdash;" }}</td>
                             {% for service in row.services %}
                             <td class="border-b border-sky-100 px-2 py-1 text-center align-top whitespace-nowrap text-[11px] leading-3.5 {% if forloop.first %}border-l border-sky-200{% endif %}">
                                 {% if service.enabled %}<span class="{% if service.insecure %}font-medium text-red-700{% else %}text-slate-800{% endif %}">On</span>
                                 {% else %}<span class="text-slate-300">Off</span>{% endif %}
+                                {% if show_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 {% if service.provenance %}text-sky-700{% else %}text-slate-400{% endif %}" title="{{ service.provenance|default:"Local" }}">{{ service.provenance|default:"Local" }}</div>{% endif %}
                             </td>
                             {% endfor %}
                             <td class="border-l border-b border-emerald-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
@@ -85,7 +95,7 @@
                                 {% else %}<span class="text-slate-800">Restricted</span>{% endif %}
                             </td>
                             <td class="border-r border-b border-emerald-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
-                                {% for source in row.sources %}<div class="whitespace-nowrap font-mono">{{ source.value }}</div>{% empty %}<span class="text-slate-400">any source</span>{% endfor %}
+                                {% for source in row.sources %}<div class="whitespace-nowrap font-mono">{{ source.value }}</div>{% if show_provenance %}<div class="mb-1 truncate text-[10px] leading-3 {% if source.provenance %}text-sky-700{% else %}text-slate-400{% endif %}">{{ source.provenance|default:"Local" }}</div>{% endif %}{% empty %}<span class="text-slate-400">any source</span>{% endfor %}
                             </td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
                                 {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }}</div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}

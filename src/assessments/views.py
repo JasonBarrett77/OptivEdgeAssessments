@@ -681,12 +681,13 @@ def _administrative_service_cells(surface):
     is ever "not applicable" and the column set does not vary by row. The six services that
     differ between planes are all non-administrative, and none of them gets a column.
     """
-    state = {service.name: service.enabled for service in surface.services.all()}
+    by_name = {service.name: service for service in surface.services.all()}
     return [
         {
             "name": name,
-            "enabled": state.get(name, False),
+            "enabled": by_name[name].enabled if name in by_name else False,
             "insecure": name in INSECURE_SERVICES,
+            "provenance": by_name[name].provenance if name in by_name else "",
         }
         for name in ADMINISTRATIVE_SERVICES
     ]
@@ -706,6 +707,10 @@ class ManagementInterfaceListView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         findings_only = self.request.GET.get("findings") == "1"
+        # Provenance doubles the height of every populated cell, so it is off by default and
+        # asked for. One toggle for the whole table rather than per column: the question a
+        # reader has is "where did any of this come from", not "where did this one value".
+        show_provenance = self.request.GET.get("provenance") == "1"
 
         surfaces = list(
             ManagementInterface.objects.select_related("appliance", "source_snapshot")
@@ -737,6 +742,7 @@ class ManagementInterfaceListView(TemplateView):
 
         context["rows"] = shown
         context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
         context["total_count"] = len(rows)
         context["shown_count"] = len(shown)
         return context
