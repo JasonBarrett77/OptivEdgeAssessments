@@ -88,7 +88,7 @@ class UnusedProfileControlTests(TestCase):
 
 
 class InterfaceManagementProfileListViewTests(TestCase):
-    """The Management Profiles tab: every profile, with a findings-only filter."""
+    """The Interface Profiles tab: every profile, with findings and provenance toggles."""
 
     def setUp(self):
         from optivedge_integrations.integrations.models import FieldProvenance
@@ -147,16 +147,27 @@ class InterfaceManagementProfileListViewTests(TestCase):
         response = self.client.get(reverse("assessment_interface_management_profile_list"))
         self.assertContains(response, "Nothing")
 
-    def test_provenance_shows_the_source_name_alone(self):
-        """The name is enough - a reader knows a template name from a device group name."""
-        response = self.client.get(reverse("assessment_interface_management_profile_list"))
-        rows = {r["profile"].name: r for r in response.context["rows"]}
-        self.assertEqual(rows["bound-one"]["origin"].raw_value, "ptpl_fw-core-tpa")
-        self.assertIsNone(rows["unused-one"]["origin"],
-                          "local is the absence of a provenance row")
-        self.assertContains(response, "ptpl_fw-core-tpa")
-        self.assertNotContains(response, "Template &middot;")
-        self.assertContains(response, "Local")
+    def test_provenance_is_off_by_default_and_shows_the_name_alone(self):
+        """Same design as the surfaces tab: toggled, in the value's cell, local blank."""
+        off = self.client.get(reverse("assessment_interface_management_profile_list"))
+        self.assertFalse(off.context["show_provenance"])
+        self.assertNotContains(off, "ptpl_fw-core-tpa")
+
+        on = self.client.get(
+            reverse("assessment_interface_management_profile_list"), {"provenance": "1"})
+        rows = {r["profile"].name: r for r in on.context["rows"]}
+        self.assertEqual(rows["bound-one"]["origin"], "ptpl_fw-core-tpa")
+        self.assertEqual(rows["unused-one"]["origin"], "",
+                         "local is the absence of a provenance row")
+        self.assertContains(on, "ptpl_fw-core-tpa")
+        self.assertNotContains(on, "Template &middot;")
+        self.assertNotContains(on, ">Local<")
+
+    def test_the_defined_in_column_is_gone(self):
+        """Provenance lives in the value's own cell now, not a column of its own."""
+        response = self.client.get(
+            reverse("assessment_interface_management_profile_list"), {"provenance": "1"})
+        self.assertNotContains(response, "Defined In")
 
     def test_the_table_stays_square(self):
         html = self.client.get(
@@ -167,11 +178,11 @@ class InterfaceManagementProfileListViewTests(TestCase):
         self.assertEqual(len(re.findall(r"<td", first_row)),
                          len(re.findall(r"<th", header)))
 
-    def test_all_three_device_tabs_are_present(self):
+    def test_all_three_device_tabs_are_present(self):  # noqa: D401
         response = self.client.get(reverse("assessment_interface_management_profile_list"))
         self.assertContains(response, "Device Configuration")
         self.assertContains(response, "Management Interfaces")
-        self.assertContains(response, "Management Profiles")
+        self.assertContains(response, "Interface Profiles")
 
 
 class EmptyStateGuidanceTests(TestCase):

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load lucide %}
 
-{% block title %} | Management Profiles{% endblock %}
+{% block title %} | Interface Profiles{% endblock %}
 
 {% block head %}
 {% include "components/partials/analytical_table_styles.html" %}
@@ -22,7 +22,15 @@
                 </div>
                 <div class="h-8 w-px shrink-0 bg-slate-200"></div>
                 <a
-                    href="?{% if findings_only %}{% else %}findings=1{% endif %}"
+                    href="?{% if findings_only %}findings=1&amp;{% endif %}{% if not show_provenance %}provenance=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if show_provenance %}border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if show_provenance %}Hide where each profile came from{% else %}Show which template or stack pushed each profile{% endif %}"
+                >
+                    {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if show_provenance %}Provenance on{% else %}Provenance off{% endif %}
+                </a>
+                <a
+                    href="?{% if show_provenance %}provenance=1&amp;{% endif %}{% if not findings_only %}findings=1{% endif %}"
                     class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
                     title="{% if findings_only %}Show every profile{% else %}Show only profiles with an open finding{% endif %}"
                 >
@@ -49,7 +57,6 @@
                         <tr>
                             <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
                             <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Profile</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Defined In</th>
                             <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Bound To</th>
                             <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
                             <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Collected</th>
@@ -59,11 +66,8 @@
                         {% for row in rows %}
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
-                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.profile.name }}</td>
-                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">
-                                {% if row.origin %}<span class="font-mono">{{ row.origin.raw_value }}</span>
-                                {% else %}Local{% endif %}
-                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.profile.name }}
+                                {% if show_provenance and row.origin %}<div class="mt-0.5 truncate text-[10px] font-normal leading-3 text-sky-700">{{ row.origin }}</div>{% endif %}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
                                 {% for interface in row.profile.bound_interface_names %}<div class="whitespace-nowrap font-mono text-slate-800">{{ interface }}</div>{% empty %}<span class="text-amber-700">Nothing</span>{% endfor %}
                             </td>
@@ -74,7 +78,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">
+                            <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">
                                 No interface management profile currently has an open finding.
                             </td>
                         </tr>

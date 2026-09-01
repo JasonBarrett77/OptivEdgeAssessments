@@ -800,6 +800,7 @@ class InterfaceManagementProfileListView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
 
         profiles = list(
             InterfaceManagementProfile.objects.select_related("appliance", "source_snapshot")
@@ -814,22 +815,14 @@ class InterfaceManagementProfileListView(TemplateView):
             findings_by_profile.setdefault(
                 finding.interface_management_profile_id, []).append(finding)
 
-        # Provenance is a FieldProvenance row rather than a column, and its ABSENCE means
-        # locally defined - so one query, then a lookup that defaults to local.
-        content_type = ContentType.objects.get_for_model(InterfaceManagementProfile)
-        origin_by_profile = {
-            row.object_id: row
-            for row in FieldProvenance.objects.filter(
-                content_type=content_type,
-                object_id__in=[p.pk for p in profiles],
-                field_name="__entry__",
-            )
-        }
+        # A profile overrides at the ENTRY, so it has one provenance - unlike a management
+        # surface, whose services and sources each carry their own.
+        origin_by_profile = _entry_provenance(profiles)
 
         rows = [
             {
                 "profile": profile,
-                "origin": origin_by_profile.get(profile.pk),
+                "origin": origin_by_profile.get(profile.pk, ""),
                 "findings": findings_by_profile.get(profile.pk, []),
             }
             for profile in profiles
@@ -838,6 +831,7 @@ class InterfaceManagementProfileListView(TemplateView):
 
         context["rows"] = shown
         context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
         context["total_count"] = len(rows)
         context["shown_count"] = len(shown)
         return context
