@@ -81,7 +81,8 @@
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.surface.appliance }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] font-medium leading-3.5 text-slate-900">{{ row.label }}
                                 {% if show_provenance and row.provenance %}<div class="mt-0.5 text-[10px] font-normal leading-3 text-sky-700">{{ row.provenance }}</div>{% endif %}</td>
-                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.surface.profile_name|default:"&mdash;" }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.surface.profile_name|default:"&mdash;" }}
+                                {% if show_provenance and row.binding_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.binding_provenance }}</div>{% endif %}</td>
                             {% for service in row.services %}
                             <td class="border-b border-sky-100 px-2 py-1 text-center align-top whitespace-nowrap text-[11px] leading-3.5 {% if forloop.first %}border-l border-sky-200{% endif %}">
                                 {% if service.enabled %}<span class="{% if service.insecure %}font-medium text-red-700{% else %}text-slate-800{% endif %}">On</span>

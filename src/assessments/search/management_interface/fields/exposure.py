@@ -13,6 +13,8 @@ and empty are one state.
 
 from __future__ import annotations
 
+import ipaddress
+
 from assessments.search.exceptions import SearchSyntaxError
 from optivedge_integrations.integrations.models import ManagementInterface, PermittedSource
 
@@ -41,13 +43,37 @@ def classify(values: list[tuple[str, int | None]]) -> str:
     unrestricted when the whole list is empty. That was a reasonable guess and it was
     wrong, which is why it was marked unmeasured rather than shipped as fact.
 
-    UNDETERMINED now means only what it should: an entry nothing can evaluate.
+    UNDETERMINED now means only what it should: an entry nothing can evaluate, or one whose
+    effect is not established.
+
+    An all-addresses entry - `0.0.0.0/0`, `::/0` - is the second kind. Alone it restricts
+    nothing, so the surface is UNRESTRICTED however non-empty the list looks: a real firewall
+    permitted only 0.0.0.0/0 on its management interface and was reported Restricted, which
+    is the false clean result this classifier exists to prevent.
+
+    Beside other entries it is UNDETERMINED, because what PAN-OS does with that combination
+    is **unmeasured** - see docs/palo-alto/pan-os/network/read-an-interface-management-profile.md.
+    It may be honoured, making the surface open, or ignored as it appears to be on MGT,
+    making the other entries the real restriction. Both PAN-MGT-003's baseline clauses match
+    UNDETERMINED, so the surface is reported either way rather than quietly assumed safe.
     """
     if not values:
         return UNRESTRICTED
     if any(family is None for _, family in values):
         return UNDETERMINED
+    if all(_permits_any_address(value) for value, _ in values):
+        return UNRESTRICTED
+    if any(_permits_any_address(value) for value, _ in values):
+        return UNDETERMINED
     return RESTRICTED
+
+
+def _permits_any_address(value: str) -> bool:
+    """Does this entry cover every address of its family? A /0 prefix does."""
+    try:
+        return ipaddress.ip_network((value or "").strip(), strict=False).prefixlen == 0
+    except ValueError:
+        return False
 
 
 def exposure_by_interface() -> dict[int, str]:

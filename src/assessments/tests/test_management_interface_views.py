@@ -279,3 +279,36 @@ class ProvenanceToggleTests(TestCase):
         self.assertEqual(len(re.findall(r"<td", first_row)),
                          len(re.findall(r"<th", header_rows[-1])),
                          "provenance adds lines inside cells, never cells")
+
+
+class AnyAddressExposureTests(TestCase):
+    """A list containing 0.0.0.0/0 does not restrict, however non-empty it looks."""
+
+    def test_only_an_all_addresses_entry_is_unrestricted(self):
+        """Seen on a real firewall: MGT permitted only 0.0.0.0/0 and read Restricted."""
+        from assessments.search.management_interface.fields.exposure import (
+            RESTRICTED, UNDETERMINED, UNRESTRICTED, classify)
+        self.assertEqual(classify([("0.0.0.0/0", 4)]), UNRESTRICTED)
+        self.assertEqual(classify([("::/0", 6)]), UNRESTRICTED)
+        self.assertEqual(classify([("0.0.0.0/0", 4), ("::/0", 6)]), UNRESTRICTED)
+
+    def test_an_all_addresses_entry_beside_others_is_undetermined(self):
+        """Whether PAN-OS honours or ignores it is unmeasured, so neither is claimed."""
+        from assessments.search.management_interface.fields.exposure import (
+            UNDETERMINED, classify)
+        self.assertEqual(classify([("0.0.0.0/0", 4), ("10.0.0.0/8", 4)]), UNDETERMINED)
+
+    def test_ordinary_entries_still_restrict(self):
+        from assessments.search.management_interface.fields.exposure import (
+            RESTRICTED, classify)
+        self.assertEqual(classify([("10.0.0.0/8", 4)]), RESTRICTED)
+        self.assertEqual(classify([("10.0.0.0/8", 4), ("192.168.1.1/32", 4)]), RESTRICTED)
+
+    def test_both_new_states_are_matched_by_the_shipped_control(self):
+        """PAN-MGT-003's baseline matches unrestricted OR undetermined, so a surface is
+        reported either way rather than quietly assumed safe."""
+        from assessments.controls_catalog.registry import load_seed_payload
+        spec = next(c for c in load_seed_payload()["catalogs"][0]["controls"]
+                    if c["control_id"] == "PAN-MGT-003")
+        values = {c["value"] for c in spec["queries"][0]["canonical_query"]["clauses"]}
+        self.assertEqual(values, {"unrestricted", "undetermined"})

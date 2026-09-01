@@ -673,8 +673,8 @@ class SystemView(TemplateView):
     template_name = "assessments/system.html"
 
 
-def _entry_provenance(instances) -> dict[int, str]:
-    """{pk: source name} for objects carrying an "__entry__" provenance row.
+def _entry_provenance(instances, field_name: str = "__entry__") -> dict[int, str]:
+    """{pk: source name} for objects carrying a provenance row for `field_name`.
 
     One query for a whole page rather than a lookup per row. A missing entry means either
     the value was written locally or PAN-OS defaulted it - both render blank - and the two
@@ -690,7 +690,7 @@ def _entry_provenance(instances) -> dict[int, str]:
         for row in FieldProvenance.objects.filter(
             content_type=content_type,
             object_id__in=[i.pk for i in instances],
-            field_name="__entry__",
+            field_name=field_name,
         )
         if row.raw_value
     }
@@ -752,6 +752,9 @@ class ManagementInterfaceListView(TemplateView):
 
         # Three lookups for the page, not three per row.
         surface_sources = _entry_provenance(surfaces)
+        # The binding is a field OF the surface, so it has its own row - a locally created
+        # interface can bind a template-pushed profile, and the reverse.
+        binding_sources = _entry_provenance(surfaces, "profile_name")
         all_services = [s for surface in surfaces for s in surface.services.all()]
         service_sources = _entry_provenance(all_services)
         all_permitted = [p for surface in surfaces for p in surface.permitted_sources.all()]
@@ -762,6 +765,7 @@ class ManagementInterfaceListView(TemplateView):
                 "surface": surface,
                 "label": surface_label(surface),
                 "provenance": surface_sources.get(surface.pk, ""),
+                "binding_provenance": binding_sources.get(surface.pk, ""),
                 "exposure": exposure.get(surface.pk, ""),
                 "sources": [
                     {"source": source, "provenance": permitted_sources.get(source.pk, "")}
