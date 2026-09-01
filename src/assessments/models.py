@@ -70,10 +70,17 @@ class Control(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    #: Every ControlType needs an entry. `save()` DERIVES target_model from this for any
+    #: recognised type, so a type added to the enum and forgotten here has its target_model
+    #: silently wiped to "" on every save - which reads as permanent catalog drift, since
+    #: the payload carries the value and the live row does not. A test asserts the two stay
+    #: in step, because nothing else does.
     _CONTROL_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
         "device_configuration": "integrations.DeviceConfigurationProfile",
         "management_interface": "integrations.ManagementInterface",
+        "interface_management_profile": "integrations.InterfaceManagementProfile",
+        "config": "",
     }
 
     class Meta:
@@ -94,6 +101,7 @@ class Control(models.Model):
         "integrations.SecurityRule": "Security Rule",
         "integrations.DeviceConfigurationProfile": "Device Configuration",
         "integrations.ManagementInterface": "Management Interface",
+        "integrations.InterfaceManagementProfile": "Interface Management Profile",
     }
 
     @property

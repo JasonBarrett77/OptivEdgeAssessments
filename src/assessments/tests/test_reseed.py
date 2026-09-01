@@ -109,6 +109,50 @@ class ReseedTests(TestCase):
         self.assertTrue(Control.objects.filter(control_id="PAN-MGT-013").exists())
 
 
+class TargetModelMappingTests(TestCase):
+    """Every ControlType must map to a target model.
+
+    `Control.save()` DERIVES target_model from _CONTROL_TYPE_TARGET_MODEL for any recognised
+    type, so a type added to the enum and forgotten in the map has its target_model wiped to
+    "" on every save. Evaluation still works - the finding generators fall back to a
+    constant - so the only symptom is a catalog reporting MODIFIED immediately after being
+    applied, which is what happened when interface_management_profile was added.
+    """
+
+    def test_every_control_type_has_a_target_model(self):
+        missing = [c.value for c in Control.ControlType
+                   if c.value not in Control._CONTROL_TYPE_TARGET_MODEL]
+        self.assertEqual(missing, [], f"ControlType(s) with no target model: {missing}")
+
+    def test_every_target_model_has_a_label(self):
+        missing = [m for m in Control._CONTROL_TYPE_TARGET_MODEL.values()
+                   if m and m not in Control._TARGET_MODEL_LABELS]
+        self.assertEqual(missing, [], f"target model(s) with no label: {missing}")
+
+    def test_a_control_keeps_the_target_model_its_type_implies(self):
+        control = Control.objects.create(
+            control_id="T-1", name="t",
+            control_type=Control.ControlType.INTERFACE_MANAGEMENT_PROFILE,
+            description="x", default_severity=Control.Severity.LOW,
+            target_model="integrations.InterfaceManagementProfile")
+        control.refresh_from_db()
+        self.assertEqual(control.target_model, "integrations.InterfaceManagementProfile")
+
+
+class ReseedDriftTests(TestCase):
+    """A catalog applied a moment ago has not drifted."""
+
+    def test_a_reseeded_catalog_reports_no_drift(self):
+        from assessments.controls_catalog.drift import catalog_has_drifted
+        from assessments.controls_catalog.io.importers import seed_catalogs_if_empty
+        seed_catalogs_if_empty()
+        reseed_from_bundled_catalog(application_environment=None)
+        catalog = Catalog.objects.get(is_seeded=True, is_snapshot=False)
+        self.assertFalse(
+            catalog_has_drifted(catalog.payload),
+            "the live controls were just created from this payload, so they cannot differ")
+
+
 class ReseedButtonCopyTests(TestCase):
     """The button destroys findings and runs, so the page has to say so before it is pressed."""
 
