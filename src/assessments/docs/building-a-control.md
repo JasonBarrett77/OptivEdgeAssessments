@@ -200,6 +200,18 @@ and are then deleted, and empty is its normal state.
       structural, not quiet. Two sessions spent a round reconciling 35 against 31 before
       noticing they were different databases. Both now print their database and group
       composition on every run.*
+
+      The environment note fixes the TOOL. It does not fix a reader who has already decided
+      which rows are theirs, and that is the harder half: a per-control census invites reading
+      as fourteen separate answers rather than one description of a database. *Both sessions
+      printed `HA-001 / HA-002 / HA-003 → NO FINDINGS` on every run all day and read past them
+      every time — one because those controls belonged to the other session, the other having
+      actually diagnosed the discrepancy mid-session, called it an environment difference, and
+      moved on without recording it. Three zero rows, visible in output we generated ourselves
+      four times, describing the exact thing we then spent a round reconciling. The checklist
+      says an empty control is either one needing a subject or one that does not work, and
+      that the census cannot tell you which — so ask. Neither of us asked, because we were
+      reading to confirm rather than to learn. Same posture as the item above.*
 - [ ] **A verification tool must not fail in the direction of its own answer.** The census
       exists to answer "did a control go quiet". One `try` wrapped its collection AND every
       normalizer for an appliance, so a single failed read skipped all of them and the tool
