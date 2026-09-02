@@ -196,10 +196,10 @@
           "control_id": "PAN-MGT-008",
           "name": "Force Admins to Acknowledge Login Banner",
           "control_type": "device_configuration",
-          "description": "Requires an administrator to positively acknowledge the login banner rather than read past it.\\n\\nAbsent means off. PAN-OS greys the setting out until a banner exists, so a device with no banner cannot satisfy this and PAN-MGT-007 is the finding that matters there.",
+          "description": "Requires an administrator to positively acknowledge the login banner rather than read past it.\n\nReported wherever acknowledgement is off, including on a device with no banner. PAN-OS greys the setting out until a banner exists, so remediating this one may mean setting a banner first - which is PAN-MGT-007, and the two are reported independently rather than one standing in for the other.",
           "rationale": "Acknowledgement converts a passive notice into a recorded action by the administrator, which is what gives the banner evidentiary weight.",
           "audit": "Confirm administrators must acknowledge the banner before proceeding.",
-          "remediation": "Enable Force Admins to Acknowledge Login Banner, which requires a banner to be set.",
+          "remediation": "Enable Force Admins to Acknowledge Login Banner. The setting is unavailable until a login banner is configured, so set the banner first where there is none.",
           "default_severity": "low",
           "implementation_version": "v1",
           "is_active": true,
@@ -212,20 +212,9 @@
                 "operator": "or",
                 "clauses": [
                   {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "login_banner",
-                        "op": "is_empty",
-                        "value": "",
-                        "negated": true
-                      },
-                      {
-                        "field": "ack_login_banner",
-                        "op": "eq",
-                        "value": false
-                      }
-                    ]
+                    "field": "ack_login_banner",
+                    "op": "eq",
+                    "value": false
                   }
                 ]
               },

@@ -67,16 +67,18 @@ class ManagementSettingsControlTests(TestCase):
                 "control", "device_configuration_profile__appliance")
         }
 
-    def test_an_untouched_device_fires_007_and_011_only(self):
+    def test_an_untouched_device_fires_007_008_and_011(self):
         """The shape both PA-5220s are actually in: nothing set at all.
 
-        009 must NOT fire - absence means the update server IS verified. 008 must not fire
-        either, because without a banner PAN-OS greys the setting out and 007 is the finding
-        that matters.
+        009 must NOT fire - absence means the update server IS verified, so an untouched
+        device satisfies it. The other three all report, including 008 on a device with no
+        banner: acknowledgement being off is its own gap, and remediating it happens to
+        require a banner first.
         """
         self._profile("fw-bare", {"system": {}})
         self.assertEqual(self._findings(), {
             ("PAN-MGT-007", "fw-bare"),
+            ("PAN-MGT-008", "fw-bare"),
             ("PAN-MGT-011", "fw-bare"),
         })
 
@@ -101,10 +103,14 @@ class ManagementSettingsControlTests(TestCase):
         found = {c for c, host in self._findings() if host == "fw-banner"}
         self.assertEqual(found, {"PAN-MGT-008"})
 
-    def test_008_stays_quiet_without_a_banner_because_panos_greys_it_out(self):
-        """Acknowledgement cannot be required without a banner to acknowledge, so reporting
-        both would be two findings for one missing thing."""
+    def test_008_reports_without_a_banner_too(self):
+        """The two are independent gaps, reported independently.
+
+        PAN-OS greys acknowledgement out until a banner exists, so remediation is ordered -
+        but an unordered pair of findings is what the assessor is owed, not one standing in
+        for the other.
+        """
         self._profile("fw-nobanner", {
             "system": {}, "setting": {"management": {"enable-log-high-dp-load": "yes"}}})
         found = {c for c, host in self._findings() if host == "fw-nobanner"}
-        self.assertEqual(found, {"PAN-MGT-007"})
+        self.assertEqual(found, {"PAN-MGT-007", "PAN-MGT-008"})
