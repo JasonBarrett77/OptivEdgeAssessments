@@ -1,0 +1,452 @@
+{
+  "type": "optivedge.assessments.catalog_seed",
+  "schema_version": "1.0",
+  "$deprecated": [
+    "DEPRECATED. Not loaded, not applied, and deliberately not discoverable by the",
+    "seed registry - `load_seed_payload()` names seed.json explicitly, so nothing here",
+    "reaches a catalog by accident.",
+    "",
+    "These six predate controls.json and are superseded by it. They were removed from",
+    "seed.json on 2026-09-02 because they were causing real confusion: they appear in",
+    "no corpus file, so the controls-status CSV omitted them entirely while three of",
+    "them were reporting findings against the lab, and a census run against one",
+    "database counted them while a run against another could not.",
+    "",
+    "DEPRECATED, not dropped. PAN-MGT-005 was dropped after being assessed on its",
+    "merits and judged redundant. These were retired wholesale for being superseded,",
+    "which is a different claim: it says controls.json is now the corpus, NOT that",
+    "each of these was examined and found wanting.",
+    "",
+    "Kept rather than deleted for two reasons. Their control_ids appear in OEA's own",
+    "test fixtures, which construct Control rows directly rather than seeding them, so",
+    "the ids remain meaningful in the codebase. And HA-002, HA-003, MGMT-004 and",
+    "TIME-001 were producing findings when deprecated - if a controls.json control is",
+    "later expected to cover one of those and does not, this file is the record of",
+    "what was retired and what it was catching.",
+    "",
+    "NONE of them was ever taken through building-a-control.md. Two - HA-001 and",
+    "FW-RULE-PERMISSIVENESS-001 - reported zero findings against the lab, which by that",
+    "checklist means either a missing subject or a control that does not work, and",
+    "nothing established which. Do not treat anything here as verified."
+  ],
+  "catalogs": [
+    {
+      "type": "optivedge.assessments.catalog",
+      "schema_version": "1.0",
+      "catalog": {
+        "key": "deprecated",
+        "label": "Deprecated (superseded by controls.json)",
+        "version": "v1",
+        "description": "Superseded by controls.json. Retained as a record of what was retired and what it was catching; not applied."
+      },
+      "controls": [
+        {
+          "control_id": "FW-RULE-PERMISSIVENESS-001",
+          "name": "Ensure firewall rules are not overly permissive",
+          "control_type": "security_rule",
+          "description": "Firewall security policy rules should be configured to allow only the minimum required access necessary for the intended traffic flow. Rules should avoid overly broad source, destination, user, application, service, or action criteria, including unnecessary use of any, broad network ranges, unrestricted services, or excessive application allowances.",
+          "rationale": "Overly permissive firewall rules increase the attack surface by allowing unnecessary network access and reducing the effectiveness of segmentation and least-privilege enforcement.",
+          "audit": "Review allowed firewall security policy rules and identify rules with broad or unrestricted match criteria, including any sources, destinations, users, applications, or services, broad address objects, broad service groups, or allow actions that exceed the documented technical requirement.",
+          "remediation": "Modify overly permissive rules to restrict access to the minimum required sources, destinations, users, applications, and services. Remove unused broad rules or replace them with more specific rules aligned to the intended traffic flow.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Application and service is 'any'",
+              "short_description": "",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "application",
+                        "op": "eq",
+                        "value": "any",
+                        "negated": false,
+                        "case_sensitive": false,
+                        "include_any": false
+                      },
+                      {
+                        "field": "service",
+                        "op": "eq",
+                        "value": "any",
+                        "negated": false,
+                        "case_sensitive": false,
+                        "include_any": false
+                      }
+                    ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Destination is 'any'",
+              "short_description": "",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "destination_address",
+                        "op": "exactly",
+                        "value": "any",
+                        "negated": false,
+                        "case_sensitive": false,
+                        "include_any": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Source is 'any'",
+              "short_description": "",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "source_address",
+                        "op": "exactly",
+                        "value": "any",
+                        "negated": false,
+                        "case_sensitive": false,
+                        "include_any": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Destination zone internet",
+              "short_description": "",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "operator": "or",
+                        "clauses": [
+                          {
+                            "field": "source_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "negated": false,
+                            "case_sensitive": false,
+                            "include_any": true
+                          },
+                          {
+                            "field": "destination_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "negated": false,
+                            "case_sensitive": false,
+                            "include_any": true
+                          }
+                        ]
+                      },
+                      {
+                        "operator": "and",
+                        "clauses": [
+                          {
+                            "field": "application",
+                            "op": "eq",
+                            "value": "any",
+                            "negated": false,
+                            "case_sensitive": false,
+                            "include_any": false
+                          },
+                          {
+                            "field": "service",
+                            "op": "eq",
+                            "value": "any",
+                            "negated": false,
+                            "case_sensitive": false,
+                            "include_any": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "to_zone",
+                        "op": "eq",
+                        "value": "internet",
+                        "negated": false,
+                        "case_sensitive": false,
+                        "include_any": false
+                      }
+                    ]
+                  },
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false,
+                    "case_sensitive": false,
+                    "include_any": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "HA-001",
+          "name": "Ensure High Availability is enabled where required",
+          "control_type": "device_configuration",
+          "description": "High Availability should be enabled on firewalls that are expected to operate as part of a redundant firewall pair.",
+          "rationale": "Firewalls that enforce critical network paths can become single points of failure if High Availability is not configured. Enabling HA supports service continuity during device failure, maintenance, or controlled failover events.",
+          "audit": "Review the High Availability configuration and verify that HA is enabled for firewalls that require redundant operation.",
+          "remediation": "Configure High Availability on the firewall pair, including HA interfaces, peer settings, HA group settings, synchronization settings, and failover monitoring appropriate to the deployment.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_required",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "HA-002",
+          "name": "Ensure High Availability session synchronization is enabled",
+          "control_type": "device_configuration",
+          "description": "High Availability state synchronization should be enabled for HA firewall pairs where session preservation is required during failover.",
+          "rationale": "Without session synchronization, active sessions may be dropped during failover, which can disrupt business applications, user access, VPN traffic, and long-lived connections.",
+          "audit": "Review the HA state synchronization setting and verify that state synchronization is enabled on both HA peers where session preservation is required.",
+          "remediation": "Enable HA state synchronization and verify HA2 connectivity between peers. Confirm that both peers have consistent state synchronization settings.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_required",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_state_sync_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "HA-003",
+          "name": "Ensure High Availability link monitoring is enabled where required",
+          "control_type": "device_configuration",
+          "description": "High Availability link monitoring should be enabled for critical dataplane interfaces or interface groups where link failure should trigger HA failover.",
+          "rationale": "If link monitoring is not configured, a firewall may remain active even when critical dataplane links have failed, causing traffic disruption without triggering failover to the peer device.",
+          "audit": "Review the HA monitoring configuration and verify that link monitoring is enabled for critical interfaces or interface groups.",
+          "remediation": "Enable HA link monitoring and define monitored link groups for critical interfaces. Configure the failure condition according to the redundancy design.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_required",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_link_monitoring_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "MGMT-004",
+          "name": "Ensure the device management idle timeout is less than or equal to 10 minutes",
+          "control_type": "device_configuration",
+          "description": "The device management idle timeout should be configured to automatically close inactive administrative sessions after 10 minutes or less.",
+          "rationale": "Inactive administrative sessions can be misused if an administrator leaves a workstation unattended. A short idle timeout reduces the opportunity for unauthorized use of an existing management session.",
+          "audit": "Review the management authentication settings and verify that the idle timeout is configured to 10 minutes or less and is not set to never timeout.",
+          "remediation": "Configure the management idle timeout to 10 minutes or less.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "gt",
+                    "value": 10
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "TIME-001",
+          "name": "Ensure redundant NTP servers are configured",
+          "control_type": "device_configuration",
+          "description": "The firewall should be configured with primary and secondary NTP servers.",
+          "rationale": "Accurate and consistent time is required for reliable log correlation, event investigation, certificate validation, authentication, and forensic analysis. Redundant NTP servers reduce the risk of time drift if one time source is unavailable.",
+          "audit": "Review the device service settings and verify that both primary and secondary NTP servers are configured.",
+          "remediation": "Configure approved primary and secondary NTP servers for the firewall. Use internal enterprise NTP sources where available.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "ntp_primary_server",
+                    "op": "is_empty",
+                    "value": ""
+                  },
+                  {
+                    "field": "ntp_secondary_server",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        }
+      ]
+    }
+  ]
+}
