@@ -229,6 +229,19 @@ and are then deleted, and empty is its normal state.
       cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
       reported nothing for a correct reason — `server-verification` absent means enabled — so
       it was turned off on the passive HA member and deliberately not reverted.*
+- [ ] **Leave at least one finding whose row SHOWS PROVENANCE.** `→ reproductions.json` A
+      finding written locally proves the control fires and proves nothing about the provenance
+      column, because local renders BLANK by design — so a tab can look correct while the whole
+      provenance path is untested end to end. Push at least one subject from a template or
+      stack so a source actually renders, and say in `reproductions.json` which subject exists
+      for that purpose. *Both the Login Banner and Management TLS tabs shipped with every
+      provenance cell blank and no way to tell a working toggle from a broken one: every value
+      on them was device-local or absent. Jason caught it in the view, not the tests.*
+      Two traps when creating one: a **local value survives a template push of a different
+      value** and stays unmarked, so pushing to a device that already sets the field locally
+      changes nothing visible; and pushing a value that REMEDIATES the control silences the
+      finding you were trying to decorate — push a value that still fails, or an explicit
+      negative like `ack-login-banner: no`.
 - [ ] **Exercise every axis the control spans**, not just the one that was convenient.
       *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
       spell the same setting with opposite sense, so a control tested on one is untested on
