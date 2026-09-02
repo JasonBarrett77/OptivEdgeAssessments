@@ -184,6 +184,13 @@ and are then deleted, and empty is its normal state.
       and a warning on every unconfigured port.*
 - [ ] **Name what is still fixture-only.** `→ the vendor guide's Limits` *`layer2`, `tap`, `virtual-wire`, `ha`,
       `dhcp-client`, `pppoe`, IPv6 addressing and `sdwan` have never been seen on hardware.*
+- [ ] **DELETE returns a node to its implicit state**, which is how scaffolding comes out
+      when the prior state is unknown — and if a delete is refused at the leaf, walk UP the
+      tree until it is accepted; the level that takes it is the level that resets. Two
+      surprises worth knowing: on some paths deleting an ABSENT node succeeds silently rather
+      than erroring, so success is not evidence anything was there — and it still dirties the
+      candidate config, so a probe that changes nothing semantically still needs a commit or a
+      `<revert><config/></revert>`.
 - [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** `→ reproductions.json` Two different kinds of lab change:
       config written to measure a shape or a default is scaffolding and comes out; config that
       is the thing a control detects stays. Say plainly which is which. *Template pushes used
