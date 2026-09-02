@@ -128,8 +128,13 @@ the only way it stays worth reading.
 ## 5. Prove it — against hardware, not fixtures
 
 - [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
-      Configure the condition on the lab, watch it fire on the right subject, revert. *001 and
-      002 both returned zero against the lab as it stood.*
+      Configure the condition on the lab and watch it fire on the right subject. *001 and 002
+      both returned zero against the lab as it stood.*
+- [ ] **LEAVE the condition in place.** Every implemented control should have at least one
+      live finding in the lab, permanently. A control with no subject cannot be demonstrated,
+      cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
+      reported nothing for a correct reason — `server-verification` absent means enabled — so
+      it was turned off on the passive HA member and deliberately not reverted.*
 - [ ] **Exercise every axis the control spans**, not just the one that was convenient.
       *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
       spell the same setting with opposite sense, so a control tested on one is untested on
@@ -139,7 +144,15 @@ the only way it stays worth reading.
       and a warning on every unconfigured port.*
 - [ ] **Name what is still fixture-only.** *`layer2`, `tap`, `virtual-wire`, `ha`,
       `dhcp-client`, `pppoe`, IPv6 addressing and `sdwan` have never been seen on hardware.*
-- [ ] **Revert lab changes**, or say plainly which were left and why.
+- [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** Two different kinds of lab change:
+      config written to measure a shape or a default is scaffolding and comes out; config that
+      is the thing a control detects stays. Say plainly which is which. *Template pushes used
+      to read provenance markers were reverted; the unused profiles and the disabled
+      update-server verification were not, because PAN-MGT-013 and PAN-MGT-009 need them.*
+- [ ] **Run the census** — `OptivEdgeProbe/scratch/lab_findings_census.py` — and check no
+      implemented control comes back empty. An empty one is either a control that needs a
+      subject or a control that does not work, and the census does not tell you which; that is
+      the point of asking before you believe it is done.
 
 ## 6. Land it
 
