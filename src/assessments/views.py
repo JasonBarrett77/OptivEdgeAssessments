@@ -81,6 +81,10 @@ from optivedge_integrations.integrations.models import (
 
 PAGE_SIZE = 100
 
+#: The controls this tab is about. Named rather than derived, so an unrelated
+#: device-configuration control appearing later does not silently widen the tab.
+BANNER_CONTROLS = ("PAN-MGT-007", "PAN-MGT-008")
+
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
     rows = []
@@ -823,6 +827,62 @@ class InterfaceManagementProfileListView(TemplateView):
             {
                 "profile": profile,
                 "origin": origin_by_profile.get(profile.pk, ""),
+                "findings": findings_by_profile.get(profile.pk, []),
+            }
+            for profile in profiles
+        ]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class LoginBannerListView(TemplateView):
+    """The login banner and its acknowledgement, with findings and provenance toggles.
+
+    Its own tab rather than columns on Device Configuration, for the reason that table was
+    broken up in the first place: it was accumulating a column group per finding type and
+    each new control widened it. The banner and its acknowledgement are one subject with two
+    controls between them - PAN-MGT-007 and PAN-MGT-008 - so they belong together and apart.
+
+    Unlike the surfaces and profiles tabs, provenance here is stored under NAMED fields
+    rather than "__entry__": a DeviceConfigurationProfile carries many values on one row, so
+    each field has its own provenance record.
+    """
+
+    template_name = "assessments/login_banner_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
+
+        profiles = list(
+            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname")
+        )
+
+        findings_by_profile = {}
+        for finding in (
+            DeviceConfigurationFinding.objects.select_related("control")
+            .filter(status=DeviceConfigurationFinding.Status.OPEN,
+                    control__control_id__in=BANNER_CONTROLS)
+        ):
+            findings_by_profile.setdefault(
+                finding.device_configuration_profile_id, []).append(finding)
+
+        banner_sources = _entry_provenance(profiles, "login_banner")
+        ack_sources = _entry_provenance(profiles, "ack_login_banner")
+
+        rows = [
+            {
+                "profile": profile,
+                "banner_provenance": banner_sources.get(profile.pk, ""),
+                "ack_provenance": ack_sources.get(profile.pk, ""),
                 "findings": findings_by_profile.get(profile.pk, []),
             }
             for profile in profiles
