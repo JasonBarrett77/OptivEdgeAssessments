@@ -183,6 +183,14 @@ and are then deleted, and empty is its normal state.
       reported zero findings for that host across every control — a failure that is
       indistinguishable from the regression it was built to detect. Ask what a tool prints
       when it breaks, and make that different from what it prints when the finding is real.
+
+      Which steps may gate is decided by **"can this failure be mistaken for an answer?"**,
+      not by how bad the failure is. In the census the merged-config read gates and the
+      predefined read does not, and that is not a severity ranking: continuing past a failed
+      merged-config read silently re-reports an OLD collection as current, with nothing on
+      the output saying so, while a failed predefined read only leaves a binding unresolved —
+      which normalization already says out loud. A failure that announces itself can be
+      allowed to degrade; one that produces a plausible-looking result must stop.
       *Found by a peer session reviewing a fix for the identical coupling one layer down,
       where one unavailable predefined catalog was discarding all three for both PA-5220s.
       Same shape, twice in one day: the gating step should be the only one that gates.*
