@@ -24,6 +24,7 @@ from a separate document, so the two cannot drift. The four destinations:
 | `OptivEdgeProbe/reference/panos-payload-contract.json` | key sets, wire shapes, implicit values |
 | `OptivEdgeProbe/scratch/reproductions.json` | the API calls that give each control a subject |
 | `OptivEdgeProbe/scratch/control-changes.json` | deviations from controls.json, and status |
+| `OptivEdgeProbe/scratch/controls-status.csv` | every control's state at a glance — generated, never edited |
 | the OptivEdgeIntegrations vendor guides + discovery log | facts consumers depend on, and how they were established |
 
 While a batch is in flight, `OptivEdgeProbe/scratch/in-flight.json` holds what has not reached
@@ -206,6 +207,10 @@ and are then deleted, and empty is its normal state.
 
 ## 6. Land it
 
+- [ ] **Regenerate the status CSV** `→ controls-status.csv` —
+      `python -m scratch.build_controls_csv`. It is generated from `controls.json` and
+      `control-changes.json`, never edited, so it cannot drift; the only way it goes stale is
+      not being run. It is how the state of 228 controls is read without opening the JSON.
 - [ ] **Empty `scratch/in-flight.json`.** Run `python -m scratch.check_in_flight`: every fact
       it holds should have graduated to its durable home, and its entry deleted. A non-empty
       file is a to-do list, and anything left in it has not landed anywhere that will be read
