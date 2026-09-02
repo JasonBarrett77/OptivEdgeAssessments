@@ -229,10 +229,14 @@ and are then deleted, and empty is its normal state.
       cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
       reported nothing for a correct reason — `server-verification` absent means enabled — so
       it was turned off on the passive HA member and deliberately not reverted.*
-- [ ] **Leave at least one finding whose row SHOWS PROVENANCE.** `→ reproductions.json` A
-      finding written locally proves the control fires and proves nothing about the provenance
-      column, because local renders BLANK by design — so a tab can look correct while the whole
-      provenance path is untested end to end. Push at least one subject from a template or
+- [ ] **A column tested against one input has been tested against one input.** If every row
+      in the estate gives a column the same value, rendering it correctly proves nothing about
+      the other cases — including the case where the column is simply broken. Leave a subject
+      that produces a DIFFERENT value for each column a control introduces.
+      The instance that produced this rule: **leave at least one finding whose row SHOWS
+      PROVENANCE.** `→ reproductions.json` A finding written locally proves the control fires
+      and proves nothing about the provenance column, because local renders BLANK by design —
+      so a tab can look correct while the whole provenance path is untested end to end. Push at least one subject from a template or
       stack so a source actually renders, and say in `reproductions.json` which subject exists
       for that purpose. *Both the Login Banner and Management TLS tabs shipped with every
       provenance cell blank and no way to tell a working toggle from a broken one: every value
@@ -242,6 +246,17 @@ and are then deleted, and empty is its normal state.
       changes nothing visible; and pushing a value that REMEDIATES the control silences the
       finding you were trying to decorate — push a value that still fails, or an explicit
       negative like `ack-login-banner: no`.
+- [ ] **A subject you built is also a measurement — go back and read it.** Creating lab
+      config to make a control fire does not feel like taking a measurement, so nobody
+      re-opens the vendor guide afterwards. But a subject is an INSTANCE of the shape the
+      guide describes, and it frequently answers something the guide still lists as open.
+      After building one, re-read that object's guide and check whether its Limits section is
+      now stale. *A guide claimed `@ptpl` on a profile entry was unconfirmed because no
+      populated profile had been pushed from a template — one had been, weeks earlier, as
+      another control's subject, and the markers turned out to sit on four levels including a
+      service leaf that arrives as `{"@ptpl":…, "#text":"yes"}` where a local one is the bare
+      string `"yes"`. It had been in plain sight in every verification read since, unnoticed
+      because those reads were confirming the lab was intact rather than looking to learn.*
 - [ ] **Exercise every axis the control spans**, not just the one that was convenient.
       *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
       spell the same setting with opposite sense, so a control tested on one is untested on
