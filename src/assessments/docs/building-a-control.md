@@ -15,11 +15,21 @@ ask what that tool was doing and find the local equivalent.
 **Add to this file whenever a control turns out to need work after it looked done.** That is
 the only way it stays worth reading.
 
-While a batch is in flight, `OptivEdgeProbe/scratch/in-flight.json` holds what is unfinished —
-measurements not yet recorded, which lab device carries which variant, questions raised and
-unanswered. It is a scratchpad, never a source of truth: entries graduate into the payload
-contract, `control-changes.json` and the discovery log, and are then deleted. Empty is its
-normal state.
+**Items that produce a durable fact name where it goes**, as `→ payload contract` and so on.
+That list IS the schema: the in-flight scratchpad's fields come from these items rather than
+from a separate document, so the two cannot drift. The four destinations:
+
+| destination | holds |
+|---|---|
+| `OptivEdgeProbe/reference/panos-payload-contract.json` | key sets, wire shapes, implicit values |
+| `OptivEdgeProbe/scratch/reproductions.json` | the API calls that give each control a subject |
+| `OptivEdgeProbe/scratch/control-changes.json` | deviations from controls.json, and status |
+| the OptivEdgeIntegrations vendor guides + discovery log | facts consumers depend on, and how they were established |
+
+While a batch is in flight, `OptivEdgeProbe/scratch/in-flight.json` holds what has not reached
+one of those yet — measurements not yet recorded, which lab device carries which variant,
+questions raised and unanswered. It is a scratchpad, never a source of truth: entries graduate
+and are then deleted, and empty is its normal state.
 
 ---
 
@@ -47,14 +57,14 @@ normal state.
 > subject the control needs left behind, so it never has to be created twice.
 
 
-- [ ] **Enumerate the real key set from the device**, rather than from a sample, a document
+- [ ] **Enumerate the real key set from the device** `→ payload contract`, rather than from a sample, a document
       or memory. Use whatever the platform offers as a schema oracle. *PAN-OS: `action=complete`.
       The payload contract recorded 6 management services; a firewall accepts 10. Two
       normalizers hard-coded 5 interface containers; a PA-5220 offers 6 and a PA-VM offers 5 —
       and `sdwan`, which neither listed, is on both.*
-- [ ] **The key set is platform-dependent.** Check a second platform before treating it as
+- [ ] **The key set is platform-dependent.** `→ payload contract` Check a second platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
-- [ ] **Establish the implicit value by measurement, per key.** An absent key is not an
+- [ ] **Establish the implicit value by measurement, per key.** `→ payload contract` An absent key is not an
       absent setting, and neighbouring keys do not share a default. *`disable-http` was
       recorded implicit `no` and measures `yes`. `server-verification` absent means ENABLED
       while `enable-log-high-dp-load` absent means DISABLED — two keys, opposite defaults, so
@@ -67,15 +77,15 @@ normal state.
       operator to look is faster than inferring. *`server-verification`, `ack-login-banner`
       and `enable-log-high-dp-load` all persist `yes` and `no` alike; the checkbox states
       settled all three in one screenshot.*
-- [ ] **Distinguish absent from empty from default.** Three states, and a config format that
+- [ ] **Distinguish absent from empty from default.** `→ payload contract` Three states, and a config format that
       has all three will use all three. *PAN-OS: an empty `<units/>` and an empty
       `<aggregate-ethernet/>` both parse to `None`, not `{}`.*
-- [ ] **Check what the value looks like when it arrives from a central manager**, not only
+- [ ] **Check what the value looks like when it arrives from a central manager** `→ payload contract`, not only
       when set on the device. The shape usually differs, and not every read exposes the
       difference. *PAN-OS: a template leaf arrives as `{'@ptpl': …, '#text': 'yes'}` and a
       naive reader calls it unset; `action=get` strips `@ptpl` entirely, so only merged config
       carries it.*
-- [ ] **Ask which oracle can see it.** Some settings appear in no config read at all. *Four
+- [ ] **Ask which oracle can see it.** `→ discovery log` Some settings appear in no config read at all. *Four
       management services are invisible to `show system services` and to the running config;
       only the compiled ACL sees them.*
 - [ ] **A schema oracle says what MAY be set, never what IS set.** Do not quote one as
@@ -117,11 +127,11 @@ normal state.
 
 ## 3. Assess it — the control
 
-- [ ] **Use the id from `controls.json`**, and record every deviation in
+- [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
       `scratch/control-changes.json` with what now covers any dropped ground.
-- [ ] **Replace the superseded seed control**, and check whether it splits. *Seed `MGMT-001`
+- [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
       asserted telnet and http together; `controls.json` has them as two controls.*
-- [ ] **Check whether the assertion is broader than the control's title.** A control named
+- [ ] **Check whether the assertion is broader than the control's title.** `→ control-changes.json` A control named
       for one subject often asserts something true of several. *PAN-MGT-001/002/003 were
       written for the management interface and apply to every administrative surface.*
 - [ ] **A `posture` or `architecture-review` control usually cannot be decided from config.**
@@ -160,7 +170,7 @@ normal state.
       both returned zero against the lab as it stood.* **Set the passing and failing subjects
       in the same commit** — see the note at the top of phase 1 — and prefer subjects the
       discovery phase already created.
-- [ ] **LEAVE the condition in place.** Every implemented control should have at least one
+- [ ] **LEAVE the condition in place.** `→ reproductions.json` Every implemented control should have at least one
       live finding in the lab, permanently. A control with no subject cannot be demonstrated,
       cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
       reported nothing for a correct reason — `server-verification` absent means enabled — so
@@ -172,9 +182,9 @@ normal state.
 - [ ] **Run the real pipeline, not the fixtures.** *Fixtures passed while real config broke
       four separate ways: empty `<units/>`, empty container, subinterface type discrimination,
       and a warning on every unconfigured port.*
-- [ ] **Name what is still fixture-only.** *`layer2`, `tap`, `virtual-wire`, `ha`,
+- [ ] **Name what is still fixture-only.** `→ the vendor guide's Limits` *`layer2`, `tap`, `virtual-wire`, `ha`,
       `dhcp-client`, `pppoe`, IPv6 addressing and `sdwan` have never been seen on hardware.*
-- [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** Two different kinds of lab change:
+- [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** `→ reproductions.json` Two different kinds of lab change:
       config written to measure a shape or a default is scaffolding and comes out; config that
       is the thing a control detects stays. Say plainly which is which. *Template pushes used
       to read provenance markers were reverted; the unused profiles and the disabled
@@ -190,9 +200,10 @@ normal state.
       it holds should have graduated to its durable home, and its entry deleted. A non-empty
       file is a to-do list, and anything left in it has not landed anywhere that will be read
       again.
-- [ ] **Record the lab subject** in `control-changes.json` — which configuration makes this
-      control report. Without it a future reader tidying the lab silently empties the findings,
-      and cannot tell deliberate weakening from a real misconfiguration.
+- [ ] **Record the reproduction** `→ reproductions.json` — the actual API calls that give
+      this control a subject, written from the strings the script used rather than
+      reconstructed later. Note `subject_kind`: a control whose subject is an UNTOUCHED default
+      has no call, and writing the default explicitly would not reproduce it.
 - [ ] **Update `scratch/control-changes.json`.** Move `status` from `decided` to
       `implemented`, record what was built and what verified it, and add any deviation
       decided along the way. The file is only worth having if it still matches what shipped —
@@ -200,9 +211,9 @@ normal state.
 - [ ] **Migration** — and check whether an existing environment needs a data migration.
 - [ ] **Say what the operator must run**: migrate → renormalize → reseed → regenerate
       findings. Renormalize needs no device connection; a sync does.
-- [ ] **Record measurements where the consumer is.** A vendor fact goes in the
+- [ ] **Record measurements where the consumer is.** `→ the vendor guide` A vendor fact goes in the
       OptivEdgeIntegrations guides, next to the code that depends on it; the method stays in
       OptivEdgeProbe. A fact that spans subtrees goes at the top level, not under one of them.
       Stage doc changes for review first.
-- [ ] **Add a discovery-log entry** for anything ambiguous, anything that took more than one
+- [ ] **Add a discovery-log entry** `→ discovery log` for anything ambiguous, anything that took more than one
       attempt, and anything that contradicted an expectation.
