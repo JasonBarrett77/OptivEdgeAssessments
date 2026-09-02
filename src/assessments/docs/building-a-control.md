@@ -177,6 +177,15 @@ and are then deleted, and empty is its normal state.
       OPEN, but so had the state before it, so the surface had never been watched TRANSITION
       into it; re-running from a freshly closed baseline was what turned "still open" into
       "opened".*
+- [ ] **A verification tool must not fail in the direction of its own answer.** The census
+      exists to answer "did a control go quiet". One `try` wrapped its collection AND every
+      normalizer for an appliance, so a single failed read skipped all of them and the tool
+      reported zero findings for that host across every control — a failure that is
+      indistinguishable from the regression it was built to detect. Ask what a tool prints
+      when it breaks, and make that different from what it prints when the finding is real.
+      *Found by a peer session reviewing a fix for the identical coupling one layer down,
+      where one unavailable predefined catalog was discarding all three for both PA-5220s.
+      Same shape, twice in one day: the gating step should be the only one that gates.*
 - [ ] **Validate the instrument before believing it.** `→ payload contract's instrument_note` A
       measuring tool's failure modes mimic device behaviour, and the mimicry is close enough to
       publish. Prove the tool reports a KNOWN result correctly before trusting it on an unknown
