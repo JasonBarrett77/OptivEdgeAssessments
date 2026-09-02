@@ -15,6 +15,12 @@ ask what that tool was doing and find the local equivalent.
 **Add to this file whenever a control turns out to need work after it looked done.** That is
 the only way it stays worth reading.
 
+While a batch is in flight, `OptivEdgeProbe/scratch/in-flight.json` holds what is unfinished —
+measurements not yet recorded, which lab device carries which variant, questions raised and
+unanswered. It is a scratchpad, never a source of truth: entries graduate into the payload
+contract, `control-changes.json` and the discovery log, and are then deleted. Empty is its
+normal state.
+
 ---
 
 ## 1. Understand the configuration — before modelling anything
@@ -33,8 +39,9 @@ the only way it stays worth reading.
 >   that violates it, one that satisfies it, and ideally one that has never been configured.
 >   Those are three objects or three devices, not three rounds.
 >
-> Write down which device or object carries which variant before committing. The saving is
-> real and so is the confusion when a result cannot be attributed.
+> Write down which device or object carries which variant before committing — in
+> `OptivEdgeProbe/scratch/in-flight.json` under `lab_variants`, not in your head. The saving
+> is real and so is the confusion when a result cannot be attributed.
 >
 > This also folds phase 5 into phase 1: a failing subject set up to measure a shape is the
 > subject the control needs left behind, so it never has to be created twice.
@@ -179,6 +186,13 @@ the only way it stays worth reading.
 
 ## 6. Land it
 
+- [ ] **Empty `scratch/in-flight.json`.** Run `python -m scratch.check_in_flight`: every fact
+      it holds should have graduated to its durable home, and its entry deleted. A non-empty
+      file is a to-do list, and anything left in it has not landed anywhere that will be read
+      again.
+- [ ] **Record the lab subject** in `control-changes.json` — which configuration makes this
+      control report. Without it a future reader tidying the lab silently empties the findings,
+      and cannot tell deliberate weakening from a real misconfiguration.
 - [ ] **Update `scratch/control-changes.json`.** Move `status` from `decided` to
       `implemented`, record what was built and what verified it, and add any deviation
       decided along the way. The file is only worth having if it still matches what shipped —
