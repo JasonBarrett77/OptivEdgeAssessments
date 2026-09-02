@@ -190,6 +190,16 @@ and are then deleted, and empty is its normal state.
       OPEN, but so had the state before it, so the surface had never been watched TRANSITION
       into it; re-running from a freshly closed baseline was what turned "still open" into
       "opened".*
+- [ ] **A count is meaningless without the environment that produced it.** Two databases
+      with different appliance topology give different totals for the same correct lab, and a
+      number quoted across them reads as findings lost. Make the tool print WHICH database and
+      what makes it differ, so a total cannot be repeated without its context. *The findings
+      census exists in two forms — one against the probe's own database, one against the Lab
+      project's. The probe census builds STANDALONE appliance groups, so `ha_required` is
+      false and the HA controls can never fire there: a permanent four-finding offset that is
+      structural, not quiet. Two sessions spent a round reconciling 35 against 31 before
+      noticing they were different databases. Both now print their database and group
+      composition on every run.*
 - [ ] **A verification tool must not fail in the direction of its own answer.** The census
       exists to answer "did a control go quiet". One `try` wrapped its collection AND every
       normalizer for an appliance, so a single failed read skipped all of them and the tool
