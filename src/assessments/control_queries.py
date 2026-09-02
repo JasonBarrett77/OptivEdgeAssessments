@@ -11,6 +11,8 @@ SECURITY_RULE_QUERY_MODEL = "integrations.SecurityRule"
 DEVICE_CONFIGURATION_MODEL = "integrations.DeviceConfigurationProfile"
 MANAGEMENT_INTERFACE_MODEL = "integrations.ManagementInterface"
 INTERFACE_MANAGEMENT_PROFILE_MODEL = "integrations.InterfaceManagementProfile"
+SSL_TLS_SERVICE_PROFILE_MODEL = "integrations.SslTlsServiceProfile"
+CERTIFICATE_PROFILE_MODEL = "integrations.CertificateProfile"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -122,6 +124,22 @@ def evaluate_interface_management_profile_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or INTERFACE_MANAGEMENT_PROFILE_MODEL,
+    )
+
+
+def evaluate_ssl_tls_service_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SSL_TLS_SERVICE_PROFILE_MODEL,
+    )
+
+
+def evaluate_certificate_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or CERTIFICATE_PROFILE_MODEL,
     )
 
 

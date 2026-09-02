@@ -31,8 +31,24 @@ from assessments.search.interface_management_profile.compiler import (
     INTERFACE_MANAGEMENT_PROFILE_MODEL,
     compile_interface_management_profile_search_node,
 )
+from assessments.search.ssl_tls_service_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as SSL_TLS_SERVICE_PROFILE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.ssl_tls_service_profile.compiler import (
+    SSL_TLS_SERVICE_PROFILE_MODEL,
+    compile_ssl_tls_service_profile_search_node,
+)
+from assessments.search.certificate_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as CERTIFICATE_PROFILE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.certificate_profile.compiler import (
+    CERTIFICATE_PROFILE_MODEL,
+    compile_certificate_profile_search_node,
+)
 from optivedge_integrations.integrations.models import (
+    CertificateProfile,
     InterfaceManagementProfile,
+    SslTlsServiceProfile,
     DeviceConfigurationProfile,
     ManagementInterface,
     SecurityRule,
@@ -59,6 +75,16 @@ MODEL_REGISTRY = {
         "model_class": InterfaceManagementProfile,
         "field_operators": INTERFACE_MANAGEMENT_PROFILE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_interface_management_profile_search_node,
+    },
+    SSL_TLS_SERVICE_PROFILE_MODEL: {
+        "model_class": SslTlsServiceProfile,
+        "field_operators": SSL_TLS_SERVICE_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ssl_tls_service_profile_search_node,
+    },
+    CERTIFICATE_PROFILE_MODEL: {
+        "model_class": CertificateProfile,
+        "field_operators": CERTIFICATE_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_certificate_profile_search_node,
     },
 }
 

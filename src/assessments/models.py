@@ -11,6 +11,8 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    CertificateProfile,
+    SslTlsServiceProfile,
     InterfaceManagementProfile,
     DeviceConfigurationProfile,
     ManagementInterface,
@@ -40,6 +42,8 @@ class Control(models.Model):
         DEVICE_CONFIGURATION = "device_configuration", "Device Configuration"
         MANAGEMENT_INTERFACE = "management_interface", "Management Interface"
         INTERFACE_MANAGEMENT_PROFILE = "interface_management_profile", "Interface Management Profile"
+        SSL_TLS_SERVICE_PROFILE = "ssl_tls_service_profile", "SSL/TLS Service Profile"
+        CERTIFICATE_PROFILE = "certificate_profile", "Certificate Profile"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -80,6 +84,8 @@ class Control(models.Model):
         "device_configuration": "integrations.DeviceConfigurationProfile",
         "management_interface": "integrations.ManagementInterface",
         "interface_management_profile": "integrations.InterfaceManagementProfile",
+        "ssl_tls_service_profile": "integrations.SslTlsServiceProfile",
+        "certificate_profile": "integrations.CertificateProfile",
         "config": "",
     }
 
@@ -102,6 +108,8 @@ class Control(models.Model):
         "integrations.DeviceConfigurationProfile": "Device Configuration",
         "integrations.ManagementInterface": "Management Interface",
         "integrations.InterfaceManagementProfile": "Interface Management Profile",
+        "integrations.SslTlsServiceProfile": "SSL/TLS Service Profile",
+        "integrations.CertificateProfile": "Certificate Profile",
     }
 
     @property
@@ -611,3 +619,151 @@ class InterfaceManagementProfileFindingControlQuery(models.Model):
 
     def __str__(self) -> str:
         return f"{self.interface_management_profile_finding_id} <- {self.control_query_id}"
+
+
+class SslTlsServiceProfileFinding(models.Model):
+    """A finding against one SSL/TLS service profile ON ONE APPLIANCE.
+
+    Per appliance for the reason InterfaceManagementProfileFinding records: the same object
+    pushed from a Panorama template exists in each firewall's merged config separately, and
+    present on one peer but not another is two facts about two devices.
+
+    The subject carries its SCOPE as well as its name. Two profiles can share a name in
+    different scopes - a shared entry and a predefined one, measured 2026-09-02 - and a
+    finding naming only "TLSv1.3_Default" would not say which was assessed.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SUPPRESSED = "suppressed", "Suppressed"
+        RESOLVED = "resolved", "Resolved"
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ssl_tls_service_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ssl_tls_service_profile_findings")
+    ssl_tls_service_profile = models.ForeignKey(
+        SslTlsServiceProfile, on_delete=models.CASCADE, related_name="findings")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    matched_query_names = models.JSONField(default=list, blank=True)
+    #: Frozen at generation time: the object can be renamed or removed and the finding must
+    #: still say what it found, and in which scope.
+    subject_name = models.CharField(max_length=64, blank=True)
+    subject_scope = models.CharField(max_length=16, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SslTlsServiceProfileFindingControlQuery",
+        related_name="ssl_tls_service_profile_findings", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["ssl_tls_service_profile"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ssl_tls_service_profile"],
+                name="unique_stsp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on SSL/TLS service profile {self.subject_name}"
+
+
+class SslTlsServiceProfileFindingControlQuery(models.Model):
+    ssl_tls_service_profile_finding = models.ForeignKey(
+        SslTlsServiceProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="ssl_tls_service_profile_finding_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ssl_tls_service_profile_finding", "control_query"],
+                name="unique_stsp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ssl_tls_service_profile_finding_id} <- {self.control_query_id}"
+
+
+class CertificateProfileFinding(models.Model):
+    """A finding against one certificate profile ON ONE APPLIANCE.
+
+    Per appliance for the reason InterfaceManagementProfileFinding records: the same object
+    pushed from a Panorama template exists in each firewall's merged config separately, and
+    present on one peer but not another is two facts about two devices.
+
+    The subject carries its SCOPE as well as its name. Two profiles can share a name in
+    different scopes - a shared entry and a predefined one, measured 2026-09-02 - and a
+    finding naming only "TLSv1.3_Default" would not say which was assessed.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SUPPRESSED = "suppressed", "Suppressed"
+        RESOLVED = "resolved", "Resolved"
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="certificate_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="certificate_profile_findings")
+    certificate_profile = models.ForeignKey(
+        CertificateProfile, on_delete=models.CASCADE, related_name="findings")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    matched_query_names = models.JSONField(default=list, blank=True)
+    #: Frozen at generation time: the object can be renamed or removed and the finding must
+    #: still say what it found, and in which scope.
+    subject_name = models.CharField(max_length=64, blank=True)
+    subject_scope = models.CharField(max_length=16, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="CertificateProfileFindingControlQuery",
+        related_name="certificate_profile_findings", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["certificate_profile"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "certificate_profile"],
+                name="unique_cp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on certificate profile {self.subject_name}"
+
+
+class CertificateProfileFindingControlQuery(models.Model):
+    certificate_profile_finding = models.ForeignKey(
+        CertificateProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="certificate_profile_finding_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["certificate_profile_finding", "control_query"],
+                name="unique_cp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.certificate_profile_finding_id} <- {self.control_query_id}"

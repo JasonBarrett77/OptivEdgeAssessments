@@ -18,6 +18,12 @@ from dataclasses import dataclass
 from django.utils import timezone
 
 from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.ssl_tls_service_profile_findings import (
+    generate_ssl_tls_service_profile_findings,
+)
+from assessments.certificate_profile_findings import (
+    generate_certificate_profile_findings,
+)
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
 )
@@ -29,6 +35,8 @@ GENERATORS = (
     ("device configuration", generate_device_configuration_findings),
     ("management interface", generate_management_interface_findings),
     ("interface management profile", generate_interface_management_profile_findings),
+    ("ssl/tls service profile", generate_ssl_tls_service_profile_findings),
+    ("certificate profile", generate_certificate_profile_findings),
 )
 
 

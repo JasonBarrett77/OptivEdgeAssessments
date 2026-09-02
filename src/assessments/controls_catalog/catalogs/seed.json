@@ -13,6 +13,87 @@
       },
       "controls": [
         {
+          "control_id": "PAN-CRT-004",
+          "name": "Certificate Profiles Enforce Revocation Checking",
+          "control_type": "certificate_profile",
+          "description": "Certificate profiles govern how the firewall validates peer certificates - admin certificate authentication, GlobalProtect client certificates, SAML, syslog TLS. CRL or OCSP checking must be enabled, or a revoked credential keeps working until it expires.\\n\\nEither leaf satisfies the floor. Measured 2026-09-02 from the blank Add Certificate Profile form: use-crl and use-ocsp both default to DISABLED, as do all four block-* options, so a profile that sets nothing performs no revocation checking at all. That uniformity is worth knowing rather than assuming - on the management plane, server-verification absent means ENABLED while its neighbour means disabled.",
+          "rationale": "Revocation is the only mechanism that withdraws trust from a credential before it expires. Without it, a compromised administrator certificate remains valid for its full lifetime no matter how quickly the compromise is detected.",
+          "audit": "At Device > Certificate Management > Certificate Profile, confirm each profile has Use CRL or Use OCSP ticked. Note that OCSP takes precedence over CRL where both are on, as the dialog states.",
+          "remediation": "Enable Use OCSP with Use CRL as fallback, and set Block session if certificate status is unknown and Block session if certificate status cannot be retrieved within timeout - without those, a failed check is indistinguishable from a passed one.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.CertificateProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "use_crl",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "use_ocsp",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.CertificateProfile"
+        },
+        {
+          "control_id": "PAN-CRT-005",
+          "name": "SSL/TLS Service Profiles Enforce TLS 1.2 Minimum",
+          "control_type": "ssl_tls_service_profile",
+          "description": "SSL/TLS service profiles set the protocol floor for every service terminating TLS on the device: management UI, GlobalProtect portal and gateway, Captive Portal, syslog. TLS 1.0 and 1.1 are formally deprecated by RFC 8996.\\n\\nThis control asserts the FLOOR and nothing else, which is what the corpus specifies. It is worth being explicit about what that leaves out: measured 2026-09-02, an absent algorithm key means ENABLED, so a profile carrying only a version range permits SHA-1 authentication and CBC encryption. Every profile in the lab does. Those settings are collected and shown beside the floor so an engineer can see them, and no control fires on them yet.\\n\\nAssessed per profile per appliance per SCOPE. A name is not unique on a device - TLSv1.3_Default exists as both a predefined and a shared entry - and the predefined definition is the one in force.",
+          "rationale": "A profile is reusable by design, so a weak floor set once is inherited by every service that binds it. Auditing the bound profile alone misses the profile that is about to be bound.",
+          "audit": "At Device > Certificate Management > SSL/TLS Service Profile, confirm Min Version is TLSv1.2 or higher on every profile, not only the one bound to the management interface.",
+          "remediation": "Set Min Version to TLSv1.2 on each profile, or TLSv1.3 where every client supports it. Consider also unticking SHA1 and the CBC encryption algorithms, which are enabled by default and are not covered by this control.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.SslTlsServiceProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "min_version",
+                    "op": "eq",
+                    "value": "tls1-0"
+                  },
+                  {
+                    "field": "min_version",
+                    "op": "eq",
+                    "value": "tls1-1"
+                  },
+                  {
+                    "field": "min_version",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.SslTlsServiceProfile"
+        },
+        {
           "control_id": "PAN-CRT-006",
           "name": "Management Certificate Issued by Trusted CA",
           "control_type": "device_configuration",
