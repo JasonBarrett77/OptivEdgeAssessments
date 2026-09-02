@@ -94,6 +94,17 @@ and are then deleted, and empty is its normal state.
       `action=complete`. The `vlan` payload shape was asserted from it and only later
       measured, and it happened to be right.*
 
+- [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
+      guards against id collisions — next free number, check both files — and says nothing
+      about a control that already exists under a different domain. Grep `controls.json` for
+      the *assertion*, not the name, and check neighbouring domains before deciding a control
+      is new. *PAN-MGT-014 was allocated for the certificate half of a split, and duplicated
+      PAN-CRT-006 "Management Certificate Issued by Trusted CA" — same intent, same
+      man-in-the-middle rationale, same minimum. Splitting a control feels like creating one,
+      so the corpus was never searched for the half being split off; it surfaced only when the
+      certificates domain came up as the next batch. Re-identified, and nothing about the
+      built control changed — it was correct and filed under the wrong number.*
+
 ## 2. Model it — in OptivEdgeIntegrations
 
 - [ ] **Decide the object root by asking what a finding names.** *"Telnet is enabled" is not

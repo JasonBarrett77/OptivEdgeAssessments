@@ -29,7 +29,7 @@ from optivedge_integrations.integrations.platforms.pan_os.normalization import (
     normalize_appliance_device_configuration)
 
 CONTROL_ID = "PAN-MGT-010"
-CERT_CONTROL_ID = "PAN-MGT-014"
+CERT_CONTROL_ID = "PAN-CRT-006"
 
 
 class ManagementTlsControlTests(TestCase):
@@ -199,7 +199,7 @@ class ManagementTlsControlTests(TestCase):
 
 
 class ManagementCertificateControlTests(ManagementTlsControlTests):
-    """PAN-MGT-014 - the certificate half, split out of PAN-MGT-010.
+    """PAN-CRT-006 - the certificate half, split out of PAN-MGT-010.
 
     The split exists because the two fail independently, and the lab proves it on one row:
     fw-core-tpa-b binds a profile at min tls1-2 with a self-signed certificate, so it PASSES

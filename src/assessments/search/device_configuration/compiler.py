@@ -95,7 +95,7 @@ FIELD_COMPILERS = {
     "ssl_tls_max_version": build_text_compiler("ssl_tls_max_version", "ssl_tls_max_version"),
     "ssl_tls_certificate_name": build_text_compiler(
         "ssl_tls_certificate_name", "ssl_tls_certificate_name"),
-    # PAN-MGT-014. A classified value, not a boolean - see the model. Blank is a fourth state
+    # PAN-CRT-006. A classified value, not a boolean - see the model. Blank is a fourth state
     # meaning nothing is bound, and like `undetermined` it is not `ca_issued`, so a control
     # written as "fires unless CA-issued" catches both without enumerating them.
     "ssl_tls_certificate_trust": build_text_compiler(

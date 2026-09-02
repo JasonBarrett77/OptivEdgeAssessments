@@ -87,7 +87,7 @@ BANNER_CONTROLS = ("PAN-MGT-007", "PAN-MGT-008")
 #: The bound profile and the certificate it carries. Two controls, deliberately: the shipped
 #: TLSv1.3_Default profile satisfies the protocol floor and still serves the device's own
 #: self-signed certificate, so they pass and fail independently on the same row.
-MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-MGT-014")
+MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-CRT-006")
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -911,7 +911,7 @@ class ManagementTlsListView(TemplateView):
 
     The two controls are shown side by side because the interesting rows are the ones where
     they disagree. A device bound to the shipped TLSv1.3_Default profile passes PAN-MGT-010
-    with the strongest protocol floor available and fails PAN-MGT-014, because that profile's
+    with the strongest protocol floor available and fails PAN-CRT-006, because that profile's
     certificate is the device's own self-signed one. Splitting them across tabs would hide
     the single most common remediation trap.
 
