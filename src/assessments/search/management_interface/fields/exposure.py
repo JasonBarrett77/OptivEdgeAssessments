@@ -3,7 +3,8 @@
 Three states, not two. `undetermined` exists because a permitted-source entry that does not
 parse - an IPv6 literal on an IPv4-only pipeline, or a typo - can support neither verdict.
 Reporting it as restricted would be a false clean result, which is the failure mode the
-whole management-plane investigation exists to avoid.
+whole management-plane investigation exists to avoid. That is now the ONLY thing it means:
+the wildcard-alongside-other-entries case was undetermined until 2026-09-02 and is measured.
 
 Measured 2026-08-27: an absent or empty permitted-source list means ANY source that can
 route to the interface, verified by connecting to a data-plane interface with a profile
@@ -47,29 +48,39 @@ def classify(values: list[tuple[str, int | None]], *,
     UNDETERMINED now means only what it should: an entry nothing can evaluate, or one whose
     effect is not established.
 
-    An all-addresses entry - `0.0.0.0/0`, `::/0` - needs the plane, because the answer
-    differs and one half of it is measured.
-
-    On the measured plane there is ONE rule: PAN-OS drops the entry from the compiled ACL.
-    Both outcomes people describe separately fall out of that - dropped from a list of one
-    leaves an empty list, which is what Palo Alto documents "any" to mean; dropped from a
-    longer list leaves the specific entries as the real restriction.
+    An all-addresses entry - `0.0.0.0/0`, `::/0` - needs the plane, because the two planes
+    genuinely behave differently. Both halves are now measured.
 
     ALONE it is UNRESTRICTED on any plane, and that needs no measurement: dropped, the list
     is empty and permits everything; kept, it permits everything by its own terms. A real
     firewall permitted only 0.0.0.0/0 on its management interface and was reported Restricted
     - the false clean result this classifier exists to prevent.
 
-    ALONGSIDE other entries the planes differ:
+    ALONGSIDE other entries the planes disagree, and the disagreement is the whole reason
+    this parameter exists:
 
-    - On a **deviceconfig plane** the entry is dropped, so `[0.0.0.0/0, 10.99.99.99]` permits
-      10.99.99.99 and nobody else. Measured; see
+    - On a **deviceconfig plane** PAN-OS drops the entry when it compiles the ACL, so
+      `[0.0.0.0/0, 10.99.99.99]` permits 10.99.99.99 and nobody else - RESTRICTED. Measured
+      from the compiled ACL; see
       `docs/palo-alto/pan-os/management/read-device-configuration.md`. Calling that
       unrestricted would be a false positive on a hardened device, which that guide says
       explicitly.
-    - On a **data-plane profile** the same dropping is **unmeasured**, so neither answer can
-      be claimed and the honest result is UNDETERMINED. PAN-MGT-003 matches UNDETERMINED as
-      well as UNRESTRICTED, so the surface is reported rather than quietly assumed safe.
+    - On a **data-plane profile** the entry is KEPT, so the same list permits everyone -
+      UNRESTRICTED. Measured 2026-09-02 by connection, because a profile has no compiled ACL
+      to read:
+
+          [10.99.99.99]                    443 closed   enforcement is live (the control)
+          [0.0.0.0/0]                      443 OPEN
+          [0.0.0.0/0, 10.99.99.99]         443 OPEN     the wildcard is honoured
+          [0.0.0.0/0, 192.168.250.0/24]    443 OPEN
+
+      The third row is the finding, and it was re-run from a freshly closed baseline: taken
+      straight after the second row it would only have shown a surface that never re-closed,
+      which is not the same evidence as one that opened.
+
+    This combination used to return UNDETERMINED, because neither answer could be claimed.
+    It is no longer a hedge - the surface really is open to everyone, and PAN-MGT-003 (which
+    matches UNRESTRICTED as well as UNDETERMINED) reports it for a measured reason.
     """
     if not values:
         return UNRESTRICTED
@@ -78,9 +89,10 @@ def classify(values: list[tuple[str, int | None]], *,
     if all(_permits_any_address(value) for value, _ in values):
         return UNRESTRICTED
     if any(_permits_any_address(value) for value, _ in values):
-        # The entry is dropped on a deviceconfig plane, leaving the specific entries as the
-        # real restriction. Whether a profile drops it too has never been measured.
-        return RESTRICTED if wildcard_is_stripped else UNDETERMINED
+        # Dropped on a deviceconfig plane, leaving the specific entries as the real
+        # restriction; honoured on a data-plane profile, where it opens the surface to
+        # everyone whatever else the list holds. Both measured - see the docstring.
+        return RESTRICTED if wildcard_is_stripped else UNRESTRICTED
     return RESTRICTED
 
 
@@ -94,8 +106,8 @@ def _permits_any_address(value: str) -> bool:
 
 def exposure_by_interface() -> dict[int, str]:
     sources: dict[int, list[tuple[str, int | None]]] = {}
-    #: Wildcard stripping is measured on the deviceconfig planes and unmeasured on a
-    #: profile, so the plane decides how a mixed list is read.
+    #: PAN-OS strips the wildcard when it compiles a deviceconfig ACL and honours it on a
+    #: data-plane profile, so the plane decides how a mixed list is read. Both measured.
     stripped: dict[int, bool] = {}
     for pk, plane in ManagementInterface.objects.values_list("pk", "plane"):
         sources[pk] = []

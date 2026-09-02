@@ -154,6 +154,19 @@ and are then deleted, and empty is its normal state.
 
 ## 4. Present it
 
+- [ ] **A new subject gets its OWN TAB, not columns on Device Configuration.** That table is
+      being retired precisely because it accumulated a column group per finding type and every
+      new control widened it; object- and control-specific tabs replace it as they come up. Put
+      the subject and its controls on one tab, and show controls that fail independently side
+      by side so the rows where they disagree are visible. *PAN-MGT-010 was first built as a
+      three-column group on Device Configuration, which the LoginBannerListView docstring
+      already explained not to do. It became the Management TLS tab, which is also what made
+      the 010-passes / 014-fails row legible on a single line.*
+- [ ] **Show only the provenance you actually have.** Values resolved from an object elsewhere
+      in the tree carry no `@ptpl` of their own, so a provenance line under them is an
+      invention. *On the Management TLS tab only the BINDING has provenance; the profile's
+      protocol range and certificate are read from the profile object and deliberately show
+      none.*
 - [ ] **Assert the table stays square.** Body cells == header cells; group spans cover every
       column. *Removing two model fields left the headers declaring columns the body no longer
       rendered, shifting everything after them.*

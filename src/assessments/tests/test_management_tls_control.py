@@ -29,6 +29,7 @@ from optivedge_integrations.integrations.platforms.pan_os.normalization import (
     normalize_appliance_device_configuration)
 
 CONTROL_ID = "PAN-MGT-010"
+CERT_CONTROL_ID = "PAN-MGT-014"
 
 
 class ManagementTlsControlTests(TestCase):
@@ -38,23 +39,26 @@ class ManagementTlsControlTests(TestCase):
         self.group = ApplianceGroup.objects.create(
             management_station=self.station, name="g-tls",
             group_type=ApplianceGroup.TYPE_STANDALONE)
-        spec = {c["control_id"]: c
-                for c in load_seed_payload()["catalogs"][0]["controls"]}[CONTROL_ID]
-        control = Control.objects.create(
-            control_id=CONTROL_ID, name=spec["name"],
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
-            description=spec["description"],
-            default_severity=spec["default_severity"],
-            target_model=spec["target_model"])
-        for query in spec["queries"]:
-            ControlQuery.objects.create(
-                control=control, name=query["name"],
-                canonical_query=query["canonical_query"],
-                is_baseline=query["is_baseline"], is_active=query["is_active"])
+        specs = {c["control_id"]: c
+                 for c in load_seed_payload()["catalogs"][0]["controls"]}
+        for control_id in (CONTROL_ID, CERT_CONTROL_ID):
+            spec = specs[control_id]
+            control = Control.objects.create(
+                control_id=control_id, name=spec["name"],
+                control_type=Control.ControlType.DEVICE_CONFIGURATION,
+                description=spec["description"],
+                default_severity=spec["default_severity"],
+                target_model=spec["target_model"])
+            for query in spec["queries"]:
+                ControlQuery.objects.create(
+                    control=control, name=query["name"],
+                    canonical_query=query["canonical_query"],
+                    is_baseline=query["is_baseline"], is_active=query["is_active"])
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
 
-    def _profile(self, hostname, *, bound=None, shared=None, predefined=None):
+    def _profile(self, hostname, *, bound=None, shared=None, predefined=None,
+                 shared_certs=None, predefined_certs=None):
         appliance = Appliance.objects.create(
             management_station=self.station, appliance_group=self.group,
             serial_number=f"S-{hostname}", hostname=hostname)
@@ -63,7 +67,9 @@ class ManagementTlsControlTests(TestCase):
             system["ssl-tls-service-profile"] = bound
         config = {"devices": {"entry": {"deviceconfig": {"system": system}}}}
         if shared is not None:
-            config["shared"] = {"ssl-tls-service-profile": {"entry": shared}}
+            config.setdefault("shared", {})["ssl-tls-service-profile"] = {"entry": shared}
+        if shared_certs is not None:
+            config.setdefault("shared", {})["certificate"] = {"entry": shared_certs}
         Snapshot.objects.create(
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(),
@@ -78,15 +84,25 @@ class ManagementTlsControlTests(TestCase):
                 source_type="config_predefined_ssl_tls_service_profiles",
                 collected_at=timezone.now(),
                 payload={"ssl-tls-service-profile": {"entry": predefined}})
+        if predefined_certs is not None:
+            Snapshot.objects.create(
+                management_station=self.station, appliance=appliance,
+                source_type="config_predefined_certificates",
+                collected_at=timezone.now(),
+                payload={"certificate": {"entry": predefined_certs}})
         normalize_appliance_device_configuration(appliance)
         return DeviceConfigurationProfile.objects.get(appliance=appliance)
 
-    def _findings(self):
+    def _findings(self, control_id=CONTROL_ID):
         generate_device_configuration_findings(self.run)
         return {f.device_configuration_profile.appliance.hostname
                 for f in DeviceConfigurationFinding.objects.select_related(
                     "control", "device_configuration_profile__appliance")
-                if f.control.control_id == CONTROL_ID}
+                if f.control.control_id == control_id}
+
+    def _cert(self, name, *, subject_hash, issuer_hash, issuer):
+        return [{"@name": name, "subject-hash": subject_hash,
+                 "issuer-hash": issuer_hash, "issuer": issuer, "subject": issuer}]
 
     def _entry(self, name, minimum, maximum, certificate="cert"):
         return [{"@name": name,
@@ -180,3 +196,92 @@ class ManagementTlsControlTests(TestCase):
             DeviceConfigurationProfile.SSL_TLS_SCOPE_SHARED)
         self.assertEqual(profile.ssl_tls_min_version, "")
         self.assertIn("fw-silent", self._findings())
+
+
+class ManagementCertificateControlTests(ManagementTlsControlTests):
+    """PAN-MGT-014 - the certificate half, split out of PAN-MGT-010.
+
+    The split exists because the two fail independently, and the lab proves it on one row:
+    fw-core-tpa-b binds a profile at min tls1-2 with a self-signed certificate, so it PASSES
+    010 and FAILS 014. Testing them together in one class keeps that relationship visible.
+    """
+
+    def test_the_shipped_profile_passes_the_floor_and_fails_the_certificate(self):
+        """The single most important row, and the reason these are two controls.
+
+        TLSv1.3_Default is the obvious remediation for PAN-MGT-010 - it is shipped, needs no
+        certificate work, and gives the strongest floor available. Measured 2026-09-02, its
+        certificate is /config/predefined/certificate's TLSv1.3_Default, which is the
+        DEVICE'S OWN factory certificate: common-name equal to the chassis serial, and
+        self-signed. So taking the easy fix for 010 leaves 014 failing, and a single merged
+        control would have reported that device as compliant.
+        """
+        profile = self._profile(
+            "fw-shipped", bound="TLSv1.3_Default",
+            predefined=self._entry("TLSv1.3_Default", "tls1-3", "tls1-3",
+                                   certificate="TLSv1.3_Default"),
+            predefined_certs=self._cert("TLSv1.3_Default", subject_hash="a95dc92c",
+                                        issuer_hash="a95dc92c", issuer="013201001085"))
+        self.assertEqual(profile.ssl_tls_min_version, "tls1-3")
+        self.assertEqual(profile.ssl_tls_certificate_trust,
+                         DeviceConfigurationProfile.TRUST_SELF_SIGNED)
+        self.assertNotIn("fw-shipped", self._findings(CONTROL_ID))
+        self.assertIn("fw-shipped", self._findings(CERT_CONTROL_ID))
+
+    def test_a_ca_issued_certificate_passes(self):
+        profile = self._profile(
+            "fw-ca", bound="hardened",
+            shared=self._entry("hardened", "tls1-2", "tls1-3", certificate="corp"),
+            shared_certs=self._cert("corp", subject_hash="1111aaaa",
+                                    issuer_hash="2222bbbb", issuer="/CN=Corp Issuing CA"))
+        self.assertEqual(profile.ssl_tls_certificate_trust,
+                         DeviceConfigurationProfile.TRUST_CA_ISSUED)
+        self.assertEqual(profile.ssl_tls_certificate_issuer, "/CN=Corp Issuing CA")
+        self.assertNotIn("fw-ca", self._findings(CERT_CONTROL_ID))
+
+    def test_self_signed_is_decided_by_hashes_not_by_comparing_names(self):
+        """The DN strings are formatted differently between scopes.
+
+        Measured 2026-09-02: a shared certificate reports subject "/CN=oep-tls-test.lab" while
+        a predefined one reports a bare "013201001085". Comparing subject to issuer as TEXT
+        happens to work within one scope and silently stops working across them, so PAN-OS's
+        own hashes are the oracle. This fixture makes the two disagree on purpose: identical
+        hashes with differently-formatted names must still read self-signed.
+        """
+        profile = self._profile(
+            "fw-hashes", bound="p",
+            shared=self._entry("p", "tls1-2", "tls1-3", certificate="c"),
+            shared_certs=[{"@name": "c", "subject-hash": "dead", "issuer-hash": "dead",
+                           "subject": "/CN=thing", "issuer": "thing"}])
+        self.assertEqual(profile.ssl_tls_certificate_trust,
+                         DeviceConfigurationProfile.TRUST_SELF_SIGNED)
+
+    def test_nothing_bound_still_reports(self):
+        """Follows the precedent set for PAN-MGT-008.
+
+        With no profile bound the device serves its own self-signed certificate, so the gap is
+        real even though remediating it requires binding a profile first - exactly the shape
+        of a missing banner acknowledgement, which was ruled to report regardless of whether a
+        banner exists.
+        """
+        profile = self._profile("fw-none")
+        self.assertEqual(profile.ssl_tls_certificate_trust, "")
+        self.assertIn("fw-none", self._findings(CERT_CONTROL_ID))
+
+    def test_a_certificate_that_resolves_nowhere_is_undetermined_not_passed(self):
+        profile = self._profile(
+            "fw-nocert", bound="p",
+            shared=self._entry("p", "tls1-2", "tls1-3", certificate="missing"))
+        self.assertEqual(profile.ssl_tls_certificate_trust,
+                         DeviceConfigurationProfile.TRUST_UNDETERMINED)
+        self.assertIn("fw-nocert", self._findings(CERT_CONTROL_ID))
+        self.assertNotIn("fw-nocert", self._findings(CONTROL_ID))
+
+    def test_a_certificate_without_hashes_is_undetermined(self):
+        profile = self._profile(
+            "fw-nohash", bound="p",
+            shared=self._entry("p", "tls1-2", "tls1-3", certificate="c"),
+            shared_certs=[{"@name": "c", "issuer": "/CN=Something"}])
+        self.assertEqual(profile.ssl_tls_certificate_trust,
+                         DeviceConfigurationProfile.TRUST_UNDETERMINED)
+        self.assertIn("fw-nohash", self._findings(CERT_CONTROL_ID))

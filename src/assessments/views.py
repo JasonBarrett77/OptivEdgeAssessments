@@ -84,6 +84,10 @@ PAGE_SIZE = 100
 #: The controls this tab is about. Named rather than derived, so an unrelated
 #: device-configuration control appearing later does not silently widen the tab.
 BANNER_CONTROLS = ("PAN-MGT-007", "PAN-MGT-008")
+#: The bound profile and the certificate it carries. Two controls, deliberately: the shipped
+#: TLSv1.3_Default profile satisfies the protocol floor and still serves the device's own
+#: self-signed certificate, so they pass and fail independently on the same row.
+MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-MGT-014")
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -883,6 +887,67 @@ class LoginBannerListView(TemplateView):
                 "profile": profile,
                 "banner_provenance": banner_sources.get(profile.pk, ""),
                 "ack_provenance": ack_sources.get(profile.pk, ""),
+                "findings": findings_by_profile.get(profile.pk, []),
+            }
+            for profile in profiles
+        ]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class ManagementTlsListView(TemplateView):
+    """What the management web interface negotiates, and what it presents while doing it.
+
+    Its own tab rather than columns on Device Configuration, for the reason recorded on
+    LoginBannerListView: that table was accumulating a column group per finding type and each
+    new control widened it. This subject needs five columns on its own, and the tab it would
+    otherwise have widened is being retired in favour of exactly this shape.
+
+    The two controls are shown side by side because the interesting rows are the ones where
+    they disagree. A device bound to the shipped TLSv1.3_Default profile passes PAN-MGT-010
+    with the strongest protocol floor available and fails PAN-MGT-014, because that profile's
+    certificate is the device's own self-signed one. Splitting them across tabs would hide
+    the single most common remediation trap.
+
+    Provenance is under a NAMED field rather than "__entry__" - a DeviceConfigurationProfile
+    carries many values on one row - and only the BINDING has any. The resolved values are
+    read from a profile object elsewhere in the tree, so they carry no @ptpl of their own and
+    a provenance line under them would be an invention.
+    """
+
+    template_name = "assessments/management_tls_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
+
+        profiles = list(
+            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname")
+        )
+
+        findings_by_profile = {}
+        for finding in (
+            DeviceConfigurationFinding.objects.select_related("control")
+            .filter(status=DeviceConfigurationFinding.Status.OPEN,
+                    control__control_id__in=MANAGEMENT_TLS_CONTROLS)
+        ):
+            findings_by_profile.setdefault(
+                finding.device_configuration_profile_id, []).append(finding)
+
+        binding_sources = _entry_provenance(profiles, "ssl_tls_service_profile_name")
+
+        rows = [
+            {
+                "profile": profile,
+                "binding_provenance": binding_sources.get(profile.pk, ""),
                 "findings": findings_by_profile.get(profile.pk, []),
             }
             for profile in profiles

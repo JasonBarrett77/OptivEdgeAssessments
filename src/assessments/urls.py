@@ -24,6 +24,7 @@ from assessments.views import (
     DeviceConfigurationProfileListView,
     InterfaceManagementProfileListView,
     LoginBannerListView,
+    ManagementTlsListView,
     ManagementInterfaceListView,
     FindingListView,
     RuleFindingDocxDownloadView,
@@ -117,6 +118,11 @@ urlpatterns = [
         "login-banner/",
         LoginBannerListView.as_view(),
         name="assessment_login_banner_list",
+    ),
+    path(
+        "management-tls/",
+        ManagementTlsListView.as_view(),
+        name="assessment_management_tls_list",
     ),
     path(
         "device-configuration/",

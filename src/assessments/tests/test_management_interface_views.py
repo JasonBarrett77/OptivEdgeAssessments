@@ -310,23 +310,29 @@ class AnyAddressExposureTests(TestCase):
                 classify([("0.0.0.0/0", 4)], wildcard_is_stripped=stripped), UNRESTRICTED)
 
     def test_beside_other_entries_the_planes_differ(self):
-        """Measured on a deviceconfig plane, unmeasured on a profile.
+        """Both planes measured, and they disagree.
 
-        PAN-OS strips the wildcard when compiling the ACL, so [0.0.0.0/0, jump host] permits
-        the jump host and nobody else. Reporting that as unrestricted is a false positive on
-        a hardened device, which read-device-configuration.md says explicitly. Whether a
-        profile strips it the same way has never been measured, so there it is undetermined.
+        PAN-OS strips the wildcard when compiling a deviceconfig ACL, so [0.0.0.0/0, jump
+        host] permits the jump host and nobody else. Reporting that as unrestricted is a
+        false positive on a hardened device, which read-device-configuration.md says
+        explicitly. A data-plane profile does NOT strip it - measured 2026-09-02 by
+        connection, since a profile has no compiled ACL to read - so the same list there
+        really does permit everyone.
+
+        The direction matters: these two must not be collapsed to one rule. Assuming the
+        deviceconfig behaviour everywhere hides an open surface; assuming the profile
+        behaviour everywhere flags a hardened one.
         """
         from assessments.search.management_interface.fields.exposure import (
-            RESTRICTED, UNDETERMINED, classify)
+            RESTRICTED, UNRESTRICTED, classify)
         mixed = [("0.0.0.0/0", 4), ("10.99.99.99/32", 4)]
         self.assertEqual(classify(mixed, wildcard_is_stripped=True), RESTRICTED)
-        self.assertEqual(classify(mixed, wildcard_is_stripped=False), UNDETERMINED)
+        self.assertEqual(classify(mixed, wildcard_is_stripped=False), UNRESTRICTED)
 
     def test_the_plane_decides_which_rule_applies(self):
         """exposure_by_interface must pick the rule per surface, not once for the table."""
         from assessments.search.management_interface.fields.exposure import (
-            RESTRICTED, UNDETERMINED, exposure_by_interface)
+            RESTRICTED, UNRESTRICTED, exposure_by_interface)
         for plane, iface, profile in ((ManagementInterface.PLANE_MGT, "", ""),
                                       (ManagementInterface.PLANE_DATAPLANE, "ethernet1/9", "p")):
             surface = ManagementInterface.objects.create(
@@ -339,7 +345,7 @@ class AnyAddressExposureTests(TestCase):
             setattr(self, f"surface_{plane}", surface)
         exposure = exposure_by_interface()
         self.assertEqual(exposure[getattr(self, "surface_mgt").pk], RESTRICTED)
-        self.assertEqual(exposure[getattr(self, "surface_dataplane").pk], UNDETERMINED)
+        self.assertEqual(exposure[getattr(self, "surface_dataplane").pk], UNRESTRICTED)
 
     def test_ordinary_entries_still_restrict(self):
         from assessments.search.management_interface.fields.exposure import (

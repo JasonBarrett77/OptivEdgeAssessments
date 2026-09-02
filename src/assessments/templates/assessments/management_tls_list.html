@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Management TLS{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
+
+            {% include "assessments/partials/device_tabs.html" with active_tab="management_tls" %}
+
+            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
+                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
+                    The SSL/TLS service profile bound to the management interface, and the certificate it
+                    presents. Two controls, because they fail independently &mdash; the shipped
+                    <span class="font-medium">TLSv1.3_Default</span> profile gives the strongest protocol
+                    floor available and still serves the device&rsquo;s own self-signed certificate.
+                    With nothing bound, the interface accepts TLS&nbsp;1.1.
+                </div>
+                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
+                <a
+                    href="?{% if findings_only %}findings=1&amp;{% endif %}{% if not show_provenance %}provenance=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if show_provenance %}border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if show_provenance %}Hide where the binding came from{% else %}Show which template or stack pushed the binding{% endif %}"
+                >
+                    {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if show_provenance %}Provenance on{% else %}Provenance off{% endif %}
+                </a>
+                <a
+                    href="?{% if show_provenance %}provenance=1&amp;{% endif %}{% if not findings_only %}findings=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if findings_only %}Show every appliance{% else %}Show only appliances with an open finding{% endif %}"
+                >
+                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if findings_only %}With findings{% else %}All appliances{% endif %}
+                </a>
+                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
+                    {{ shown_count }} of {{ total_count }}
+                </div>
+            </div>
+
+            {% if not total_count %}
+            <div class="px-4 py-8 text-center text-sm text-slate-500">
+                No device configuration has been normalized. If configuration has already been
+                collected, <strong>Renormalize</strong> on Firewall Integrations is enough &mdash;
+                this is read from the stored snapshot and needs no device connection. Then regenerate
+                configuration findings.
+            </div>
+            {% else %}
+            <div class="min-h-0 flex-1 overflow-auto pt-2">
+                <table class="analytical-table w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Bound Profile</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Protocol Range</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Certificate</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Issuer</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
+                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Collected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+                                {% if row.profile.ssl_tls_service_profile_name %}
+                                    <span class="text-slate-800">{{ row.profile.ssl_tls_service_profile_name }}</span>
+                                    {% if row.profile.ssl_tls_profile_scope %}<div class="text-[10px] leading-3 text-slate-500">{{ row.profile.get_ssl_tls_profile_scope_display|lower }}</div>{% endif %}
+                                {% else %}<span class="text-amber-700">None bound</span>{% endif %}
+                                {% if show_provenance and row.binding_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.binding_provenance }}</div>{% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+                                {% if row.profile.ssl_tls_min_version %}
+                                    <span class="text-slate-800">{{ row.profile.ssl_tls_min_version }} &ndash; {{ row.profile.ssl_tls_max_version|default:"?" }}</span>
+                                {% elif row.profile.ssl_tls_service_profile_name %}
+                                    <span class="text-amber-700">Unknown</span>
+                                {% else %}
+                                    <span class="text-amber-700">Accepts TLS 1.1</span>
+                                {% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+                                {% if row.profile.ssl_tls_certificate_name %}
+                                    <span class="text-slate-800">{{ row.profile.ssl_tls_certificate_name }}</span>
+                                    <div class="text-[10px] leading-3 {% if row.profile.ssl_tls_certificate_trust == 'ca_issued' %}text-slate-500{% else %}text-amber-700{% endif %}">{{ row.profile.get_ssl_tls_certificate_trust_display|lower }}</div>
+                                {% else %}<span class="text-amber-700">Device default</span>{% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-600" style="max-width:20rem">
+                                {% if row.profile.ssl_tls_certificate_issuer %}<span title="{{ row.profile.ssl_tls_certificate_issuer }}">{{ row.profile.ssl_tls_certificate_issuer|truncatechars:48 }}</span>{% else %}<span class="text-slate-400">&mdash;</span>{% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+                                {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }}</div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.profile.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">
+                                No appliance currently has an open management TLS finding.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}
