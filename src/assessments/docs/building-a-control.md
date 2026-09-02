@@ -166,6 +166,29 @@ and are then deleted, and empty is its normal state.
 
 ## 5. Prove it — against hardware, not fixtures
 
+- [ ] **Include a state that MUST come back different.** When a measurement's answer is "no
+      change", that reading is indistinguishable from "the thing was never wired up" — the
+      instrument being broken and the device being uninteresting look identical. Pair every
+      such measurement with a control state whose result is known in advance, in the same run.
+      *This was hit twice on one day, 2026-09-02, on unrelated objects. A custom SSL/TLS
+      profile sharing a predefined name changed nothing; only a second, uniquely-named profile
+      — which did change what negotiated, proving bindings work on that device at all — made
+      the null result admissible. Separately, `[0.0.0.0/0, 10.99.99.99]` on a profile came back
+      OPEN, but so had the state before it, so the surface had never been watched TRANSITION
+      into it; re-running from a freshly closed baseline was what turned "still open" into
+      "opened".*
+- [ ] **Validate the instrument before believing it.** `→ payload contract's instrument_note` A
+      measuring tool's failure modes mimic device behaviour, and the mimicry is close enough to
+      publish. Prove the tool reports a KNOWN result correctly before trusting it on an unknown
+      one, and record every trap next to the measurement so the next reader does not re-derive
+      it. *`measure_mgmt_tls.sh` produced four separate wrong answers: openssl prints
+      `verify error:num=18` on SUCCESSFUL handshakes, so grepping for "error" reported every
+      version refused; it silently will not OFFER tls1/tls1_1 without `SECLEVEL=0`, which reads
+      as a server refusal; detecting on the session summary's `Protocol :` line loses TLS 1.3
+      entirely, so a correctly hardened device looked like it refused everything — the most
+      dangerous of the four, because 1.3 is the PASSING outcome; and the obvious fix, the
+      `New, TLSv...` line, reports genuine 1.1 and 1.2 handshakes as `TLSv1.0`. A device fact
+      was published from the third of these and had to be corrected.*
 - [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
       Configure the condition on the lab and watch it fire on the right subject. *001 and 002
       both returned zero against the lab as it stood.* **Set the passing and failing subjects
@@ -191,10 +214,19 @@ and are then deleted, and empty is its normal state.
       erroring, so a successful delete is not evidence anything was there. **Measured** — it
       still dirties the candidate config, so a probe that changes nothing semantically needs a
       commit or a `<revert><config/></revert>` afterwards.
-      **Expected but never observed** — that a leaf which cannot be deleted errors, and that
-      walking UP the tree then finds a level that accepts the delete. No refusal has been seen
-      to test it against; if one turns up, record the error text and the level that accepted
-      it. Tracked in `in-flight.json`.
+      **Measured** — a refused delete DOES error, loudly and specifically:
+      `status=error code=10`, `"oep-tls-control cannot be deleted because of references from:
+      deviceconfig -> system -> ssl-tls-service-profile"`. It names the referring path, so the
+      error tells you what to fix.
+      **Falsified** — walking UP the tree does NOT help here, and this item used to tell you to
+      try it. That refusal is *referential*, not structural: the parent container is held by the
+      same reference, so every level up refuses for the identical reason. What clears it is
+      removing the REFERENCE, not finding a bigger hammer. Referential integrity is evaluated
+      against the CANDIDATE, so re-pointing the referrer earlier in the same commit makes the
+      delete succeed — no extra commit needed. Order scaffolding removal accordingly: create
+      and re-bind the replacement first, delete the old object second.
+      Whether a *structurally* undeletable leaf exists, and whether walking up helps for that
+      case, is still unobserved — do not assume this measurement covers it.
 - [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** `→ reproductions.json` Two different kinds of lab change:
       config written to measure a shape or a default is scaffolding and comes out; config that
       is the thing a control detects stays. Say plainly which is which. *Template pushes used
