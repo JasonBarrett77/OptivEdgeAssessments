@@ -19,6 +19,27 @@ the only way it stays worth reading.
 
 ## 1. Understand the configuration — before modelling anything
 
+> **Measure in parallel, not in series.** A commit is the slow step, and most variants are
+> independent of each other, so they can all exist at once and be read in a single pass.
+>
+> - **Different devices are independent.** An HA pair is two devices off one baseline: put
+>   the variant on one and leave the other as the control.
+> - **Panorama and local are different layers.** A template or stack value and a device-local
+>   value can be written in the same round. Writing both for the SAME key is not a shortcut —
+>   that combination is its own measurement, of override behaviour.
+> - **Different objects on one device are independent.** One profile passing and another
+>   failing, on the same firewall, in one commit.
+> - **Passing, failing and implicit can all exist simultaneously.** A control needs a subject
+>   that violates it, one that satisfies it, and ideally one that has never been configured.
+>   Those are three objects or three devices, not three rounds.
+>
+> Write down which device or object carries which variant before committing. The saving is
+> real and so is the confusion when a result cannot be attributed.
+>
+> This also folds phase 5 into phase 1: a failing subject set up to measure a shape is the
+> subject the control needs left behind, so it never has to be created twice.
+
+
 - [ ] **Enumerate the real key set from the device**, rather than from a sample, a document
       or memory. Use whatever the platform offers as a schema oracle. *PAN-OS: `action=complete`.
       The payload contract recorded 6 management services; a firewall accepts 10. Two
@@ -129,7 +150,9 @@ the only way it stays worth reading.
 
 - [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
       Configure the condition on the lab and watch it fire on the right subject. *001 and 002
-      both returned zero against the lab as it stood.*
+      both returned zero against the lab as it stood.* **Set the passing and failing subjects
+      in the same commit** — see the note at the top of phase 1 — and prefer subjects the
+      discovery phase already created.
 - [ ] **LEAVE the condition in place.** Every implemented control should have at least one
       live finding in the lab, permanently. A control with no subject cannot be demonstrated,
       cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
