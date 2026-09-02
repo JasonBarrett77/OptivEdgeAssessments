@@ -82,6 +82,19 @@ FIELD_COMPILERS = {
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
     "server_verification_enabled": build_boolean_compiler(
         "server_verification_enabled", "server_verification_enabled"),
+    # PAN-MGT-010. The binding is a name; the assertion lives in the profile it resolves to,
+    # so the resolved floor is a separate field from the name and either can be blank on its
+    # own. Blank name means nothing is bound. Blank floor with a name present means the
+    # binding did not resolve, or resolved to a profile carrying no protocol-settings - and
+    # those are reported, never treated as satisfied.
+    "ssl_tls_service_profile_name": build_text_compiler(
+        "ssl_tls_service_profile_name", "ssl_tls_service_profile_name"),
+    "ssl_tls_profile_scope": build_text_compiler(
+        "ssl_tls_profile_scope", "ssl_tls_profile_scope"),
+    "ssl_tls_min_version": build_text_compiler("ssl_tls_min_version", "ssl_tls_min_version"),
+    "ssl_tls_max_version": build_text_compiler("ssl_tls_max_version", "ssl_tls_max_version"),
+    "ssl_tls_certificate_name": build_text_compiler(
+        "ssl_tls_certificate_name", "ssl_tls_certificate_name"),
 }
 
 

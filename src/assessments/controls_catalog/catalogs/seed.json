@@ -259,6 +259,65 @@
           "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
+          "control_id": "PAN-MGT-010",
+          "name": "Harden Management Interface TLS",
+          "control_type": "device_configuration",
+          "description": "Binds an SSL/TLS service profile to the management web interface so administrative sessions negotiate TLS 1.2 or better.\\n\\nAbsence is a finding, not a default pass. Measured 2026-09-02 by negotiation: with no profile bound, a PA-5220 management interface accepts TLS 1.1 - and TLS 1.0 is the only version it refuses. Binding a profile is what raises the floor.\\n\\nThe profile name resolves over two scopes, and PREDEFINED BEATS SHARED. A custom profile written under the shipped name TLSv1.3_Default is ignored entirely, settings and certificate alike, so the name alone does not tell you what is in force. The resolved floor is what this control tests.",
+          "rationale": "The management interface carries full administrative authority, and TLS 1.1 has no acceptable modern cipher suites. An unbound interface is not merely unhardened: it is measurably weaker than the hardened profile PAN-OS already ships and could have bound for free.",
+          "audit": "Confirm an SSL/TLS service profile is bound at Device > Setup > Management > General Settings, and that the profile it resolves to sets Min Version to TLS 1.2 or higher. Where the bound name matches a predefined profile, read the PREDEFINED definition - a same-named custom profile is not in force.",
+          "remediation": "Bind an SSL/TLS service profile with Min Version TLS 1.2 at Device > Setup > Management > General Settings > SSL/TLS Service Profile. The shipped TLSv1.3_Default profile satisfies the protocol floor; a profile using an organisation-issued certificate additionally removes the browser trust warning.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "ssl_tls_service_profile_name",
+                    "op": "is_empty",
+                    "value": ""
+                  },
+                  {
+                    "field": "ssl_tls_min_version",
+                    "op": "eq",
+                    "value": "tls1-0"
+                  },
+                  {
+                    "field": "ssl_tls_min_version",
+                    "op": "eq",
+                    "value": "tls1-1"
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "ssl_tls_service_profile_name",
+                        "op": "is_empty",
+                        "value": "",
+                        "negated": true
+                      },
+                      {
+                        "field": "ssl_tls_min_version",
+                        "op": "is_empty",
+                        "value": ""
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
           "control_id": "PAN-MGT-011",
           "name": "Enable Log on High DP Load",
           "control_type": "device_configuration",
