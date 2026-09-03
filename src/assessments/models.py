@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    Certificate,
     CertificateProfile,
     SslTlsServiceProfile,
     InterfaceManagementProfile,
@@ -44,6 +45,7 @@ class Control(models.Model):
         INTERFACE_MANAGEMENT_PROFILE = "interface_management_profile", "Interface Management Profile"
         SSL_TLS_SERVICE_PROFILE = "ssl_tls_service_profile", "SSL/TLS Service Profile"
         CERTIFICATE_PROFILE = "certificate_profile", "Certificate Profile"
+        CERTIFICATE = "certificate", "Certificate"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -86,6 +88,7 @@ class Control(models.Model):
         "interface_management_profile": "integrations.InterfaceManagementProfile",
         "ssl_tls_service_profile": "integrations.SslTlsServiceProfile",
         "certificate_profile": "integrations.CertificateProfile",
+        "certificate": "integrations.Certificate",
         "config": "",
     }
 
@@ -110,6 +113,7 @@ class Control(models.Model):
         "integrations.InterfaceManagementProfile": "Interface Management Profile",
         "integrations.SslTlsServiceProfile": "SSL/TLS Service Profile",
         "integrations.CertificateProfile": "Certificate Profile",
+        "integrations.Certificate": "Certificate",
     }
 
     @property
@@ -767,3 +771,71 @@ class CertificateProfileFindingControlQuery(models.Model):
 
     def __str__(self) -> str:
         return f"{self.certificate_profile_finding_id} <- {self.control_query_id}"
+
+
+class CertificateFinding(models.Model):
+    """A finding against one certificate ON ONE APPLIANCE IN ONE SCOPE.
+
+    Scope is on the finding because a name is not unique on a device, and because the
+    predefined scope is read-only: a finding against a vendor-shipped certificate cannot be
+    remediated on the device at all, and the row has to say so.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SUPPRESSED = "suppressed", "Suppressed"
+        RESOLVED = "resolved", "Resolved"
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="certificate_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="certificate_findings")
+    certificate = models.ForeignKey(
+        Certificate, on_delete=models.CASCADE, related_name="findings")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    matched_query_names = models.JSONField(default=list, blank=True)
+    subject_name = models.CharField(max_length=64, blank=True)
+    subject_scope = models.CharField(max_length=16, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="CertificateFindingControlQuery",
+        related_name="certificate_findings", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["certificate"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "certificate"],
+                name="unique_cert_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on certificate {self.subject_name}"
+
+
+class CertificateFindingControlQuery(models.Model):
+    certificate_finding = models.ForeignKey(
+        CertificateFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="certificate_finding_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["certificate_finding", "control_query"],
+                name="unique_cert_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.certificate_finding_id} <- {self.control_query_id}"

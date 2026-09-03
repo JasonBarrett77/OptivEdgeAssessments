@@ -42,6 +42,7 @@ from assessments.models import (
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
+    CertificateFinding,
     CertificateProfileFinding,
     DeviceConfigurationFinding,
     InterfaceManagementProfileFinding,
@@ -74,6 +75,7 @@ from optivedge_integrations.integrations.presentation import (
 )
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    Certificate,
     CertificateProfile,
     DeviceConfigurationProfile,
     FieldProvenance,
@@ -98,6 +100,7 @@ MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-CRT-006")
 SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
 CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
+CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -1154,6 +1157,60 @@ class MasterKeyListView(TemplateView):
                 "profile": profile,
                 "expires": expires,
                 "findings": findings_by_profile.get(profile.pk, []),
+            })
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class CertificateListView(TemplateView):
+    """Every certificate as an object, with all its findings on one row.
+
+    Key size, key algorithm and signature algorithm are shown together because they are only
+    meaningful together: 256-bit EC is strong and 256-bit RSA is broken, so a size column on
+    its own would mislead every reader the same way a size-only control would mislead every
+    query.
+
+    Predefined certificates are listed. They are read-only, so a finding against one cannot be
+    fixed on the device - but omitting them would silently exclude the certificate the vendor's
+    own hardened profile presents.
+    """
+
+    template_name = "assessments/certificate_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+
+        certificates = list(
+            Certificate.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname", "scope", "name")
+        )
+        findings_by_certificate = {}
+        for finding in (
+            CertificateFinding.objects.select_related("control")
+            .filter(status=CertificateFinding.Status.OPEN,
+                    control__control_id__in=CERTIFICATE_CONTROLS)
+        ):
+            findings_by_certificate.setdefault(finding.certificate_id, []).append(finding)
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        rows = []
+        for certificate in certificates:
+            days_left = None
+            if certificate.not_valid_after:
+                days_left = (certificate.not_valid_after - now).days
+            rows.append({
+                "certificate": certificate,
+                "days_left": days_left,
+                # Surfaced even though no control asserts it yet - PAN-CRT-001 will, and an
+                # engineer reading a certificate inventory asks this first.
+                "expired": days_left is not None and days_left < 0,
+                "findings": findings_by_certificate.get(certificate.pk, []),
             })
         shown = [row for row in rows if row["findings"]] if findings_only else rows
 

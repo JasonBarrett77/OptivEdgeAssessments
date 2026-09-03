@@ -24,6 +24,7 @@ from assessments.views import (
     DeviceConfigurationProfileListView,
     InterfaceManagementProfileListView,
     LoginBannerListView,
+    CertificateListView,
     CertificateProfileListView,
     ManagementTlsListView,
     MasterKeyListView,
@@ -131,6 +132,11 @@ urlpatterns = [
         "ssl-tls-profiles/",
         SslTlsServiceProfileListView.as_view(),
         name="assessment_ssl_tls_service_profile_list",
+    ),
+    path(
+        "certificates/",
+        CertificateListView.as_view(),
+        name="assessment_certificate_list",
     ),
     path(
         "certificate-profiles/",

@@ -13,6 +13,129 @@
       },
       "controls": [
         {
+          "control_id": "PAN-CRT-002",
+          "name": "Certificate Key Strength Minimums",
+          "control_type": "certificate",
+          "description": "Every certificate on the device must meet RSA 2048 or ECDSA P-256 as a floor. Remediation is REISSUANCE, not a configuration write - a weak key cannot be strengthened in place.\n\nNeither the key size nor the algorithm exists in any PAN-OS configuration field. The `algorithm` field reports RSA or EC - the key algorithm, not its size - and no operational command carries the bit length either. Both are decoded from the X.509 blob PAN-OS stores under the misleadingly named `public-key`, which holds the entire certificate.\n\nThe threshold is per ALGORITHM and cannot be a single number. 256-bit EC is strong and 256-bit RSA is broken, so `key_size_bits < 2048` would flag the vendor's own TLSv1.3_Default - which is EC secp256r1 - while passing a hypothetical RSA 512. The query pairs each algorithm with its own floor.\n\nA certificate that could not be decoded is reported, not passed. An unreadable certificate is not a compliant one.",
+          "rationale": "A weak key undermines every certificate that chains to it, and unlike most findings this one cannot be fixed by editing configuration - the certificate has to be reissued and redistributed, which makes early detection worth more than usual.",
+          "audit": "Device > Certificate Management > Certificates shows each certificate; the key size is visible in the certificate detail. Confirm RSA is 2048 or above and EC is P-256 or above.",
+          "remediation": "Reissue the certificate with a compliant key and replace it wherever it is referenced. For CAs and long-lived certificates the corpus prefers RSA 3072 or ECDSA P-384.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "key_algorithm",
+                        "op": "contains",
+                        "value": "RSA"
+                      },
+                      {
+                        "field": "key_size_bits",
+                        "op": "lt",
+                        "value": 2048
+                      }
+                    ]
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "key_algorithm",
+                        "op": "contains",
+                        "value": "EC"
+                      },
+                      {
+                        "field": "key_size_bits",
+                        "op": "lt",
+                        "value": 256
+                      }
+                    ]
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "key_algorithm",
+                        "op": "contains",
+                        "value": "DSA"
+                      },
+                      {
+                        "field": "key_size_bits",
+                        "op": "lt",
+                        "value": 2048
+                      }
+                    ]
+                  },
+                  {
+                    "field": "parse_error",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
+        },
+        {
+          "control_id": "PAN-CRT-003",
+          "name": "No Weak Signature Algorithms (SHA-1/MD5)",
+          "control_type": "certificate",
+          "description": "A certificate signed with MD5 or SHA-1 inherits the weakness of that hash: both have practical collision attacks, and a collision is a forged certificate.\n\nLike the key size, the signature algorithm exists in NO PAN-OS field - `algorithm` reports the key algorithm - and is decoded from the certificate itself.\n\nMD5 is the floor and SHA-1 is reported alongside it, because the control is named for both. The corpus allows SHA-1 \"only for internal legacy with a documented expiry\", which is an organisational exception this cannot see: a SHA-1 finding may legitimately be closed as accepted, an MD5 finding should not be. The preferred state is SHA-256 or stronger exclusively.",
+          "rationale": "A signature is the only thing binding a certificate's identity to its key. A hash with practical collisions makes that binding forgeable, so the certificate proves nothing about who holds the key.",
+          "audit": "Read the signature algorithm on each certificate. Anything naming md5 or sha1 reports; sha256WithRSAEncryption and ecdsa-with-SHA256 or stronger pass.",
+          "remediation": "Reissue with a SHA-256 or stronger signature. Where a SHA-1 certificate is a documented legacy exception, record the expiry it was accepted until and close the finding against that, rather than leaving it open indefinitely.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "signature_algorithm",
+                    "op": "contains",
+                    "value": "md5"
+                  },
+                  {
+                    "field": "signature_algorithm",
+                    "op": "contains",
+                    "value": "sha1"
+                  },
+                  {
+                    "field": "parse_error",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
+        },
+        {
           "control_id": "PAN-CRT-004",
           "name": "Certificate Profiles Enforce Revocation Checking",
           "control_type": "certificate_profile",

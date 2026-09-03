@@ -13,6 +13,7 @@ MANAGEMENT_INTERFACE_MODEL = "integrations.ManagementInterface"
 INTERFACE_MANAGEMENT_PROFILE_MODEL = "integrations.InterfaceManagementProfile"
 SSL_TLS_SERVICE_PROFILE_MODEL = "integrations.SslTlsServiceProfile"
 CERTIFICATE_PROFILE_MODEL = "integrations.CertificateProfile"
+CERTIFICATE_MODEL = "integrations.Certificate"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -140,6 +141,14 @@ def evaluate_certificate_profile_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or CERTIFICATE_PROFILE_MODEL,
+    )
+
+
+def evaluate_certificate_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or CERTIFICATE_MODEL,
     )
 
 
