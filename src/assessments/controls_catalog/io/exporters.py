@@ -39,6 +39,7 @@ def export_control_catalog(*, key: str, label: str, version: str, description: s
             "audit": control.audit,
             "remediation": control.remediation,
             "default_severity": control.default_severity,
+            "severity_scale": control.severity_scale or {},
             "implementation_version": control.implementation_version,
             "target_model": control.target_model,
             "is_active": control.is_active,

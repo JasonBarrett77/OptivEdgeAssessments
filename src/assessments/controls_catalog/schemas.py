@@ -160,6 +160,9 @@ def _validate_control_payload(control_payload: dict) -> dict:
         "audit": str(control_payload.get("audit", "") or ""),
         "remediation": str(control_payload.get("remediation", "") or ""),
         "default_severity": default_severity,
+        #: Optional. Absent means every finding reports default_severity - the behaviour of
+        #: every control built before graded severity existed.
+        "severity_scale": control_payload.get("severity_scale") or {},
         "implementation_version": str(control_payload.get("implementation_version", "v1") or "v1"),
         "target_model": target_model,
         "is_active": _require_bool(

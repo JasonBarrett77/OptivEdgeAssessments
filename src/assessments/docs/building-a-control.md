@@ -246,6 +246,18 @@ and are then deleted, and empty is its normal state.
       `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
       now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
       another tab already uses is fine and normal here; inventing a plausible name is not.*
+- [ ] **Check the corpus for a `severity_scale` and seed it.** 25 controls carry graded bands
+      and they are not optional detail - they encode sentinels the query alone cannot express.
+      Copy the scale into the seed verbatim; `Control.severity_for_measure` reads it. *Four
+      controls shipped ignoring theirs, reporting one severity for a 4-character password and
+      an 11-character one.*
+- [ ] **A sentinel is not a low value, it is a different meaning.** `failed-attempts 0` means
+      lockout is OFF and `idle-timeout 0` means sessions never expire - both grade as the BEST
+      value on a band lookup and are the worst possible settings. Check `notes` for an
+      overloaded zero before writing the query, and put 0 in the query too. *PAN-AUTH-015 runs
+      the other way: its 0 means locked until an administrator intervenes, which is stricter
+      than any duration, so flagging it would report the most restrictive setting as a
+      weakness.*
 - [ ] **Use the shared machinery; do not copy a neighbouring module.** A finding model
       subclasses `FindingBase` or `ObjectFindingBase` (declaring only its own FK, `through`,
       index and constraint); a generator supplies a subject sentence and an `ObjectFindingSpec`

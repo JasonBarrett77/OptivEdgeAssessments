@@ -184,6 +184,22 @@ or topology.
   between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
   is the whole vocabulary.
 
+## Graded severity
+
+A control may carry a `severity_scale` from the corpus: `bands` (numeric) or `ranks` (named
+values), plus `sentinels`. `Control.severity_for_measure(value)` reads it and
+`severity_grading.graded_severity` applies it when a finding is created, falling back to
+`default_severity` whenever it cannot say.
+
+Three rules that are easy to get backwards: **sentinels are checked first** (PAN-OS overloads
+0, and a band lookup would rank it best when it means the protection is off); **`direction`
+selects the band key** — `higher-is-worse` uses `min`, `lower-is-worse` uses `max` — and is not
+always the semantic reading; and a band **never reports worse than the control's own
+severity**, so the headline stays safe to quote unmeasured.
+
+The field being measured is read from the control's own baseline query, not declared, so it
+cannot drift from the threshold it grades.
+
 ## Shared machinery for findings
 
 Do not copy a neighbouring module when adding an object type. Three pieces carry the shape:

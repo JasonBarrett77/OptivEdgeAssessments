@@ -76,7 +76,40 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.DeviceConfigurationProfile",
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "characters",
+            "measure": "Configured minimum-length value for local administrator passwords.",
+            "direction": "lower-is-worse",
+            "bands": [
+              {
+                "max": 5,
+                "severity": "high",
+                "label": "5 or fewer \u2014 trivially brute-forced"
+              },
+              {
+                "max": 8,
+                "severity": "high",
+                "label": "6 to 8 characters"
+              },
+              {
+                "max": 11,
+                "severity": "medium",
+                "label": "9 to 11 \u2014 below the 12-character baseline"
+              },
+              {
+                "max": 14,
+                "severity": "medium",
+                "label": "12 to 14 \u2014 meets baseline, misses the 15-character target"
+              },
+              {
+                "max": null,
+                "severity": null,
+                "label": "15 or more \u2014 meets best practice"
+              }
+            ]
+          }
         },
         {
           "control_id": "PAN-AUTH-003",
@@ -307,7 +340,35 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.DeviceConfigurationProfile",
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "passwords remembered",
+            "measure": "Configured password-history-count value.",
+            "direction": "lower-is-worse",
+            "bands": [
+              {
+                "max": 0,
+                "severity": "medium",
+                "label": "0 \u2014 the same password can be set again immediately"
+              },
+              {
+                "max": 4,
+                "severity": "medium",
+                "label": "1 to 4 \u2014 below the 5-generation baseline"
+              },
+              {
+                "max": 23,
+                "severity": "low",
+                "label": "5 to 23 \u2014 meets baseline, misses the 24-generation target"
+              },
+              {
+                "max": null,
+                "severity": null,
+                "label": "24 or more \u2014 meets best practice"
+              }
+            ]
+          }
         },
         {
           "control_id": "PAN-AUTH-010",
@@ -345,7 +406,42 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.DeviceConfigurationProfile",
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "days until password expiry",
+            "measure": "Configured expiration-period value.",
+            "direction": "higher-is-worse",
+            "bands": [
+              {
+                "min": 366,
+                "severity": "medium",
+                "label": "never expires in practice \u2014 a year or more"
+              },
+              {
+                "min": 91,
+                "severity": "medium",
+                "label": "91 to 365 days \u2014 past the 90-day baseline"
+              },
+              {
+                "min": 61,
+                "severity": "low",
+                "label": "61 to 90 days \u2014 meets baseline, misses the 60-day target"
+              },
+              {
+                "min": 1,
+                "severity": null,
+                "label": "60 days or fewer \u2014 meets best practice"
+              }
+            ],
+            "sentinels": [
+              {
+                "value": "0",
+                "severity": "medium",
+                "label": "0 \u2014 passwords never expire"
+              }
+            ]
+          }
         },
         {
           "control_id": "PAN-AUTH-011",
@@ -648,7 +744,34 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.SslTlsServiceProfile"
+          "target_model": "integrations.SslTlsServiceProfile",
+          "severity_scale": {
+            "kind": "ranked",
+            "metric": "minimum TLS version",
+            "measure": "Configured min-version on the SSL/TLS service profile.",
+            "ranks": [
+              {
+                "value": "tls1-0",
+                "severity": "high",
+                "label": "TLS 1.0 \u2014 deprecated by RFC 8996"
+              },
+              {
+                "value": "tls1-1",
+                "severity": "high",
+                "label": "TLS 1.1 \u2014 deprecated by RFC 8996"
+              },
+              {
+                "value": "tls1-2",
+                "severity": null,
+                "label": "TLS 1.2 \u2014 meets the baseline"
+              },
+              {
+                "value": "tls1-3",
+                "severity": null,
+                "label": "TLS 1.3 \u2014 meets best practice"
+              }
+            ]
+          }
         },
         {
           "control_id": "PAN-CRT-006",

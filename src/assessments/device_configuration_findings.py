@@ -14,6 +14,7 @@ from assessments.models import (
     DeviceConfigurationFinding,
     DeviceConfigurationFindingControlQuery,
 )
+from assessments.severity_grading import graded_severity
 from optivedge_integrations.integrations.models import DeviceConfigurationProfile
 
 
@@ -66,12 +67,19 @@ def generate_device_configuration_findings(assessment_run) -> tuple[int, int, in
                 ) = evaluate_device_configuration_control_queries(base_queryset, control)
                 skipped_queries += control_skipped_queries
 
+                # Graded severity reads a field off the profile, and this loop otherwise only
+                # ever holds ids. One query per control rather than one per finding.
+                profiles = {profile.pk: profile
+                            for profile in base_queryset.filter(pk__in=matched_by_profile)}
+
                 for profile_id, matched_queries in matched_by_profile.items():
                     finding = DeviceConfigurationFinding.objects.create(
                         assessment_run=assessment_run,
                         control=control,
                         device_configuration_profile_id=profile_id,
-                        severity=severity_by_profile_id[profile_id],
+                        severity=graded_severity(
+                            control, profiles[profile_id],
+                            severity_by_profile_id[profile_id]),
                         title=control.name,
                         summary=build_device_configuration_finding_summary(matched_queries),
                     )

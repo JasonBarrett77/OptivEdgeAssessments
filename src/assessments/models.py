@@ -70,6 +70,10 @@ class Control(models.Model):
         choices=Severity.choices,
         default=Severity.MEDIUM,
     )
+    #: Graded severity from the corpus: bands, sentinels and ranks. Empty means the control
+    #: reports `default_severity` for every finding, which is what all 30 controls did before
+    #: this existed. See `severity_for_measure`.
+    severity_scale = models.JSONField(default=dict, blank=True)
     implementation_version = models.CharField(max_length=64, default="v1")
     target_model = models.CharField(max_length=128, blank=True)
     is_active = models.BooleanField(default=True)
@@ -94,6 +98,94 @@ class Control(models.Model):
 
     class Meta:
         ordering = ["control_id"]
+
+    #: Worst first, so capping is a list-position comparison.
+    _SEVERITY_ORDER = ("critical", "high", "medium", "low", "informational")
+
+    def severity_for_measure(self, measure):
+        """Severity for one measured value, or None to fall back to `default_severity`.
+
+        The corpus grades 25 controls and this app reported `default_severity` for all of
+        them, so a 4-character password and an 11-character one arrived identical. The bands
+        are the corpus author's judgement and are not re-derived here.
+
+        Three rules, in this order, and the order is the whole thing:
+
+        SENTINELS FIRST, because PAN-OS overloads these fields and the overloaded value is not
+        on the scale at all. `failed-attempts 0` means lockout is DISABLED and `idle-timeout 0`
+        means sessions never expire - both worse than any large number, so a band lookup would
+        rank them as the best possible value. Sentinels are strings in the corpus and are
+        compared as strings.
+
+        THEN BANDS, keyed by `direction`: `higher-is-worse` bands carry `min` and are listed
+        worst first; `lower-is-worse` bands carry `max` and are listed best first. A null bound
+        is open-ended. `direction` SELECTS THE KEY - that is its documented meaning - and it is
+        not always the semantic reading: PAN-AUTH-014 is labelled `lower-is-worse` while its own
+        band labels say more attempts is worse. The keys are unambiguous, the label is not.
+
+        NEVER ABOVE `default_severity`. The corpus promises "a step severity never exceeds the
+        control severity, so the headline is always safe to report unmeasured"; a scale that
+        could escalate would quietly break that.
+
+        A null band severity means the value MEETS the baseline. That returns None, and no
+        finding should exist for it anyway - the query decides whether there IS a finding, this
+        decides only how bad it is.
+        """
+        scale = self.severity_scale or {}
+        if not scale or measure is None:
+            return None
+
+        for sentinel in scale.get("sentinels") or []:
+            if str(sentinel.get("value")) == str(measure):
+                return self._capped(sentinel.get("severity"))
+
+        kind = scale.get("kind")
+        if kind == "ranked":
+            for rank in scale.get("ranks") or []:
+                if str(rank.get("value")) == str(measure):
+                    return self._capped(rank.get("severity"))
+            return None
+        if kind != "numeric":
+            return None
+
+        try:
+            value = int(measure)
+        except (TypeError, ValueError):
+            return None
+        key = "min" if scale.get("direction") == "higher-is-worse" else "max"
+        for band in scale.get("bands") or []:
+            bound = band.get(key)
+            if bound is None:
+                return self._capped(band.get("severity"))
+            if key == "min" and value >= bound:
+                return self._capped(band.get("severity"))
+            if key == "max" and value <= bound:
+                return self._capped(band.get("severity"))
+        return None
+
+    def _capped(self, severity):
+        """A band never reports worse than the control's own severity."""
+        if not severity:
+            return None
+        order = self._SEVERITY_ORDER
+        if severity not in order or self.default_severity not in order:
+            return severity
+        return (severity if order.index(severity) >= order.index(self.default_severity)
+                else self.default_severity)
+
+    def measured_field(self):
+        """The model field this control's baseline query reads, or None if not exactly one.
+
+        Derived rather than declared, for the reason the password tab derives its highlighting:
+        a second place naming the field would drift from the query the first time a threshold
+        moved. A control reading two different fields has no single measure and is not graded.
+        """
+        fields = set()
+        for query in self.queries.all():
+            for clause in (query.canonical_query or {}).get("clauses") or []:
+                if clause.get("field"):
+                    fields.add(clause["field"])
+        return next(iter(fields)) if len(fields) == 1 else None
 
     def __str__(self) -> str:
         return f"{self.control_id} - {self.name}"
