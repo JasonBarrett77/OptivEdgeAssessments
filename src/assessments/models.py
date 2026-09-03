@@ -223,12 +223,73 @@ class ControlQuery(models.Model):
         return super().save(*args, **kwargs)
 
 
-class RuleFinding(models.Model):
+class FindingBase(models.Model):
+    """Everything every finding carries, regardless of what it is a finding ABOUT.
+
+    Seven finding models existed with the same thirty-odd lines copied into each, and copying
+    is what let five of them drift out of the report and the findings page without a test
+    failing. Shared shape belongs in one place so that "all findings" is a statement about a
+    base class rather than a list somebody has to remember to extend.
+
+    `assessment_run` and `control` are DELIBERATELY left on each concrete model rather than
+    lifted here. A foreign key on an abstract base needs `related_name="%(class)ss"`, which
+    interpolates to the lowercased class name and would turn
+    `run.certificate_profile_findings` into `run.certificateprofilefindings` on every reverse
+    accessor in the app. Four duplicated lines per model is the cheaper of the two.
+
+    The indexes here name those concrete fields. That is legal - an abstract Meta is validated
+    against the concrete model, which does declare them - but it means a subclass that forgets
+    `assessment_run` or `control` fails at check time rather than silently.
+    """
+
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         SUPPRESSED = "suppressed", "Suppressed"
         RESOLVED = "resolved", "Resolved"
 
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
+    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assessment_run", "control"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["severity"]),
+        ]
+
+
+class ObjectFindingBase(FindingBase):
+    """A finding against a NAMED object rather than a device-wide setting.
+
+    The subject name is frozen at generation time: the object can be renamed or deleted and the
+    finding must still say what it found. `subject_scope` is added only by the models whose
+    objects can collide on name across scopes - a name is not unique on a device, measured
+    2026-09-02 on `TLSv1.3_Default`, which exists as both predefined and shared.
+    """
+
+    matched_query_names = models.JSONField(default=list, blank=True)
+    subject_name = models.CharField(max_length=64, blank=True)
+
+    class Meta(FindingBase.Meta):
+        abstract = True
+
+
+class FindingControlQueryBase(models.Model):
+    """The join row between a finding and the control query that matched it."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["created_at", "id"]
+
+
+class RuleFinding(FindingBase):
     assessment_run = models.ForeignKey(
         AssessmentRun,
         on_delete=models.CASCADE,
@@ -244,17 +305,6 @@ class RuleFinding(models.Model):
         on_delete=models.CASCADE,
         related_name="rule_findings",
     )
-    status = models.CharField(
-        max_length=32,
-        choices=Status.choices,
-        default=Status.OPEN,
-    )
-    severity = models.CharField(
-        max_length=32,
-        choices=Control.Severity.choices,
-    )
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
     # Point-in-time snapshot of the names of the control queries that matched this rule,
     # frozen at generation time. Kept separate from the live control_queries M2M (whose
     # names/links follow later catalog edits and deletes) so a finding stays a faithful
@@ -266,15 +316,10 @@ class RuleFinding(models.Model):
         related_name="rule_findings",
         blank=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(FindingBase.Meta):
+        indexes = FindingBase.Meta.indexes + [
             models.Index(fields=["security_rule"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -287,7 +332,7 @@ class RuleFinding(models.Model):
         return f"{self.control.control_id} on rule {self.security_rule_id}"
 
 
-class RuleFindingControlQuery(models.Model):
+class RuleFindingControlQuery(FindingControlQueryBase):
     rule_finding = models.ForeignKey(
         RuleFinding,
         on_delete=models.CASCADE,
@@ -298,10 +343,8 @@ class RuleFindingControlQuery(models.Model):
         on_delete=models.CASCADE,
         related_name="finding_links",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["rule_finding", "control_query"],
@@ -313,12 +356,7 @@ class RuleFindingControlQuery(models.Model):
         return f"{self.rule_finding_id} <- {self.control_query_id}"
 
 
-class DeviceConfigurationFinding(models.Model):
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
+class DeviceConfigurationFinding(FindingBase):
     assessment_run = models.ForeignKey(
         AssessmentRun,
         on_delete=models.CASCADE,
@@ -334,32 +372,16 @@ class DeviceConfigurationFinding(models.Model):
         on_delete=models.CASCADE,
         related_name="findings",
     )
-    status = models.CharField(
-        max_length=32,
-        choices=Status.choices,
-        default=Status.OPEN,
-    )
-    severity = models.CharField(
-        max_length=32,
-        choices=Control.Severity.choices,
-    )
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery,
         through="DeviceConfigurationFindingControlQuery",
         related_name="device_configuration_findings",
         blank=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(FindingBase.Meta):
+        indexes = FindingBase.Meta.indexes + [
             models.Index(fields=["device_configuration_profile"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -372,7 +394,7 @@ class DeviceConfigurationFinding(models.Model):
         return f"{self.control.control_id} on profile {self.device_configuration_profile_id}"
 
 
-class DeviceConfigurationFindingControlQuery(models.Model):
+class DeviceConfigurationFindingControlQuery(FindingControlQueryBase):
     device_configuration_finding = models.ForeignKey(
         DeviceConfigurationFinding,
         on_delete=models.CASCADE,
@@ -383,10 +405,8 @@ class DeviceConfigurationFindingControlQuery(models.Model):
         on_delete=models.CASCADE,
         related_name="device_configuration_finding_links",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["device_configuration_finding", "control_query"],
@@ -473,7 +493,7 @@ class ApplicationEnvironmentCatalogState(models.Model):
         return f"{self.application_environment} -> {catalog_label}"
 
 
-class ManagementInterfaceFinding(models.Model):
+class ManagementInterfaceFinding(ObjectFindingBase):
     """A finding against ONE management surface, not one appliance.
 
     The subject is what makes the finding useful. "10.0.0.0/8 is allowed" is not
@@ -483,39 +503,23 @@ class ManagementInterfaceFinding(models.Model):
     not duplicates.
     """
 
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
     assessment_run = models.ForeignKey(
         AssessmentRun, on_delete=models.CASCADE, related_name="management_interface_findings")
     control = models.ForeignKey(
         Control, on_delete=models.PROTECT, related_name="management_interface_findings")
     management_interface = models.ForeignKey(
         ManagementInterface, on_delete=models.CASCADE, related_name="findings")
-    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
-    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
     #: Frozen at generation time, like RuleFinding.matched_query_names - a finding stays a
     #: faithful record of its run even after the catalog is edited.
-    matched_query_names = models.JSONField(default=list, blank=True)
     #: Also frozen: the surface's reportable name at the time of the run. An interface can
     #: be renamed or a profile unbound, and a stale finding must still say what it found.
-    subject_name = models.CharField(max_length=64, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery, through="ManagementInterfaceFindingControlQuery",
         related_name="management_interface_findings", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["management_interface"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -527,15 +531,13 @@ class ManagementInterfaceFinding(models.Model):
         return f"{self.control.control_id} on {self.subject_name or self.management_interface_id}"
 
 
-class ManagementInterfaceFindingControlQuery(models.Model):
+class ManagementInterfaceFindingControlQuery(FindingControlQueryBase):
     management_interface_finding = models.ForeignKey(
         ManagementInterfaceFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE, related_name="management_interface_finding_links")
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["management_interface_finding", "control_query"],
@@ -546,7 +548,7 @@ class ManagementInterfaceFindingControlQuery(models.Model):
         return f"{self.management_interface_finding_id} <- {self.control_query_id}"
 
 
-class InterfaceManagementProfileFinding(models.Model):
+class InterfaceManagementProfileFinding(ObjectFindingBase):
     """A finding against one profile ON ONE APPLIANCE.
 
     Unlike the management-surface findings, the subject here is not a door - it is an
@@ -559,11 +561,6 @@ class InterfaceManagementProfileFinding(models.Model):
     make the finding easier to read and less true.
     """
 
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
     assessment_run = models.ForeignKey(
         AssessmentRun, on_delete=models.CASCADE,
         related_name="interface_management_profile_findings")
@@ -572,28 +569,17 @@ class InterfaceManagementProfileFinding(models.Model):
         related_name="interface_management_profile_findings")
     interface_management_profile = models.ForeignKey(
         InterfaceManagementProfile, on_delete=models.CASCADE, related_name="findings")
-    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
-    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
     #: Frozen at generation time, as everywhere else - a finding stays a faithful record of
     #: its run after the catalog is edited.
-    matched_query_names = models.JSONField(default=list, blank=True)
     #: Also frozen: the profile's name at the time of the run, since a profile can be
     #: renamed or removed and the finding must still say what it found.
-    subject_name = models.CharField(max_length=64, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery, through="InterfaceManagementProfileFindingControlQuery",
         related_name="interface_management_profile_findings", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["interface_management_profile"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -605,16 +591,14 @@ class InterfaceManagementProfileFinding(models.Model):
         return f"{self.control.control_id} on profile {self.subject_name}"
 
 
-class InterfaceManagementProfileFindingControlQuery(models.Model):
+class InterfaceManagementProfileFindingControlQuery(FindingControlQueryBase):
     interface_management_profile_finding = models.ForeignKey(
         InterfaceManagementProfileFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE,
         related_name="interface_management_profile_finding_links")
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["interface_management_profile_finding", "control_query"],
@@ -625,7 +609,7 @@ class InterfaceManagementProfileFindingControlQuery(models.Model):
         return f"{self.interface_management_profile_finding_id} <- {self.control_query_id}"
 
 
-class SslTlsServiceProfileFinding(models.Model):
+class SslTlsServiceProfileFinding(ObjectFindingBase):
     """A finding against one SSL/TLS service profile ON ONE APPLIANCE.
 
     Per appliance for the reason InterfaceManagementProfileFinding records: the same object
@@ -637,38 +621,20 @@ class SslTlsServiceProfileFinding(models.Model):
     finding naming only "TLSv1.3_Default" would not say which was assessed.
     """
 
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
     assessment_run = models.ForeignKey(
         AssessmentRun, on_delete=models.CASCADE, related_name="ssl_tls_service_profile_findings")
     control = models.ForeignKey(
         Control, on_delete=models.PROTECT, related_name="ssl_tls_service_profile_findings")
     ssl_tls_service_profile = models.ForeignKey(
         SslTlsServiceProfile, on_delete=models.CASCADE, related_name="findings")
-    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
-    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
-    matched_query_names = models.JSONField(default=list, blank=True)
-    #: Frozen at generation time: the object can be renamed or removed and the finding must
-    #: still say what it found, and in which scope.
-    subject_name = models.CharField(max_length=64, blank=True)
     subject_scope = models.CharField(max_length=16, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery, through="SslTlsServiceProfileFindingControlQuery",
         related_name="ssl_tls_service_profile_findings", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["ssl_tls_service_profile"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -680,15 +646,13 @@ class SslTlsServiceProfileFinding(models.Model):
         return f"{self.control.control_id} on SSL/TLS service profile {self.subject_name}"
 
 
-class SslTlsServiceProfileFindingControlQuery(models.Model):
+class SslTlsServiceProfileFindingControlQuery(FindingControlQueryBase):
     ssl_tls_service_profile_finding = models.ForeignKey(
         SslTlsServiceProfileFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE, related_name="ssl_tls_service_profile_finding_links")
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["ssl_tls_service_profile_finding", "control_query"],
@@ -699,7 +663,7 @@ class SslTlsServiceProfileFindingControlQuery(models.Model):
         return f"{self.ssl_tls_service_profile_finding_id} <- {self.control_query_id}"
 
 
-class CertificateProfileFinding(models.Model):
+class CertificateProfileFinding(ObjectFindingBase):
     """A finding against one certificate profile ON ONE APPLIANCE.
 
     Per appliance for the reason InterfaceManagementProfileFinding records: the same object
@@ -711,38 +675,20 @@ class CertificateProfileFinding(models.Model):
     finding naming only "TLSv1.3_Default" would not say which was assessed.
     """
 
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
     assessment_run = models.ForeignKey(
         AssessmentRun, on_delete=models.CASCADE, related_name="certificate_profile_findings")
     control = models.ForeignKey(
         Control, on_delete=models.PROTECT, related_name="certificate_profile_findings")
     certificate_profile = models.ForeignKey(
         CertificateProfile, on_delete=models.CASCADE, related_name="findings")
-    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
-    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
-    matched_query_names = models.JSONField(default=list, blank=True)
-    #: Frozen at generation time: the object can be renamed or removed and the finding must
-    #: still say what it found, and in which scope.
-    subject_name = models.CharField(max_length=64, blank=True)
     subject_scope = models.CharField(max_length=16, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery, through="CertificateProfileFindingControlQuery",
         related_name="certificate_profile_findings", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["certificate_profile"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -754,15 +700,13 @@ class CertificateProfileFinding(models.Model):
         return f"{self.control.control_id} on certificate profile {self.subject_name}"
 
 
-class CertificateProfileFindingControlQuery(models.Model):
+class CertificateProfileFindingControlQuery(FindingControlQueryBase):
     certificate_profile_finding = models.ForeignKey(
         CertificateProfileFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE, related_name="certificate_profile_finding_links")
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["certificate_profile_finding", "control_query"],
@@ -773,7 +717,7 @@ class CertificateProfileFindingControlQuery(models.Model):
         return f"{self.certificate_profile_finding_id} <- {self.control_query_id}"
 
 
-class CertificateFinding(models.Model):
+class CertificateFinding(ObjectFindingBase):
     """A finding against one certificate ON ONE APPLIANCE IN ONE SCOPE.
 
     Scope is on the finding because a name is not unique on a device, and because the
@@ -781,36 +725,20 @@ class CertificateFinding(models.Model):
     remediated on the device at all, and the row has to say so.
     """
 
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SUPPRESSED = "suppressed", "Suppressed"
-        RESOLVED = "resolved", "Resolved"
-
     assessment_run = models.ForeignKey(
         AssessmentRun, on_delete=models.CASCADE, related_name="certificate_findings")
     control = models.ForeignKey(
         Control, on_delete=models.PROTECT, related_name="certificate_findings")
     certificate = models.ForeignKey(
         Certificate, on_delete=models.CASCADE, related_name="findings")
-    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
-    severity = models.CharField(max_length=32, choices=Control.Severity.choices)
-    title = models.CharField(max_length=255)
-    summary = models.TextField(blank=True)
-    matched_query_names = models.JSONField(default=list, blank=True)
-    subject_name = models.CharField(max_length=64, blank=True)
     subject_scope = models.CharField(max_length=16, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery, through="CertificateFindingControlQuery",
         related_name="certificate_findings", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["assessment_run", "control"]),
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["certificate"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["severity"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -822,15 +750,13 @@ class CertificateFinding(models.Model):
         return f"{self.control.control_id} on certificate {self.subject_name}"
 
 
-class CertificateFindingControlQuery(models.Model):
+class CertificateFindingControlQuery(FindingControlQueryBase):
     certificate_finding = models.ForeignKey(
         CertificateFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE, related_name="certificate_finding_links")
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["created_at", "id"]
+    class Meta(FindingControlQueryBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["certificate_finding", "control_query"],

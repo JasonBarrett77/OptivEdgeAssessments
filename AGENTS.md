@@ -184,6 +184,22 @@ or topology.
   between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
   is the whole vocabulary.
 
+## Shared machinery for findings
+
+Do not copy a neighbouring module when adding an object type. Three pieces carry the shape:
+
+* **`models.FindingBase` / `ObjectFindingBase`** — status, severity, title, summary,
+  timestamps, ordering and the three shared indexes. A concrete finding declares only its own
+  foreign keys, its `through`, its one index and its constraint. `assessment_run` and `control`
+  stay concrete on purpose: on an abstract base they need `related_name="%(class)ss"`, which
+  would turn `run.certificate_profile_findings` into `run.certificateprofilefindings`.
+  Subclass Meta must inherit (`class Meta(ObjectFindingBase.Meta)`) and **concatenate**
+  `indexes` — Django replaces rather than merges them.
+* **`object_findings.generate_object_findings`** — the generator machinery, driven by an
+  `ObjectFindingSpec`. Each object module supplies its subject sentence and nothing else.
+* **`finding_registry.FINDING_KINDS`** — every finding model. Consumers iterate this instead of
+  naming models. A concrete `FindingBase` subclass missing from it fails `test_finding_registry`.
+
 ## Surfaces pending replacement
 
 Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportunistically.

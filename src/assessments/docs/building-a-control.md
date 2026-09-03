@@ -233,6 +233,13 @@ and are then deleted, and empty is its normal state.
       `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
       now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
       another tab already uses is fine and normal here; inventing a plausible name is not.*
+- [ ] **Use the shared machinery; do not copy a neighbouring module.** A finding model
+      subclasses `FindingBase` or `ObjectFindingBase` (declaring only its own FK, `through`,
+      index and constraint); a generator supplies a subject sentence and an `ObjectFindingSpec`
+      and calls `generate_object_findings`; a new finding model is registered in
+      `finding_registry.FINDING_KINDS`. *Five generators were 111 of 122 lines identical, and
+      seven finding models carried the same thirty lines each - copying is also what let five
+      of them drift out of the report unnoticed.*
 - [ ] **A new finding model is invisible to the Findings pages and the client report.**
       Both enumerate two of the seven finding models by name. Do not wire yours in — both
       surfaces are pending replacement — but add it to the list in `AGENTS.md` under *Surfaces
