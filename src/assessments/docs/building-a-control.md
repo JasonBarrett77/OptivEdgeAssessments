@@ -233,6 +233,12 @@ and are then deleted, and empty is its normal state.
       `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
       now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
       another tab already uses is fine and normal here; inventing a plausible name is not.*
+- [ ] **A new finding model is invisible to the Findings pages and the client report.**
+      Both enumerate two of the seven finding models by name. Do not wire yours in — both
+      surfaces are pending replacement — but add it to the list in `AGENTS.md` under *Surfaces
+      pending replacement* so the gap stays counted. *Five finding models drifted out of both
+      surfaces without one test failing, taking the whole certificates domain out of the client
+      deliverable.*
 - [ ] **Empty-state text must name the right action.** *Both tabs said "run a sync"; both
       needed only a renormalize, which contacts no device.*
 

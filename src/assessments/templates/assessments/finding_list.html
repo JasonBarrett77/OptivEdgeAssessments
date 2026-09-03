@@ -23,9 +23,15 @@
         <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
             <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
                 <div>
-                    <h1 class="text-sm font-semibold text-slate-900">Findings</h1>
+                    <h1 class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        Findings
+                        <span class="border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">Pending replacement</span>
+                    </h1>
                     <p class="pt-0.5 text-xs text-slate-500">
-                        Persisted findings from the most recent assessment run.
+                        Persisted findings from the most recent assessment run &mdash;
+                        <span class="font-medium text-amber-800">two of seven finding models only</span>.
+                        Certificate, SSL/TLS profile and management interface findings do not appear here or
+                        in the downloads. Use the per-object tabs under Device Configuration for those.
                     </p>
                 </div>
                 {% if active_tab == "security-rules" %}

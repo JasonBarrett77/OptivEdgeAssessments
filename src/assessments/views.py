@@ -348,6 +348,32 @@ class ControlListView(ListView):
 
 
 class FindingListView(TemplateView):
+    """PENDING REPLACEMENT. Do not extend this view or wire new finding models into it.
+
+    Jason, 2026-09-03: "The Findings menu item is not anchored to anything permanent right
+    now." It is too flat to be useful - the device-configuration half is a queryset ordered by
+    `-created_at` and paginated, with no grouping, no severity filter and no object context -
+    and the per-object tabs strictly dominate it for browsing.
+
+    It is also INCOMPLETE, which is part of why it reads as thin. Seven finding models exist
+    and this view knows two: RuleFinding and DeviceConfigurationFinding. ManagementInterface,
+    InterfaceManagementProfile, SslTlsServiceProfile, CertificateProfile and Certificate
+    findings do not appear at all - 22 of the lab's 72 findings, the whole certificates domain
+    among them. Nothing fails; they are simply not queried.
+
+    Deliberately NOT fixed. The enumeration is expected to change as the remaining domains
+    land, so wiring five models into a view that is being replaced would be work done twice.
+
+    What replaces it, when the object tabs are further along:
+      - per-object browsing -> the object tabs, which already do this better
+      - "everything wrong on ONE appliance, across every object type" -> a per-appliance
+        rollup, which no object tab can answer because each tab is one model by construction
+      - the client deliverable -> the report path, which has the same two-model gap
+
+    Whatever replaces it should DERIVE its finding-model set from the registry rather than
+    naming models, which is the pattern that would have prevented this drift.
+    """
+
     template_name = "assessments/finding_list.html"
 
     def get_context_data(self, **kwargs):
@@ -627,6 +653,13 @@ class FindingListView(TemplateView):
 
 
 class RuleFindingDocxDownloadView(View):
+    """Covers RuleFinding and DeviceConfigurationFinding only - see reporting/context.py.
+
+    The other five finding models reach no client deliverable. Deliberately not fixed yet;
+    the enumeration is expected to change as the remaining domains land. See
+    `FindingListView` for the full account.
+    """
+
     def get(self, request, *args, **kwargs):
         application_environment = get_application_environment()
         context = build_report_context()

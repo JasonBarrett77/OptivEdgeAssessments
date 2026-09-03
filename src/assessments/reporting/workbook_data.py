@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import asdict, dataclass
 
+#: KNOWN INCOMPLETE, deliberately - same two-of-seven gap as reporting/context.py.
+#: See views.FindingListView for the account and why it is not fixed yet.
 from assessments.models import Control, DeviceConfigurationFinding, RuleFinding
 from assessments.reporting.context import build_report_context, get_latest_device_configuration_assessment_run, get_latest_rule_assessment_run
 from assessments.security_rule_queries import SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS

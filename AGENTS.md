@@ -184,6 +184,32 @@ or topology.
   between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
   is the whole vocabulary.
 
+## Surfaces pending replacement
+
+Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportunistically.
+
+**The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) and
+**the client report** (`reporting/context.py`, `reporting/workbook_data.py`) both enumerate
+exactly two finding models — `RuleFinding` and `DeviceConfigurationFinding`. Seven exist. The
+other five are invisible in both: 22 of the lab's 72 findings, including every certificate
+finding.
+
+Leave it that way for now. Jason, 2026-09-03: the enumeration is expected to change as the
+remaining domains land, and the Findings menu item "is not anchored to anything permanent right
+now" — so wiring five models into surfaces that are being replaced is work done twice.
+
+What is expected to replace them: per-object browsing moves to the object tabs, which already
+do it better; "everything wrong on one appliance, across every object type" becomes a
+per-appliance rollup, which no object tab can answer because each tab is one model by
+construction; and the report is rebuilt against whatever finding-model set exists by then.
+
+**When adding a new finding model, do not wire it into either surface.** Add it to this list
+instead, so the gap stays counted rather than forgotten. That is how five models drifted out of
+view without a single test failing.
+
+Whatever replaces them must DERIVE its finding-model set from the registry rather than naming
+models — the same self-extending pattern the enforcement guards use.
+
 ## Known Pitfalls
 
 * `pyproject.toml` depends on both OptivEdge and OptivEdgeIntegrations from `@main`; prefer tags or commit SHAs for repeatable deployments.
