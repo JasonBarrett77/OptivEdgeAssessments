@@ -194,6 +194,12 @@ exactly two finding models — `RuleFinding` and `DeviceConfigurationFinding`. S
 other five are invisible in both: 22 of the lab's 72 findings, including every certificate
 finding.
 
+It is worse than an omission on the report side: `build_report_context()` raises
+`ValueError("No assessment run with rule findings exists.")` when there are no `RuleFinding`
+rows, so both downloads return **500** rather than a report. The lab has 72 findings and zero
+of them are rule findings, so the client deliverable currently crashes on an estate that has
+plenty to report. Pre-existing, and left alone with the rest of this surface.
+
 Leave it that way for now. Jason, 2026-09-03: the enumeration is expected to change as the
 remaining domains land, and the Findings menu item "is not anchored to anything permanent right
 now" — so wiring five models into surfaces that are being replaced is work done twice.

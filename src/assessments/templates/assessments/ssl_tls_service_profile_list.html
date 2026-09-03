@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load lucide %}
+{% load assessments_nav %}
 
 {% block title %} | SSL/TLS Profiles{% endblock %}
 
@@ -12,7 +13,7 @@
     <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
         <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
 
-            {% include "assessments/partials/device_tabs.html" with active_tab="ssl_tls_profiles" %}
+            {% device_tabs %}
 
             <div class="flex items-center gap-3 border-b border-slate-200 py-2">
                 <div class="min-w-0 flex-1 text-[11px] text-slate-600">Every SSL/TLS service profile on the device, whether anything binds it or not &mdash; a profile nobody has bound yet is the one an audit of the bound profile misses. Two controls assess each row and fail independently: <span class="font-medium">PAN-CRT-005</span> the protocol floor, <span class="font-medium">PAN-CRT-009</span> the algorithms. An absent algorithm key means ENABLED, so a profile carrying only a version range permits SHA-1 and CBC.</div>

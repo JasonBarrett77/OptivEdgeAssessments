@@ -347,7 +347,7 @@ class ControlListView(ListView):
         return context
 
 
-class FindingListView(TemplateView):
+class LegacyFindingListView(TemplateView):
     """PENDING REPLACEMENT. Do not extend this view or wire new finding models into it.
 
     Jason, 2026-09-03: "The Findings menu item is not anchored to anything permanent right
@@ -655,9 +655,13 @@ class FindingListView(TemplateView):
 class RuleFindingDocxDownloadView(View):
     """Covers RuleFinding and DeviceConfigurationFinding only - see reporting/context.py.
 
-    The other five finding models reach no client deliverable. Deliberately not fixed yet;
-    the enumeration is expected to change as the remaining domains land. See
-    `FindingListView` for the full account.
+    The other five finding models reach no client deliverable. Worse, this 500s outright when
+    there are no RuleFinding rows at all: `build_report_context()` raises rather than reporting
+    on what exists. The lab has 72 findings, none of them rule findings, and both downloads
+    fail there today.
+
+    Deliberately not fixed; the enumeration is expected to change as the remaining domains
+    land. See `LegacyFindingListView` for the full account.
     """
 
     def get(self, request, *args, **kwargs):

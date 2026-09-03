@@ -1,73 +1,12 @@
 {% load lucide %}
 <div class="flex shrink-0 gap-2 border-b border-slate-200 px-1">
+    {% for tab in tabs %}
     <a
-        href="{% url 'assessment_device_configuration_profile_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'device_configuration' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
+        href="{% url tab.url_name %}"
+        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if tab.url_name == active_url_name %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
     >
-        {% lucide "monitor" class="h-3.5 w-3.5 shrink-0" %}
-        Device Configuration
+        {% lucide tab.icon class="h-3.5 w-3.5 shrink-0" %}
+        {{ tab.label }}
     </a>
-    <a
-        href="{% url 'assessment_management_interface_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'management_interfaces' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "shield" class="h-3.5 w-3.5 shrink-0" %}
-        Management Interfaces
-    </a>
-    <a
-        href="{% url 'assessment_interface_management_profile_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'interface_management_profiles' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
-        Interface Profiles
-    </a>
-    <a
-        href="{% url 'assessment_login_banner_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'login_banner' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
-        Login Banner
-    </a>
-    <a
-        href="{% url 'assessment_management_tls_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'management_tls' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "clipboard-check" class="h-3.5 w-3.5 shrink-0" %}
-        Management TLS
-    </a>
-    <a
-        href="{% url 'assessment_ssl_tls_service_profile_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'ssl_tls_profiles' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "settings" class="h-3.5 w-3.5 shrink-0" %}
-        SSL/TLS Profiles
-    </a>
-    <a
-        href="{% url 'assessment_certificate_profile_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'certificate_profiles' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "server" class="h-3.5 w-3.5 shrink-0" %}
-        Certificate Profiles
-    </a>
-    <a
-        href="{% url 'assessment_master_key_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'master_key' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "refresh-cw" class="h-3.5 w-3.5 shrink-0" %}
-        Master Key
-    </a>
-    <a
-        href="{% url 'assessment_certificate_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'certificates' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "clipboard-check" class="h-3.5 w-3.5 shrink-0" %}
-        Certificates
-    </a>
-    <a
-        href="{% url 'assessment_password_complexity_list' %}"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'password_complexity' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "eye" class="h-3.5 w-3.5 shrink-0" %}
-        Password Complexity
-    </a>
+    {% endfor %}
 </div>

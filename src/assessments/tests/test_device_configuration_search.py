@@ -173,7 +173,7 @@ class DeviceConfigurationSearchTests(TestCase):
         )
         regenerate_device_configuration_findings()
 
-        response = self.client.get(reverse("assessment_finding_list") + "?tab=device-configuration")
+        response = self.client.get(reverse("assessment_legacy_finding_list") + "?tab=device-configuration")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Device Configuration Findings")

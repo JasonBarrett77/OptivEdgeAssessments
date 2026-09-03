@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load lucide %}
+{% load assessments_nav %}
 
 {% block title %} | Device Configuration{% endblock %}
 
@@ -12,7 +13,7 @@
     <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
         <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
 
-            {% include "assessments/partials/device_tabs.html" with active_tab="device_configuration" %}
+            {% device_tabs %}
 
             <div class="flex items-start gap-3 border-b border-slate-200 pb-2">
                 <div class="min-w-0 flex-1">

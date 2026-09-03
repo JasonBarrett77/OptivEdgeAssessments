@@ -11,7 +11,7 @@ from assessments.control_queries import SEVERITY_RANK, severity_label
 #: KNOWN INCOMPLETE, deliberately. Two of seven finding models. ManagementInterface,
 #: InterfaceManagementProfile, SslTlsServiceProfile, CertificateProfile and Certificate
 #: findings reach no client report. Not fixed yet because the enumeration is expected to
-#: change as the remaining domains land - Jason, 2026-09-03. See views.FindingListView.
+#: change as the remaining domains land - Jason, 2026-09-03. See views.LegacyFindingListView.
 from assessments.models import AssessmentRun, DeviceConfigurationFinding, RuleFinding
 
 

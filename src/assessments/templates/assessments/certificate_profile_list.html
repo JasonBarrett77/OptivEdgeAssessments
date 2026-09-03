@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load lucide %}
+{% load assessments_nav %}
 
 {% block title %} | Certificate Profiles{% endblock %}
 
@@ -12,7 +13,7 @@
     <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
         <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
 
-            {% include "assessments/partials/device_tabs.html" with active_tab="certificate_profiles" %}
+            {% device_tabs %}
 
             <div class="flex items-center gap-3 border-b border-slate-200 py-2">
                 <div class="min-w-0 flex-1 text-[11px] text-slate-600">Certificate profiles govern how the firewall validates peer certificates &mdash; admin certificate authentication, GlobalProtect clients, SAML, syslog TLS. Every option defaults to OFF, so a profile that sets nothing validates against a CA and never asks whether the certificate was revoked. <span class="font-medium">PAN-CRT-004</span> asserts that CRL or OCSP checking is on.</div>
