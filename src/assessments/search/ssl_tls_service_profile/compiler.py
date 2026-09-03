@@ -5,11 +5,12 @@ same profile pushed from a template exists separately in each firewall's merged 
 a name can occur twice on one device in different scopes - a shared entry and a predefined
 one, measured 2026-09-02, where the predefined definition is the one in force.
 
-`min_version` is an ordinary column and is what PAN-CRT-005 tests. The ALGORITHM settings are
-searchable too, and deliberately not part of that control: the corpus asserts a protocol
-floor and nothing about ciphers. They are exposed because a profile can hold a TLS 1.2 floor
-while permitting SHA-1 and CBC - measured, and true of every profile in the lab - so an
-engineer reading the tab needs to see it even though no control fires on it yet.
+Every searchable field here is an ordinary COLUMN. `protocol_algorithms` holds the other
+fifteen algorithm settings and is deliberately NOT searchable: a finding must rest on a column,
+not on a key inside a JSON blob, which is unindexed, silently matches nothing when a key is
+renamed, and writes the shape of a vendor payload into a control definition where no schema
+protects it. `allows_sha1` was promoted to a column when PAN-CRT-009 needed to assert it; the
+rest stay readable for display until a control asks.
 """
 
 from __future__ import annotations
@@ -43,21 +44,14 @@ def build_text_compiler(field_name, lookup_field):
     return compiler
 
 
-def build_algorithm_compiler(field_name, algorithm_key):
-    """Match on an EFFECTIVE algorithm setting, absent already expanded to enabled.
-
-    Queried through the JSON column rather than a per-algorithm boolean, because there are
-    sixteen of them and no control reads any yet - a column each would be sixteen migrations
-    ahead of a requirement.
-    """
+def build_boolean_compiler(field_name, lookup_field):
     def compiler(clause):
         op, value = clause["op"], clause["value"]
         if op != "eq":
             raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
         if not isinstance(value, bool):
             raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
-        return SslTlsServiceProfile.objects.filter(
-            **{f"protocol_algorithms__{algorithm_key}": value}).values("pk")
+        return SslTlsServiceProfile.objects.filter(**{lookup_field: value}).values("pk")
     compiler.SUPPORTED_OPERATORS = {"eq"}
     return compiler
 
@@ -71,9 +65,10 @@ FIELD_COMPILERS = {
     "certificate_name": build_text_compiler("certificate_name", "certificate_name"),
     "min_version": build_text_compiler("min_version", "min_version"),
     "max_version": build_text_compiler("max_version", "max_version"),
-    "allows_sha1": build_algorithm_compiler("allows_sha1", "auth-algo-sha1"),
-    "allows_aes_128_cbc": build_algorithm_compiler("allows_aes_128_cbc", "enc-algo-aes-128-cbc"),
-    "allows_aes_256_cbc": build_algorithm_compiler("allows_aes_256_cbc", "enc-algo-aes-256-cbc"),
+    # A COLUMN, not a JSON lookup. See the model: a finding must rest on a column, and the
+    # CBC and key-exchange settings are deliberately not searchable because no control asserts
+    # them - they are readable in protocol_algorithms for display.
+    "allows_sha1": build_boolean_compiler("allows_sha1", "allows_sha1"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

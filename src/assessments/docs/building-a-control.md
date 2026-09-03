@@ -139,6 +139,25 @@ and are then deleted, and empty is its normal state.
 
 ## 3. Assess it — the control
 
+- [ ] **A finding rests on a COLUMN. Never on a JSON field or a raw payload.** If a control
+      needs something that currently lives inside a JSON blob, promote it to a real column in
+      normalization and query that. Raw payload fields — `raw_rule`, `raw_profile` — are never
+      registered as searchable at all.
+      Four reasons, and the first two bite silently: a JSON lookup is unindexed, and it matches
+      NOTHING when the vendor renames a key, so the control quietly stops finding anything
+      rather than failing. It also writes the shape of a vendor payload into a control
+      definition, where no schema protects it and no migration will catch it. And a raw payload
+      is not normalized data — assessing it means the control has its own private
+      interpretation of the config, which is the thing normalization exists to prevent.
+      *This is long-standing practice — `permitted_ip_count` is searchable while
+      `permitted_ip_values` is not, `bound_interface_count` while `bound_interface_names` is
+      not — and it was broken once, by PAN-CRT-009 querying
+      `protocol_algorithms__auth-algo-sha1`. `allows_sha1` is now a column with a clean() guard
+      keeping it consistent with the JSON it derives from. Only the one algorithm a control
+      asserts was promoted: a column per key would be eleven migrations ahead of a
+      requirement.*
+
+
 - [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
       `scratch/control-changes.json` with what now covers any dropped ground.
 - [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
