@@ -128,6 +128,40 @@
           "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
+          "control_id": "PAN-CRT-007",
+          "name": "Master Key Changed from Default",
+          "control_type": "device_configuration",
+          "description": "The master key encrypts every private key and stored secret on the device. The factory default is a PUBLICLY KNOWN value, so a firewall that never set one is protecting its key material with a shared secret anybody can look up - including the private keys behind its certificates.\n\nDetected from `show system masterkey-properties`. An `expire-at` of 0 - which the CLI renders as 'unspecified' - means no key was ever set. The inference is that a lifetime is MANDATORY when setting one, in both the CLI and the GUI, so a key that has been set always carries a concrete expiry.\n\nThe corpus names this control '...and Rotated'. One test covers both halves: a concrete expiry means a key was set AND that a lifetime exists for it, so there is a rotation schedule. What cannot be established is WHEN it was changed - expire-at minus lifetime breaks when auto-renew is non-zero, since the expiry moves without the key changing - nor by whom, since no attribution field exists anywhere.",
+          "rationale": "Every other cryptographic control on the device rests on this one. A hardened SSL/TLS profile with a CA-issued certificate protects nothing if the private key behind it is encrypted with a value published in vendor documentation.",
+          "audit": "Run `show system masterkey-properties`. Expiry and reminder reading 'unspecified' means the default key is still in use. Concrete dates mean a key has been set.",
+          "remediation": "Set a master key at Device > Master Key and Diagnostics, or with `request master-key new-master-key <value> lifetime <hours>`, and store the value in the organisation's secret manager - it is unrecoverable and required to restore a configuration. Note this re-encrypts all key material through an auto-commit, and on an HA pair both members must carry the same key. From PAN-OS 12.2.2 this stops being optional: the device starts a 60-day grace period on detecting the default key, after which commits FAIL and HA sync is suspended.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "master_key_state",
+                    "op": "eq",
+                    "value": "set",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
           "control_id": "PAN-CRT-009",
           "name": "Weak Algorithms Excluded from SSL/TLS Service Profiles",
           "control_type": "ssl_tls_service_profile",

@@ -104,6 +104,11 @@ FIELD_COMPILERS = {
         "ssl_tls_certificate_issuer", "ssl_tls_certificate_issuer"),
     "ssl_tls_certificate_scope": build_text_compiler(
         "ssl_tls_certificate_scope", "ssl_tls_certificate_scope"),
+    # PAN-CRT-007. Classified rather than boolean for the reason the certificate trust field
+    # is: UNDETERMINED means the properties were never collected, which is neither a pass nor
+    # a fail, and a nullable boolean invites a query that reads it as one.
+    "master_key_state": build_text_compiler("master_key_state", "master_key_state"),
+    "master_key_on_hsm": build_boolean_compiler("master_key_on_hsm", "master_key_on_hsm"),
 }
 
 

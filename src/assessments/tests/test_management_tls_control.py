@@ -285,3 +285,108 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
         self.assertEqual(profile.ssl_tls_certificate_trust,
                          DeviceConfigurationProfile.TRUST_UNDETERMINED)
         self.assertIn("fw-nohash", self._findings(CERT_CONTROL_ID))
+
+
+class MasterKeyControlTests(TestCase):
+    """PAN-CRT-007 - the master key, which no configuration read can see.
+
+    The key value is not in the running config, so config diff and audit are blind to it. The
+    only source is `show system masterkey-properties`, and the verdict rests on an inference
+    that is vendor-documented rather than measured here: a lifetime is mandatory when setting
+    a key, so an absent expiry means no key was ever set. These tests pin the inference so
+    that if it is ever disproved, they fail rather than the control quietly reporting wrongly.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.mk")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-mk",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        spec = {c["control_id"]: c
+                for c in load_seed_payload()["catalogs"][0]["controls"]}["PAN-CRT-007"]
+        control = Control.objects.create(
+            control_id="PAN-CRT-007", name=spec["name"],
+            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            description=spec["description"],
+            default_severity=spec["default_severity"],
+            target_model=spec["target_model"])
+        for query in spec["queries"]:
+            ControlQuery.objects.create(
+                control=control, name=query["name"],
+                canonical_query=query["canonical_query"],
+                is_baseline=query["is_baseline"], is_active=query["is_active"])
+        self.run = AssessmentRun.objects.create(
+            name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
+
+    def _profile(self, hostname, masterkey=None):
+        appliance = Appliance.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            serial_number=f"S-{hostname}", hostname=hostname)
+        Snapshot.objects.create(
+            management_station=self.station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(),
+            payload={"config": {"devices": {"entry": {"deviceconfig": {"system": {}}}}}})
+        if masterkey is not None:
+            Snapshot.objects.create(
+                management_station=self.station, appliance=appliance,
+                source_type="show_masterkey_properties", collected_at=timezone.now(),
+                payload=masterkey)
+        normalize_appliance_device_configuration(appliance)
+        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+
+    def _findings(self):
+        generate_device_configuration_findings(self.run)
+        return {f.device_configuration_profile.appliance.hostname
+                for f in DeviceConfigurationFinding.objects.select_related(
+                    "control", "device_configuration_profile__appliance")
+                if f.control.control_id == "PAN-CRT-007"}
+
+    def test_expire_at_zero_is_the_default_key_and_fires(self):
+        """What every lab device reports. The CLI renders this 0 as 'unspecified'."""
+        profile = self._profile("fw-default", masterkey={
+            "expire-at": "0", "remind-at": "0", "on-hsm": "no", "auto-renew-mkey": "0"})
+        self.assertEqual(profile.master_key_state,
+                         DeviceConfigurationProfile.MASTER_KEY_DEFAULT)
+        self.assertIn("fw-default", self._findings())
+
+    def test_a_concrete_expiry_means_a_key_was_set_and_passes(self):
+        profile = self._profile("fw-set", masterkey={
+            "expire-at": "1830000000", "remind-at": "1829000000",
+            "on-hsm": "no", "auto-renew-mkey": "0"})
+        self.assertEqual(profile.master_key_state, DeviceConfigurationProfile.MASTER_KEY_SET)
+        self.assertEqual(profile.master_key_expires_at, "1830000000")
+        self.assertNotIn("fw-set", self._findings())
+
+    def test_never_collected_is_undetermined_and_still_reports(self):
+        """Not having asked is not evidence of a non-default key.
+
+        Distinct from `default` on purpose: an appliance normalized before this collector
+        existed is in this state, and the two are different facts even though both report.
+        """
+        profile = self._profile("fw-unasked", masterkey=None)
+        self.assertEqual(profile.master_key_state,
+                         DeviceConfigurationProfile.MASTER_KEY_UNDETERMINED)
+        self.assertIn("fw-unasked", self._findings())
+
+    def test_a_reply_without_expire_at_is_undetermined_not_default(self):
+        """A shape nobody has observed must not be read as the failing verdict.
+
+        `default` rests specifically on expire-at being present and zero. A reply lacking the
+        field entirely says nothing, and guessing would put a high-severity finding on a
+        device for a reason that was never established.
+        """
+        profile = self._profile("fw-odd", masterkey={"on-hsm": "no", "auto-renew-mkey": "0"})
+        self.assertEqual(profile.master_key_state,
+                         DeviceConfigurationProfile.MASTER_KEY_UNDETERMINED)
+
+    def test_auto_renew_is_recorded_because_it_breaks_dating_the_change(self):
+        """Non-zero auto-renew moves the expiry without the key changing.
+
+        Stored so nobody later computes 'changed at' as expire-at minus lifetime and gets a
+        confidently wrong date.
+        """
+        profile = self._profile("fw-renew", masterkey={
+            "expire-at": "1830000000", "on-hsm": "yes", "auto-renew-mkey": "720"})
+        self.assertEqual(profile.master_key_auto_renew_hours, 720)
+        self.assertTrue(profile.master_key_on_hsm)
