@@ -49,4 +49,11 @@
         {% lucide "server" class="h-3.5 w-3.5 shrink-0" %}
         Certificate Profiles
     </a>
+    <a
+        href="{% url 'assessment_master_key_list' %}"
+        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'master_key' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
+    >
+        {% lucide "refresh-cw" class="h-3.5 w-3.5 shrink-0" %}
+        Master Key
+    </a>
 </div>

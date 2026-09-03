@@ -4,6 +4,7 @@ This module owns read-oriented assessment surfaces built on top of normalized
 integration data. Keep collector and normalization logic in `integrations`.
 """
 
+import datetime as _dt
 import json
 import tempfile
 from pathlib import Path
@@ -96,6 +97,7 @@ MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-CRT-006")
 #: together on one row per profile, because an engineer fixes the profile, not the control.
 SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
 CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
+MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -1090,6 +1092,73 @@ class CertificateProfileListView(TemplateView):
         context["rows"] = shown
         context["findings_only"] = findings_only
         context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class MasterKeyListView(TemplateView):
+    """The master key, per appliance. PAN-CRT-007.
+
+    Device-level rather than an object, so one row per appliance - the same shape as the Login
+    Banner tab rather than the profile tabs.
+
+    NO PROVENANCE TOGGLE, deliberately. These values come from `show system
+    masterkey-properties`, an operational command, not from configuration - so they carry no
+    `@ptpl` and never will. A toggle here would render blank on every row for every device
+    forever, which is indistinguishable from a broken one. Show only the provenance you
+    actually have.
+
+    The tab also states what the verdict rests on, because it rests on an INFERENCE rather
+    than a measurement: an unset expiry means no key was ever set, since a lifetime is
+    mandatory when setting one. That is vendor-documented and has not been reproduced on
+    hardware here, and an engineer acting on a high-severity finding should be able to see
+    that from the page.
+    """
+
+    template_name = "assessments/master_key_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+
+        profiles = list(
+            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname")
+        )
+        findings_by_profile = {}
+        for finding in (
+            DeviceConfigurationFinding.objects.select_related("control")
+            .filter(status=DeviceConfigurationFinding.Status.OPEN,
+                    control__control_id__in=MASTER_KEY_CONTROLS)
+        ):
+            findings_by_profile.setdefault(
+                finding.device_configuration_profile_id, []).append(finding)
+
+        rows = []
+        for profile in profiles:
+            raw_expiry = (profile.master_key_expires_at or "").strip()
+            # The API returns 0 where the CLI prints "unspecified". Rendered in the CLI's
+            # words, because that is what an engineer sees when they go and check.
+            if raw_expiry and raw_expiry != "0":
+                try:
+                    expires = _dt.datetime.fromtimestamp(
+                        int(raw_expiry), tz=_dt.timezone.utc                    ).strftime("%Y-%m-%d %H:%M UTC")
+                except (ValueError, OverflowError, OSError):
+                    expires = raw_expiry
+            elif raw_expiry == "0":
+                expires = "unspecified"
+            else:
+                expires = ""
+            rows.append({
+                "profile": profile,
+                "expires": expires,
+                "findings": findings_by_profile.get(profile.pk, []),
+            })
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
         context["total_count"] = len(rows)
         context["shown_count"] = len(shown)
         return context

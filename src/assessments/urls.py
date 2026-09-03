@@ -26,6 +26,7 @@ from assessments.views import (
     LoginBannerListView,
     CertificateProfileListView,
     ManagementTlsListView,
+    MasterKeyListView,
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
     FindingListView,
@@ -135,6 +136,11 @@ urlpatterns = [
         "certificate-profiles/",
         CertificateProfileListView.as_view(),
         name="assessment_certificate_profile_list",
+    ),
+    path(
+        "master-key/",
+        MasterKeyListView.as_view(),
+        name="assessment_master_key_list",
     ),
     path(
         "device-configuration/",
