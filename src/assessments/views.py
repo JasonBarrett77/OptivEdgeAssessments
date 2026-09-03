@@ -41,11 +41,13 @@ from assessments.models import (
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
+    CertificateProfileFinding,
     DeviceConfigurationFinding,
     InterfaceManagementProfileFinding,
     ManagementInterfaceFinding,
     RuleFinding,
     SecurityRuleSearchState,
+    SslTlsServiceProfileFinding,
 )
 from assessments.search.compiler import apply_search, apply_search_node, parse_search_payload
 from assessments.search.exceptions import SearchSyntaxError
@@ -71,11 +73,13 @@ from optivedge_integrations.integrations.presentation import (
 )
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    CertificateProfile,
     DeviceConfigurationProfile,
     FieldProvenance,
     InterfaceManagementProfile,
     ManagementInterface,
     SecurityRule,
+    SslTlsServiceProfile,
 )
 
 
@@ -88,6 +92,10 @@ BANNER_CONTROLS = ("PAN-MGT-007", "PAN-MGT-008")
 #: TLSv1.3_Default profile satisfies the protocol floor and still serves the device's own
 #: self-signed certificate, so they pass and fail independently on the same row.
 MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-CRT-006")
+#: Two controls, one object, and they fail independently - the floor and the algorithms. Shown
+#: together on one row per profile, because an engineer fixes the profile, not the control.
+SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
+CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -952,6 +960,131 @@ class ManagementTlsListView(TemplateView):
             }
             for profile in profiles
         ]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class SslTlsServiceProfileListView(TemplateView):
+    """Every SSL/TLS service profile as an OBJECT, with all its findings on one row.
+
+    The difference from the Management TLS tab is the subject. That one asks what the
+    management interface has BOUND - one row per appliance. This asks about every profile on
+    the device whether anything uses it or not, which is what PAN-CRT-005 and PAN-CRT-009
+    assess, and a profile nobody has bound yet is exactly the one an audit of the bound
+    profile misses.
+
+    Both controls appear in the same row rather than on separate tabs. They fail
+    independently - the protocol floor and the algorithms - so a profile can carry one, both
+    or neither, and splitting them would imply two problems where there is one object to
+    remediate.
+
+    Scope is shown beside the name because a name is NOT unique on a device: TLSv1.3_Default
+    exists as both a predefined and a shared entry, and the predefined definition is the one
+    in force.
+    """
+
+    template_name = "assessments/ssl_tls_service_profile_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
+
+        profiles = list(
+            SslTlsServiceProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname", "scope", "name")
+        )
+        findings_by_profile = {}
+        for finding in (
+            SslTlsServiceProfileFinding.objects.select_related("control")
+            .filter(status=SslTlsServiceProfileFinding.Status.OPEN,
+                    control__control_id__in=SSL_TLS_PROFILE_CONTROLS)
+        ):
+            findings_by_profile.setdefault(
+                finding.ssl_tls_service_profile_id, []).append(finding)
+
+        sources = _entry_provenance(profiles)
+        rows = []
+        for profile in profiles:
+            algorithms = profile.protocol_algorithms or {}
+            # Named explicitly rather than "everything not AEAD": these are the three the
+            # remediation calls out, and a list that drifts from the remediation is worse
+            # than a short one.
+            weak = [label for label, key in (
+                ("SHA1", "auth-algo-sha1"),
+                ("AES-128-CBC", "enc-algo-aes-128-cbc"),
+                ("AES-256-CBC", "enc-algo-aes-256-cbc"),
+                ("static RSA", "keyxchg-algo-rsa"),
+            ) if algorithms.get(key)]
+            rows.append({
+                "profile": profile,
+                "weak_algorithms": weak,
+                # Absent keys are why this matters: a profile that wrote nothing permits
+                # everything, and the row should say which of the two it is.
+                "algorithms_are_implicit": not profile.explicit_algorithms,
+                "provenance": sources.get(profile.pk, ""),
+                "findings": findings_by_profile.get(profile.pk, []),
+            })
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
+class CertificateProfileListView(TemplateView):
+    """Every certificate profile, with what it actually checks.
+
+    All six booleans default OFF, so a profile that sets nothing validates against a CA and
+    never asks whether the certificate was revoked. The row shows the absence rather than
+    leaving blanks, because blank reads as "not applicable" and this is "not checking".
+    """
+
+    template_name = "assessments/certificate_profile_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
+
+        profiles = list(
+            CertificateProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname", "scope", "name")
+        )
+        findings_by_profile = {}
+        for finding in (
+            CertificateProfileFinding.objects.select_related("control")
+            .filter(status=CertificateProfileFinding.Status.OPEN,
+                    control__control_id__in=CERTIFICATE_PROFILE_CONTROLS)
+        ):
+            findings_by_profile.setdefault(finding.certificate_profile_id, []).append(finding)
+
+        sources = _entry_provenance(profiles)
+        rows = []
+        for profile in profiles:
+            checks = [label for label, on in (
+                ("CRL", profile.use_crl), ("OCSP", profile.use_ocsp)) if on]
+            blocks = [label for label, on in (
+                ("expired", profile.block_expired_cert),
+                ("unknown", profile.block_unknown_cert),
+                ("timeout", profile.block_timeout_cert),
+                ("unauthenticated", profile.block_unauthenticated_cert)) if on]
+            rows.append({
+                "profile": profile,
+                "revocation_checks": checks,
+                "blocks": blocks,
+                "provenance": sources.get(profile.pk, ""),
+                "findings": findings_by_profile.get(profile.pk, []),
+            })
         shown = [row for row in rows if row["findings"]] if findings_only else rows
 
         context["rows"] = shown
