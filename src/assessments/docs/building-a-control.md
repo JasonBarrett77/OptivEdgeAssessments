@@ -124,6 +124,13 @@ and are then deleted, and empty is its normal state.
       mechanism.** Read it with the helpers in `normalization/common.py`. *A bespoke
       `provenance = CharField` was built and removed a day later: it could not hold the type,
       could not be queried, and could not tell a PAN-OS default from a local value.*
+- [ ] **Adding fields to an already-provenanced model does NOT inherit its provenance.**
+      Every new field must be appended to that normalizer's `field_provenance_data` too, or it
+      silently stores values with no source. *Sixteen password-complexity fields went onto
+      `DeviceConfigurationProfile` — a model that has used `ProvenancedMixin` since it was
+      written — and none of them recorded provenance. Nothing failed: the columns were right,
+      the findings were right, and the gap only surfaced while building the tab. The model
+      being provenanced is what makes this easy to miss.*
 - [ ] **Search for an existing helper before writing one.** *`common.py` already had
       `scalar_value`, `parse_yes_no_field`, `entry_provenance`, `classify_prov_type` and
       `ABSENT`; a private `_provenance()` was written beside them, checking the wrong key
@@ -221,7 +228,11 @@ and are then deleted, and empty is its normal state.
 - [ ] **Blank cells are ambiguous.** Say "any source", "Nothing", not nothing at all.
 - [ ] **Anything referenced by name is unvalidated until render.** Icons, template includes,
       URL names. *A lucide icon that does not exist reads an SVG off disk and 500s, failing
-      ten unrelated view tests at once.*
+      ten unrelated view tests at once.* **For icons, list the directory first** — the set is
+      not lucide's, it is the ~17 SVGs vendored at
+      `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
+      now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
+      another tab already uses is fine and normal here; inventing a plausible name is not.*
 - [ ] **Empty-state text must name the right action.** *Both tabs said "run a sync"; both
       needed only a renormalize, which contacts no device.*
 

@@ -1773,3 +1773,156 @@ class SecurityRuleListView(TemplateView):
         context["page_range"] = pagination_range(page_obj)
         context["total_row_count"] = total_row_count
         return context
+
+
+PASSWORD_COMPLEXITY_CONTROLS = tuple(f"PAN-AUTH-{n:03d}" for n in range(1, 14))
+
+#: Each cell: (field, label, kind). `kind` drives rendering only - the verdict never comes from
+#: here. "unassessed" marks the three keys PAN-OS accepts that no corpus control reads; they are
+#: shown because collecting a value and then hiding it is how a page starts lying about what was
+#: looked at, and they are styled apart so nobody mistakes one for a passing check.
+PASSWORD_COMPLEXITY_GROUPS = (
+    ("Composition", (
+        ("password_minimum_length", "Length", "length"),
+        ("password_minimum_uppercase", "Uppercase", "int"),
+        ("password_minimum_lowercase", "Lowercase", "int"),
+        ("password_minimum_numeric", "Numeric", "int"),
+        ("password_minimum_special", "Special", "int"),
+        ("password_block_username_inclusion", "Blocks username", "bool"),
+        ("password_block_repeated_characters", "Repeated chars", "unassessed_int"),
+    )),
+    ("Reuse", (
+        ("password_new_differs_by_characters", "Differs by", "int"),
+        ("password_history_count", "History", "int"),
+    )),
+    ("Expiry", (
+        ("password_expiration_period", "Period", "days_never"),
+        ("password_expiration_warning_period", "Warning", "int"),
+    )),
+    ("Password change", (
+        ("password_post_expiration_admin_login_count", "Post-expiry logins", "int"),
+        ("password_post_expiration_grace_period", "Grace period", "int"),
+        ("password_change_on_first_login", "On first login", "unassessed_bool"),
+        ("password_change_period_block", "Period block", "unassessed_int"),
+    )),
+)
+
+
+def _fields_by_control(control_ids) -> dict[str, set[str]]:
+    """{control_id: fields its baseline query reads}, taken from the query itself.
+
+    DERIVED rather than written down, because a hand-kept map would be a second place where
+    the relationship between a control and a column lives, and the two would drift the first
+    time a threshold moved. It also means the page never restates a threshold: which cell a
+    finding lights up comes from the query, and WHETHER it lights up comes from the finding.
+    """
+    mapping: dict[str, set[str]] = {}
+    for control in Control.objects.filter(control_id__in=control_ids).prefetch_related(
+            "queries"):
+        fields: set[str] = set()
+        for query in control.queries.all():
+            canonical = query.canonical_query or {}
+            for clause in canonical.get("clauses") or []:
+                field = clause.get("field")
+                if field:
+                    fields.add(field)
+        mapping[control.control_id] = fields
+    return mapping
+
+
+class PasswordComplexityListView(TemplateView):
+    """Minimum password complexity, per appliance. PAN-AUTH-001 through 013.
+
+    Thirteen controls over ONE object, so this follows Jason's rule that controls sharing an
+    object are presented together: one row per appliance carrying all thirteen verdicts, rather
+    than thirteen rows or thirteen tabs.
+
+    A cell is marked weak IFF a control that reads it has an open finding. The page therefore
+    contains no thresholds of its own - not 12, not 90, not "at least one". Restating them here
+    would have created a second source of truth that looks authoritative and silently goes
+    stale, and it would have got PAN-AUTH-010 wrong in a way nobody would notice: the naive
+    reading is "higher is worse", but that control is bounded at BOTH ends, so 0 and 365 are
+    both findings while 60 is not. Deriving the highlight from the finding gets that right
+    without knowing why.
+
+    The three "not assessed" cells are values PAN-OS accepts and no corpus control reads. They
+    are shown, greyed, because the alternative is a page that quietly implies the seven keys it
+    displays are the whole object.
+
+    Provenance is a real column here, unlike the master key tab: mgt-config IS
+    template-managed, measured 2026-09-03 - `action=complete` on a template's config root
+    returns mgt-config beside devices and shared, and pushed values arrive carrying @ptpl. The
+    lab pushes two deliberately weak values so the column is exercised rather than blank.
+    """
+
+    template_name = "assessments/password_complexity_list.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        show_provenance = self.request.GET.get("provenance") == "1"
+
+        profiles = list(
+            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
+            .order_by("appliance__hostname")
+        )
+        fields_by_control = _fields_by_control(PASSWORD_COMPLEXITY_CONTROLS)
+
+        findings_by_profile: dict[int, list] = {}
+        for finding in (
+            DeviceConfigurationFinding.objects.select_related("control")
+            .filter(status=DeviceConfigurationFinding.Status.OPEN,
+                    control__control_id__in=PASSWORD_COMPLEXITY_CONTROLS)
+            .order_by("control__control_id")
+        ):
+            findings_by_profile.setdefault(
+                finding.device_configuration_profile_id, []).append(finding)
+
+        # One provenance query per field rather than per row, same as every other tab.
+        provenance_by_field = {
+            field: _entry_provenance(profiles, field)
+            for _, cells in PASSWORD_COMPLEXITY_GROUPS
+            for field, _, _ in cells
+        }
+        provenance_by_field["password_complexity_enabled"] = _entry_provenance(
+            profiles, "password_complexity_enabled")
+
+        rows = []
+        for profile in profiles:
+            findings = findings_by_profile.get(profile.pk, [])
+            weak_fields: set[str] = set()
+            for finding in findings:
+                weak_fields |= fields_by_control.get(finding.control.control_id, set())
+
+            groups = []
+            for label, cells in PASSWORD_COMPLEXITY_GROUPS:
+                groups.append({
+                    "label": label,
+                    "cells": [
+                        {
+                            "label": cell_label,
+                            "kind": kind,
+                            "value": getattr(profile, field),
+                            "weak": field in weak_fields,
+                            "provenance": provenance_by_field.get(field, {}).get(profile.pk, ""),
+                        }
+                        for field, cell_label, kind in cells
+                    ],
+                })
+            rows.append({
+                "profile": profile,
+                "groups": groups,
+                "findings": findings,
+                "enabled_provenance": provenance_by_field[
+                    "password_complexity_enabled"].get(profile.pk, ""),
+                "enabled_weak": "password_complexity_enabled" in weak_fields,
+            })
+
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+        context["rows"] = shown
+        context["group_labels"] = [label for label, _ in PASSWORD_COMPLEXITY_GROUPS]
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
