@@ -137,6 +137,14 @@ and are then deleted, and empty is its normal state.
       both — with its **own** error handling. One part of the answer failing must not silently
       remove another. *PAN-OS: `flows.py`, where the two paths share one loop.*
 
+- [ ] **Check a new model against the certificate reference list.** `→ certificate-reference-locations.csv`
+      `OptivEdgeProbe/scratch/certificate-reference-locations.csv` holds the 67 places PAN-OS
+      lets a certificate be referenced. Set `covered_by` on any row your model's subtree now
+      covers, and ADD a row if you find a reference the list is missing. PAN-CRT-001 and
+      PAN-CRT-008 are deferred until enough of those locations have models, and this is how
+      they stop being deferred — incrementally, as each domain lands. *Do not build a model
+      because it is on the list: it is a coverage checklist, not a work queue.*
+
 ## 3. Assess it — the control
 
 - [ ] **A finding rests on a COLUMN. Never on a JSON field or a raw payload.** If a control
