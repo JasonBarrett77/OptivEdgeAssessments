@@ -1,61 +1,18 @@
-{% extends "base.html" %}
+{% extends "assessments/device_tab_base.html" %}
 {% load lucide %}
-{% load assessments_nav %}
 
-{% block title %} | Certificates{% endblock %}
-
-{% block head %}
-{% include "components/partials/analytical_table_styles.html" %}
-{% endblock %}
-
-{% block content %}
-<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
-    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
-
-            {% device_tabs %}
-
-            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
-                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
-                    Every certificate on the device. Key size, algorithm and signature are
+{% block description %}
+Every certificate on the device. Key size, algorithm and signature are
                     <span class="font-medium">decoded from the certificate itself</span> &mdash; PAN-OS
                     exposes none of them in configuration. <span class="font-medium">PAN-CRT-002</span>
                     asserts RSA&nbsp;2048 or ECDSA&nbsp;P-256 as a floor;
                     <span class="font-medium">PAN-CRT-003</span> asserts no SHA-1 or MD5 signature.
                     Remediation for both is reissuance, not a configuration change.
-                </div>
-                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
-                <a
-                    href="?{% if not findings_only %}findings=1{% endif %}"
-                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
-                >
-                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
-                    {% if findings_only %}With findings{% else %}All certificates{% endif %}
-                </a>
-                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
-                    {{ shown_count }} of {{ total_count }}
-                </div>
-            </div>
+{% endblock %}
 
-            {% if not total_count %}
-            <div class="px-4 py-8 text-center text-sm text-slate-500">
-                No certificates have been normalized.
-            </div>
-            {% else %}
-            <div class="min-h-0 flex-1 overflow-auto pt-2">
-                <table class="analytical-table w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Certificate</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Key</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Signature</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Type</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Expires</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+{% block empty_state %}No certificates have been normalized.{% endblock %}
+
+{% block rows %}
                         {% for row in rows %}
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.certificate.appliance }}</td>
@@ -90,12 +47,4 @@
                             </td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% endif %}
-
-        </div>
-    </div>
-</section>
 {% endblock %}

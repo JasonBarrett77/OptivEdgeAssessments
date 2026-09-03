@@ -1,69 +1,28 @@
-{% extends "base.html" %}
+{% extends "assessments/device_tab_base.html" %}
 {% load lucide %}
-{% load assessments_nav %}
 
-{% block title %} | Master Key{% endblock %}
-
-{% block head %}
-{% include "components/partials/analytical_table_styles.html" %}
-{% endblock %}
-
-{% block content %}
-<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
-    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
-
-            {% device_tabs %}
-
-            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
-                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
-                    The master key encrypts every private key and stored secret on the device, and the
+{% block description %}
+The master key encrypts every private key and stored secret on the device, and the
                     factory default is a <span class="font-medium">publicly known value</span>. Read from
                     <code>show system masterkey-properties</code> &mdash; the key itself appears in no
                     configuration, so config diff and audit cannot see it.
                     <span class="font-medium">PAN-CRT-007</span> asserts that a key has been set.
-                </div>
-                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
-                <a
-                    href="?{% if not findings_only %}findings=1{% endif %}"
-                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
-                >
-                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
-                    {% if findings_only %}With findings{% else %}All appliances{% endif %}
-                </a>
-                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
-                    {{ shown_count }} of {{ total_count }}
-                </div>
-            </div>
+{% endblock %}
 
-            <div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
-                <span class="font-medium text-slate-600">How this is determined:</span>
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+<span class="font-medium text-slate-600">How this is determined:</span>
                 an unset expiry means no key was ever set, because a lifetime is mandatory when setting
                 one. That is vendor-documented and has <span class="font-medium">not been reproduced on
                 hardware here</span>. There is no provenance column: these values come from an
                 operational command rather than configuration, so they carry no template source and
                 never will.
-            </div>
+</div>
+{% endblock %}
 
-            {% if not total_count %}
-            <div class="px-4 py-8 text-center text-sm text-slate-500">
-                No device configuration has been normalized.
-            </div>
-            {% else %}
-            <div class="min-h-0 flex-1 overflow-auto pt-2">
-                <table class="analytical-table w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Master Key</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Expires</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Auto-renew</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">On HSM</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Collected</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+{% block empty_state %}No device configuration has been normalized.{% endblock %}
+
+{% block rows %}
                         {% for row in rows %}
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
@@ -94,12 +53,4 @@
                             </td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% endif %}
-
-        </div>
-    </div>
-</section>
 {% endblock %}

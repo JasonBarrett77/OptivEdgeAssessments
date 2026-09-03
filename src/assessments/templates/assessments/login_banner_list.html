@@ -1,69 +1,19 @@
-{% extends "base.html" %}
+{% extends "assessments/device_tab_base.html" %}
 {% load lucide %}
-{% load assessments_nav %}
 
-{% block title %} | Login Banner{% endblock %}
-
-{% block head %}
-{% include "components/partials/analytical_table_styles.html" %}
-{% endblock %}
-
-{% block content %}
-<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
-    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
-
-            {% device_tabs %}
-
-            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
-                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
-                    The banner shown before authentication, and whether an administrator must
+{% block description %}
+The banner shown before authentication, and whether an administrator must
                     acknowledge it. PAN-OS makes acknowledgement unavailable until a banner exists,
                     so a device missing both is reported twice &mdash; set the banner first.
-                </div>
-                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
-                <a
-                    href="?{% if findings_only %}findings=1&amp;{% endif %}{% if not show_provenance %}provenance=1{% endif %}"
-                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if show_provenance %}border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
-                    title="{% if show_provenance %}Hide where each value came from{% else %}Show which template or stack pushed each value{% endif %}"
-                >
-                    {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
-                    {% if show_provenance %}Provenance on{% else %}Provenance off{% endif %}
-                </a>
-                <a
-                    href="?{% if show_provenance %}provenance=1&amp;{% endif %}{% if not findings_only %}findings=1{% endif %}"
-                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
-                    title="{% if findings_only %}Show every appliance{% else %}Show only appliances with an open finding{% endif %}"
-                >
-                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
-                    {% if findings_only %}With findings{% else %}All appliances{% endif %}
-                </a>
-                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
-                    {{ shown_count }} of {{ total_count }}
-                </div>
-            </div>
+{% endblock %}
 
-            {% if not total_count %}
-            <div class="px-4 py-8 text-center text-sm text-slate-500">
-                No device configuration has been normalized. If configuration has already been
+{% block empty_state %}No device configuration has been normalized. If configuration has already been
                 collected, <strong>Renormalize</strong> on Firewall Integrations is enough &mdash;
                 this is read from the stored snapshot and needs no device connection. Run a sync
                 only if this station has never been collected. Then regenerate configuration
-                findings.
-            </div>
-            {% else %}
-            <div class="min-h-0 flex-1 overflow-auto pt-2">
-                <table class="analytical-table w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Appliance</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Banner</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Acknowledge</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Findings</th>
-                            <th class="sticky top-0 z-10 h-7 border-b border-slate-200 bg-slate-50 px-2 text-left text-[10px] font-medium whitespace-nowrap uppercase tracking-wide text-slate-700">Collected</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                findings.{% endblock %}
+
+{% block rows %}
                         {% for row in rows %}
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
@@ -89,12 +39,4 @@
                             </td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% endif %}
-
-        </div>
-    </div>
-</section>
 {% endblock %}

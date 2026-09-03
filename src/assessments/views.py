@@ -29,6 +29,7 @@ from assessments.findings import regenerate_rule_findings
 from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
+from assessments.tables import Column
 from django.contrib.contenttypes.models import ContentType
 
 from assessments.search.management_interface.fields.services import (
@@ -855,8 +856,22 @@ class InterfaceManagementProfileListView(TemplateView):
 
     template_name = "assessments/interface_management_profile_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Bound To"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Interface Profiles"
+        context["all_label"] = "All profiles"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 
@@ -910,8 +925,22 @@ class LoginBannerListView(TemplateView):
 
     template_name = "assessments/login_banner_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Banner"),
+        Column("Acknowledge"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Login Banner"
+        context["all_label"] = "All appliances"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 
@@ -973,8 +1002,24 @@ class ManagementTlsListView(TemplateView):
 
     template_name = "assessments/management_tls_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Bound Profile"),
+        Column("Protocol Range"),
+        Column("Certificate"),
+        Column("Issuer"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Management TLS"
+        context["all_label"] = "All appliances"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 
@@ -1033,8 +1078,24 @@ class SslTlsServiceProfileListView(TemplateView):
 
     template_name = "assessments/ssl_tls_service_profile_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Protocol Range"),
+        Column("Certificate"),
+        Column("Weak Algorithms"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "SSL/TLS Profiles"
+        context["all_label"] = "All profiles"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 
@@ -1093,8 +1154,24 @@ class CertificateProfileListView(TemplateView):
 
     template_name = "assessments/certificate_profile_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Revocation Checks"),
+        Column("Blocks On"),
+        Column("CA Certificates"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Certificate Profiles"
+        context["all_label"] = "All profiles"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 
@@ -1158,8 +1235,24 @@ class MasterKeyListView(TemplateView):
 
     template_name = "assessments/master_key_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Master Key"),
+        Column("Expires"),
+        Column("Auto-renew"),
+        Column("On HSM"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Master Key"
+        context["all_label"] = "All appliances"
+        context["has_provenance_toggle"] = False
         findings_only = self.request.GET.get("findings") == "1"
 
         profiles = list(
@@ -1219,8 +1312,24 @@ class CertificateListView(TemplateView):
 
     template_name = "assessments/certificate_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Certificate"),
+        Column("Key"),
+        Column("Signature"),
+        Column("Type"),
+        Column("Expires"),
+        Column("Findings"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Certificates"
+        context["all_label"] = "All certificates"
+        context["has_provenance_toggle"] = False
         findings_only = self.request.GET.get("findings") == "1"
 
         certificates = list(
@@ -1894,8 +2003,25 @@ class PasswordComplexityListView(TemplateView):
 
     template_name = "assessments/password_complexity_list.html"
 
+    #: Declared once; the header renders from this and
+    #: test_device_tab_tables_are_square checks every body row against its length.
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Complexity"),
+        Column("Composition"),
+        Column("Reuse"),
+        Column("Expiry"),
+        Column("Password change"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = "Password Complexity"
+        context["all_label"] = "All appliances"
+        context["has_provenance_toggle"] = True
         findings_only = self.request.GET.get("findings") == "1"
         show_provenance = self.request.GET.get("provenance") == "1"
 

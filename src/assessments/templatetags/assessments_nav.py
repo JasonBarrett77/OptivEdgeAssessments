@@ -39,3 +39,9 @@ def device_tabs(context):
         "tabs": tabs_in(active_section),
         "active_url_name": active_url_name,
     }
+
+
+@register.inclusion_tag("assessments/partials/table_header.html")
+def table_header(columns):
+    """The <thead>, from a view's column spec."""
+    return {"columns": columns}

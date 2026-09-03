@@ -200,6 +200,18 @@ Do not copy a neighbouring module when adding an object type. Three pieces carry
 * **`finding_registry.FINDING_KINDS`** — every finding model. Consumers iterate this instead of
   naming models. A concrete `FindingBase` subclass missing from it fails `test_finding_registry`.
 
+## Device tab templates
+
+A list page extends `assessments/device_tab_base.html` and supplies three things: a
+`{% block description %}`, a `COLUMNS` tuple on its view, and a `{% block rows %}`. The nav,
+the provenance/findings toggles, the count, the empty state and the `<thead>` come from the
+base. `{% block toolbar %}` and `{% block table %}` are overridable for pages with their own
+filter box or table shell.
+
+Cells stay hand-written - a cell is usually a value plus a provenance line plus a weak/normal
+decision, and a spec for that would be harder to read than the markup. Two pages with grouped
+headers keep hand-written `<thead>`s; `tables.py` records the measurement behind that.
+
 ## Surfaces pending replacement
 
 Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportunistically.

@@ -222,9 +222,16 @@ and are then deleted, and empty is its normal state.
       invention. *On the Management TLS tab only the BINDING has provenance; the profile's
       protocol range and certificate are read from the profile object and deliberately show
       none.*
-- [ ] **Assert the table stays square.** Body cells == header cells; group spans cover every
-      column. *Removing two model fields left the headers declaring columns the body no longer
-      rendered, shifting everything after them.*
+- [ ] **Extend `device_tab_base.html` and declare `COLUMNS` on the view.** The page supplies a
+      description, its columns and its rows; the nav, toolbar, toggles, empty state and header
+      come from the base. *Eight templates re-typed the whole scaffold, and one `<th>` class
+      string appeared 38 times.* The two grouped-header pages keep their own headers on
+      purpose - see `tables.py` for why.
+- [ ] **The table stays square automatically now** - `test_device_tab_tables_are_square` renders
+      every tab and checks each body row against its header. *Removing two model fields left the
+      headers declaring columns the body no longer rendered, shifting everything after them; it
+      was found by reading. Do not re-add a manual check, and do not let the test go vacuous:
+      it creates a row on every tab, because an empty database renders no table at all.*
 - [ ] **Blank cells are ambiguous.** Say "any source", "Nothing", not nothing at all.
 - [ ] **Anything referenced by name is unvalidated until render.** Icons, template includes,
       URL names. *A lucide icon that does not exist reads an SVG off disk and 500s, failing

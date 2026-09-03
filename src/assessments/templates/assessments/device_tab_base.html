@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load lucide %}
+{% load assessments_nav %}
+
+{% comment %}
+The scaffold every device tab shares: the two-level nav, a toolbar with the standard
+   toggles, and a table whose header comes from the view's column spec.
+
+   Ten pages re-typed all of this, which is how one <th> class string came to appear 50 times
+   and how a header once drifted out of step with its own body. A page now supplies what is
+   actually its own: a description, its columns, and its rows.
+
+   Pages with their own toolbar - a filter box, pagination - override the toolbar block
+   wholesale and still get the nav, the table shell and the generated header.
+{% endcomment %}
+
+{% block title %} | {{ tab_title }}{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div class="flex h-full min-h-0 min-w-0 flex-col px-3 py-2">
+
+            {% device_tabs %}
+
+            {% block toolbar %}
+            <div class="flex items-center gap-3 border-b border-slate-200 py-2">
+                <div class="min-w-0 flex-1 text-[11px] text-slate-600">
+                    {% block description %}{% endblock %}
+                </div>
+                <div class="h-8 w-px shrink-0 bg-slate-200"></div>
+                {% if has_provenance_toggle %}
+                <a
+                    href="?{% if findings_only %}findings=1&amp;{% endif %}{% if not show_provenance %}provenance=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if show_provenance %}border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                    title="{% if show_provenance %}Hide where each value came from{% else %}Show which template or stack pushed each value{% endif %}"
+                >
+                    {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if show_provenance %}Provenance on{% else %}Provenance off{% endif %}
+                </a>
+                {% endif %}
+                <a
+                    href="?{% if show_provenance %}provenance=1&amp;{% endif %}{% if not findings_only %}findings=1{% endif %}"
+                    class="inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-[12px] font-medium whitespace-nowrap transition-colors {% if findings_only %}border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100{% else %}border-slate-300 bg-white text-slate-700 hover:bg-slate-50{% endif %}"
+                >
+                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
+                    {% if findings_only %}With findings{% else %}{{ all_label|default:"All appliances" }}{% endif %}
+                </a>
+                <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
+                    {{ shown_count }} of {{ total_count }}
+                </div>
+            </div>
+            {% endblock %}
+
+            {% block guidance %}{% endblock %}
+
+            {% if not total_count %}
+            <div class="px-4 py-8 text-center text-sm text-slate-500">
+                {% block empty_state %}Nothing has been normalized yet.{% endblock %}
+            </div>
+            {% else %}
+            {% block table %}
+            <div class="min-h-0 flex-1 overflow-auto pt-2">
+                <table class="analytical-table w-full border-collapse">
+                    {% table_header columns %}
+                    <tbody>
+                        {% block rows %}{% endblock %}
+                    </tbody>
+                </table>
+            </div>
+            {% endblock %}
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}
