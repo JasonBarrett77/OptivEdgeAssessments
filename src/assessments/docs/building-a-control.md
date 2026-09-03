@@ -165,6 +165,16 @@ and are then deleted, and empty is its normal state.
 
 ## 4. Present it
 
+- [ ] **One object, one row — every control that assesses it reports there.** Where several
+      controls share a subject, the tab presents the OBJECT and all of its findings together,
+      rather than one row per control or a tab per control. An engineer fixes the object, not
+      the control, and needs to see everything wrong with it in one place. *An SSL/TLS service
+      profile is assessed by PAN-CRT-005 for its protocol floor and PAN-CRT-009 for its
+      algorithms, and they fail independently — `oep-tls-legacy` reports both, while
+      `oep-mgmt-tls-hardened` passes the floor and fails the algorithms. Two rows for that
+      first profile would imply two problems where there is one object to remediate.*
+      This is why the finding models carry `subject_name` and `subject_scope`: the object is
+      the key the presentation groups by, and a name alone is not unique on a device.
 - [ ] **A new subject gets its OWN TAB, not columns on Device Configuration.** That table is
       being retired precisely because it accumulated a column group per finding type and every
       new control widened it; object- and control-specific tabs replace it as they come up. Put

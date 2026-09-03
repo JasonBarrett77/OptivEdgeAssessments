@@ -128,6 +128,45 @@
           "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
+          "control_id": "PAN-CRT-009",
+          "name": "Weak Algorithms Excluded from SSL/TLS Service Profiles",
+          "control_type": "ssl_tls_service_profile",
+          "description": "An SSL/TLS service profile controls far more than its protocol floor. It also selects the key exchange, encryption and authentication algorithms every service that binds it will negotiate, and ABSENT MEANS ENABLED - measured 2026-09-02 from a profile writing only a version range, whose every algorithm box renders ticked.\\n\\nSo a profile can satisfy PAN-CRT-005 with a TLS 1.2 floor and still permit SHA-1 authentication, CBC-mode encryption and static RSA key exchange. Every profile in the lab does.\\n\\nThis control asserts the MINIMUM, matching how the corpus draws that line on every other cryptographic surface: PAN-IKE-004 and PAN-IPS-003 exclude MD5 and SHA-1, PAN-MCR-003 requires SHA-2, PAN-DCP-002 removes 3DES, RC4 and MD5. SHA-1 is the only primitive of that class an SSL/TLS service profile can select, so it is the floor here. The preferred state goes further - AEAD ciphers only and ECDHE only, which is exactly PAN-DCP-002's preferred wording - and is remediation guidance rather than a second assertion.\\n\\nProfiles capped at TLS 1.3 are EXCLUDED. TLS 1.3 removed CBC, static RSA and SHA-1 from its cipher suites, so these settings cannot apply to a 1.3-only handshake. That is inferred from the protocol specification and NOT measured on the device - the checkboxes remain visible on such a profile - but firing on the vendor's own TLSv1.3_Default would be a false positive on the strongest profile PAN-OS ships.",
+          "rationale": "A profile is reusable by design, so weak algorithms selected once are inherited by every service that binds it - management UI, GlobalProtect, Captive Portal, syslog. And because absent means enabled, this is the state a profile arrives in by default: an administrator who sets only a version floor has not narrowed the algorithms at all, and the configuration gives no sign of it.",
+          "audit": "At Device > Certificate Management > SSL/TLS Service Profile, open each profile and read the Authentication Algorithms group. SHA1 must be unticked. Note that an unconfigured profile shows every box ticked, so nothing having been changed is the failing state rather than a neutral one.",
+          "remediation": "Untick SHA1 under Authentication Algorithms. For the preferred state also untick the CBC encryption algorithms, leaving AES-GCM and CHACHA20-POLY1305, and untick RSA under Key Exchange Algorithms so that only DHE and ECDHE remain, which gives forward secrecy. Verify client compatibility first: removing CBC and static RSA breaks very old clients, which is why they are the preferred state rather than the floor.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.SslTlsServiceProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "allows_sha1",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "min_version",
+                    "op": "eq",
+                    "value": "tls1-3",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.SslTlsServiceProfile"
+        },
+        {
           "control_id": "PAN-MGT-001",
           "name": "Disable Telnet on Management Surfaces",
           "control_type": "management_interface",
