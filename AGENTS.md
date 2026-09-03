@@ -191,3 +191,25 @@ or topology.
 * Use Django model labels in canonical query payloads, for example `integrations.SecurityRule`.
 * If a shell behavior, base template, shared component or template tag is missing, check OptivEdge first; if a
   firewall model, collector or integration view is missing, check OptivEdgeIntegrations.
+
+## Git hooks
+
+`.githooks/` is committed and enabled per clone with:
+
+    git config core.hooksPath .githooks
+
+**Each clone must run that once.** Hooks live outside the tree by default, so a committed hook
+directory does nothing until git is pointed at it, and git has no way to make that automatic.
+
+`pre-commit` runs the structural guards only - `test_findings_rest_on_columns` and
+`test_reseed` - because those are the checks whose regressions fail SILENTLY: a control query
+reaching a JSON column stops matching instead of erroring, and a control type with no target
+model makes a freshly applied catalog report MODIFIED. `pre-push` runs the whole suite.
+
+Both fail rather than skip when they cannot find a Python that imports django. A check you
+believe ran but did not is worse than no check. `OPTIVEDGE_PYTHON` overrides the interpreter;
+otherwise it tries the repo venv then the OptivEdgeLab venv.
+
+These are a REMINDER, not a gate: `git commit --no-verify` skips them, and github.com does not
+support server-side hooks, which are the only unbypassable git-native enforcement. A real gate
+needs a GitHub Actions workflow with a required status check.

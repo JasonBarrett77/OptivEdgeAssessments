@@ -1,0 +1,47 @@
+#!/bin/sh
+# Fast structural guards. The full suite runs on pre-push.
+#
+# These four checks are the ones that fail SILENTLY in production if they regress: a control
+# query reaching a JSON column stops matching instead of erroring, and a control type with no
+# target model makes a freshly applied catalog report MODIFIED.
+set -e
+REPO="$(git rev-parse --show-toplevel)"
+# Locate a Python that can run this repo's checks.
+#
+# Order matters: an explicit override first, then the repo's own venv, then the lab
+# environment which has every package installed. A hook that hardcodes one path works on the
+# machine it was written on and nowhere else.
+#
+# It FAILS rather than skips when it cannot find one. A hook that silently does nothing is
+# worse than no hook, because you believe it ran.
+find_python() {
+  for candidate in "$OPTIVEDGE_PYTHON" \
+                   "$REPO/.venv/bin/python" \
+                   "$REPO/../OptivEdgeLab/.venv/bin/python"; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    if "$candidate" -c "import django" >/dev/null 2>&1; then
+      echo "$candidate"; return 0
+    fi
+  done
+  return 1
+}
+
+fail_no_python() {
+  cat >&2 <<MSG
+[hook] No Python found that can import django.
+       Tried \$OPTIVEDGE_PYTHON, \$REPO/.venv/bin/python and the OptivEdgeLab venv.
+       Set OPTIVEDGE_PYTHON to a suitable interpreter, or create the repo venv.
+       This hook fails rather than skipping: a check you believe ran but did not is
+       worse than no check.
+MSG
+  exit 1
+}
+
+PYTHON="$(find_python)" || fail_no_python
+cd "$REPO"
+echo "[pre-commit] structural guards..."
+DJANGO_SETTINGS_MODULE=assessments.settings.default "$PYTHON" -m django test \
+  assessments.tests.test_findings_rest_on_columns \
+  assessments.tests.test_reseed \
+  --verbosity 0
+echo "[pre-commit] ok"
