@@ -13,6 +13,440 @@
       },
       "controls": [
         {
+          "control_id": "PAN-AUTH-001",
+          "name": "Enable Minimum Password Complexity Enforcement",
+          "control_type": "device_configuration",
+          "description": "The master switch for the password-complexity engine. While it is off, every individual requirement on the device is stored but not enforced - a device can show a 12-character minimum and accept a one-character password.\\n\\nMeasured 2026-09-03: absent means OFF, and enabling it through the UI writes ONLY the flag. The zeros shown on that form are rendered defaults, not stored values, so the easiest path through the GUI produces a policy that is switched on and requires nothing.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Enabled.",
+          "remediation": "Tick Enabled, and set the individual requirements in the SAME change - enabling alone leaves every requirement at zero.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_complexity_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-002",
+          "name": "Minimum Password Length",
+          "control_type": "device_configuration",
+          "description": "Enforces a floor on local administrator password length. The corpus minimum is 12 (CIS) and the preferred value 15 (DISA STIG).\\n\\nThe configurable range is 6 to 16, so a zero is reachable only by ABSENCE - a deliberate zero cannot be written. A stored 0 for this key therefore always means never configured.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Length.",
+          "remediation": "Set Minimum Length to at least 12; 15 where clients allow it. The maximum the device accepts is 16.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_minimum_length",
+                    "op": "lt",
+                    "value": 12
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-003",
+          "name": "Require Uppercase Letters in Passwords",
+          "control_type": "device_configuration",
+          "description": "At least one uppercase letter, widening the effective character set against guessing.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Uppercase Letters.",
+          "remediation": "Set Minimum Uppercase Letters to at least 1.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_minimum_uppercase",
+                    "op": "lt",
+                    "value": 1
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-004",
+          "name": "Require Lowercase Letters in Passwords",
+          "control_type": "device_configuration",
+          "description": "At least one lowercase letter, widening the effective character set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Lowercase Letters.",
+          "remediation": "Set Minimum Lowercase Letters to at least 1.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_minimum_lowercase",
+                    "op": "lt",
+                    "value": 1
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-005",
+          "name": "Require Numeric Characters in Passwords",
+          "control_type": "device_configuration",
+          "description": "At least one digit, widening the effective character set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Numeric Letters.",
+          "remediation": "Set Minimum Numeric Letters to at least 1.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_minimum_numeric",
+                    "op": "lt",
+                    "value": 1
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-006",
+          "name": "Require Special Characters in Passwords",
+          "control_type": "device_configuration",
+          "description": "At least one non-alphanumeric character, defeating dictionary-word passwords.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Special Characters.",
+          "remediation": "Set Minimum Special Characters to at least 1.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_minimum_special",
+                    "op": "lt",
+                    "value": 1
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-007",
+          "name": "Block Username Inclusion in Passwords",
+          "control_type": "device_configuration",
+          "description": "Blocks passwords containing the username or its reverse - one of the most-guessed weak patterns.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Block Username Inclusion.",
+          "remediation": "Tick Block Username Inclusion (including reversed).",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_block_username_inclusion",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-008",
+          "name": "New Password Minimum Character Difference",
+          "control_type": "device_configuration",
+          "description": "Requires characters to change on rotation, stopping trivial increments like Password1 to Password2. Corpus minimum 3, preferred 8.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > New Password Differs By Characters.",
+          "remediation": "Set New Password Differs By Characters to at least 3; 8 approaches half of a 15-character password.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_new_differs_by_characters",
+                    "op": "lt",
+                    "value": 3
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-009",
+          "name": "Prevent Password Reuse (History Count)",
+          "control_type": "device_configuration",
+          "description": "The number of previous passwords checked on change. Zero means the new password is checked against NO history, so the previous password can be set again immediately. Corpus minimum 5, preferred 24.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Prevent Password Reuse Limit.",
+          "remediation": "Set Prevent Password Reuse Limit to at least 5; 24 defeats cycling through a small pool.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_history_count",
+                    "op": "lt",
+                    "value": 5
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-010",
+          "name": "Password Expiration Period",
+          "control_type": "device_configuration",
+          "description": "Bounds how long a leaked credential stays usable. The corpus minimum is 90 days and the preferred value 60.\\n\\nThis is the one setting on this form where BOTH ENDS are wrong. Zero means passwords NEVER expire, and a large value means they expire too rarely - so the control fires on 0 and on anything above 90, and passes between 1 and 90. A less-than comparison would have passed a 365-day expiry and failed the preferred 60.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Required Password Change Period.",
+          "remediation": "Set Required Password Change Period to 90 days or fewer, and not to 0. Where MFA and breach monitoring are in place, review whether forced rotation is still the right policy for your standard - this control asserts the corpus floor.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_expiration_period",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "password_expiration_period",
+                    "op": "gt",
+                    "value": 90
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-011",
+          "name": "Password Expiration Warning Period",
+          "control_type": "device_configuration",
+          "description": "Days of warning before a password expires, so rotations happen deliberately rather than as lockouts. Corpus minimum 7, preferred 14.\\n\\nAssessed independently of PAN-AUTH-010: a missing warning period is wrong whether or not passwords expire today, and it stays wrong the moment an expiry is set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Expiration Warning Period.",
+          "remediation": "Set Expiration Warning Period to at least 7 days; 14 gives distributed teams more runway. The maximum is 30.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_expiration_warning_period",
+                    "op": "lt",
+                    "value": 7
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-012",
+          "name": "Disallow Post-Expiration Admin Logins",
+          "control_type": "device_configuration",
+          "description": "How many times an administrator may still log in after their password has expired. The secure value is ZERO, which is also the default - so this control fires only where somebody has deliberately allowed expired credentials to keep working.\\n\\nThe range is 0 to 3.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Post Expiration Admin Login Count.",
+          "remediation": "Set Post Expiration Admin Login Count to 0. Before enforcing it, make sure a break-glass or console path exists - this setting can lock every administrator out of a device whose passwords have expired.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_post_expiration_admin_login_count",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-013",
+          "name": "Disallow Post-Expiration Grace Period",
+          "control_type": "device_configuration",
+          "description": "Days during which an expired password still works. The secure value is ZERO, which is also the default, so this fires only where a grace window was deliberately configured.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
+          "audit": "Device > Setup > Management > Minimum Password Complexity > Post Expiration Grace Period.",
+          "remediation": "Set Post Expiration Grace Period to 0. As with the login count, confirm a break-glass path exists first.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "password_post_expiration_grace_period",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",

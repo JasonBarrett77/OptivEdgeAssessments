@@ -109,6 +109,36 @@ FIELD_COMPILERS = {
     # a fail, and a nullable boolean invites a query that reads it as one.
     "master_key_state": build_text_compiler("master_key_state", "master_key_state"),
     "master_key_on_hsm": build_boolean_compiler("master_key_on_hsm", "master_key_on_hsm"),
+    # PAN-AUTH-001 through 013. Three directions live here, which is why they are not
+    # generated: most want AT LEAST a value, two want AT MOST, and expiration_period is
+    # bounded at both ends - zero never expires and a long period is a weak one.
+    "password_complexity_enabled": build_boolean_compiler(
+        "password_complexity_enabled", "password_complexity_enabled"),
+    "password_minimum_length": build_integer_compiler(
+        "password_minimum_length", "password_minimum_length"),
+    "password_minimum_uppercase": build_integer_compiler(
+        "password_minimum_uppercase", "password_minimum_uppercase"),
+    "password_minimum_lowercase": build_integer_compiler(
+        "password_minimum_lowercase", "password_minimum_lowercase"),
+    "password_minimum_numeric": build_integer_compiler(
+        "password_minimum_numeric", "password_minimum_numeric"),
+    "password_minimum_special": build_integer_compiler(
+        "password_minimum_special", "password_minimum_special"),
+    "password_block_username_inclusion": build_boolean_compiler(
+        "password_block_username_inclusion", "password_block_username_inclusion"),
+    "password_new_differs_by_characters": build_integer_compiler(
+        "password_new_differs_by_characters", "password_new_differs_by_characters"),
+    "password_history_count": build_integer_compiler(
+        "password_history_count", "password_history_count"),
+    "password_expiration_period": build_integer_compiler(
+        "password_expiration_period", "password_expiration_period"),
+    "password_expiration_warning_period": build_integer_compiler(
+        "password_expiration_warning_period", "password_expiration_warning_period"),
+    "password_post_expiration_admin_login_count": build_integer_compiler(
+        "password_post_expiration_admin_login_count",
+        "password_post_expiration_admin_login_count"),
+    "password_post_expiration_grace_period": build_integer_compiler(
+        "password_post_expiration_grace_period", "password_post_expiration_grace_period"),
 }
 
 
