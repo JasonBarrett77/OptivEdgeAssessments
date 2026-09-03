@@ -775,6 +775,100 @@ def _administrative_service_cells(surface, sources_by_pk):
     ]
 
 
+class DeviceTabListView(TemplateView):
+    """The shape every device tab shares: subjects, their open findings, and two toggles.
+
+    Nine views repeated the same forty lines - read two query parameters, load a queryset,
+    group findings by subject id, build a row per subject, filter to rows with findings, and
+    set four counts. A subclass now declares what differs and implements `build_row`.
+
+    `finding_controls` empty means EVERY control of that finding model, which is what the
+    interface-profile tab wants. Naming them is for tabs showing one slice of a model's
+    findings - the four DeviceConfigurationProfile tabs all read the same model and must not
+    show each other's.
+
+    Ordering is declared rather than defaulted because it is load-bearing for the rendered
+    page, and three of these tabs sort by more than hostname.
+    """
+
+    #: Rendered by `{% table_header %}`; its length is what the squareness test checks.
+    COLUMNS: tuple = ()
+    tab_title = ""
+    all_label = "All appliances"
+    has_provenance_toggle = False
+
+    subject_model = None
+    subject_select_related: tuple = ("appliance", "source_snapshot")
+    subject_order: tuple = ("appliance__hostname",)
+
+    finding_model = None
+    #: Attribute on the finding holding the subject, without the `_id` suffix.
+    finding_subject_field = ""
+    finding_controls: tuple = ()
+    finding_order: tuple = ()
+
+    def get_subjects(self):
+        return list(
+            self.subject_model.objects
+            .select_related(*self.subject_select_related)
+            .order_by(*self.subject_order)
+        )
+
+    def findings_by_subject(self) -> dict:
+        """{subject pk: [open findings]}. One query for the page, not one per row."""
+        queryset = self.finding_model.objects.select_related("control")
+        if self.finding_controls:
+            queryset = queryset.filter(
+                status=self.finding_model.Status.OPEN,
+                control__control_id__in=self.finding_controls)
+        else:
+            queryset = queryset.filter(status=self.finding_model.Status.OPEN)
+        if self.finding_order:
+            queryset = queryset.order_by(*self.finding_order)
+        grouped: dict = {}
+        attribute = f"{self.finding_subject_field}_id"
+        for finding in queryset:
+            grouped.setdefault(getattr(finding, attribute), []).append(finding)
+        return grouped
+
+    def row_context(self, subjects) -> dict:
+        """Anything needing ONE query for the whole page - provenance maps, mostly.
+
+        Passed to every `build_row` call, so a per-row lookup does not become a per-row query.
+        """
+        return {}
+
+    def build_row(self, subject, findings, **shared) -> dict:
+        raise NotImplementedError
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings_only = self.request.GET.get("findings") == "1"
+        # Ignored on a tab with no provenance to show. Otherwise ?provenance=1 would be
+        # carried through the findings link on pages where it means nothing - Master Key and
+        # Certificates read provenance no view can supply.
+        show_provenance = (self.request.GET.get("provenance") == "1"
+                           and self.has_provenance_toggle)
+
+        subjects = self.get_subjects()
+        findings_by_pk = self.findings_by_subject()
+        shared = self.row_context(subjects)
+        rows = [self.build_row(subject, findings_by_pk.get(subject.pk, []), **shared)
+                for subject in subjects]
+        shown = [row for row in rows if row["findings"]] if findings_only else rows
+
+        context["columns"] = self.COLUMNS
+        context["tab_title"] = self.tab_title
+        context["all_label"] = self.all_label
+        context["has_provenance_toggle"] = self.has_provenance_toggle
+        context["rows"] = shown
+        context["findings_only"] = findings_only
+        context["show_provenance"] = show_provenance
+        context["total_count"] = len(rows)
+        context["shown_count"] = len(shown)
+        return context
+
+
 class ManagementInterfaceListView(TemplateView):
     """Management surfaces and their permitted sources - configuration, not findings.
 
@@ -845,7 +939,7 @@ class ManagementInterfaceListView(TemplateView):
         return context
 
 
-class InterfaceManagementProfileListView(TemplateView):
+class InterfaceManagementProfileListView(DeviceTabListView):
     """Profiles as objects, with a findings-only filter.
 
     A separate tab from Management Interfaces rather than a section of it, because a
@@ -866,51 +960,27 @@ class InterfaceManagementProfileListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Interface Profiles"
-        context["all_label"] = "All profiles"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "Interface Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = InterfaceManagementProfile
+    subject_order = ("appliance__hostname", "name")
+    finding_model = InterfaceManagementProfileFinding
+    finding_subject_field = "interface_management_profile"
 
-        profiles = list(
-            InterfaceManagementProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname", "name")
-        )
-
-        findings_by_profile = {}
-        for finding in (
-            InterfaceManagementProfileFinding.objects.select_related("control")
-            .filter(status=InterfaceManagementProfileFinding.Status.OPEN)
-        ):
-            findings_by_profile.setdefault(
-                finding.interface_management_profile_id, []).append(finding)
-
+    def row_context(self, subjects):
         # A profile overrides at the ENTRY, so it has one provenance - unlike a management
         # surface, whose services and sources each carry their own.
-        origin_by_profile = _entry_provenance(profiles)
+        return {"origin_by_profile": _entry_provenance(subjects)}
 
-        rows = [
-            {
-                "profile": profile,
-                "origin": origin_by_profile.get(profile.pk, ""),
-                "findings": findings_by_profile.get(profile.pk, []),
-            }
-            for profile in profiles
-        ]
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
+    def build_row(self, profile, findings, origin_by_profile):
+        return {
+            "profile": profile,
+            "origin": origin_by_profile.get(profile.pk, ""),
+            "findings": findings,
+        }
 
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class LoginBannerListView(TemplateView):
+class LoginBannerListView(DeviceTabListView):
     """The login banner and its acknowledgement, with findings and provenance toggles.
 
     Its own tab rather than columns on Device Configuration, for the reason that table was
@@ -935,52 +1005,26 @@ class LoginBannerListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Login Banner"
-        context["all_label"] = "All appliances"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "Login Banner"
+    has_provenance_toggle = True
+    subject_model = DeviceConfigurationProfile
+    finding_model = DeviceConfigurationFinding
+    finding_subject_field = "device_configuration_profile"
+    finding_controls = BANNER_CONTROLS
 
-        profiles = list(
-            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname")
-        )
+    def row_context(self, subjects):
+        return {"banner_sources": _entry_provenance(subjects, "login_banner"),
+                "ack_sources": _entry_provenance(subjects, "ack_login_banner")}
 
-        findings_by_profile = {}
-        for finding in (
-            DeviceConfigurationFinding.objects.select_related("control")
-            .filter(status=DeviceConfigurationFinding.Status.OPEN,
-                    control__control_id__in=BANNER_CONTROLS)
-        ):
-            findings_by_profile.setdefault(
-                finding.device_configuration_profile_id, []).append(finding)
+    def build_row(self, profile, findings, banner_sources, ack_sources):
+        return {
+            "profile": profile,
+            "banner_provenance": banner_sources.get(profile.pk, ""),
+            "ack_provenance": ack_sources.get(profile.pk, ""),
+            "findings": findings,
+        }
 
-        banner_sources = _entry_provenance(profiles, "login_banner")
-        ack_sources = _entry_provenance(profiles, "ack_login_banner")
-
-        rows = [
-            {
-                "profile": profile,
-                "banner_provenance": banner_sources.get(profile.pk, ""),
-                "ack_provenance": ack_sources.get(profile.pk, ""),
-                "findings": findings_by_profile.get(profile.pk, []),
-            }
-            for profile in profiles
-        ]
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
-
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class ManagementTlsListView(TemplateView):
+class ManagementTlsListView(DeviceTabListView):
     """What the management web interface negotiates, and what it presents while doing it.
 
     Its own tab rather than columns on Device Configuration, for the reason recorded on
@@ -1014,50 +1058,24 @@ class ManagementTlsListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Management TLS"
-        context["all_label"] = "All appliances"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "Management TLS"
+    has_provenance_toggle = True
+    subject_model = DeviceConfigurationProfile
+    finding_model = DeviceConfigurationFinding
+    finding_subject_field = "device_configuration_profile"
+    finding_controls = MANAGEMENT_TLS_CONTROLS
 
-        profiles = list(
-            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname")
-        )
+    def row_context(self, subjects):
+        return {"binding_sources": _entry_provenance(subjects, "ssl_tls_service_profile_name")}
 
-        findings_by_profile = {}
-        for finding in (
-            DeviceConfigurationFinding.objects.select_related("control")
-            .filter(status=DeviceConfigurationFinding.Status.OPEN,
-                    control__control_id__in=MANAGEMENT_TLS_CONTROLS)
-        ):
-            findings_by_profile.setdefault(
-                finding.device_configuration_profile_id, []).append(finding)
+    def build_row(self, profile, findings, binding_sources):
+        return {
+            "profile": profile,
+            "binding_provenance": binding_sources.get(profile.pk, ""),
+            "findings": findings,
+        }
 
-        binding_sources = _entry_provenance(profiles, "ssl_tls_service_profile_name")
-
-        rows = [
-            {
-                "profile": profile,
-                "binding_provenance": binding_sources.get(profile.pk, ""),
-                "findings": findings_by_profile.get(profile.pk, []),
-            }
-            for profile in profiles
-        ]
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
-
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class SslTlsServiceProfileListView(TemplateView):
+class SslTlsServiceProfileListView(DeviceTabListView):
     """Every SSL/TLS service profile as an OBJECT, with all its findings on one row.
 
     The difference from the Management TLS tab is the subject. That one asks what the
@@ -1090,61 +1108,40 @@ class SslTlsServiceProfileListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "SSL/TLS Profiles"
-        context["all_label"] = "All profiles"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "SSL/TLS Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = SslTlsServiceProfile
+    subject_order = ("appliance__hostname", "scope", "name")
+    finding_model = SslTlsServiceProfileFinding
+    finding_subject_field = "ssl_tls_service_profile"
+    finding_controls = SSL_TLS_PROFILE_CONTROLS
 
-        profiles = list(
-            SslTlsServiceProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname", "scope", "name")
-        )
-        findings_by_profile = {}
-        for finding in (
-            SslTlsServiceProfileFinding.objects.select_related("control")
-            .filter(status=SslTlsServiceProfileFinding.Status.OPEN,
-                    control__control_id__in=SSL_TLS_PROFILE_CONTROLS)
-        ):
-            findings_by_profile.setdefault(
-                finding.ssl_tls_service_profile_id, []).append(finding)
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
 
-        sources = _entry_provenance(profiles)
-        rows = []
-        for profile in profiles:
-            algorithms = profile.protocol_algorithms or {}
-            # Named explicitly rather than "everything not AEAD": these are the three the
-            # remediation calls out, and a list that drifts from the remediation is worse
-            # than a short one.
-            weak = [label for label, key in (
-                ("SHA1", "auth-algo-sha1"),
-                ("AES-128-CBC", "enc-algo-aes-128-cbc"),
-                ("AES-256-CBC", "enc-algo-aes-256-cbc"),
-                ("static RSA", "keyxchg-algo-rsa"),
-            ) if algorithms.get(key)]
-            rows.append({
-                "profile": profile,
-                "weak_algorithms": weak,
-                # Absent keys are why this matters: a profile that wrote nothing permits
-                # everything, and the row should say which of the two it is.
-                "algorithms_are_implicit": not profile.explicit_algorithms,
-                "provenance": sources.get(profile.pk, ""),
-                "findings": findings_by_profile.get(profile.pk, []),
-            })
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
+    def build_row(self, profile, findings, sources):
+        algorithms = profile.protocol_algorithms or {}
+        # Named explicitly rather than "everything not AEAD": these are the three the
+        # remediation calls out, and a list that drifts from the remediation is worse
+        # than a short one.
+        weak = [label for label, key in (
+            ("SHA1", "auth-algo-sha1"),
+            ("AES-128-CBC", "enc-algo-aes-128-cbc"),
+            ("AES-256-CBC", "enc-algo-aes-256-cbc"),
+            ("static RSA", "keyxchg-algo-rsa"),
+        ) if algorithms.get(key)]
+        return {
+            "profile": profile,
+            "weak_algorithms": weak,
+            # Absent keys are why this matters: a profile that wrote nothing permits
+            # everything, and the row should say which of the two it is.
+            "algorithms_are_implicit": not profile.explicit_algorithms,
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
 
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class CertificateProfileListView(TemplateView):
+class CertificateProfileListView(DeviceTabListView):
     """Every certificate profile, with what it actually checks.
 
     All six booleans default OFF, so a profile that sets nothing validates against a CA and
@@ -1166,55 +1163,35 @@ class CertificateProfileListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Certificate Profiles"
-        context["all_label"] = "All profiles"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "Certificate Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = CertificateProfile
+    subject_order = ("appliance__hostname", "scope", "name")
+    finding_model = CertificateProfileFinding
+    finding_subject_field = "certificate_profile"
+    finding_controls = CERTIFICATE_PROFILE_CONTROLS
 
-        profiles = list(
-            CertificateProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname", "scope", "name")
-        )
-        findings_by_profile = {}
-        for finding in (
-            CertificateProfileFinding.objects.select_related("control")
-            .filter(status=CertificateProfileFinding.Status.OPEN,
-                    control__control_id__in=CERTIFICATE_PROFILE_CONTROLS)
-        ):
-            findings_by_profile.setdefault(finding.certificate_profile_id, []).append(finding)
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
 
-        sources = _entry_provenance(profiles)
-        rows = []
-        for profile in profiles:
-            checks = [label for label, on in (
-                ("CRL", profile.use_crl), ("OCSP", profile.use_ocsp)) if on]
-            blocks = [label for label, on in (
-                ("expired", profile.block_expired_cert),
-                ("unknown", profile.block_unknown_cert),
-                ("timeout", profile.block_timeout_cert),
-                ("unauthenticated", profile.block_unauthenticated_cert)) if on]
-            rows.append({
-                "profile": profile,
-                "revocation_checks": checks,
-                "blocks": blocks,
-                "provenance": sources.get(profile.pk, ""),
-                "findings": findings_by_profile.get(profile.pk, []),
-            })
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
+    def build_row(self, profile, findings, sources):
+        checks = [label for label, on in (
+            ("CRL", profile.use_crl), ("OCSP", profile.use_ocsp)) if on]
+        blocks = [label for label, on in (
+            ("expired", profile.block_expired_cert),
+            ("unknown", profile.block_unknown_cert),
+            ("timeout", profile.block_timeout_cert),
+            ("unauthenticated", profile.block_unauthenticated_cert)) if on]
+        return {
+            "profile": profile,
+            "revocation_checks": checks,
+            "blocks": blocks,
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
 
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class MasterKeyListView(TemplateView):
+class MasterKeyListView(DeviceTabListView):
     """The master key, per appliance. PAN-CRT-007.
 
     Device-level rather than an object, so one row per appliance - the same shape as the Login
@@ -1247,57 +1224,29 @@ class MasterKeyListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Master Key"
-        context["all_label"] = "All appliances"
-        context["has_provenance_toggle"] = False
-        findings_only = self.request.GET.get("findings") == "1"
+    tab_title = "Master Key"
+    subject_model = DeviceConfigurationProfile
+    finding_model = DeviceConfigurationFinding
+    finding_subject_field = "device_configuration_profile"
+    finding_controls = MASTER_KEY_CONTROLS
 
-        profiles = list(
-            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname")
-        )
-        findings_by_profile = {}
-        for finding in (
-            DeviceConfigurationFinding.objects.select_related("control")
-            .filter(status=DeviceConfigurationFinding.Status.OPEN,
-                    control__control_id__in=MASTER_KEY_CONTROLS)
-        ):
-            findings_by_profile.setdefault(
-                finding.device_configuration_profile_id, []).append(finding)
+    def build_row(self, profile, findings):
+        raw_expiry = (profile.master_key_expires_at or "").strip()
+        # The API returns 0 where the CLI prints "unspecified". Rendered in the CLI's
+        # words, because that is what an engineer sees when they go and check.
+        if raw_expiry and raw_expiry != "0":
+            try:
+                expires = _dt.datetime.fromtimestamp(
+                    int(raw_expiry), tz=_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            except (ValueError, OverflowError, OSError):
+                expires = raw_expiry
+        elif raw_expiry == "0":
+            expires = "unspecified"
+        else:
+            expires = ""
+        return {"profile": profile, "expires": expires, "findings": findings}
 
-        rows = []
-        for profile in profiles:
-            raw_expiry = (profile.master_key_expires_at or "").strip()
-            # The API returns 0 where the CLI prints "unspecified". Rendered in the CLI's
-            # words, because that is what an engineer sees when they go and check.
-            if raw_expiry and raw_expiry != "0":
-                try:
-                    expires = _dt.datetime.fromtimestamp(
-                        int(raw_expiry), tz=_dt.timezone.utc                    ).strftime("%Y-%m-%d %H:%M UTC")
-                except (ValueError, OverflowError, OSError):
-                    expires = raw_expiry
-            elif raw_expiry == "0":
-                expires = "unspecified"
-            else:
-                expires = ""
-            rows.append({
-                "profile": profile,
-                "expires": expires,
-                "findings": findings_by_profile.get(profile.pk, []),
-            })
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
-
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
-
-class CertificateListView(TemplateView):
+class CertificateListView(DeviceTabListView):
     """Every certificate as an object, with all its findings on one row.
 
     Key size, key algorithm and signature algorithm are shown together because they are only
@@ -1324,48 +1273,27 @@ class CertificateListView(TemplateView):
         Column("Findings"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Certificates"
-        context["all_label"] = "All certificates"
-        context["has_provenance_toggle"] = False
-        findings_only = self.request.GET.get("findings") == "1"
+    tab_title = "Certificates"
+    all_label = "All certificates"
+    subject_model = Certificate
+    subject_order = ("appliance__hostname", "scope", "name")
+    finding_model = CertificateFinding
+    finding_subject_field = "certificate"
+    finding_controls = CERTIFICATE_CONTROLS
 
-        certificates = list(
-            Certificate.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname", "scope", "name")
-        )
-        findings_by_certificate = {}
-        for finding in (
-            CertificateFinding.objects.select_related("control")
-            .filter(status=CertificateFinding.Status.OPEN,
-                    control__control_id__in=CERTIFICATE_CONTROLS)
-        ):
-            findings_by_certificate.setdefault(finding.certificate_id, []).append(finding)
-
+    def build_row(self, certificate, findings):
         now = _dt.datetime.now(_dt.timezone.utc)
-        rows = []
-        for certificate in certificates:
-            days_left = None
-            if certificate.not_valid_after:
-                days_left = (certificate.not_valid_after - now).days
-            rows.append({
-                "certificate": certificate,
-                "days_left": days_left,
-                # Surfaced even though no control asserts it yet - PAN-CRT-001 will, and an
-                # engineer reading a certificate inventory asks this first.
-                "expired": days_left is not None and days_left < 0,
-                "findings": findings_by_certificate.get(certificate.pk, []),
-            })
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
-
-        context["rows"] = shown
-        context["findings_only"] = findings_only
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
-
+        days_left = None
+        if certificate.not_valid_after:
+            days_left = (certificate.not_valid_after - now).days
+        return {
+            "certificate": certificate,
+            "days_left": days_left,
+            # Surfaced even though no control asserts it yet - PAN-CRT-001 will, and an
+            # engineer reading a certificate inventory asks this first.
+            "expired": days_left is not None and days_left < 0,
+            "findings": findings,
+        }
 
 class DeviceConfigurationProfileListView(TemplateView):
     template_name = "assessments/device_configuration_profile_list.html"
@@ -1976,7 +1904,7 @@ def _fields_by_control(control_ids) -> dict[str, set[str]]:
     return mapping
 
 
-class PasswordComplexityListView(TemplateView):
+class PasswordComplexityListView(DeviceTabListView):
     """Minimum password complexity, per appliance. PAN-AUTH-001 through 013.
 
     Thirteen controls over ONE object, so this follows Jason's rule that controls sharing an
@@ -2016,76 +1944,49 @@ class PasswordComplexityListView(TemplateView):
         Column("Collected"),
     )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["columns"] = self.COLUMNS
-        context["tab_title"] = "Password Complexity"
-        context["all_label"] = "All appliances"
-        context["has_provenance_toggle"] = True
-        findings_only = self.request.GET.get("findings") == "1"
-        show_provenance = self.request.GET.get("provenance") == "1"
+    tab_title = "Password Complexity"
+    has_provenance_toggle = True
+    subject_model = DeviceConfigurationProfile
+    finding_model = DeviceConfigurationFinding
+    finding_subject_field = "device_configuration_profile"
+    finding_controls = PASSWORD_COMPLEXITY_CONTROLS
+    finding_order = ("control__control_id",)
 
-        profiles = list(
-            DeviceConfigurationProfile.objects.select_related("appliance", "source_snapshot")
-            .order_by("appliance__hostname")
-        )
-        fields_by_control = _fields_by_control(PASSWORD_COMPLEXITY_CONTROLS)
-
-        findings_by_profile: dict[int, list] = {}
-        for finding in (
-            DeviceConfigurationFinding.objects.select_related("control")
-            .filter(status=DeviceConfigurationFinding.Status.OPEN,
-                    control__control_id__in=PASSWORD_COMPLEXITY_CONTROLS)
-            .order_by("control__control_id")
-        ):
-            findings_by_profile.setdefault(
-                finding.device_configuration_profile_id, []).append(finding)
-
-        # One provenance query per field rather than per row, same as every other tab.
+    def row_context(self, subjects):
         provenance_by_field = {
-            field: _entry_provenance(profiles, field)
+            field: _entry_provenance(subjects, field)
             for _, cells in PASSWORD_COMPLEXITY_GROUPS
             for field, _, _ in cells
         }
         provenance_by_field["password_complexity_enabled"] = _entry_provenance(
-            profiles, "password_complexity_enabled")
+            subjects, "password_complexity_enabled")
+        return {"fields_by_control": _fields_by_control(PASSWORD_COMPLEXITY_CONTROLS),
+                "provenance_by_field": provenance_by_field}
 
-        rows = []
-        for profile in profiles:
-            findings = findings_by_profile.get(profile.pk, [])
-            weak_fields: set[str] = set()
-            for finding in findings:
-                weak_fields |= fields_by_control.get(finding.control.control_id, set())
-
-            groups = []
-            for label, cells in PASSWORD_COMPLEXITY_GROUPS:
-                groups.append({
-                    "label": label,
-                    "cells": [
-                        {
-                            "label": cell_label,
-                            "kind": kind,
-                            "value": getattr(profile, field),
-                            "weak": field in weak_fields,
-                            "provenance": provenance_by_field.get(field, {}).get(profile.pk, ""),
-                        }
-                        for field, cell_label, kind in cells
-                    ],
-                })
-            rows.append({
-                "profile": profile,
-                "groups": groups,
-                "findings": findings,
-                "enabled_provenance": provenance_by_field[
-                    "password_complexity_enabled"].get(profile.pk, ""),
-                "enabled_weak": "password_complexity_enabled" in weak_fields,
+    def build_row(self, profile, findings, fields_by_control, provenance_by_field):
+        weak_fields: set[str] = set()
+        for finding in findings:
+            weak_fields |= fields_by_control.get(finding.control.control_id, set())
+        groups = []
+        for label, cells in PASSWORD_COMPLEXITY_GROUPS:
+            groups.append({
+                "label": label,
+                "cells": [
+                    {
+                        "label": cell_label,
+                        "kind": kind,
+                        "value": getattr(profile, field),
+                        "weak": field in weak_fields,
+                        "provenance": provenance_by_field.get(field, {}).get(profile.pk, ""),
+                    }
+                    for field, cell_label, kind in cells
+                ],
             })
-
-        shown = [row for row in rows if row["findings"]] if findings_only else rows
-        context["rows"] = shown
-        context["group_labels"] = [label for label, _ in PASSWORD_COMPLEXITY_GROUPS]
-        context["findings_only"] = findings_only
-        context["show_provenance"] = show_provenance
-        context["total_count"] = len(rows)
-        context["shown_count"] = len(shown)
-        return context
+        return {
+            "profile": profile,
+            "groups": groups,
+            "findings": findings,
+            "enabled_provenance": provenance_by_field[
+                "password_complexity_enabled"].get(profile.pk, ""),
+            "enabled_weak": "password_complexity_enabled" in weak_fields,
+        }

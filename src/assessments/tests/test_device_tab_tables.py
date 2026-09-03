@@ -134,3 +134,59 @@ class DeviceTabTableTests(TestCase):
             for column in columns:
                 self.assertIsInstance(column, Column)
                 self.assertTrue(column.label.strip(), f"{tab.label} has a blank column label")
+
+
+class DeviceTabViewConfigTests(TestCase):
+    """`finding_controls = ()` means EVERY control of that finding model.
+
+    That is right for a tab owning a whole object type, and silently wrong for the four tabs
+    that share DeviceConfigurationProfile - Login Banner, Management TLS, Master Key and
+    Password Complexity all read DeviceConfigurationFinding, so a tab that forgets to name its
+    controls shows the other three's findings as its own. Removing `finding_controls` from
+    MasterKeyListView broke no test until this one existed; the page just filled up.
+    """
+
+    def _tab_views(self):
+        from django.urls import resolve
+        from assessments.views import DeviceTabListView
+        for tab in DEVICE_TABS:
+            view = resolve(reverse(tab.url_name)).func.view_class
+            if isinstance(view, type) and issubclass(view, DeviceTabListView):
+                yield tab, view
+
+    def test_tabs_sharing_a_finding_model_must_name_their_controls(self):
+        from collections import defaultdict
+        by_model = defaultdict(list)
+        for tab, view in self._tab_views():
+            if view.finding_model is not None:
+                by_model[view.finding_model].append((tab, view))
+        shared = {model: pairs for model, pairs in by_model.items() if len(pairs) > 1}
+        self.assertTrue(shared, "expected at least one finding model shared by several tabs")
+        for model, pairs in shared.items():
+            for tab, view in pairs:
+                self.assertTrue(
+                    view.finding_controls,
+                    f"{view.__name__} shares {model.__name__} with "
+                    f"{len(pairs) - 1} other tab(s) and must name its controls, or it will "
+                    f"show theirs")
+
+    def test_tabs_sharing_a_finding_model_do_not_claim_the_same_control(self):
+        from collections import defaultdict
+        owner: dict[str, str] = {}
+        for tab, view in self._tab_views():
+            for control_id in view.finding_controls:
+                key = f"{view.finding_model.__name__}:{control_id}"
+                self.assertNotIn(
+                    key, owner,
+                    f"{control_id} is claimed by both {owner.get(key)} and {view.__name__}")
+                owner[key] = view.__name__
+
+    def test_every_tab_view_declares_what_the_base_needs(self):
+        for tab, view in self._tab_views():
+            with self.subTest(tab=tab.label):
+                self.assertTrue(view.COLUMNS, f"{view.__name__} declares no COLUMNS")
+                self.assertTrue(view.tab_title, f"{view.__name__} has no tab_title")
+                self.assertIsNotNone(view.subject_model)
+                self.assertIsNotNone(view.finding_model)
+                self.assertTrue(view.finding_subject_field)
+                view.finding_model._meta.get_field(view.finding_subject_field)

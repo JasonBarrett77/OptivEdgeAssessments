@@ -200,6 +200,19 @@ Do not copy a neighbouring module when adding an object type. Three pieces carry
 * **`finding_registry.FINDING_KINDS`** — every finding model. Consumers iterate this instead of
   naming models. A concrete `FindingBase` subclass missing from it fails `test_finding_registry`.
 
+## Device tab views
+
+A list view subclasses `views.DeviceTabListView` and declares `subject_model`,
+`finding_model`, `finding_subject_field`, its orderings, and a `build_row`. The base reads the
+two query parameters, groups findings by subject in one query, filters to rows with findings
+and sets the counts.
+
+`finding_controls = ()` means **every** control of that finding model. That is right for a tab
+owning an object type outright, and silently wrong for the four tabs sharing
+`DeviceConfigurationProfile` - omit it there and the tab shows the other three's findings.
+`test_device_tab_tables` fails when a tab sharing a finding model does not name its controls,
+or when two tabs claim the same one.
+
 ## Device tab templates
 
 A list page extends `assessments/device_tab_base.html` and supplies three things: a

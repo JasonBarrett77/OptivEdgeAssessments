@@ -222,6 +222,12 @@ and are then deleted, and empty is its normal state.
       invention. *On the Management TLS tab only the BINDING has provenance; the profile's
       protocol range and certificate are read from the profile object and deliberately show
       none.*
+- [ ] **Subclass `DeviceTabListView`; declare, do not re-implement.** `subject_model`,
+      `finding_model`, `finding_subject_field`, orderings, and a `build_row`. **If your finding
+      model is shared with another tab, `finding_controls` is mandatory** - empty means every
+      control of that model, so the four DeviceConfigurationProfile tabs would show each
+      other's findings. *Removing it from Master Key broke no test until a test was written
+      for exactly that; the page simply filled with fifty findings from three other tabs.*
 - [ ] **Extend `device_tab_base.html` and declare `COLUMNS` on the view.** The page supplies a
       description, its columns and its rows; the nav, toolbar, toggles, empty state and header
       come from the base. *Eight templates re-typed the whole scaffold, and one `<th>` class
