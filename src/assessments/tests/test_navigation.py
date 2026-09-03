@@ -14,7 +14,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from assessments import app_meta
-from assessments.navigation import DEVICE_TABS, DEVICE_TAB_URL_NAMES
+from assessments.navigation import (
+    DEVICE_TABS, DEVICE_TAB_URL_NAMES, SECTIONS, SECTION_BY_URL_NAME, tabs_in)
 
 #: Endpoints that render no page of their own, so no sidebar item can be "active" for them.
 #: Each one must say why, and adding to this set is a deliberate act rather than a shortcut.
@@ -93,3 +94,54 @@ class NavigationCoverageTests(TestCase):
 
     def test_the_findings_page_moved_off_the_good_name(self):
         self.assertTrue(reverse("assessment_legacy_finding_list").endswith("findings-legacy/"))
+
+
+class DeviceSectionTests(TestCase):
+    """The section strip. A flat bar was already wrapping at ten tabs, with 30 of 235 controls
+    done - and object tabs track config subtrees, of which the corpus has 43."""
+
+    def test_every_tab_names_a_section_that_exists(self):
+        unknown = {t.section for t in DEVICE_TABS} - set(SECTIONS)
+        self.assertEqual(unknown, set(), f"tabs in undeclared sections: {sorted(unknown)}")
+
+    def test_every_section_holds_at_least_one_tab(self):
+        """An empty section renders a link to nothing - the tag indexes [0] to find its href."""
+        for name in SECTIONS:
+            self.assertTrue(tabs_in(name), f"section {name!r} has no tabs")
+
+    def test_sections_partition_the_tabs(self):
+        self.assertEqual(sum(len(tabs_in(s)) for s in SECTIONS), len(DEVICE_TABS))
+
+    def test_the_active_section_follows_the_open_page(self):
+        """A page cannot be open in one section while another is highlighted."""
+        for tab in DEVICE_TABS:
+            response = self.client.get(reverse(tab.url_name))
+            self.assertEqual(response.status_code, 200, tab.url_name)
+            html = response.content.decode()
+            expected = SECTION_BY_URL_NAME[tab.url_name]
+            # the active section carries the solid chip
+            active = re.findall(r'bg-slate-800 text-white"\s*>\s*([^<]+)', html)
+            self.assertEqual([a.strip() for a in active], [expected], tab.url_name)
+
+    def test_only_the_active_sections_tabs_are_rendered(self):
+        """The point of the strip: what is on screen is one section, not the whole corpus.
+
+        Asserted on HREFS, not labels. The label sits on its own line after the icon, and
+        "Certificates" is both a tab label and a section name - a substring check passes for
+        the wrong reason.
+        """
+        tab_anchor = re.compile(
+            r'<a\s+href="([^"]+)"\s+class="inline-flex h-9 items-center gap-1\.5 border-b-2')
+        for tab in DEVICE_TABS:
+            html = self.client.get(reverse(tab.url_name)).content.decode()
+            section = SECTION_BY_URL_NAME[tab.url_name]
+            self.assertEqual(
+                set(tab_anchor.findall(html)),
+                {reverse(t.url_name) for t in tabs_in(section)},
+                f"wrong tab set rendered on {tab.label}")
+
+    def test_the_sidebar_still_covers_every_section(self):
+        """Sections are a display grouping; the sidebar item still owns all of them."""
+        item = next(i for s in app_meta.SIDEBAR_SECTION for i in s.get("items") or ()
+                    if i["label"] == "Device Configuration")
+        self.assertEqual(set(item["active_names"]), set(DEVICE_TAB_URL_NAMES))

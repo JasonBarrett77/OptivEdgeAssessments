@@ -178,11 +178,13 @@ class InterfaceManagementProfileListViewTests(TestCase):
         self.assertEqual(len(re.findall(r"<td", first_row)),
                          len(re.findall(r"<th", header)))
 
-    def test_all_three_device_tabs_are_present(self):  # noqa: D401
+    def test_the_page_carries_the_device_nav_with_its_own_section_active(self):
+        """Was "all three device tabs are present", which the section strip made false: the
+        bar now renders one section, and this page is the only tab in Network. Which tabs
+        appear on which page is pinned exhaustively in test_navigation."""
         response = self.client.get(reverse("assessment_interface_management_profile_list"))
-        self.assertContains(response, "Device Configuration")
-        self.assertContains(response, "Management Interfaces")
         self.assertContains(response, "Interface Profiles")
+        self.assertContains(response, "bg-slate-800 text-white\"\n        >\n            Network")
 
 
 class EmptyStateGuidanceTests(TestCase):

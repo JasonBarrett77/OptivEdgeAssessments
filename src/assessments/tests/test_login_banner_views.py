@@ -104,11 +104,13 @@ class LoginBannerListViewTests(TestCase):
         self.assertEqual(len(re.findall(r"<td", first_row)),
                          len(re.findall(r"<th", header)))
 
-    def test_all_four_device_tabs_are_present(self):
+    def test_the_page_carries_the_device_nav_with_its_own_section_active(self):
+        """Was "all four device tabs are present". Interface Profiles moved to the Network
+        section, so it is correctly absent here now. test_navigation pins the full mapping."""
         response = self.client.get(reverse("assessment_login_banner_list"))
-        for label in ("Device Configuration", "Management Interfaces",
-                      "Interface Profiles", "Login Banner"):
+        for label in ("Device Configuration", "Management Interfaces", "Login Banner"):
             self.assertContains(response, label)
+        self.assertContains(response, "bg-slate-800 text-white\"\n        >\n            Device")
 
     def test_the_banner_columns_left_device_configuration(self):
         """Moved, not duplicated - the same precedent as permitted IPs moving to the

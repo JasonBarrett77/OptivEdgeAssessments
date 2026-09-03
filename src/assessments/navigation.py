@@ -29,20 +29,41 @@ class DeviceTab(NamedTuple):
     #: Must exist in OptivEdge's vendored icon set - templates/components/icons/. That set is
     #: small and is NOT lucide's full catalogue; a name that is not there renders a 500.
     icon: str
+    #: Which section holds this tab. Must appear in SECTIONS.
+    section: str
+
+
+#: Section order, left to right. Keyed on where the object's config lives in PAN-OS - the same
+#: test the models already use to decide scope, so a tab's section is not a new judgment call.
+#:
+#: A flat bar was already wrapping at ten tabs, and ten is 30 of 235 controls from 3 of 28
+#: domains. The corpus has 43 distinct config subtrees at depth two, and object tabs track
+#: subtrees rather than controls, so the flat bar was heading for roughly forty entries.
+#: Sections cap what is on screen at the size of one subtree instead of the whole corpus.
+SECTIONS: tuple[str, ...] = ("Device", "Certificates", "Network")
 
 
 #: Display order, left to right.
 DEVICE_TABS: tuple[DeviceTab, ...] = (
-    DeviceTab("assessment_device_configuration_profile_list", "Device Configuration", "monitor"),
-    DeviceTab("assessment_management_interface_list", "Management Interfaces", "shield"),
-    DeviceTab("assessment_interface_management_profile_list", "Interface Profiles", "list-checks"),
-    DeviceTab("assessment_login_banner_list", "Login Banner", "book-marked"),
-    DeviceTab("assessment_management_tls_list", "Management TLS", "clipboard-check"),
-    DeviceTab("assessment_ssl_tls_service_profile_list", "SSL/TLS Profiles", "settings"),
-    DeviceTab("assessment_certificate_profile_list", "Certificate Profiles", "server"),
-    DeviceTab("assessment_master_key_list", "Master Key", "refresh-cw"),
-    DeviceTab("assessment_certificate_list", "Certificates", "clipboard-check"),
-    DeviceTab("assessment_password_complexity_list", "Password Complexity", "eye"),
+    # Device - deviceconfig/... and mgt-config/..., one row per appliance for most of them.
+    DeviceTab("assessment_device_configuration_profile_list", "Device Configuration", "monitor", "Device"),
+    DeviceTab("assessment_management_interface_list", "Management Interfaces", "shield", "Device"),
+    DeviceTab("assessment_login_banner_list", "Login Banner", "book-marked", "Device"),
+    DeviceTab("assessment_management_tls_list", "Management TLS", "clipboard-check", "Device"),
+    DeviceTab("assessment_master_key_list", "Master Key", "refresh-cw", "Device"),
+    DeviceTab("assessment_password_complexity_list", "Password Complexity", "eye", "Device"),
+    # Certificates - shared/certificate, certificate-profile, ssl-tls-service-profile. All three
+    # are appliance-anchored objects with a scope on the row rather than device settings.
+    DeviceTab("assessment_certificate_list", "Certificates", "clipboard-check", "Certificates"),
+    DeviceTab("assessment_certificate_profile_list", "Certificate Profiles", "server", "Certificates"),
+    DeviceTab("assessment_ssl_tls_service_profile_list", "SSL/TLS Profiles", "settings", "Certificates"),
+    # Network - network/profiles/...
+    DeviceTab("assessment_interface_management_profile_list", "Interface Profiles", "list-checks", "Network"),
 )
 
 DEVICE_TAB_URL_NAMES = frozenset(tab.url_name for tab in DEVICE_TABS)
+SECTION_BY_URL_NAME = {tab.url_name: tab.section for tab in DEVICE_TABS}
+
+
+def tabs_in(section: str) -> tuple[DeviceTab, ...]:
+    return tuple(tab for tab in DEVICE_TABS if tab.section == section)
