@@ -42,6 +42,7 @@ cd "$REPO"
 echo "[pre-commit] structural guards..."
 DJANGO_SETTINGS_MODULE=assessments.settings.default "$PYTHON" -m django test \
   assessments.tests.test_findings_rest_on_columns \
+  assessments.tests.test_query_service_boundary \
   assessments.tests.test_reseed \
   --verbosity 0
 echo "[pre-commit] ok"

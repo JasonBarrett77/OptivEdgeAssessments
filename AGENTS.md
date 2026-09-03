@@ -201,8 +201,9 @@ or topology.
 **Each clone must run that once.** Hooks live outside the tree by default, so a committed hook
 directory does nothing until git is pointed at it, and git has no way to make that automatic.
 
-`pre-commit` runs the structural guards only - `test_findings_rest_on_columns` and
-`test_reseed` - because those are the checks whose regressions fail SILENTLY: a control query
+`pre-commit` runs the structural guards only - `test_findings_rest_on_columns`,
+`test_query_service_boundary` and `test_reseed` - because those are the checks whose
+regressions fail SILENTLY: a control query
 reaching a JSON column stops matching instead of erroring, and a control type with no target
 model makes a freshly applied catalog report MODIFIED. `pre-push` runs the whole suite.
 
@@ -213,3 +214,32 @@ otherwise it tries the repo venv then the OptivEdgeLab venv.
 These are a REMINDER, not a gate: `git commit --no-verify` skips them, and github.com does not
 support server-side hooks, which are the only unbypassable git-native enforcement. A real gate
 needs a GitHub Actions workflow with a required status check.
+
+## Everything an assertion rests on must be normalized
+
+The rule behind `test_query_service_boundary`, which is worth stating as intent rather than as
+three assertions:
+
+**A control may only assert something that normalization has already interpreted.** Not because
+layering is tidy, but because a normalized field has been through the discovery process - the
+shape was measured on hardware, the implicit value was established, and the payload contract
+records both. A module that reaches around that to a raw payload, or writes its own filter over
+a normalized model, is implementing a special case: it decides what the configuration means
+privately, where nothing measured it and no test pins it.
+
+Three boundaries enforce it:
+
+- filtering an **asserted** model happens only in `assessments/search/`. Elsewhere a queryset
+  may be built and narrowed by primary key - that is how a generator turns the service's answer
+  back into objects - but never by a field lookup
+- nothing reads `Snapshot.payload` or a `raw_*` field. That is normalization's input
+- no lookup reaches into a JSONField, statically or at runtime
+
+"Asserted" is derived, not listed: a model is covered when a control query can target it or a
+finding is recorded against it. The set extends itself as domains land.
+
+**Why there is no JSON field NAMING convention.** It was considered and rejected: detecting a
+JSON field by its name would need nineteen renames across thirteen models and would still miss
+the twentieth, while `_meta` already knows which fields are JSONFields. The checks ask the model
+rather than trusting a prefix. The one naming rule that does hold - `raw_*` for verbatim vendor
+data - is enforced by the second boundary rather than by a linter.
