@@ -226,6 +226,23 @@ and are then deleted, and empty is its normal state.
       they stop being deferred — incrementally, as each domain lands. *Do not build a model
       because it is on the list: it is a coverage checklist, not a work queue.*
 
+      **Confirm the row while you are there — one `action=complete` call.** Every row is a claim
+      from the CLI grammar that an xpath *can* hold a certificate. Completing that xpath returns,
+      on a typed reference field, `@vxpath` — the full xpath of the referenced definition — which
+      proves the edge outright and replaces the name-matching heuristic the table was first built
+      with. *That heuristic had measurable false positives: pan-fw-111's certificate is named
+      after its host and matched `deviceconfig/system/hostname`.* Record it in `confirmed_by`
+      and `confirmed_vxpath`; the how-to is in the generator's docstring.
+
+      **An empty completion result is NOT disproof, and this is the part that will mislead you.**
+      Completions are ELIGIBILITY-FILTERED: they are the values valid *there* on *that device*,
+      not every instance of the type. *One authentication-profile field returned four values,
+      another returned one, and a third returned none — on the same device, purely by method
+      eligibility, and the empty one was a perfectly real reference field.* A different device
+      answers differently. Never downgrade a row because a completion came back empty, and never
+      build a reference map by asking "does completing this return the type" — that makes a
+      schema fact into an inventory fact.
+
 ## 3. Assess it — the control
 
 - [ ] **A finding rests on a COLUMN. Never on a JSON field or a raw payload.** If a control
