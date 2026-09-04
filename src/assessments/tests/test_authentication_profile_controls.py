@@ -11,6 +11,12 @@ does. Measured false on 2026-09-04: a profile with failed-attempts 2 and lockout
 the account after three failed logins and held it until an administrator released it. So 018
 asserts on failed-attempts alone.
 
+PAN-AUTH-020 IS INACTIVE IN THE SEED and these tests still exercise it, because they build
+their own Control rows. That is deliberate: the assertion is correct and the SCOPE is not - it
+covers every authentication profile rather than the ones administrators use - so the logic is
+kept proven while the control generates nothing. Read a passing test here as "the query works",
+not as "the control is live".
+
 SAML PROFILES ARE EXCLUDED. The Help prefixes both lockout fields "(All authentication types
 except SAML)", so a lockout finding against a SAML profile asserts something the platform does
 not implement. The lab has such a profile and it fired before the exclusion existed.
