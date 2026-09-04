@@ -24,6 +24,9 @@ from assessments.ssl_tls_service_profile_findings import (
 from assessments.certificate_findings import (
     generate_certificate_findings,
 )
+from assessments.authentication_profile_findings import (
+    generate_authentication_profile_findings,
+)
 from assessments.certificate_profile_findings import (
     generate_certificate_profile_findings,
 )
@@ -40,6 +43,7 @@ GENERATORS = (
     ("interface management profile", generate_interface_management_profile_findings),
     ("ssl/tls service profile", generate_ssl_tls_service_profile_findings),
     ("certificate profile", generate_certificate_profile_findings),
+    ("authentication profile", generate_authentication_profile_findings),
     ("certificate", generate_certificate_findings),
 )
 

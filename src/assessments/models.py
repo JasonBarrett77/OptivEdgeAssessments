@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    AuthenticationProfile,
     Certificate,
     CertificateProfile,
     SslTlsServiceProfile,
@@ -46,6 +47,7 @@ class Control(models.Model):
         SSL_TLS_SERVICE_PROFILE = "ssl_tls_service_profile", "SSL/TLS Service Profile"
         CERTIFICATE_PROFILE = "certificate_profile", "Certificate Profile"
         CERTIFICATE = "certificate", "Certificate"
+        AUTHENTICATION_PROFILE = "authentication_profile", "Authentication Profile"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -93,6 +95,7 @@ class Control(models.Model):
         "ssl_tls_service_profile": "integrations.SslTlsServiceProfile",
         "certificate_profile": "integrations.CertificateProfile",
         "certificate": "integrations.Certificate",
+        "authentication_profile": "integrations.AuthenticationProfile",
         "config": "",
     }
 
@@ -206,6 +209,7 @@ class Control(models.Model):
         "integrations.SslTlsServiceProfile": "SSL/TLS Service Profile",
         "integrations.CertificateProfile": "Certificate Profile",
         "integrations.Certificate": "Certificate",
+        "integrations.AuthenticationProfile": "Authentication Profile",
     }
 
     @property
@@ -857,3 +861,54 @@ class CertificateFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.certificate_finding_id} <- {self.control_query_id}"
+
+
+class AuthenticationProfileFinding(ObjectFindingBase):
+    """A finding against one authentication profile ON ONE APPLIANCE.
+
+    Per appliance and carrying its scope, for the reasons the certificate objects record: the
+    same object pushed from a template exists separately in each firewall's merged config, and
+    a profile defined in `shared` and one defined in a vsys can share a name.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="authentication_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="authentication_profile_findings")
+    authentication_profile = models.ForeignKey(
+        AuthenticationProfile, on_delete=models.CASCADE, related_name="findings")
+    subject_scope = models.CharField(max_length=16, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="AuthenticationProfileFindingControlQuery",
+        related_name="authentication_profile_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["authentication_profile"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "authentication_profile"],
+                name="unique_ap_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on authentication profile {self.subject_name}"
+
+
+class AuthenticationProfileFindingControlQuery(FindingControlQueryBase):
+    authentication_profile_finding = models.ForeignKey(
+        AuthenticationProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="authentication_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["authentication_profile_finding", "control_query"],
+                name="unique_ap_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.authentication_profile_finding_id} <- {self.control_query_id}"

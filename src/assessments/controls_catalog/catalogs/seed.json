@@ -780,6 +780,118 @@
           "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
+          "control_id": "PAN-AUTH-018",
+          "name": "Authentication Profile Failed-Attempt Lockout",
+          "control_type": "authentication_profile",
+          "description": "Locks an account authenticated through this profile after N consecutive failures, extending brute-force protection to externally authenticated administrators.\\n\\nBOUNDED AT BOTH ENDS, and the low end is the trap. The device accepts 0 to 10, and a 0 does not mean strict - it means UNLIMITED LOGIN ATTEMPTS. It is also the implicit value in normal operational mode, so a comparison written as 'more than 5 is a finding' passes every unconfigured profile in an estate.\\n\\nA lockout-time of 0 does NOT disable this. The Web Interface Help says on p.840 that a non-zero Failed Attempts with Lockout Time 0 means the user is never locked out; that was MEASURED FALSE on 2026-09-04, three failed logins against a profile with failed-attempts 2 and lockout-time 0 locked the account until an administrator released it. The same wrong claim appears on p.707 about the device-admin lockout and was measured false there too. So this control asserts on failed-attempts alone.\\n\\nDoes not apply to SAML profiles: the Help prefixes both lockout fields '(All authentication types except SAML)'.\\n\\nThe query EXCLUDES SAML profiles rather than merely noting the exception, because a finding the platform cannot act on is a false positive. The lab has one - asdfasdf on pan-fw-111 - and it fired before the exclusion was added.",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Authentication Profile > <profile> > Advanced > Failed Attempts.",
+          "remediation": "Set Failed Attempts to 5 or fewer on the profile; 3 is the common hardening target. Do not leave it at 0, which permits unlimited guessing. Set a Lockout Time as well - 0 holds the account until an administrator releases it, which is stronger but is an availability decision.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AuthenticationProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "method",
+                    "op": "eq",
+                    "value": "saml-idp",
+                    "negated": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "eq",
+                        "value": 0
+                      },
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "gt",
+                        "value": 5
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "failed attempts before lockout",
+            "measure": "Configured authentication-profile lockout failed-attempts value.",
+            "direction": "lower-is-worse",
+            "bands": [
+              {
+                "max": 5,
+                "severity": null,
+                "label": "1 to 5 \u2014 meets the baseline (3 or fewer is best practice)"
+              },
+              {
+                "max": 10,
+                "severity": "medium",
+                "label": "6 to 10 \u2014 past the baseline"
+              },
+              {
+                "max": null,
+                "severity": "high",
+                "label": "more than 10 \u2014 little practical protection"
+              }
+            ],
+            "sentinels": [
+              {
+                "value": "0",
+                "severity": "high",
+                "label": "0 \u2014 lockout disabled entirely"
+              }
+            ]
+          }
+        },
+        {
+          "control_id": "PAN-AUTH-020",
+          "name": "Multi-Factor Authentication for Administrative Access",
+          "control_type": "authentication_profile",
+          "description": "Requires multi-factor authentication on the profile, so a stolen password alone cannot reach the management plane.\\n\\nSCOPE, STATED PLAINLY: this asserts on EVERY authentication profile, because that is what the corpus xpath addresses and because nothing yet records which profiles are bound to administrators. A profile serving GlobalProtect rather than administrative access will therefore be reported. Narrowing it to administrator-bound profiles needs the administrator model, which reads mgt-config/users, plus the device-wide binding at deviceconfig/system/authentication-profile - and that binding is not in the corpus xpath for PAN-AUTH-019 either.\\n\\nThe device enforces a prerequisite this control does not have to encode: mfa-enable is REJECTED unless the profile already references at least one MFA factor, so an enabled profile always has a factor and the two cannot disagree.",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Authentication Profile > <profile> > Factors > Enable Additional Authentication Factors.",
+          "remediation": "Create an MFA server profile, add it as a factor on the authentication profile, then enable Multi Factor Authentication - in that order, because the device refuses the flag without a factor. SAML profiles may carry MFA at the identity provider instead, which this control cannot see.",
+          "default_severity": "critical",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AuthenticationProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "mfa_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",

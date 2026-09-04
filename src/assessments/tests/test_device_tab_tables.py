@@ -21,9 +21,9 @@ from django.utils import timezone
 from assessments.navigation import DEVICE_TABS
 from assessments.tables import Column
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, Certificate, CertificateProfile, DeviceConfigurationProfile,
-    InterfaceManagementProfile, ManagementInterface, ManagementStation, Snapshot,
-    SslTlsServiceProfile)
+    Appliance, ApplianceGroup, AuthenticationProfile, Certificate, CertificateProfile,
+    DeviceConfigurationProfile, InterfaceManagementProfile, ManagementInterface,
+    ManagementStation, Snapshot, SslTlsServiceProfile)
 
 
 class _Table(HTMLParser):
@@ -85,6 +85,7 @@ class DeviceTabTableTests(TestCase):
         SslTlsServiceProfile.objects.create(name="tls", scope="shared", **common)
         CertificateProfile.objects.create(name="cp", scope="shared", **common)
         Certificate.objects.create(name="cert", scope="shared", **common)
+        AuthenticationProfile.objects.create(name="auth", scope="shared", **common)
 
     def test_every_body_row_has_as_many_cells_as_the_header_declares(self):
         for tab in DEVICE_TABS:

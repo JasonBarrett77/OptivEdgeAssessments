@@ -40,6 +40,7 @@ from assessments.search.management_interface.fields.exposure import (
     exposure_by_interface,
 )
 from assessments.models import (
+    AuthenticationProfileFinding,
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
@@ -76,6 +77,7 @@ from optivedge_integrations.integrations.presentation import (
 )
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    AuthenticationProfile,
     Certificate,
     CertificateProfile,
     DeviceConfigurationProfile,
@@ -102,6 +104,7 @@ SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
 CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
 CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
+AUTHENTICATION_PROFILE_CONTROLS = ("PAN-AUTH-018", "PAN-AUTH-020")
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -2061,4 +2064,57 @@ class AuthenticationSettingsListView(DeviceTabListView):
                 cell("api_key_lifetime_minutes", lifetime,
                      "never expires" if lifetime == 0 else f"{lifetime} min"),
             ],
+        }
+
+
+class AuthenticationProfileListView(DeviceTabListView):
+    """Authentication profiles. PAN-AUTH-018 and 020.
+
+    The METHOD column leads, because it is what decides whether the rest of the row means
+    anything: a profile with method `none` performs no authentication, and one with
+    `local-database` checks the firewall's own store rather than an external authority. Three of
+    the lab's four profiles on one device are `none`.
+
+    Failed Attempts renders its meaning rather than its number when it is zero, for the reason
+    the Authentication Settings tab does: 0 there is UNLIMITED ATTEMPTS, the worst value
+    available, and a bare "0" beside a Lockout column reads as strictness.
+    """
+
+    template_name = "assessments/authentication_profile_list.html"
+    tab_title = "Authentication Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = AuthenticationProfile
+    subject_order = ("appliance__hostname", "scope", "name")
+    finding_model = AuthenticationProfileFinding
+    finding_subject_field = "authentication_profile"
+    finding_controls = AUTHENTICATION_PROFILE_CONTROLS
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Method"),
+        Column("Lockout"),
+        Column("MFA"),
+        Column("Allow List"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
+
+    def build_row(self, profile, findings, sources):
+        attempts = profile.lockout_failed_attempts
+        return {
+            "profile": profile,
+            # "0" alone reads as strict. It means the opposite.
+            "lockout": ("unlimited attempts" if attempts == 0
+                        else f"after {attempts}, for "
+                             + ("until released" if profile.lockout_time_minutes == 0
+                                else f"{profile.lockout_time_minutes} min")),
+            "lockout_weak": attempts == 0,
+            "external": profile.method_is_external,
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
         }

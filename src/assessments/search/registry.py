@@ -45,6 +45,13 @@ from assessments.search.certificate.compiler import (
     CERTIFICATE_MODEL,
     compile_certificate_search_node,
 )
+from assessments.search.authentication_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as AUTHENTICATION_PROFILE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.authentication_profile.compiler import (
+    AUTHENTICATION_PROFILE_MODEL,
+    compile_authentication_profile_search_node,
+)
 from assessments.search.certificate_profile.compiler import (
     FIELD_OPERATOR_REGISTRY as CERTIFICATE_PROFILE_FIELD_OPERATOR_REGISTRY,
 )
@@ -53,6 +60,7 @@ from assessments.search.certificate_profile.compiler import (
     compile_certificate_profile_search_node,
 )
 from optivedge_integrations.integrations.models import (
+    AuthenticationProfile,
     Certificate,
     CertificateProfile,
     InterfaceManagementProfile,
@@ -93,6 +101,11 @@ MODEL_REGISTRY = {
         "model_class": CertificateProfile,
         "field_operators": CERTIFICATE_PROFILE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_certificate_profile_search_node,
+    },
+    AUTHENTICATION_PROFILE_MODEL: {
+        "model_class": AuthenticationProfile,
+        "field_operators": AUTHENTICATION_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_authentication_profile_search_node,
     },
     CERTIFICATE_MODEL: {
         "model_class": Certificate,

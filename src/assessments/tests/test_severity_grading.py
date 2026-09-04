@@ -101,7 +101,8 @@ class SeededScaleTests(TestCase):
         scaled = {cid for cid, c in controls.items() if c.get("severity_scale")}
         self.assertEqual(
             scaled, {"PAN-AUTH-002", "PAN-AUTH-009", "PAN-AUTH-010", "PAN-CRT-005",
-                     "PAN-AUTH-014", "PAN-AUTH-016", "PAN-AUTH-017"},
+                     "PAN-AUTH-014", "PAN-AUTH-016", "PAN-AUTH-017",
+                     "PAN-AUTH-018"},
             "a built control gained or lost a scale - update this list deliberately")
 
     def test_every_seeded_scale_is_shaped_the_way_the_grader_reads_it(self):
