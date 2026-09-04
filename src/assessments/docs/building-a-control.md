@@ -124,15 +124,31 @@ and are then deleted, and empty is its normal state.
       returned `['devices', 'mgt-config', 'shared']`, which is how `mgt-config` was found to be
       a SIBLING of `devices` inside a template rather than nested under a device entry — a
       guess that would have failed at the write.*
-- [ ] **An empty completion set means one of two things, and they are opposites.** On a
-      CONTAINER it means the node is not valid there, which settles a scoping question in one
-      call. *`vsys/entry/authentication-profile` returns nothing on both platforms while the
-      vsys node itself completes — that is what established authentication profiles are
-      shared-only.* On a LEAF it means the element takes no text at all. *`devicereader`
-      returned nothing and was written as `<devicereader>yes</devicereader>`, which the device
-      refused with "has unexpected text". The correct form is `<devicereader/>`. Nothing came
-      back because there was nothing to say, not because the question was wrong.*
-- [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
+- [ ] **To ask whether a node is VALID somewhere, complete a made-up ENTRY under it** —
+      `<node>/entry[@name='x']` — never the container. There are THREE outcomes and they are
+      three different facts: child keys returned (the node is valid there), no completions
+      (valid, nothing to enumerate), and an API error `code=6 Invalid sequence` (the path itself
+      is rejected). *`admin-role` returns two child keys under `shared` and INVALID PATH under a
+      vsys — that is what a real negative looks like.*
+- [ ] **A container of `entry` elements returns NO completions whether or not it exists.**
+      Completing it proves nothing. *This produced a confidently wrong scoping conclusion:
+      `vsys/entry/authentication-profile` returned nothing, was read as "not valid here", and
+      recorded as settled across seventeen vsys on three devices. The node is perfectly valid —
+      seventeen samples of an invalid method is still an invalid method, and the VOLUME made the
+      wrong answer read as a strong one. Authentication profiles, certificates, certificate
+      profiles, SSL/TLS service profiles, the local user database, server profiles and log
+      settings are all vsys-scopable.*
+- [ ] **An empty completion set on a LEAF means the element takes no text.** *`devicereader`
+      returned nothing and was written as `<devicereader>yes</devicereader>`, refused with "has
+      unexpected text". The correct form is `<devicereader/>`.*
+- [ ] **On a reference field, completions are ELIGIBILITY-FILTERED — the completion list IS the
+      dropdown.** They are the values valid *there* on *that device*, not every instance of the
+      type. *One authentication-profile field returned four values, another one, and a third
+      none, on one device, purely by method eligibility — confirmed against the UI dropdowns
+      twice, on two devices, with two different causes.* So an empty result is never disproof
+      that the field can reference the type, and this is what makes `complete` a stand-in for a
+      screenshot on any reference field.
+- [ ] **Ask which oracle can SEE it at all.**- [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
       config read. *Four management services are invisible to `show system services` and to the
       running config; only the compiled ACL sees them.*
 - [ ] **Read the SECTION a sentence sits in before quoting it.** `probe.doc_index` prints it.
