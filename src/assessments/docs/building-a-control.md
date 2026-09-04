@@ -96,12 +96,15 @@ and are then deleted, and empty is its normal state.
       | **Schema oracle** `action=complete` | what MAY be set, and where an object may be referenced | what IS set — that needs an instance |
       | **Unconfigured UI form** (ask for a screenshot) | what the device itself presents when nothing is written | anything about a device that HAS been configured |
       | **Write / read / delete** | a default, but only when PAN-OS omits keys matching it | most keys — they persist whatever you write |
-      | **Operational commands** | the EFFECTIVE state, which is a different fact from the configured one | what is intended, and anything the compiler discards |
+      | **Operational commands** | the EFFECTIVE value — INCLUDING where no key is configured, so this can answer "what does absent mean" outright; and state that appears in no config at all | what was intended, and which config produced the state |
       | **Behavioural probe** — connect and observe | what is actually enforced | why, and anything needing a human action |
       | **Deliberate misconfiguration + a person** | behaviour that needs a real login, failure or session | anything cheaper would have settled |
 
-      *The bottom half earns its place: the compiled ACL revealed that a `0.0.0.0/0` permitted-ip
-      entry is DISCARDED rather than honoured, which no config read shows. Negotiation measured
+      *The bottom half earns its place: `show system masterkey-properties` is the ONLY place a
+      master key's state and expiry appear — no config read carries them — so an operational
+      command is sometimes not the expensive fallback but the only oracle there is. The compiled
+      ACL revealed that a `0.0.0.0/0` permitted-ip entry is DISCARDED rather than honoured, which
+      no config read shows. Negotiation measured
       that an unbound management interface accepts TLS 1.1 and 1.2 and serves the factory
       certificate. `show authentication locked-users` plus four failed logins by a person
       settled a lockout question the documentation contradicted itself about. `server-
@@ -116,13 +119,20 @@ and are then deleted, and empty is its normal state.
       ensure Failed Attempts and Lockout Time are greater than 0" was quoted here as general
       hardening that contradicted the corpus, and manufactured a doubt that cost a planned
       hardware experiment. It is a FIPS-CC requirement and contradicted nothing.*
-- [ ] **When the documentation contradicts ITSELF, stop reading and measure.** Two sentences in
-      one document about one field cannot be resolved by finding a third. *The Help says both
-      "the Failed Attempts is ignored and the user is never locked out" and "the user is locked
-      out … until another administrator manually unlocks the account", in adjacent paragraphs on
-      p.707. The device settled it in one experiment.* Then **record exactly what was tested** —
-      *that one was set locally on a Panorama-managed device, which leaves the template-managed
-      case untested rather than disproved, and "we measured it" would have implied otherwise.*
+- [ ] **When a document contradicts ITSELF, understand the contradiction before measuring —
+      it usually carries the discriminator.** Two sentences in one document about one field
+      cannot be resolved by finding a third, so a measurement is coming; but read both claims
+      closely first and find what separates them — scope, operating mode, management plane,
+      version, platform. That is what tells you which variable to vary, and what the result is
+      allowed to claim afterwards. *The Help says both "the Failed Attempts is ignored and the
+      user is never locked out" and "the user is locked out … until another administrator
+      manually unlocks the account", in adjacent paragraphs on p.707. The first is prefixed
+      "(Panorama managed firewalls only) … when you manage the setting from a TEMPLATE" — so the
+      two are not symmetric claims about one behaviour, they are claims about two management
+      planes. That prefix decided the experiment (set the keys locally) and it decided the
+      write-up: the result settles the locally-set case and leaves the template case UNTESTED
+      rather than disproved. Skipping straight to the device would have produced the same
+      reading and a conclusion that overclaimed.*
 - [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
       *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
       `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any
