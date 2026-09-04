@@ -28,6 +28,7 @@ from assessments.views import (
     CertificateProfileListView,
     ManagementTlsListView,
     MasterKeyListView,
+    AuthenticationSettingsListView,
     PasswordComplexityListView,
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
@@ -152,6 +153,11 @@ urlpatterns = [
         "master-key/",
         MasterKeyListView.as_view(),
         name="assessment_master_key_list",
+    ),
+    path(
+        "authentication-settings/",
+        AuthenticationSettingsListView.as_view(),
+        name="assessment_authentication_settings_list",
     ),
     path(
         "password-complexity/",

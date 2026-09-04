@@ -1,0 +1,44 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+Administrator lockout, session idle timeout and API key lifetime, from
+<code>deviceconfig/setting/management</code> &mdash; one PAN-OS screen, four controls.
+<span class="font-medium">PAN-AUTH-014</span> through <span class="font-medium">017</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">Every value here defaults to zero, and no two zeros
+    mean the same thing:</span>
+    <span class="font-medium">Failed Attempts 0</span> disables lockout entirely &mdash; the worst
+    value, not the strictest. <span class="font-medium">Lockout Time 0</span> holds the account
+    until an administrator releases it &mdash; stricter than any duration, and not a finding.
+    <span class="font-medium">Idle Timeout 0</span> means sessions never end; its default is 60,
+    measured from the unconfigured form. <span class="font-medium">API Key Lifetime 0</span> means
+    keys never expire. Each cell states its meaning rather than printing a bare number.
+</div>
+{% endblock %}
+
+{% block empty_state %}No device configuration has been normalized.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
+    {% for cell in row.cells %}
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <span class="{% if cell.weak %}text-amber-700{% else %}text-slate-800{% endif %}">{{ cell.meaning }}</span>
+        <span class="ml-1 text-[10px] text-slate-400">{{ cell.value }}</span>
+        {% if show_provenance and cell.provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ cell.provenance }}</div>{% endif %}
+    </td>
+    {% endfor %}
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.profile.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No appliance currently has an open authentication settings finding.</td></tr>
+{% endfor %}
+{% endblock %}

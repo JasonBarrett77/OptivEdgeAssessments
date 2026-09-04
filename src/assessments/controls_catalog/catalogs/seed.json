@@ -543,6 +543,243 @@
           "target_model": "integrations.DeviceConfigurationProfile"
         },
         {
+          "control_id": "PAN-AUTH-014",
+          "name": "Failed Login Attempts Before Lockout",
+          "control_type": "device_configuration",
+          "description": "Locks an administrator account after N consecutive failed logins, which is what stops online password guessing and spraying.\\n\\nBOUNDED AT BOTH ENDS, and the low end is not what it looks like. The device accepts 0 to 10. A 0 does not mean 'strict' - it means LOCKOUT IS DISABLED ENTIRELY, so it is the worst value available rather than the best, and it is also the implicit value: measured 2026-09-04 on the unconfigured Authentication Settings form. A comparison written as 'more than 5 is a finding' passes every unconfigured device in an estate.\\n\\nThe corpus grades 'more than 10' as high; the device grammar is 0-10, so that band cannot be reached. The reachable grading is 0 (sentinel, high), 1-5 (passes), 6-10 (medium).",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Setup > Management > Authentication Settings > Failed Attempts.",
+          "remediation": "Set Failed Attempts to 5 or fewer; 3 is the common hardening target. Do not leave it at 0, which disables lockout. Pair it with a non-zero Lockout Time (PAN-AUTH-015) or a locked account releases immediately.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "admin_lockout_failed_attempts",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "admin_lockout_failed_attempts",
+                    "op": "gt",
+                    "value": 5
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "failed attempts before lockout",
+            "measure": "Configured admin-lockout failed-attempts value.",
+            "direction": "lower-is-worse",
+            "bands": [
+              {
+                "max": 5,
+                "severity": null,
+                "label": "1 to 5 \u2014 meets the baseline (3 or fewer is best practice)"
+              },
+              {
+                "max": 10,
+                "severity": "medium",
+                "label": "6 to 10 \u2014 past the baseline"
+              },
+              {
+                "max": null,
+                "severity": "high",
+                "label": "more than 10 \u2014 little practical protection"
+              }
+            ],
+            "sentinels": [
+              {
+                "value": "0",
+                "severity": "high",
+                "label": "0 \u2014 lockout disabled entirely; fails every benchmark"
+              }
+            ]
+          },
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-015",
+          "name": "Admin Account Lockout Duration",
+          "control_type": "device_configuration",
+          "description": "How long a locked administrator account stays locked. The device accepts 0 to 60 minutes.\\n\\nZERO IS COMPLIANT HERE, which is the opposite of PAN-AUTH-014 and the reason the two cannot share a shape. A 0 lockout time means the account stays locked until another administrator releases it - stricter than any duration, not weaker. Reporting it as 'below 15 minutes' would flag the most restrictive setting available as a weakness. The finding is therefore the EXCLUDED MIDDLE: 1 to 14 minutes, long enough to be configured deliberately and short enough not to throttle guessing.\\n\\n0 is also the implicit value, measured 2026-09-04 on the unconfigured form - so an untouched device does not fire this, and that is correct: with failed-attempts also 0, nothing ever locks, and PAN-AUTH-014 is the control that says so.",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Setup > Management > Authentication Settings > Lockout Time.",
+          "remediation": "Set Lockout Time to 15 minutes or more, up to the maximum of 60. Leaving it at 0 is acceptable and stricter, but means a locked administrator needs another administrator to get back in - which is an availability decision, not a security one.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "admin_lockout_time_minutes",
+                    "op": "gt",
+                    "value": 0
+                  },
+                  {
+                    "field": "admin_lockout_time_minutes",
+                    "op": "lt",
+                    "value": 15
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-016",
+          "name": "Management Session Idle Timeout",
+          "control_type": "device_configuration",
+          "description": "Ends an idle GUI or CLI session, closing the window in which an unattended console can be used by whoever walks past it. The device accepts 1 to 1440 minutes, or 0.\\n\\nBOUNDED AT BOTH ENDS. 0 means sessions NEVER time out and is a sentinel - worse than any large number, though a naive comparison ranks it as the best possible value.\\n\\nThe implicit value is 60, MEASURED rather than assumed: the unconfigured form labels the field '60 (default)' - 2026-09-04, PA-5220. That matters because it decides what an untouched device reports. At 60 it is a live session an hour after the administrator walked away, which is a finding; had the implicit value been 0 it would have been the sentinel instead, and a more serious one.",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Setup > Management > Authentication Settings > Idle Timeout.",
+          "remediation": "Set Idle Timeout to 10 minutes or fewer. Do not set 0, which disables the timeout entirely. The same screen's Max Session Time is a separate limit and does not substitute for this one.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "gt",
+                    "value": 10
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "minutes of idle time before logout",
+            "measure": "Configured idle-timeout value on the management session.",
+            "direction": "higher-is-worse",
+            "bands": [
+              {
+                "min": 61,
+                "severity": "high",
+                "label": "over an hour \u2014 an unattended console stays live"
+              },
+              {
+                "min": 11,
+                "severity": "medium",
+                "label": "11 to 60 minutes \u2014 past the 10-minute baseline"
+              },
+              {
+                "min": 1,
+                "severity": null,
+                "label": "10 minutes or fewer \u2014 meets the baseline"
+              }
+            ],
+            "sentinels": [
+              {
+                "value": "0",
+                "severity": "high",
+                "label": "0 \u2014 sessions never time out; fails every benchmark"
+              }
+            ]
+          },
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
+          "control_id": "PAN-AUTH-017",
+          "name": "API Key Lifetime Configured",
+          "control_type": "device_configuration",
+          "description": "How long a generated API key stays valid. The device accepts 1 to 525600 minutes, or 0.\\n\\nThe floor is ANY non-zero lifetime, so this fires on one value: 0, meaning keys never expire. A stolen key is then permanent, and the only remedy is expiring every key at once. 0 is also the implicit value - measured 2026-09-04, where the form reads '0 (default)' - so every device that has not been configured fires this.\\n\\nThe corpus grades longer lifetimes too (over a day medium, over a week high), but those bands sit above the floor and are unreachable while the assertion is 'configured at all'. They are kept rather than trimmed, because the scale is the corpus author's and a later tightening of the floor would want them.",
+          "rationale": "Administrative access to the firewall is access to every policy behind it.",
+          "audit": "Device > Setup > Management > Authentication Settings > API Key Lifetime.",
+          "remediation": "Set API Key Lifetime to a non-zero value; 1440 minutes (24 hours) is the common target. Changing the lifetime or the master key INVALIDATES EXISTING KEYS - coordinate with whoever owns the automation before doing it.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.DeviceConfigurationProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "api_key_lifetime_minutes",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "severity_scale": {
+            "kind": "numeric",
+            "metric": "minutes of API key validity",
+            "measure": "Configured API key lifetime. Unset means keys never expire.",
+            "direction": "higher-is-worse",
+            "bands": [
+              {
+                "min": 10081,
+                "severity": "high",
+                "label": "more than a week"
+              },
+              {
+                "min": 1441,
+                "severity": "medium",
+                "label": "1 to 7 days \u2014 past the 24-hour target"
+              },
+              {
+                "min": 1,
+                "severity": null,
+                "label": "24 hours or fewer \u2014 meets best practice"
+              }
+            ],
+            "sentinels": [
+              {
+                "value": "0",
+                "severity": "high",
+                "label": "0 or unset \u2014 keys never expire, so a stolen key is permanent"
+              }
+            ]
+          },
+          "target_model": "integrations.DeviceConfigurationProfile"
+        },
+        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",

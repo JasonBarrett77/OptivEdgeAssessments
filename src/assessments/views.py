@@ -1850,6 +1850,8 @@ class SecurityRuleListView(TemplateView):
 
 
 PASSWORD_COMPLEXITY_CONTROLS = tuple(f"PAN-AUTH-{n:03d}" for n in range(1, 14))
+AUTHENTICATION_SETTINGS_CONTROLS = ("PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-016",
+                                    "PAN-AUTH-017")
 
 #: Each cell: (field, label, kind). `kind` drives rendering only - the verdict never comes from
 #: here. "unassessed" marks the three keys PAN-OS accepts that no corpus control reads; they are
@@ -1989,4 +1991,74 @@ class PasswordComplexityListView(DeviceTabListView):
             "enabled_provenance": provenance_by_field[
                 "password_complexity_enabled"].get(profile.pk, ""),
             "enabled_weak": "password_complexity_enabled" in weak_fields,
+        }
+
+
+class AuthenticationSettingsListView(DeviceTabListView):
+    """Admin lockout, idle timeout and API key lifetime. PAN-AUTH-014 through 017.
+
+    One PAN-OS screen - Device > Setup > Management > Authentication Settings - so one tab,
+    which keeps the page and the remediation in the same place.
+
+    Every value here is zero-by-default and none of the zeros mean the same thing. The row
+    spells each out rather than printing a bare 0, because "0" in the Lockout column is
+    compliant and "0" in the Failed Attempts column beside it is the worst value available.
+    A table that renders both as `0` invites exactly the wrong conclusion.
+    """
+
+    template_name = "assessments/authentication_settings_list.html"
+    tab_title = "Authentication Settings"
+    has_provenance_toggle = True
+    subject_model = DeviceConfigurationProfile
+    finding_model = DeviceConfigurationFinding
+    finding_subject_field = "device_configuration_profile"
+    finding_controls = AUTHENTICATION_SETTINGS_CONTROLS
+    finding_order = ("control__control_id",)
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Failed Attempts"),
+        Column("Lockout Time"),
+        Column("Idle Timeout"),
+        Column("API Key Lifetime"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    FIELDS = ("admin_lockout_failed_attempts", "admin_lockout_time_minutes",
+              "idle_timeout_minutes", "api_key_lifetime_minutes")
+
+    def row_context(self, subjects):
+        return {"fields_by_control": _fields_by_control(AUTHENTICATION_SETTINGS_CONTROLS),
+                "provenance_by_field": {field: _entry_provenance(subjects, field)
+                                        for field in self.FIELDS}}
+
+    def build_row(self, profile, findings, fields_by_control, provenance_by_field):
+        weak = set()
+        for finding in findings:
+            weak |= fields_by_control.get(finding.control.control_id, set())
+
+        def cell(field, value, meaning):
+            return {"value": value, "meaning": meaning, "weak": field in weak,
+                    "provenance": provenance_by_field.get(field, {}).get(profile.pk, "")}
+
+        attempts = profile.admin_lockout_failed_attempts
+        lockout = profile.admin_lockout_time_minutes
+        idle = profile.idle_timeout_minutes
+        lifetime = profile.api_key_lifetime_minutes
+        return {
+            "profile": profile,
+            "findings": findings,
+            "cells": [
+                # Each zero says what it MEANS. Two of these columns hold a 0 that is the
+                # worst available value and one holds a 0 that is the best.
+                cell("admin_lockout_failed_attempts", attempts,
+                     "lockout disabled" if attempts == 0 else f"after {attempts}"),
+                cell("admin_lockout_time_minutes", lockout,
+                     "until released" if lockout == 0 else f"{lockout} min"),
+                cell("idle_timeout_minutes", idle,
+                     "never" if idle == 0 else f"{idle} min"),
+                cell("api_key_lifetime_minutes", lifetime,
+                     "never expires" if lifetime == 0 else f"{lifetime} min"),
+            ],
         }

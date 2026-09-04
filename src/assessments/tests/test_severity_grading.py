@@ -93,12 +93,15 @@ class SeverityForMeasureTests(TestCase):
 
 class SeededScaleTests(TestCase):
     def test_the_seed_carries_every_scale_the_corpus_has_for_a_built_control(self):
-        """Four controls shipped before grading existed and were backfilled."""
+        """Four controls shipped before grading existed and were backfilled; three more
+        arrived with theirs. PAN-AUTH-015 has none in the corpus, which is right - its finding
+        range is a 14-minute window with nothing to grade inside it."""
         controls = {c["control_id"]: c
                     for cat in load_seed_payload()["catalogs"] for c in cat["controls"]}
         scaled = {cid for cid, c in controls.items() if c.get("severity_scale")}
         self.assertEqual(
-            scaled, {"PAN-AUTH-002", "PAN-AUTH-009", "PAN-AUTH-010", "PAN-CRT-005"},
+            scaled, {"PAN-AUTH-002", "PAN-AUTH-009", "PAN-AUTH-010", "PAN-CRT-005",
+                     "PAN-AUTH-014", "PAN-AUTH-016", "PAN-AUTH-017"},
             "a built control gained or lost a scale - update this list deliberately")
 
     def test_every_seeded_scale_is_shaped_the_way_the_grader_reads_it(self):

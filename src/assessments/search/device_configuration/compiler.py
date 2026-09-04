@@ -134,6 +134,12 @@ FIELD_COMPILERS = {
         "password_expiration_period", "password_expiration_period"),
     "password_expiration_warning_period": build_integer_compiler(
         "password_expiration_warning_period", "password_expiration_warning_period"),
+    "admin_lockout_failed_attempts": build_integer_compiler(
+        "admin_lockout_failed_attempts", "admin_lockout_failed_attempts"),
+    "admin_lockout_time_minutes": build_integer_compiler(
+        "admin_lockout_time_minutes", "admin_lockout_time_minutes"),
+    "api_key_lifetime_minutes": build_integer_compiler(
+        "api_key_lifetime_minutes", "api_key_lifetime_minutes"),
     "password_post_expiration_admin_login_count": build_integer_compiler(
         "password_post_expiration_admin_login_count",
         "password_post_expiration_admin_login_count"),
