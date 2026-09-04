@@ -75,7 +75,8 @@ and are then deleted, and empty is its normal state.
       The payload contract recorded 6 management services; a firewall accepts 10. Two
       normalizers hard-coded 5 interface containers; a PA-5220 offers 6 and a PA-VM offers 5 —
       and `sdwan`, which neither listed, is on both.*
-- [ ] **The key set is platform-dependent.** `→ payload contract` Check a second platform before treating it as
+- [ ] **The key set is platform-dependent — run the schema oracle against EACH target.** `→ payload contract` Check a second
+      platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
 - [ ] **Establish what an absent key MEANS, and what the value means, per key.**
       `→ payload contract` These are two questions and they need different oracles. An absent
@@ -97,7 +98,7 @@ and are then deleted, and empty is its normal state.
       | **Web Interface Help** `probe.doc_index --doc help` | range, default, semantics, recommended value — and much it is not asked for: the field inventory of a screen, what an action does, constraints between fields, and a UI-location taxonomy | anything, on its own — it has been wrong and self-contradictory here |
       | **Merged config** | absent vs present vs pushed, and the `@ptpl` source | what absent MEANS |
       | **CLI grammar** `probe.cli_index` | reachable values, and sentinels that read as ordinary numbers | which of them is the default |
-      | **Schema oracle** `action=complete` | what MAY be set, and where an object may be referenced | what IS set — that needs an instance |
+      | **Schema oracle** `action=complete` | what MAY be set, its children, its ENUM VALUES, where an object may be referenced — and, by returning nothing, where a node is not valid | what IS set, and which of the values is the default |
       | **Unconfigured UI form** (ask for a screenshot) | what the device itself presents when nothing is written | anything about a device that HAS been configured |
       | **Write / read / delete** | a default, but only when PAN-OS omits keys matching it | most keys — they persist whatever you write |
       | **Operational commands** | the EFFECTIVE value — INCLUDING where no key is configured, so this can answer "what does absent mean" outright; and state that appears in no config at all | what was intended, and which config produced the state |
@@ -114,6 +115,23 @@ and are then deleted, and empty is its normal state.
       settled a lockout question the documentation contradicted itself about. `server-
       verification`, `ack-login-banner` and `enable-log-high-dp-load` all persist `yes` and `no`
       alike, so write/read returned nothing and one screenshot settled all three.*
+- [ ] **`action=complete` answers on paths that DO NOT EXIST, which is most of its value.**
+      Complete `entry[@name='x']` for a name nothing uses and the schema comes back anyway, so
+      an object type absent from every device still yields its children and its enum values —
+      no instance, no lab subject, no write. *`shared/admin-role` is null on all three lab
+      devices and PAN-AUTH-023 has no subject anywhere; the role's structure read back in one
+      call.* It works on a **template** path too. *Completing a template's own config root
+      returned `['devices', 'mgt-config', 'shared']`, which is how `mgt-config` was found to be
+      a SIBLING of `devices` inside a template rather than nested under a device entry — a
+      guess that would have failed at the write.*
+- [ ] **An empty completion set means one of two things, and they are opposites.** On a
+      CONTAINER it means the node is not valid there, which settles a scoping question in one
+      call. *`vsys/entry/authentication-profile` returns nothing on both platforms while the
+      vsys node itself completes — that is what established authentication profiles are
+      shared-only.* On a LEAF it means the element takes no text at all. *`devicereader`
+      returned nothing and was written as `<devicereader>yes</devicereader>`, which the device
+      refused with "has unexpected text". The correct form is `<devicereader/>`. Nothing came
+      back because there was nothing to say, not because the question was wrong.*
 - [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
       config read. *Four management services are invisible to `show system services` and to the
       running config; only the compiled ACL sees them.*
