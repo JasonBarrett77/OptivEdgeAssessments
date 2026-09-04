@@ -71,28 +71,36 @@ and are then deleted, and empty is its normal state.
       while `enable-log-high-dp-load` absent means DISABLED — two keys, opposite defaults, so
       one assumption would have flagged every device for one control and no device for the
       other.*
-- [ ] **Search the Administrator's Guide index BEFORE asking for a screenshot.**
-      `python -m probe.doc_index "Idle Timeout" default` — 1314 pages, greppable, and it cites a
-      page number. It states implicit values for most UI fields, which is the slowest thing this
-      phase establishes. **Then confirm on hardware anyway**: the guide says what SHOULD be true
-      and has been wrong here before — `disable-http` is documented implicit `no` and measures
-      `yes`. *It confirmed the API key lifetime default and, in the same search, contradicted the
-      basis of a decision about lockout-time 0, which is the value of reading it.*
-- [ ] **Read the SECTION a guide sentence sits in before quoting it.** `probe.doc_index`
-      prints it. Whole chapters govern one operating mode, and a rule from
+- [ ] **Search the vendor documentation index before measuring, and always before asking for
+      a screenshot.** `python -m probe.doc_index "Idle Timeout" default`. Two PDFs are indexed
+      page by page with their section paths, and they are NOT interchangeable:
+      - **Web Interface Help** (`--doc help`) — the per-field reference. It describes the field
+        in front of you and usually states its range, its default and its semantics outright.
+        This is the one that answers a control's questions. Version-scoped: the indexed copy is
+        11.2, the lab runs 11.1.13-h3 on the PA-5220s.
+      - **Administrator's Guide** (`--doc guide`) — task and concept material. Authoritative for
+        HOW to do something; its field mentions are incidental.
+
+      *The Help gave three of four implicit values for one screen in minutes — "default is 60",
+      "default is 0 … never expires", "0 (default)" — each from that field's own reference
+      section.*
+- [ ] **Then confirm on hardware anyway.** Documentation states what SHOULD be true. This
+      codebase has caught it wrong once already — `disable-http` is documented implicit `no` and
+      measures `yes` — and has caught the Help CONTRADICTING ITSELF on one page about one field.
+      A documented value is a lead; the payload contract records observations.
+- [ ] **Read the SECTION a sentence sits in before quoting it.** `probe.doc_index` prints it.
+      Whole chapters govern one operating mode, and a rule from
       `Certifications > FIPS-CC Security Functions` is not advice about a field. *"You must
       ensure Failed Attempts and Lockout Time are greater than 0" was quoted here as general
       hardening that contradicted the corpus, and manufactured a doubt that cost a planned
-      hardware experiment. It is a FIPS-CC requirement and contradicted nothing. The index now
-      carries a section path per page so the chapter arrives with the sentence.*
-- [ ] **The UI FIELD HELP is a third oracle, and often the only one that answers.** It is not
-      the Administrator's Guide and not the corpus: it states the default AND the semantics for
-      the field in front of you. Ask for it before designing an experiment. *`lockout-time 0`
-      was about to be settled with a throwaway admin account and a deliberate lockout. The field
-      help said it in one sentence - "A value of 0 (default) means the lockout applies until
-      another administrator manually unlocks the account" - confirming both the semantics and
-      the implicit value, where the guide said only "ensure greater than 0" and fitted either
-      reading.*
+      hardware experiment. It is a FIPS-CC requirement and contradicted nothing.*
+- [ ] **When the documentation contradicts itself, stop reading and measure.** Two sentences in
+      the same document about the same field cannot be resolved by finding a third. *The Help
+      says both "the Failed Attempts is ignored and the user is never locked out" and "the user
+      is locked out … until another administrator manually unlocks the account", in adjacent
+      paragraphs on p.707. The device settled it in one experiment: the account locks. Record
+      exactly what was tested — that one was set locally on a Panorama-managed device, which
+      leaves the template-managed case untested rather than disproved.*
 - [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
       *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
       `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any
