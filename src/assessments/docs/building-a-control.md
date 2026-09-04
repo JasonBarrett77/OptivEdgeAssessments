@@ -71,6 +71,17 @@ and are then deleted, and empty is its normal state.
       while `enable-log-high-dp-load` absent means DISABLED — two keys, opposite defaults, so
       one assumption would have flagged every device for one control and no device for the
       other.*
+- [ ] **Search the Administrator's Guide index BEFORE asking for a screenshot.**
+      `python -m probe.doc_index "Idle Timeout" default` — 1314 pages, greppable, and it cites a
+      page number. It states implicit values for most UI fields, which is the slowest thing this
+      phase establishes. **Then confirm on hardware anyway**: the guide says what SHOULD be true
+      and has been wrong here before — `disable-http` is documented implicit `no` and measures
+      `yes`. *It confirmed the API key lifetime default and, in the same search, contradicted the
+      basis of a decision about lockout-time 0, which is the value of reading it.*
+- [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
+      *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
+      `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any
+      lab device" when both were configured on pan-fw-111.*
 - [ ] **If writing both values leaves both stored, the default is not discoverable that
       way.** Some keys are omitted when they match the default, which reveals it; others
       persist whatever you write, and then absence only means "never written". Use another
