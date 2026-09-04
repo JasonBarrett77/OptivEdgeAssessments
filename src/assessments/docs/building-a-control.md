@@ -86,11 +86,15 @@ and are then deleted, and empty is its normal state.
       every device for one control and no device for the other. And `lockout-time 0` is not a
       short lockout, it is an indefinite one.*
 
-      Oracles, cheapest first. Reach down the list only as far as the question needs:
+      Oracles, cheapest first. Reach down the list only as far as the question needs.
+      **The columns say what each oracle is good for HERE, not what it is limited to** —
+      they are answers to this item's question, not a description of the tool. The Help
+      is not the defaults tool, `action=complete` is not the reference-map tool, and an
+      operational command is not the last resort:
 
       | oracle | settles | cannot settle |
       |---|---|---|
-      | **Web Interface Help** `probe.doc_index --doc help` | range, default, semantics, vendor's own recommendation | anything, on its own — it has been wrong and self-contradictory here |
+      | **Web Interface Help** `probe.doc_index --doc help` | range, default, semantics, recommended value — and much it is not asked for: the field inventory of a screen, what an action does, constraints between fields, and a UI-location taxonomy | anything, on its own — it has been wrong and self-contradictory here |
       | **Merged config** | absent vs present vs pushed, and the `@ptpl` source | what absent MEANS |
       | **CLI grammar** `probe.cli_index` | reachable values, and sentinels that read as ordinary numbers | which of them is the default |
       | **Schema oracle** `action=complete` | what MAY be set, and where an object may be referenced | what IS set — that needs an instance |
