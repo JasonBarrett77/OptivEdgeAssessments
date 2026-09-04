@@ -58,6 +58,18 @@ and are then deleted, and empty is its normal state.
 > subject the control needs left behind, so it never has to be created twice.
 
 
+- [ ] **Read the Web Interface Help SECTION for the object, before anything else and again
+      whenever you come back to the domain.** The whole section, not a keyword search:
+      `python -m probe.doc_index --doc help "Setup > Management"`, then read the page. One read
+      gives the field set, the ranges, the defaults, the semantics, the cross-references and
+      the traps — and it is cheap enough that going back to it is never the expensive option.
+      **It is not only for implicit values.** Reading it narrowly is how you miss that a field
+      you were not asking about is the second binding for the one you were. *The Authentication
+      Settings section stated three of four implicit values, gave the reachable ranges, named
+      the vendor's own recommended value, and revealed that `deviceconfig/system/
+      authentication-profile` exists as a device-wide binding the corpus xpath for PAN-AUTH-019
+      does not mention.*
+
 - [ ] **Enumerate the real key set from the device** `→ payload contract`, rather than from a sample, a document
       or memory. Use whatever the platform offers as a schema oracle. *PAN-OS: `action=complete`.
       The payload contract recorded 6 management services; a firewall accepts 10. Two
@@ -65,53 +77,56 @@ and are then deleted, and empty is its normal state.
       and `sdwan`, which neither listed, is on both.*
 - [ ] **The key set is platform-dependent.** `→ payload contract` Check a second platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
-- [ ] **Establish the implicit value by measurement, per key.** `→ payload contract` An absent key is not an
-      absent setting, and neighbouring keys do not share a default. *`disable-http` was
-      recorded implicit `no` and measures `yes`. `server-verification` absent means ENABLED
-      while `enable-log-high-dp-load` absent means DISABLED — two keys, opposite defaults, so
-      one assumption would have flagged every device for one control and no device for the
-      other.*
-- [ ] **Search the vendor documentation index before measuring, and always before asking for
-      a screenshot.** `python -m probe.doc_index "Idle Timeout" default`. Two PDFs are indexed
-      page by page with their section paths, and they are NOT interchangeable:
-      - **Web Interface Help** (`--doc help`) — the per-field reference. It describes the field
-        in front of you and usually states its range, its default and its semantics outright.
-        This is the one that answers a control's questions. Version-scoped: the indexed copy is
-        11.2, the lab runs 11.1.13-h3 on the PA-5220s.
-      - **Administrator's Guide** (`--doc guide`) — task and concept material. Authoritative for
-        HOW to do something; its field mentions are incidental.
+- [ ] **Establish what an absent key MEANS, and what the value means, per key.**
+      `→ payload contract` These are two questions and they need different oracles. An absent
+      key is not an absent setting, neighbouring keys do not share a default, and a value's
+      meaning is not always its magnitude. *`disable-http` was recorded implicit `no` and
+      measures `yes`. `server-verification` absent means ENABLED while `enable-log-high-dp-load`
+      absent means DISABLED — two keys, opposite defaults, so one assumption would have flagged
+      every device for one control and no device for the other. And `lockout-time 0` is not a
+      short lockout, it is an indefinite one.*
 
-      *The Help gave three of four implicit values for one screen in minutes — "default is 60",
-      "default is 0 … never expires", "0 (default)" — each from that field's own reference
-      section.*
-- [ ] **Then confirm on hardware anyway.** Documentation states what SHOULD be true. This
-      codebase has caught it wrong once already — `disable-http` is documented implicit `no` and
-      measures `yes` — and has caught the Help CONTRADICTING ITSELF on one page about one field.
-      A documented value is a lead; the payload contract records observations.
+      Oracles, cheapest first. Reach down the list only as far as the question needs:
+
+      | oracle | settles | cannot settle |
+      |---|---|---|
+      | **Web Interface Help** `probe.doc_index --doc help` | range, default, semantics, vendor's own recommendation | anything, on its own — it has been wrong and self-contradictory here |
+      | **Merged config** | absent vs present vs pushed, and the `@ptpl` source | what absent MEANS |
+      | **CLI grammar** `probe.cli_index` | reachable values, and sentinels that read as ordinary numbers | which of them is the default |
+      | **Schema oracle** `action=complete` | what MAY be set, and where an object may be referenced | what IS set — that needs an instance |
+      | **Unconfigured UI form** (ask for a screenshot) | what the device itself presents when nothing is written | anything about a device that HAS been configured |
+      | **Write / read / delete** | a default, but only when PAN-OS omits keys matching it | most keys — they persist whatever you write |
+      | **Operational commands** | the EFFECTIVE state, which is a different fact from the configured one | what is intended, and anything the compiler discards |
+      | **Behavioural probe** — connect and observe | what is actually enforced | why, and anything needing a human action |
+      | **Deliberate misconfiguration + a person** | behaviour that needs a real login, failure or session | anything cheaper would have settled |
+
+      *The bottom half earns its place: the compiled ACL revealed that a `0.0.0.0/0` permitted-ip
+      entry is DISCARDED rather than honoured, which no config read shows. Negotiation measured
+      that an unbound management interface accepts TLS 1.1 and 1.2 and serves the factory
+      certificate. `show authentication locked-users` plus four failed logins by a person
+      settled a lockout question the documentation contradicted itself about. `server-
+      verification`, `ack-login-banner` and `enable-log-high-dp-load` all persist `yes` and `no`
+      alike, so write/read returned nothing and one screenshot settled all three.*
+- [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
+      config read. *Four management services are invisible to `show system services` and to the
+      running config; only the compiled ACL sees them.*
 - [ ] **Read the SECTION a sentence sits in before quoting it.** `probe.doc_index` prints it.
       Whole chapters govern one operating mode, and a rule from
       `Certifications > FIPS-CC Security Functions` is not advice about a field. *"You must
       ensure Failed Attempts and Lockout Time are greater than 0" was quoted here as general
       hardening that contradicted the corpus, and manufactured a doubt that cost a planned
       hardware experiment. It is a FIPS-CC requirement and contradicted nothing.*
-- [ ] **When the documentation contradicts itself, stop reading and measure.** Two sentences in
-      the same document about the same field cannot be resolved by finding a third. *The Help
-      says both "the Failed Attempts is ignored and the user is never locked out" and "the user
-      is locked out … until another administrator manually unlocks the account", in adjacent
-      paragraphs on p.707. The device settled it in one experiment: the account locks. Record
-      exactly what was tested — that one was set locally on a Panorama-managed device, which
-      leaves the template-managed case untested rather than disproved.*
+- [ ] **When the documentation contradicts ITSELF, stop reading and measure.** Two sentences in
+      one document about one field cannot be resolved by finding a third. *The Help says both
+      "the Failed Attempts is ignored and the user is never locked out" and "the user is locked
+      out … until another administrator manually unlocks the account", in adjacent paragraphs on
+      p.707. The device settled it in one experiment.* Then **record exactly what was tested** —
+      *that one was set locally on a Panorama-managed device, which leaves the template-managed
+      case untested rather than disproved, and "we measured it" would have implied otherwise.*
 - [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
       *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
       `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any
       lab device" when both were configured on pan-fw-111.*
-- [ ] **If writing both values leaves both stored, the default is not discoverable that
-      way.** Some keys are omitted when they match the default, which reveals it; others
-      persist whatever you write, and then absence only means "never written". Use another
-      oracle — the vendor UI on an unconfigured device is usually the fastest, and asking the
-      operator to look is faster than inferring. *`server-verification`, `ack-login-banner`
-      and `enable-log-high-dp-load` all persist `yes` and `no` alike; the checkbox states
-      settled all three in one screenshot.*
 - [ ] **Distinguish absent from empty from default.** `→ payload contract` Three states, and a config format that
       has all three will use all three. *PAN-OS: an empty `<units/>` and an empty
       `<aggregate-ethernet/>` both parse to `None`, not `{}`.*
@@ -120,13 +135,6 @@ and are then deleted, and empty is its normal state.
       difference. *PAN-OS: a template leaf arrives as `{'@ptpl': …, '#text': 'yes'}` and a
       naive reader calls it unset; `action=get` strips `@ptpl` entirely, so only merged config
       carries it.*
-- [ ] **Ask which oracle can see it.** `→ discovery log` Some settings appear in no config read at all. *Four
-      management services are invisible to `show system services` and to the running config;
-      only the compiled ACL sees them.*
-- [ ] **A schema oracle says what MAY be set, never what IS set.** Do not quote one as
-      evidence of what a real payload looks like — that needs an instance. *PAN-OS:
-      `action=complete`. The `vlan` payload shape was asserted from it and only later
-      measured, and it happened to be right.*
 
 - [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
       guards against id collisions — next free number, check both files — and says nothing
