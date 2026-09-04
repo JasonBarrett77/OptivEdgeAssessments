@@ -78,6 +78,13 @@ and are then deleted, and empty is its normal state.
       and has been wrong here before — `disable-http` is documented implicit `no` and measures
       `yes`. *It confirmed the API key lifetime default and, in the same search, contradicted the
       basis of a decision about lockout-time 0, which is the value of reading it.*
+- [ ] **Read the SECTION a guide sentence sits in before quoting it.** `probe.doc_index`
+      prints it. Whole chapters govern one operating mode, and a rule from
+      `Certifications > FIPS-CC Security Functions` is not advice about a field. *"You must
+      ensure Failed Attempts and Lockout Time are greater than 0" was quoted here as general
+      hardening that contradicted the corpus, and manufactured a doubt that cost a planned
+      hardware experiment. It is a FIPS-CC requirement and contradicted nothing. The index now
+      carries a section path per page so the chapter arrives with the sentence.*
 - [ ] **The UI FIELD HELP is a third oracle, and often the only one that answers.** It is not
       the Administrator's Guide and not the corpus: it states the default AND the semantics for
       the field in front of you. Ask for it before designing an experiment. *`lockout-time 0`
