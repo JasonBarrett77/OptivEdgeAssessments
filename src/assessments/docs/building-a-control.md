@@ -78,6 +78,14 @@ and are then deleted, and empty is its normal state.
       and has been wrong here before — `disable-http` is documented implicit `no` and measures
       `yes`. *It confirmed the API key lifetime default and, in the same search, contradicted the
       basis of a decision about lockout-time 0, which is the value of reading it.*
+- [ ] **The UI FIELD HELP is a third oracle, and often the only one that answers.** It is not
+      the Administrator's Guide and not the corpus: it states the default AND the semantics for
+      the field in front of you. Ask for it before designing an experiment. *`lockout-time 0`
+      was about to be settled with a throwaway admin account and a deliberate lockout. The field
+      help said it in one sentence - "A value of 0 (default) means the lockout applies until
+      another administrator manually unlocks the account" - confirming both the semantics and
+      the implicit value, where the guide said only "ensure greater than 0" and fitted either
+      reading.*
 - [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
       *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
       `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any

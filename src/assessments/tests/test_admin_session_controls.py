@@ -12,7 +12,9 @@ estate rather than an unusual one.
 
 014 and 015 sit on the same screen, are set by the same administrator in the same sitting, and
 their zeros mean opposite things. Every implicit value here was read off the unconfigured
-Authentication Settings form on 2026-09-04 rather than assumed.
+Authentication Settings form on 2026-09-04 rather than assumed, and 015's semantics are the
+PAN-OS field help verbatim: "A value of 0 (default) means the lockout applies until another
+administrator manually unlocks the account."
 """
 
 from __future__ import annotations
@@ -114,12 +116,18 @@ class AdminSessionControlTests(TestCase):
     # --- 015: zero is the best value -------------------------------------------------
 
     def test_only_the_excluded_middle_fires_015(self):
-        """0 is stricter than any duration; 15+ meets the floor; 1-14 is the finding."""
+        """0 is stricter than any duration; 15+ meets the floor; 1-14 is the finding.
+
+        The 30 is the vendor's own recommendation and 15 the corpus floor, so a value between
+        them passes - the control asserts the floor, and the remediation names the target.
+        """
         self._profile("fw-manual", {"admin-lockout": {"lockout-time": "0"}})
         self._profile("fw-short", {"admin-lockout": {"lockout-time": "5"}})
+        self._profile("fw-floor", {"admin-lockout": {"lockout-time": "15"}})
         self._profile("fw-good", {"admin-lockout": {"lockout-time": "30"}})
         self.assertNotIn("PAN-AUTH-015", self._findings("fw-manual"))
         self.assertIn("PAN-AUTH-015", self._findings("fw-short"))
+        self.assertNotIn("PAN-AUTH-015", self._findings("fw-floor"))
         self.assertNotIn("PAN-AUTH-015", self._findings("fw-good"))
 
     def test_the_two_lockout_controls_disagree_about_zero(self):
