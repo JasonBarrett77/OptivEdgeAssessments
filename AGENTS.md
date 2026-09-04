@@ -184,6 +184,26 @@ or topology.
   between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
   is the whole vocabulary.
 
+## Operating modes are not assessed, deliberately
+
+PAN-OS implicit values differ by operating mode. `admin-lockout/failed-attempts` defaults to
+**0 in normal mode and 10 in FIPS-CC mode** (Web Interface Help p.707), and that is one field on
+one screen — the pattern almost certainly repeats.
+
+Nothing here detects the mode, and no control accounts for it. **Do not fix this piecemeal.**
+Jason, 2026-09-04: a half-implemented FIPS assessment would lie — a device in FIPS-CC mode
+would be judged against normal-mode defaults, and would be reported as failing controls it
+satisfies and passing ones it does not. Silence about a mode is honest; a wrong verdict about
+one is not.
+
+What a real implementation needs, before any of it is worth starting: detect the mode, carry it
+on the appliance, resolve implicit values per mode rather than per key, and decide what every
+existing control reports on a device whose mode is unknown. That is a scoped piece of work, not
+a field.
+
+Until then: the estate is assumed to be in normal operational mode, which is true of every lab
+device and stated here so it is a known assumption rather than an accident.
+
 ## Graded severity
 
 A control may carry a `severity_scale` from the corpus: `bands` (numeric) or `ranks` (named
