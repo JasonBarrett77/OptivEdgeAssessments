@@ -41,6 +41,7 @@ from assessments.search.management_interface.fields.exposure import (
 )
 from assessments.models import (
     AuthenticationProfileFinding,
+    PasswordProfileFinding,
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
@@ -78,6 +79,7 @@ from optivedge_integrations.integrations.presentation import (
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     AuthenticationProfile,
+    PasswordProfile,
     Certificate,
     CertificateProfile,
     DeviceConfigurationProfile,
@@ -105,6 +107,7 @@ CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
 CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
 AUTHENTICATION_PROFILE_CONTROLS = ("PAN-AUTH-018", "PAN-AUTH-020")
+PASSWORD_PROFILE_CONTROLS = ("PAN-AUTH-026",)
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -2115,6 +2118,59 @@ class AuthenticationProfileListView(DeviceTabListView):
                                 else f"{profile.lockout_time_minutes} min")),
             "lockout_weak": attempts == 0,
             "external": profile.method_is_external,
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
+
+
+class PasswordProfileListView(DeviceTabListView):
+    """Password profiles and the global policy each one overrides. PAN-AUTH-026.
+
+    Both operands are on the row, deliberately. "Weakens the global policy" is a conclusion an
+    engineer cannot check; "never expires, where the global expires after 90 days" is one they
+    can act on without opening the device.
+
+    Zero renders as "never" rather than as a number in BOTH columns, because 0 is the weakest
+    value on this field and a bare "0" beside a "90" reads as the strictest.
+    """
+
+    template_name = "assessments/password_profile_list.html"
+    tab_title = "Password Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = PasswordProfile
+    subject_order = ("appliance__hostname", "name")
+    finding_model = PasswordProfileFinding
+    finding_subject_field = "password_profile"
+    finding_controls = PASSWORD_PROFILE_CONTROLS
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Expires"),
+        Column("Global Policy"),
+        Column("Warning"),
+        Column("Post-expiry"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    @staticmethod
+    def _period(days):
+        return "never" if days == 0 else f"{days} days"
+
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
+
+    def build_row(self, profile, findings, sources):
+        return {
+            "profile": profile,
+            "expires": self._period(profile.expiration_period),
+            "global_expires": self._period(profile.global_expiration_period),
+            "weakens": profile.weakens_global_expiration,
+            "warning": self._period(profile.expiration_warning_period),
+            "post_expiry": (f"{profile.post_expiration_admin_login_count} login(s), "
+                            f"{self._period(profile.post_expiration_grace_period)}"),
             "provenance": sources.get(profile.pk, ""),
             "findings": findings,
         }

@@ -23,7 +23,7 @@ from assessments.tables import Column
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, AuthenticationProfile, Certificate, CertificateProfile,
     DeviceConfigurationProfile, InterfaceManagementProfile, ManagementInterface,
-    ManagementStation, Snapshot, SslTlsServiceProfile)
+    ManagementStation, PasswordProfile, Snapshot, SslTlsServiceProfile)
 
 
 class _Table(HTMLParser):
@@ -86,6 +86,7 @@ class DeviceTabTableTests(TestCase):
         CertificateProfile.objects.create(name="cp", scope="shared", **common)
         Certificate.objects.create(name="cert", scope="shared", **common)
         AuthenticationProfile.objects.create(name="auth", scope="shared", **common)
+        PasswordProfile.objects.create(name="pwd", **common)
 
     def test_every_body_row_has_as_many_cells_as_the_header_declares(self):
         for tab in DEVICE_TABS:

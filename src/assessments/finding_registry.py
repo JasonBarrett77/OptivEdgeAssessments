@@ -59,6 +59,8 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.CERTIFICATE, "certificate"),
     FindingKind(m.AuthenticationProfileFinding, "authentication_profile",
                 m.Control.ControlType.AUTHENTICATION_PROFILE, "authentication profile"),
+    FindingKind(m.PasswordProfileFinding, "password_profile",
+                m.Control.ControlType.PASSWORD_PROFILE, "password profile"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

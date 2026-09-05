@@ -56,6 +56,7 @@ DEVICE_TABS: tuple[DeviceTab, ...] = (
               "clipboard-check", "Device"),
     DeviceTab("assessment_authentication_profile_list", "Authentication Profiles",
               "shield", "Device"),
+    DeviceTab("assessment_password_profile_list", "Password Profiles", "book-marked", "Device"),
     # Certificates - shared/certificate, certificate-profile, ssl-tls-service-profile. All three
     # are appliance-anchored objects with a scope on the row rather than device settings.
     DeviceTab("assessment_certificate_list", "Certificates", "clipboard-check", "Certificates"),

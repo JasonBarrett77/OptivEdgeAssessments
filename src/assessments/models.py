@@ -12,6 +12,7 @@ from django.utils.text import slugify
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     AuthenticationProfile,
+    PasswordProfile,
     Certificate,
     CertificateProfile,
     SslTlsServiceProfile,
@@ -48,6 +49,7 @@ class Control(models.Model):
         CERTIFICATE_PROFILE = "certificate_profile", "Certificate Profile"
         CERTIFICATE = "certificate", "Certificate"
         AUTHENTICATION_PROFILE = "authentication_profile", "Authentication Profile"
+        PASSWORD_PROFILE = "password_profile", "Password Profile"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -96,6 +98,7 @@ class Control(models.Model):
         "certificate_profile": "integrations.CertificateProfile",
         "certificate": "integrations.Certificate",
         "authentication_profile": "integrations.AuthenticationProfile",
+        "password_profile": "integrations.PasswordProfile",
         "config": "",
     }
 
@@ -210,6 +213,7 @@ class Control(models.Model):
         "integrations.CertificateProfile": "Certificate Profile",
         "integrations.Certificate": "Certificate",
         "integrations.AuthenticationProfile": "Authentication Profile",
+        "integrations.PasswordProfile": "Password Profile",
     }
 
     @property
@@ -912,3 +916,51 @@ class AuthenticationProfileFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.authentication_profile_finding_id} <- {self.control_query_id}"
+
+
+class PasswordProfileFinding(ObjectFindingBase):
+    """A finding against one password profile ON ONE APPLIANCE.
+
+    No `subject_scope`: password profiles live only at mgt-config/password-profile, which is
+    neither shared nor per-vsys, so there is no scope to disambiguate a name with.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="password_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="password_profile_findings")
+    password_profile = models.ForeignKey(
+        PasswordProfile, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="PasswordProfileFindingControlQuery",
+        related_name="password_profile_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["password_profile"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "password_profile"],
+                name="unique_pp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on password profile {self.subject_name}"
+
+
+class PasswordProfileFindingControlQuery(FindingControlQueryBase):
+    password_profile_finding = models.ForeignKey(
+        PasswordProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="password_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["password_profile_finding", "control_query"],
+                name="unique_pp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.password_profile_finding_id} <- {self.control_query_id}"

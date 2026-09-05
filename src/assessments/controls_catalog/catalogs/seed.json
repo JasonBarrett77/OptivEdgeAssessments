@@ -892,6 +892,39 @@
           ]
         },
         {
+          "control_id": "PAN-AUTH-026",
+          "name": "Password Profiles Do Not Weaken Global Policy (Hygiene)",
+          "control_type": "password_profile",
+          "description": "A password profile OVERRIDES the global Minimum Password Complexity settings for the accounts it is applied to - Web Interface Help p.822 - so it is an exemption rather than another place the same values live. This asks whether the exemption is weaker than what it replaces.\\n\\nTHE COMPARISON IS NOT 'profile larger than global'. Zero is a sentinel on BOTH sides: 0 means the password never expires, which is the weakest setting available rather than the strictest. The corpus note says to flag any larger value, and the lab holds exactly the case that breaks: a profile with expiration-period 365 on a device whose global is 0. Numerically larger, semantically STRONGER, and flagging it would report a profile that improves the policy.\\n\\nSo a profile weakens the global policy when it never expires and the global does, or when both expire and the profile's period is longer. A global of 0 cannot be weakened by anything.\\n\\nThe comparison is stored on the row rather than expressed as a query, because the search layer compares a field to a LITERAL and this is the only control in the corpus needing field-to-field. Both operands are kept as columns so the conclusion can be checked rather than taken.\\n\\nThe corpus also asks to flag the ACCOUNTS assigned such a profile. That needs the administrator model and is enrichment for the remediation, not part of the assertion - a profile that weakens policy is a latent exemption whether or not anyone holds it today. Note the platform will not let one be assigned to an account using local database authentication.",
+          "rationale": "An exemption nobody audited is how a hardened policy stops applying to the accounts that matter.",
+          "audit": "Device > Password Profiles > <profile> > Required Password Change Period, against Device > Setup > Management > Minimum Password Complexity.",
+          "remediation": "Either raise the global expiration period to match, or shorten the profile's Required Password Change Period so it is no longer than the global one. Setting the profile to 0 does not fix it - 0 means the password never expires, which is the weakest value available.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PasswordProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.PasswordProfile",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "weakens_global_expiration",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",

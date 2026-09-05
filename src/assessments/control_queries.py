@@ -136,6 +136,14 @@ def evaluate_ssl_tls_service_profile_control_queries(queryset, control):
     )
 
 
+def evaluate_password_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or PASSWORD_PROFILE_MODEL,
+    )
+
+
 def evaluate_authentication_profile_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,

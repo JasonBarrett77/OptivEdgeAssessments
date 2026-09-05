@@ -31,6 +31,7 @@ from assessments.views import (
     AuthenticationProfileListView,
     AuthenticationSettingsListView,
     PasswordComplexityListView,
+    PasswordProfileListView,
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
     LegacyFindingListView,
@@ -164,6 +165,11 @@ urlpatterns = [
         "authentication-settings/",
         AuthenticationSettingsListView.as_view(),
         name="assessment_authentication_settings_list",
+    ),
+    path(
+        "password-profiles/",
+        PasswordProfileListView.as_view(),
+        name="assessment_password_profile_list",
     ),
     path(
         "password-complexity/",
