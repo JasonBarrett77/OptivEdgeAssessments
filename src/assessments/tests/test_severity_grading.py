@@ -95,14 +95,18 @@ class SeededScaleTests(TestCase):
     def test_the_seed_carries_every_scale_the_corpus_has_for_a_built_control(self):
         """Four controls shipped before grading existed and were backfilled; three more
         arrived with theirs. PAN-AUTH-015 has none in the corpus, which is right - its finding
-        range is a 14-minute window with nothing to grade inside it."""
+        range is a 14-minute window with nothing to grade inside it.
+
+        PAN-CRT-006's scale is LOCAL rather than from the corpus, added with the private-CA
+        classification it grades. It is marked as such in the seed, so nobody reads it as the
+        corpus author's judgement."""
         controls = {c["control_id"]: c
                     for cat in load_seed_payload()["catalogs"] for c in cat["controls"]}
         scaled = {cid for cid, c in controls.items() if c.get("severity_scale")}
         self.assertEqual(
             scaled, {"PAN-AUTH-002", "PAN-AUTH-009", "PAN-AUTH-010", "PAN-CRT-005",
                      "PAN-AUTH-014", "PAN-AUTH-016", "PAN-AUTH-017",
-                     "PAN-AUTH-018"},
+                     "PAN-AUTH-018", "PAN-CRT-006"},
             "a built control gained or lost a scale - update this list deliberately")
 
     def test_every_seeded_scale_is_shaped_the_way_the_grader_reads_it(self):
@@ -126,3 +130,44 @@ class SeededScaleTests(TestCase):
                     self.assertIn(key, band,
                                   f"{control_id} band {band} lacks {key!r}, so the grader "
                                   f"would fall through it")
+
+
+TRUST = {
+    "kind": "ranked",
+    "ranks": [
+        {"value": "", "severity": "medium"},
+        {"value": "self_signed", "severity": "medium"},
+        {"value": "undetermined", "severity": "medium"},
+        {"value": "private_ca", "severity": "low"},
+        {"value": "ca_issued", "severity": None},
+    ],
+}
+
+
+class FiringValuesNeedExplicitSeverityTests(TestCase):
+    """A null rank on a value that FIRES is the trap PAN-CRT-006 shipped with for an hour.
+
+    It returns None, the caller falls back to the control's default, and the scale grades
+    nothing while reading as "this value passes" - the opposite of the truth for a firing value.
+    """
+
+    def test_the_graded_value_is_actually_graded(self):
+        control = _control(TRUST, severity="medium", control_id="PAN-CRT-006")
+        self.assertEqual(control.severity_for_measure("private_ca"), "low")
+        self.assertEqual(control.severity_for_measure("self_signed"), "medium")
+        self.assertEqual(control.severity_for_measure(""), "medium")
+
+    def test_a_null_rank_grades_nothing_and_falls_back(self):
+        """Which is right for ca_issued, because it never fires - and wrong for anything that
+        does, because the fallback happens to be correct and hides the omission."""
+        control = _control(TRUST, severity="medium")
+        self.assertIsNone(control.severity_for_measure("ca_issued"))
+
+    def test_every_firing_rank_in_the_seed_carries_a_severity(self):
+        """The general form. `ca_issued` is the only PAN-CRT-006 value the query excludes, so
+        it is the only rank permitted to be null."""
+        controls = {c["control_id"]: c
+                    for cat in load_seed_payload()["catalogs"] for c in cat["controls"]}
+        scale = controls["PAN-CRT-006"]["severity_scale"]
+        nulls = [r["value"] for r in scale["ranks"] if r["severity"] is None]
+        self.assertEqual(nulls, ["ca_issued"])

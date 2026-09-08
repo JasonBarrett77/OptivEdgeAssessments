@@ -136,6 +136,11 @@ class Control(models.Model):
         A null band severity means the value MEETS the baseline. That returns None, and no
         finding should exist for it anyway - the query decides whether there IS a finding, this
         decides only how bad it is.
+
+        SO NEVER GIVE A FIRING VALUE A NULL SEVERITY. It returns None, the caller falls back to
+        the control's default, and the result is correct by accident while the scale reads as
+        "this value passes" - the opposite of the truth. PAN-CRT-006 was first written that way,
+        with `self_signed` null: it graded nothing, and said self-signed was fine.
         """
         scale = self.severity_scale or {}
         if not scale or measure is None:

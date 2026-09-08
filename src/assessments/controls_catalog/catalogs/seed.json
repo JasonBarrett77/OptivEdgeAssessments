@@ -1159,7 +1159,7 @@
           "control_id": "PAN-CRT-006",
           "name": "Management Certificate Issued by Trusted CA",
           "control_type": "device_configuration",
-          "description": "The management UI certificate should chain to an organisation-trusted CA rather than the factory self-signed certificate, so administrators can detect man-in-the-middle interception of management sessions.\\n\\nSplit from PAN-MGT-010 because the protocol floor and the certificate are independent and have different remediations. Measured 2026-09-02: the shipped TLSv1.3_Default profile - the obvious fix for PAN-MGT-010 - carries /config/predefined/certificate's TLSv1.3_Default, which is the device's OWN factory certificate, common-name equal to the chassis serial and self-signed. Remediating PAN-MGT-010 the easy way therefore leaves this control failing, which is exactly why it is its own control.\\n\\nWhat is decidable here is CA-ISSUED versus SELF-SIGNED, from PAN-OS's own subject and issuer hashes. Whether the issuing CA is the ORGANISATION'S is not a configuration fact and this control does not claim to decide it - the issuer is reported so a human can. A CA-issued certificate from an unexpected authority will pass and still deserve attention, and the corpus's preferred state goes further still: an internal-CA certificate whose SAN matches the management FQDN and which admin browsers already trust.",
+          "description": "The management UI certificate should chain to an organisation-trusted CA rather than the factory self-signed certificate, so administrators can detect man-in-the-middle interception of management sessions.\\n\\nSplit from PAN-MGT-010 because the protocol floor and the certificate are independent and have different remediations. Measured 2026-09-02: the shipped TLSv1.3_Default profile - the obvious fix for PAN-MGT-010 - carries /config/predefined/certificate's TLSv1.3_Default, which is the device's OWN factory certificate, common-name equal to the chassis serial and self-signed. Remediating PAN-MGT-010 the easy way therefore leaves this control failing, which is exactly why it is its own control.\\n\\nWhat is decidable here is CA-ISSUED versus SELF-SIGNED, from PAN-OS's own subject and issuer hashes. Whether the issuing CA is the ORGANISATION'S is not a configuration fact and this control does not claim to decide it - the issuer is reported so a human can. A CA-issued certificate from an unexpected authority will pass and still deserve attention, and the corpus's preferred state goes further still: an internal-CA certificate whose SAN matches the management FQDN and which admin browsers already trust.\\n\\nWHAT THIS CAN AND CANNOT DECIDE. Trust is not readable from configuration - there is no trust store here - so this classifies the ISSUER CHAIN as far as the device shows it. A chain terminating at a self-signed CA that is itself on the device is a PRIVATE root: nothing trusts it by default, and a browser rejects it exactly as it rejects a self-signed leaf. A chain that leaves the device may reach a public root, which cannot be confirmed here and is not claimed.\\n\\nThat distinction was previously collapsed, and the collapse hid a real case: a certificate signed by a lab CA created minutes earlier classified as CA-issued and PASSED, while Chrome refused the same chain with NET::ERR_CERT_AUTHORITY_INVALID. The control was named for trust and asserted only 'not self-signed'.\\n\\nThe private-CA case is graded DOWN from the self-signed one rather than treated as equal. An organisation's own internal CA is also private, and a certificate it issued is a different conversation from one the device signed for itself - the remediation is to distribute the root or move to a public CA, not to stop using self-signed certificates. Jason, 2026-09-07.\\n\\nTHIS SEVERITY SCALE IS LOCAL, not from the corpus. controls.json carries no scale for this control; the bands below were added with the classification they grade.",
           "rationale": "A self-signed management certificate trains administrators to click through browser warnings, which is precisely the reflex a man-in-the-middle on the management network depends on. The warning is the only thing distinguishing the real device from an impostor, and it stops being a signal once it is always present.",
           "audit": "Confirm the SSL/TLS service profile bound at Device > Setup > Management > General Settings names a certificate whose Issuer differs from its Subject, and that the issuer is an authority the organisation recognises. Device > Certificate Management > Certificates shows both.",
           "remediation": "Issue a certificate for the management interface from the organisation's CA, import it under Device > Certificate Management > Certificates, and reference it from the bound SSL/TLS service profile. Where no profile is bound yet, PAN-MGT-010 must be remediated first - the certificate is carried by the profile.",
@@ -1187,7 +1187,40 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.DeviceConfigurationProfile",
+          "severity_scale": {
+            "kind": "ranked",
+            "metric": "issuer chain of the management certificate",
+            "measure": "Resolved trust classification of the certificate bound to the management interface.",
+            "$origin": "LOCAL - added 2026-09-07 with the private-CA classification. Not from controls.json.",
+            "ranks": [
+              {
+                "value": "",
+                "severity": "medium",
+                "label": "no certificate bound at all - the device serves its factory certificate"
+              },
+              {
+                "value": "self_signed",
+                "severity": "medium",
+                "label": "signed by the device itself - no authority at all"
+              },
+              {
+                "value": "undetermined",
+                "severity": "medium",
+                "label": "the chain could not be resolved - an engineer must look"
+              },
+              {
+                "value": "private_ca",
+                "severity": "low",
+                "label": "issued by a private CA on this device - trusted wherever its root was distributed, which is a different remediation from a self-signed certificate"
+              },
+              {
+                "value": "ca_issued",
+                "severity": null,
+                "label": "the chain leaves this device and may reach a public root - does not fire"
+              }
+            ]
+          }
         },
         {
           "control_id": "PAN-CRT-007",
