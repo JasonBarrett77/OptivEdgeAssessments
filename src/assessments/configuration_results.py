@@ -39,6 +39,7 @@ from optivedge_integrations.integrations.models import (
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
+    SecurityProfile,
     ServerProfile,
     SslTlsServiceProfile,
 )
@@ -61,6 +62,11 @@ class ResultsSpec(NamedTuple):
     #: compiles - a saved control query applied here is not something to refuse on presentation
     #: grounds.
     fields: tuple[str, ...] = ()
+    #: A fixed canonical query every row on this page must also match - how two pages split ONE
+    #: model the way the vendor's UI splits it (anti-spyware and vulnerability profiles). Applied
+    #: by the search service like any other query, never as a queryset filter here: filtering an
+    #: asserted model is the service's job (test_query_service_boundary).
+    scope: dict | None = None
 
 
 def _nothing(count, unit):
@@ -85,6 +91,33 @@ def _ordered(model, *fields, related=("appliance",)):
     def rows():
         return model.objects.select_related(*related).order_by(*fields)
     return rows
+
+
+_security_profiles = _ordered(
+    SecurityProfile, "is_predefined", "name", "appliance_group__name", "enforcement_point__vsys_name",
+    related=("enforcement_point__appliance_group", "appliance_group"))
+
+
+def _kind_scope(kind):
+    return {"model": "integrations.SecurityProfile", "operator": "and",
+            "clauses": [{"field": "kind", "op": "eq", "value": kind, "negated": False}]}
+
+
+def _verdict(blocked, detail):
+    """The reason on BOTH sides: which action blocks it, or why nothing does."""
+    return f"blocked ({detail})" if blocked else detail
+
+
+def _security_profile_row(p):
+    return (
+        p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+        p.name,
+        p.get_namespace_type_display(),
+        _verdict(p.critical_blocked, p.critical_detail),
+        _verdict(p.high_blocked, p.high_detail),
+        _verdict(p.medium_blocked, p.medium_detail),
+        _nothing(p.referrer_count, "referrer(s)"),
+    )
 
 
 RESULTS = {
@@ -211,6 +244,20 @@ RESULTS = {
         ),
     ),
     # --- Device, top-level rail items -----------------------------------------------------
+    # --- Objects > Security Profiles. Two rail items over ONE model, split by kind the way PAN-OS
+    # splits them; each page's base queryset is its own kind.
+    "anti-spyware": ResultsSpec(
+        columns=("Owner", "Profile", "Scope", "Critical", "High", "Medium", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("spyware"),
+        row=lambda p: _security_profile_row(p),
+    ),
+    "vulnerability-protection": ResultsSpec(
+        columns=("Owner", "Profile", "Scope", "Critical", "High", "Medium", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("vulnerability"),
+        row=lambda p: _security_profile_row(p),
+    ),
     "password-profiles": ResultsSpec(
         columns=("Appliance", "Profile", "Expires", "Global Policy", "Weakens Global"),
         base_queryset=_ordered(PasswordProfile, "appliance__hostname", "name"),

@@ -76,11 +76,24 @@ CATEGORIES: tuple[str, ...] = ("Policies", "Objects", "Network", "Device")
 
 #: Top to bottom within a category, in the product's own rail order.
 #:
-#: Policies and Objects are EMPTY on purpose. Security rules already have a query builder and a
-#: results list of their own and are not being moved yet; listing them here before they move
-#: would give the rail a link that goes somewhere else, which is worse than an empty category
-#: saying what will land in it.
+#: Policies is EMPTY on purpose. Security rules already have a query builder and a results
+#: list of their own and are not being moved yet; listing them here before they move would give
+#: the rail a link that goes somewhere else, which is worse than an empty category saying what
+#: will land in it. Objects holds only what a completed control reads - security profiles, from
+#: 2026-09-11.
 CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
+    # Objects > Security Profiles - the first Objects items, 2026-09-11. PAN-OS lists each profile
+    # type as its own rail child, and so does this: two items over one model, split by kind in
+    # configuration_results, each backed by a completed control.
+    ConfigObject("anti-spyware", "Anti-Spyware", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > Anti-Spyware",
+                 findings_url_name="assessment_security_profile_list",
+                 search_model="integrations.SecurityProfile"),
+    ConfigObject("vulnerability-protection", "Vulnerability Protection", "Objects",
+                 "Security Profiles", "shield",
+                 where="Objects > Security Profiles > Vulnerability Protection",
+                 findings_url_name="assessment_security_profile_list",
+                 search_model="integrations.SecurityProfile"),
     # Device > Setup. Six of our tabs are all one PAN-OS screen with sub-tabs; they sit under
     # Setup as rail children rather than being flattened, so the address stays the vendor's.
     # `management` came OUT on 2026-09-10. Every completed control that read

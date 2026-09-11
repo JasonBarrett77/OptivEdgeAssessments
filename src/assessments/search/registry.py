@@ -120,6 +120,11 @@ from assessments.search.password_profile.compiler import (
     PASSWORD_PROFILE_MODEL,
     compile_password_profile_search_node,
 )
+from assessments.search.security_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as SECURITY_PROFILE_FIELD_OPERATOR_REGISTRY,
+    SECURITY_PROFILE_MODEL,
+    compile_security_profile_search_node,
+)
 from assessments.search.certificate_profile.compiler import (
     FIELD_OPERATOR_REGISTRY as CERTIFICATE_PROFILE_FIELD_OPERATOR_REGISTRY,
 )
@@ -147,6 +152,7 @@ from optivedge_integrations.integrations.models import (
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
+    SecurityProfile,
     CertificateProfile,
     InterfaceManagementProfile,
     SslTlsServiceProfile,
@@ -245,6 +251,11 @@ MODEL_REGISTRY = {
         "model_class": PasswordProfile,
         "field_operators": PASSWORD_PROFILE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_password_profile_search_node,
+    },
+    SECURITY_PROFILE_MODEL: {
+        "model_class": SecurityProfile,
+        "field_operators": SECURITY_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_security_profile_search_node,
     },
     CERTIFICATE_MODEL: {
         "model_class": Certificate,

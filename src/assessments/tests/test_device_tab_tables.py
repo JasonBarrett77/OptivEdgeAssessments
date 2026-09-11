@@ -27,7 +27,7 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile, ManagementInterface,
     AuthenticationSettings, LoginBanner, ManagementTlsBinding, ManagementSshSettings, MasterKey,
     PasswordComplexityPolicy,
-    ManagementStation, PasswordProfile, Snapshot, SslTlsServiceProfile)
+    ManagementStation, PasswordProfile, SecurityProfile, Snapshot, SslTlsServiceProfile)
 
 
 class _Table(HTMLParser):
@@ -97,6 +97,11 @@ class DeviceTabTableTests(TestCase):
         AuthenticationProfile.objects.create(name="auth", scope="shared", **common)
         AuthenticationSequence.objects.create(name="seq", scope="shared", **common)
         PasswordProfile.objects.create(name="pwd", **common)
+        # A policy object: owned by the group rather than the appliance, so not **common.
+        SecurityProfile.objects.create(
+            management_station=station, appliance_group=group, source_snapshot=snapshot,
+            config_source="local", name="spy", namespace_type="local_shared",
+            namespace_value="shared", precedence_rank=20, kind=SecurityProfile.KIND_SPYWARE)
         AdminUser.objects.create(name="admin", role_type=AdminUser.RoleType.SUPERUSER,
                                  is_superuser=True, superuser_cohort_size=1, **common)
         ServerProfile.objects.create(name="aaa", kind=ServerProfile.Kind.LDAP,

@@ -53,6 +53,7 @@ from assessments.models import (
     PasswordComplexityFinding,
     UpdateServerSettingsFinding,
     PasswordProfileFinding,
+    SecurityProfileFinding,
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
@@ -105,6 +106,7 @@ from optivedge_integrations.integrations.models import (
     PasswordComplexityPolicy,
     UpdateServerSettings,
     PasswordProfile,
+    SecurityProfile,
     Certificate,
     CertificateProfile,
     FieldProvenance,
@@ -146,6 +148,7 @@ AUTHENTICATION_PROFILE_CONTROLS = (
     "PAN-AUTH-018", "PAN-AUTH-025", "PAN-AAA-010", "PAN-AAA-011")
 AUTHENTICATION_SEQUENCE_CONTROLS = ("PAN-AAA-012",)
 PASSWORD_PROFILE_CONTROLS = ("PAN-AUTH-026",)
+SECURITY_PROFILE_CONTROLS = ("PAN-SPY-001", "PAN-VLN-001")
 #: All three assess the same account and fail independently, which is the whole reason they
 #: share a tab: `admin` on pan-fw-111 fires all three at once.
 #:
@@ -2224,6 +2227,67 @@ class PasswordProfileListView(DeviceTabListView):
         }
 
 
+class SecurityProfileListView(DeviceTabListView):
+    """Anti-spyware and vulnerability profiles - custom, pushed and predefined. PAN-SPY-001, PAN-VLN-001.
+
+    Each severity cell carries its verdict AND the reason, because the verdict is computed over
+    the whole rule list and two profiles failing the same severity can fail it differently.
+
+    Predefined profiles are listed only when something uses them, which is the same scoping the
+    controls apply: an unused `default` protects nothing, and ten vsys each carrying two of them
+    would bury the profiles that matter. "Used by" is on every row so a predefined profile's
+    presence explains itself.
+    """
+
+    template_name = "assessments/security_profile_list.html"
+    tab_title = "Security Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = SecurityProfile
+    subject_select_related = ("enforcement_point__appliance_group", "appliance_group", "source_snapshot")
+    subject_order = ("kind", "is_predefined", "name", "appliance_group__name", "enforcement_point__vsys_name")
+    finding_model = SecurityProfileFinding
+    finding_subject_field = "security_profile"
+    finding_controls = SECURITY_PROFILE_CONTROLS
+
+    COLUMNS = (
+        Column("Owner"),
+        Column("Profile"),
+        Column("Critical"),
+        Column("High"),
+        Column("Medium"),
+        Column("Used by"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    #: Referrers shown per row before "and N more" - a Panorama-shared group can reach every vsys.
+    REFERRERS_SHOWN = 3
+
+    def get_subjects(self):
+        return [p for p in super().get_subjects() if not p.is_predefined or p.is_used]
+
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
+
+    def build_row(self, profile, findings, sources):
+        return {
+            "profile": profile,
+            "kind": profile.get_kind_display(),
+            "scope": profile.get_namespace_type_display(),
+            "owner": profile.appliance_group.name if profile.appliance_group_id else str(profile.enforcement_point),
+            "severities": [
+                {"blocked": profile.critical_blocked, "detail": profile.critical_detail},
+                {"blocked": profile.high_blocked, "detail": profile.high_detail},
+                {"blocked": profile.medium_blocked, "detail": profile.medium_detail},
+            ],
+            "used_by": profile.referrers[:self.REFERRERS_SHOWN],
+            "more_referrers": max(0, len(profile.referrers) - self.REFERRERS_SHOWN),
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
+
+
 class AdminUserListView(DeviceTabListView):
     """Administrator accounts and every control that assesses one. PAN-AUTH-019, 021, 022.
 
@@ -2471,6 +2535,10 @@ class ConfigurationObjectView(TemplateView):
     def query_context(self, obj):
         spec = config_results.RESULTS[obj.slug]
         rows = spec.base_queryset()
+        if spec.scope:
+            # One kind of a shared model: the split is a query the search service applies,
+            # not a filter written here. See ResultsSpec.scope.
+            rows = apply_search_node(rows, spec.scope)
         total = rows.count()
         node = None
         error = ""

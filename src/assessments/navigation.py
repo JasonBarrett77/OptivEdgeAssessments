@@ -51,7 +51,7 @@ class DeviceTab(NamedTuple):
 #: So the rule is: key on the subtree unless a QUESTION spans several of them, and then key on
 #: the question. Anything else lands in Device by default, which is what Device now is - the
 #: appliance settings that are nobody else's story.
-SECTIONS: tuple[str, ...] = ("Device", "Authentication", "Certificates", "Network")
+SECTIONS: tuple[str, ...] = ("Device", "Authentication", "Certificates", "Network", "Objects")
 
 
 #: Display order, left to right.
@@ -84,6 +84,8 @@ DEVICE_TABS: tuple[DeviceTab, ...] = (
     DeviceTab("assessment_ssl_tls_service_profile_list", "SSL/TLS Profiles", "settings", "Certificates"),
     # Network - network/profiles/...
     DeviceTab("assessment_interface_management_profile_list", "Interface Profiles", "list-checks", "Network"),
+    # Objects - policy objects, scoped like address objects.
+    DeviceTab("assessment_security_profile_list", "Security Profiles", "shield", "Objects"),
 )
 
 DEVICE_TAB_URL_NAMES = frozenset(tab.url_name for tab in DEVICE_TABS)

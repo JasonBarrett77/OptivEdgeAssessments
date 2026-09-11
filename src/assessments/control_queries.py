@@ -24,6 +24,7 @@ MASTER_KEY_MODEL = "integrations.MasterKey"
 UPDATE_SERVER_SETTINGS_MODEL = "integrations.UpdateServerSettings"
 LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
 PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
+SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
 ADMIN_USER_MODEL = "integrations.AdminUser"
 SERVER_PROFILE_MODEL = "integrations.ServerProfile"
 
@@ -197,6 +198,14 @@ def evaluate_password_profile_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or PASSWORD_PROFILE_MODEL,
+    )
+
+
+def evaluate_security_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SECURITY_PROFILE_MODEL,
     )
 
 

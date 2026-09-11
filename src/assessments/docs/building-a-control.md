@@ -257,6 +257,13 @@ and are then deleted, and empty is its normal state.
       difference. *PAN-OS: a template leaf arrives as `{'@ptpl': …, '#text': 'yes'}` and a
       naive reader calls it unset; `action=get` strips `@ptpl` entirely, so only merged config
       carries it.*
+- [ ] **Whether a central manager delivered something is a question PER VIEW, not per device.**
+      `→ payload contract` Read every view that can carry it before calling it absent. *A
+      Panorama-shared anti-spyware profile that nothing referenced was looked for in
+      fw-core-tpa-b's vsys1 pushed view, not found, and written into the lab script as "not
+      pushed at all". The same object was in that device's vsys3 view and on pan-fw-111 - one
+      view of four. It surfaced only because normalization, which unions every vsys, put the
+      object where the write-up said it could not be.*
 
 - [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
       guards against id collisions — next free number, check both files — and says nothing

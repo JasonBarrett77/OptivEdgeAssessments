@@ -289,7 +289,7 @@ Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportun
 
 **The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) and
 **the client report** (`reporting/context.py`, `reporting/workbook_data.py`) both enumerate
-exactly one finding model — `RuleFinding`. **Seventeen exist.** The other sixteen are invisible
+exactly one finding model — `RuleFinding`. **Twenty exist.** The other nineteen are invisible
 in both, including every certificate finding, every authentication finding, every administrator
 finding and every device-wide setting.
 

@@ -1,0 +1,51 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+Anti-Spyware and Vulnerability Protection profiles from <code>profiles/spyware</code> and
+<code>profiles/vulnerability</code> - local, Panorama-pushed and predefined.
+<span class="font-medium">PAN-SPY-001</span>, <span class="font-medium">PAN-VLN-001</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">A severity is blocked only if a catch-all rule covers it and every rule that can match it blocks.</span>
+    Rule order is not considered, so an alert rule below a broad blocking rule still counts against
+    the profile. Vulnerability rules are judged for the client and the server side separately.
+    Drop, reset and block-IP all count as blocking; <span class="font-medium">default does not</span>,
+    because a signature's default action is often only an alert.
+    <span class="font-medium">Predefined profiles are listed only when a rule or profile group uses them</span>
+    &mdash; an unused <code>default</code> protects nothing and is not a finding.
+</div>
+{% endblock %}
+
+{% block empty_state %}No anti-spyware or vulnerability profiles have been normalized.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.owner }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <div class="text-slate-800">{{ row.profile.name }}</div>
+        <div class="mt-0.5 text-[10px] leading-3 text-slate-500">{{ row.kind }} &middot; {{ row.scope }}</div>
+        {% if show_provenance and row.provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.provenance }}</div>{% endif %}
+    </td>
+    {% for severity in row.severities %}
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5">
+        {% if severity.blocked %}<span class="text-slate-800">blocked</span><div class="mt-0.5 text-[10px] leading-3 text-slate-500">{{ severity.detail }}</div>
+        {% else %}<span class="text-amber-700">{{ severity.detail }}</span>{% endif %}
+    </td>
+    {% endfor %}
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-600">
+        {% for referrer in row.used_by %}<div class="whitespace-nowrap">{{ referrer }}</div>{% empty %}<span class="text-slate-400">Nothing</span>{% endfor %}
+        {% if row.more_referrers %}<div class="text-[10px] text-slate-400">and {{ row.more_referrers }} more</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.profile.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">No security profile currently fails to block a critical or high threat.</td></tr>
+{% endfor %}
+{% endblock %}

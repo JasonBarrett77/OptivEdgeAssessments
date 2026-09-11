@@ -2280,6 +2280,132 @@
             }
           ],
           "target_model": "integrations.InterfaceManagementProfile"
+        },
+        {
+          "control_id": "PAN-SPY-001",
+          "name": "Anti-Spyware Profile Blocks Critical/High/Medium Severity",
+          "control_type": "security_profile",
+          "description": "Anti-spyware signatures detect command-and-control, credential theft and post-exploitation beaconing. Critical and high severities must be blocked; leaving them at alert turns C2 detection into a log entry while the channel stays open.\\n\\nWHAT IS ASSESSED. Every custom Anti-Spyware profile - local vsys, local shared, and Panorama-pushed - and the predefined `default` and `strict` profiles WHEN a rule or profile group uses them (Jason, 2026-09-11). An unused predefined profile protects nothing; the shipped `default` protecting a rule is the commonest weak configuration there is.\\n\\nTHE VERDICT IS ORDER-INDEPENDENT. A severity is blocked only when a catch-all rule covers it - any threat name, any category - and every rule that can match it takes a blocking action. No document says whether profile rules are first-match, and this reading does not need to know: it cannot pass a weak profile. Its cost is that a non-blocking rule BELOW a broad blocking one still fails the severity.\\n\\nBLOCKING is drop, reset-client, reset-server, reset-both or block-ip. The corpus minimum names reset-both alone; any blocking action passes here (Jason, 2026-09-11). `default` is NOT blocking - a signature's default action is typically alert or reset-both (Web Interface Help p.272), so it cannot be relied on, and the predefined `default` profile is exactly that case.\\n\\nFires when critical OR high is not blocked, which is the corpus minimum. Medium is the corpus PREFERRED value: it is on the row and queryable, and fires nothing.",
+          "rationale": "Critical and high severity signatures that only alert turn detection into a log entry while the attack proceeds.",
+          "audit": "Objects > Security Profiles > Anti-Spyware > <profile> > Rules, and which Security policy rules and Security Profile Groups reference it.",
+          "remediation": "Give the profile a catch-all rule for critical and high severity with a reset or drop action, and remove or tighten any rule that alerts on those severities. For a predefined profile, point the rules and groups using it at `strict` or at a custom profile instead - predefined profiles cannot be edited.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "spyware"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "critical_blocked",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "high_blocked",
+                        "op": "eq",
+                        "value": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-VLN-001",
+          "name": "Vulnerability Protection Blocks Critical/High/Medium Severity",
+          "control_type": "security_profile",
+          "description": "Vulnerability signatures stop exploit attempts against client and server CVEs in transit. Critical and high must be blocked - the shipped `default` profile only takes each signature's default action, which documents intrusions instead of preventing them.\\n\\nWHAT IS ASSESSED. Every custom Vulnerability Protection profile - local vsys, local shared, and Panorama-pushed - and the predefined `default` and `strict` profiles WHEN a rule or profile group uses them (Jason, 2026-09-11). An unused predefined profile protects nothing; the shipped `default` protecting a rule is the commonest weak configuration there is.\\n\\nTHE VERDICT IS ORDER-INDEPENDENT. A severity is blocked only when a catch-all rule covers it - any threat name, any category, any CVE and vendor ID, for the client AND the server side - and every rule that can match it takes a blocking action. No document says whether profile rules are first-match, and this reading does not need to know: it cannot pass a weak profile. Its cost is that a non-blocking rule BELOW a broad blocking one still fails the severity.\\n\\nBLOCKING is drop, reset-client, reset-server, reset-both or block-ip. The corpus minimum names reset-both alone; any blocking action passes here (Jason, 2026-09-11). `default` is NOT blocking - a signature's default action is typically alert or reset-both (Web Interface Help p.272), so it cannot be relied on, and the predefined `default` profile is exactly that case.\\n\\nFires when critical OR high is not blocked, which is the corpus minimum. Medium is the corpus PREFERRED value: it is on the row and queryable, and fires nothing.",
+          "rationale": "Critical and high severity signatures that only alert turn detection into a log entry while the attack proceeds.",
+          "audit": "Objects > Security Profiles > Vulnerability Protection > <profile> > Rules, and which Security policy rules and Security Profile Groups reference it.",
+          "remediation": "Give the profile a catch-all rule for critical and high severity with a reset or drop action, and remove or tighten any rule that alerts on those severities. For a predefined profile, point the rules and groups using it at `strict` or at a custom profile instead - predefined profiles cannot be edited.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Default baseline query.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "vulnerability"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "critical_blocked",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "high_blocked",
+                        "op": "eq",
+                        "value": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
         }
       ]
     }

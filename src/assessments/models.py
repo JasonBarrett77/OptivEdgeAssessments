@@ -24,6 +24,7 @@ from optivedge_integrations.integrations.models import (
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
+    SecurityProfile,
     Certificate,
     CertificateProfile,
     SslTlsServiceProfile,
@@ -88,6 +89,7 @@ class Control(models.Model):
         AUTHENTICATION_PROFILE = "authentication_profile", "Authentication Profile"
         AUTHENTICATION_SEQUENCE = "authentication_sequence", "Authentication Sequence"
         PASSWORD_PROFILE = "password_profile", "Password Profile"
+        SECURITY_PROFILE = "security_profile", "Security Profile"
         PASSWORD_COMPLEXITY = "password_complexity", "Minimum Password Complexity"
         AUTHENTICATION_SETTINGS = "authentication_settings", "Authentication Settings"
         LOGIN_BANNER = "login_banner", "Login Banner"
@@ -150,6 +152,7 @@ class Control(models.Model):
         "authentication_profile": "integrations.AuthenticationProfile",
         "authentication_sequence": "integrations.AuthenticationSequence",
         "password_profile": "integrations.PasswordProfile",
+        "security_profile": "integrations.SecurityProfile",
         "password_complexity": "integrations.PasswordComplexityPolicy",
         "authentication_settings": "integrations.AuthenticationSettings",
         "login_banner": "integrations.LoginBanner",
@@ -187,6 +190,7 @@ class Control(models.Model):
         "integrations.AuthenticationProfile": "Authentication Profile",
         "integrations.AuthenticationSequence": "Authentication Sequence",
         "integrations.PasswordProfile": "Password Profile",
+        "integrations.SecurityProfile": "Security Profile",
         "integrations.PasswordComplexityPolicy": "Minimum Password Complexity",
         "integrations.AuthenticationSettings": "Authentication Settings",
         "integrations.LoginBanner": "Login Banner",
@@ -1296,6 +1300,55 @@ class PasswordProfileFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.password_profile_finding_id} <- {self.control_query_id}"
+
+
+class SecurityProfileFinding(ObjectFindingBase):
+    """A finding against one anti-spyware or vulnerability profile DEFINITION.
+
+    Carries `subject_scope` because names repeat across scopes: every vsys has its own predefined
+    `default`, and a vsys can define a profile with the same name as a shared one.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="security_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="security_profile_findings")
+    security_profile = models.ForeignKey(
+        SecurityProfile, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SecurityProfileFindingControlQuery",
+        related_name="security_profile_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["security_profile"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "security_profile"],
+                name="unique_secprof_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on security profile {self.subject_name}"
+
+
+class SecurityProfileFindingControlQuery(FindingControlQueryBase):
+    security_profile_finding = models.ForeignKey(
+        SecurityProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="security_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["security_profile_finding", "control_query"],
+                name="unique_secprof_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.security_profile_finding_id} <- {self.control_query_id}"
 
 
 class AdminUserFinding(ObjectFindingBase):

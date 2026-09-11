@@ -35,6 +35,7 @@ from assessments.master_key_findings import generate_master_key_findings
 from assessments.models import AssessmentRun, Control
 from assessments.password_complexity_findings import generate_password_complexity_findings
 from assessments.password_profile_findings import generate_password_profile_findings
+from assessments.security_profile_findings import generate_security_profile_findings
 from assessments.server_profile_findings import generate_server_profile_findings
 from assessments.ssl_tls_service_profile_findings import (
     generate_ssl_tls_service_profile_findings,
@@ -70,6 +71,7 @@ GENERATORS = (
     ("authentication profile", T.AUTHENTICATION_PROFILE, generate_authentication_profile_findings),
     ("authentication sequence", T.AUTHENTICATION_SEQUENCE, generate_authentication_sequence_findings),
     ("password profile", T.PASSWORD_PROFILE, generate_password_profile_findings),
+    ("security profile", T.SECURITY_PROFILE, generate_security_profile_findings),
     ("administrator", T.ADMIN_USER, generate_admin_user_findings),
     ("aaa server profile", T.SERVER_PROFILE, generate_server_profile_findings),
 )

@@ -61,6 +61,8 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.AUTHENTICATION_SEQUENCE, "authentication sequence"),
     FindingKind(m.PasswordProfileFinding, "password_profile",
                 m.Control.ControlType.PASSWORD_PROFILE, "password profile"),
+    FindingKind(m.SecurityProfileFinding, "security_profile",
+                m.Control.ControlType.SECURITY_PROFILE, "security profile"),
     FindingKind(m.PasswordComplexityFinding, "password_complexity_policy",
                 m.Control.ControlType.PASSWORD_COMPLEXITY, "password complexity"),
     FindingKind(m.AuthenticationSettingsFinding, "authentication_settings",
