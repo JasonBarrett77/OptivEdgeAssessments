@@ -7,8 +7,8 @@ from dataclasses import asdict, dataclass
 
 #: KNOWN INCOMPLETE, deliberately - same two-of-seven gap as reporting/context.py.
 #: See views.LegacyFindingListView for the account and why it is not fixed yet.
-from assessments.models import Control, DeviceConfigurationFinding, RuleFinding
-from assessments.reporting.context import build_report_context, get_latest_device_configuration_assessment_run, get_latest_rule_assessment_run
+from assessments.models import Control, RuleFinding
+from assessments.reporting.context import build_report_context, get_latest_rule_assessment_run
 from assessments.security_rule_queries import SECURITY_RULE_DISPLAY_PREFETCH_RELATIONS
 from optivedge.models import ApplicationEnvironment
 
@@ -48,7 +48,6 @@ def build_workbook_export_data(*, generated_date: str) -> WorkbookExportData:
     application_environment = _get_application_environment()
     context = build_report_context()
     rule_run = get_latest_rule_assessment_run()
-    device_configuration_run = get_latest_device_configuration_assessment_run()
 
     rule_findings = list(
         RuleFinding.objects.filter(assessment_run=rule_run)
@@ -66,14 +65,6 @@ def build_workbook_export_data(*, generated_date: str) -> WorkbookExportData:
             ),
         )
     )
-    device_configuration_findings = list(
-        DeviceConfigurationFinding.objects.filter(assessment_run=device_configuration_run).select_related(
-            "control",
-            "device_configuration_profile__management_station",
-            "device_configuration_profile__appliance",
-            "device_configuration_profile__appliance_group",
-        ).prefetch_related("control_queries")
-    ) if device_configuration_run else []
 
     sheets: list[WorkbookSheet] = []
     name_counts = Counter(row.control_id for row in context.summary_rows)
@@ -89,22 +80,15 @@ def build_workbook_export_data(*, generated_date: str) -> WorkbookExportData:
             used_sheet_names=used_sheet_names,
         )
 
-        if summary_row.control_id.startswith("FW-"):
-            matching = [
-                finding for finding in rule_findings
-                if finding.control.control_id == summary_row.control_id
-                and finding.get_severity_display() == summary_row.importance
-            ]
-            control = matching[0].control
-            rows = [_build_rule_row(finding) for finding in matching]
-        else:
-            matching = [
-                finding for finding in device_configuration_findings
-                if finding.control.control_id == summary_row.control_id
-                and finding.get_severity_display() == summary_row.importance
-            ]
-            control = matching[0].control
-            rows = [_build_device_configuration_row(finding) for finding in matching]
+        # Every summary row comes from a rule finding since DeviceConfigurationFinding was
+        # deleted on 2026-09-11, so there is no second source to route to.
+        matching = [
+            finding for finding in rule_findings
+            if finding.control.control_id == summary_row.control_id
+            and finding.get_severity_display() == summary_row.importance
+        ]
+        control = matching[0].control
+        rows = [_build_rule_row(finding) for finding in matching]
 
         sheets.append(
             WorkbookSheet(
@@ -195,35 +179,6 @@ def _build_rule_row(finding: RuleFinding) -> dict:
         "destination_addresses": ", ".join(_address_label(ref) for ref in security_rule.destination_address_refs.all()),
         "applications": ", ".join(value.value for value in security_rule.securityruleapplications.all()),
         "services": ", ".join(value.value for value in security_rule.securityruleservices.all()),
-        "matched_queries": ", ".join(query.name for query in finding.control_queries.all()),
-        "finding_summary": finding.summary,
-    }
-
-
-def _build_device_configuration_row(finding: DeviceConfigurationFinding) -> dict:
-    profile = finding.device_configuration_profile
-    appliance = profile.appliance
-    group = profile.appliance_group
-    return {
-        "severity": finding.get_severity_display(),
-        "status": finding.get_status_display(),
-        "station": str(profile.management_station),
-        "appliance": appliance.hostname or appliance.serial_number,
-        "serial_number": appliance.serial_number,
-        "model": appliance.model,
-        "software_version": appliance.software_version,
-        "appliance_group": group.name if group else "",
-        "group_type": group.get_group_type_display() if group else "",
-        "config_source": profile.config_source,
-        "ha_required": "Yes" if profile.ha_required else "No",
-        "ha_enabled": "Yes" if profile.ha_enabled else "No",
-        "ha_state_sync_enabled": "Yes" if profile.ha_state_sync_enabled else "No",
-        "ha_link_monitoring_enabled": "Yes" if profile.ha_link_monitoring_enabled else "No",
-        "ntp_primary_server": profile.ntp_primary_server,
-        "ntp_secondary_server": profile.ntp_secondary_server,
-        "permitted_ip_count": profile.permitted_ip_count,
-        "idle_timeout_minutes": profile.idle_timeout_minutes,
-        "login_banner": profile.login_banner,
         "matched_queries": ", ".join(query.name for query in finding.control_queries.all()),
         "finding_summary": finding.summary,
     }

@@ -18,7 +18,6 @@ from optivedge_integrations.integrations.models import (
     Appliance,
     ApplianceGroup,
     EnforcementPoint,
-    DeviceConfigurationProfile,
     FieldProvenance,
     ManagementStation,
     SecurityRule,
@@ -790,186 +789,12 @@ class ControlViewTests(TestCase):
         self.assertTrue(response.content.startswith(b"PK"))
 
 
-class DeviceConfigurationProfileListViewTests(TestCase):
-    def setUp(self):
-        self.station = ManagementStation.objects.create(
-            station_type=ManagementStation.StationType.PAN_PANORAMA,
-            hostname="panorama.test.local",
-        )
-        self.appliance = Appliance.objects.create(
-            management_station=self.station,
-            hostname="fw-test-01",
-            serial_number="SN-TEST-001",
-        )
-        self.snapshot = Snapshot.objects.create(
-            management_station=self.station,
-            appliance=self.appliance,
-            source_type="show_merged_config",
-            collected_at=timezone.now(),
-        )
-        self.profile = DeviceConfigurationProfile.objects.create(
-            management_station=self.station,
-            appliance=self.appliance,
-            source_snapshot=self.snapshot,
-            config_source="local",
-            ha_required=True,
-            ha_enabled=False,
-        )
-        self.mgmt_control = Control.objects.create(
-            control_id="MGMT-TEST-001",
-            name="Test management control",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
-            description="Test",
-            default_severity=Control.Severity.HIGH,
-        )
-        self.mgmt_query = ControlQuery.objects.create(
-            control=self.mgmt_control,
-            name="Baseline",
-            canonical_query={
-                "model": "integrations.DeviceConfigurationProfile",
-                "operator": "and",
-                "clauses": [{"field": "ha_required", "op": "eq", "value": True}],
-            },
-            is_baseline=True,
-        )
-        self.sr_control = Control.objects.create(
-            control_id="FW-TEST-001",
-            name="Test security rule control",
-            control_type=Control.ControlType.SECURITY_RULE,
-            description="Test",
-            default_severity=Control.Severity.MEDIUM,
-        )
-        self.sr_query = ControlQuery.objects.create(
-            control=self.sr_control,
-            name="Baseline",
-            canonical_query={
-                "model": "integrations.SecurityRule",
-                "operator": "and",
-                "clauses": [],
-            },
-            is_baseline=True,
-        )
-
-    def test_profile_list_returns_200(self):
-        response = self.client.get(reverse("assessment_device_configuration_profile_list"))
-        self.assertEqual(response.status_code, 200)
-
-    def test_url_name_reverses(self):
-        url = reverse("assessment_device_configuration_profile_list")
-        self.assertEqual(url, "/assessments/device-configuration/")
-
-    def test_sidebar_includes_new_route(self):
-        from optivedge.app_registry import sidebar_sections
-        sections = sidebar_sections()
-        assessments = next(s for s in sections if s["label"] == "Assessments")
-        active_names = assessments["active_names"]
-        self.assertIn("assessment_device_configuration_profile_list", active_names)
-        item_hrefs = [item["href"] for item in assessments["items"]]
-        self.assertIn("/assessments/device-configuration/", item_hrefs)
-
-    def test_control_filter_returns_matching_profiles(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control": self.mgmt_control.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertTrue(ctx["show_control_severity"])
-        self.assertEqual(ctx["total_row_count"], 1)
-        self.assertEqual(ctx["selected_control"], self.mgmt_control)
-
-    def test_security_rule_control_is_rejected(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control": self.sr_control.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertIsNone(ctx["selected_control"])
-        self.assertIn("cannot be applied to device configuration profiles", ctx["search_error"])
-        self.assertFalse(ctx["show_control_severity"])
-
-    def test_control_query_filter_returns_matching_profiles(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control_query": self.mgmt_query.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertEqual(ctx["total_row_count"], 1)
-        self.assertFalse(ctx["search_error"])
-
-    def test_security_rule_query_is_rejected(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control_query": self.sr_query.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertIsNone(ctx["selected_control_query"])
-        self.assertIn("does not target device configuration profiles", ctx["search_error"])
-
-    def test_malformed_control_param_does_not_500(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control": "abc"},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("could not be found", response.context["search_error"])
-
-    def test_malformed_control_query_param_does_not_500(self):
-        response = self.client.get(
-            reverse("assessment_device_configuration_profile_list"),
-            {"control_query": "abc"},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("could not be found", response.context["search_error"])
-
-    def test_control_query_create_seeds_device_configuration_default(self):
-        response = self.client.get(
-            reverse("assessment_control_query_create"),
-            {"control": self.mgmt_control.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        initial_query = response.context["form"].initial["canonical_query"]
-        self.assertEqual(initial_query["model"], "integrations.DeviceConfigurationProfile")
-
-    def test_control_query_create_seeds_security_rule_default(self):
-        response = self.client.get(
-            reverse("assessment_control_query_create"),
-            {"control": self.sr_control.pk},
-        )
-        self.assertEqual(response.status_code, 200)
-        initial_query = response.context["form"].initial["canonical_query"]
-        self.assertEqual(initial_query["model"], "integrations.SecurityRule")
-
-    def test_load_from_search_with_mismatched_model_shows_error_and_restores_default(self):
-        import json
-        sr_payload = json.dumps({
-            "model": "integrations.SecurityRule",
-            "operator": "and",
-            "clauses": [{"field": "from_zone", "op": "eq", "value": "trust"}],
-        })
-        response = self.client.post(
-            f"{reverse('assessment_control_query_create')}?control={self.mgmt_control.pk}",
-            {
-                "search": sr_payload,
-                "load_from_search": "1",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNotNone(response.context["load_search_error"])
-        self.assertIn("integrations.SecurityRule", response.context["load_search_error"])
-        initial_query = response.context["form"].initial["canonical_query"]
-        self.assertEqual(initial_query["model"], "integrations.DeviceConfigurationProfile")
-
-
 class ControlQueryFormModelValidationTests(TestCase):
     def setUp(self):
         self.mgmt_control = Control.objects.create(
             control_id="MGMT-FORM-001",
             name="Form validation mgmt control",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.LOGIN_BANNER,
             description="Test",
             default_severity=Control.Severity.MEDIUM,
         )
@@ -999,7 +824,7 @@ class ControlQueryFormModelValidationTests(TestCase):
         return form
 
     def test_matching_model_is_valid(self):
-        form = self._post_query(self.mgmt_control, "integrations.DeviceConfigurationProfile")
+        form = self._post_query(self.mgmt_control, "integrations.LoginBanner")
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_mismatched_model_is_invalid_for_mgmt_control(self):
@@ -1008,7 +833,7 @@ class ControlQueryFormModelValidationTests(TestCase):
         self.assertIn("canonical_query", form.errors)
 
     def test_mismatched_model_is_invalid_for_sr_control(self):
-        form = self._post_query(self.sr_control, "integrations.DeviceConfigurationProfile")
+        form = self._post_query(self.sr_control, "integrations.LoginBanner")
         self.assertFalse(form.is_valid())
         self.assertIn("canonical_query", form.errors)
 
@@ -1021,12 +846,12 @@ class ControlTargetModelTests(TestCase):
         )
         self.assertEqual(c.target_model, "integrations.SecurityRule")
 
-    def test_device_configuration_control_sets_target_model(self):
+    def test_login_banner_control_sets_target_model(self):
         c = Control.objects.create(
-            control_id="MP-TM-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_id="MP-TM-001", name="MP", control_type=Control.ControlType.LOGIN_BANNER,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
-        self.assertEqual(c.target_model, "integrations.DeviceConfigurationProfile")
+        self.assertEqual(c.target_model, "integrations.LoginBanner")
 
     def test_config_control_has_empty_target_model(self):
         c = Control.objects.create(
@@ -1045,15 +870,15 @@ class ControlTargetModelTests(TestCase):
         c.save()
         self.assertEqual(c.target_model, "")
 
-    def test_changing_to_device_configuration_updates_target_model(self):
+    def test_changing_to_login_banner_updates_target_model(self):
         c = Control.objects.create(
             control_id="SR-TM-003", name="SR", control_type=Control.ControlType.SECURITY_RULE,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.assertEqual(c.target_model, "integrations.SecurityRule")
-        c.control_type = Control.ControlType.DEVICE_CONFIGURATION
+        c.control_type = Control.ControlType.LOGIN_BANNER
         c.save()
-        self.assertEqual(c.target_model, "integrations.DeviceConfigurationProfile")
+        self.assertEqual(c.target_model, "integrations.LoginBanner")
 
     def test_supports_security_rule_ui_uses_target_model(self):
         c = Control.objects.create(
@@ -1061,15 +886,6 @@ class ControlTargetModelTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.assertTrue(c.supports_security_rule_ui)
-        self.assertFalse(c.supports_device_configuration_ui)
-
-    def test_supports_device_configuration_ui_uses_target_model(self):
-        c = Control.objects.create(
-            control_id="MP-TM-002", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
-            description="test", default_severity=Control.Severity.MEDIUM,
-        )
-        self.assertFalse(c.supports_security_rule_ui)
-        self.assertTrue(c.supports_device_configuration_ui)
 
 
 class ControlQueryTargetModelValidationTests(TestCase):
@@ -1079,7 +895,7 @@ class ControlQueryTargetModelValidationTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_control = Control.objects.create(
-            control_id="MP-QVAL-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_id="MP-QVAL-001", name="MP", control_type=Control.ControlType.LOGIN_BANNER,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
 
@@ -1097,7 +913,7 @@ class ControlQueryTargetModelValidationTests(TestCase):
 
     def test_mismatched_model_fails_clean(self):
         from django.core.exceptions import ValidationError
-        q = self._make_query(self.sr_control, "integrations.DeviceConfigurationProfile")
+        q = self._make_query(self.sr_control, "integrations.LoginBanner")
         with self.assertRaises(ValidationError) as ctx:
             q.full_clean()
         self.assertIn("canonical_query", ctx.exception.message_dict)
@@ -1129,17 +945,17 @@ class SecurityRuleListViewGuardTests(TestCase):
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_control = Control.objects.create(
-            control_id="MP-GUARD-001", name="MP", control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_id="MP-GUARD-001", name="MP", control_type=Control.ControlType.LOGIN_BANNER,
             description="test", default_severity=Control.Severity.MEDIUM,
         )
         self.mp_query = ControlQuery.objects.create(
             control=self.mp_control,
             name="Baseline",
-            canonical_query={"model": "integrations.DeviceConfigurationProfile", "operator": "and", "clauses": [{"field": "ha_required", "op": "eq", "value": True}]},
+            canonical_query={"model": "integrations.LoginBanner", "operator": "and", "clauses": [{"field": "acknowledgement_required", "op": "eq", "value": True}]},
             is_baseline=True,
         )
 
-    def test_device_configuration_control_rejected(self):
+    def test_another_models_control_rejected(self):
         response = self.client.get(
             reverse("assessment_security_rule_list"),
             {"control": self.mp_control.pk},
@@ -1148,9 +964,9 @@ class SecurityRuleListViewGuardTests(TestCase):
         ctx = response.context
         self.assertIsNone(ctx["selected_control"])
         self.assertTrue(ctx["search_error"])
-        self.assertIn("integrations.DeviceConfigurationProfile", ctx["search_error"])
+        self.assertIn("integrations.LoginBanner", ctx["search_error"])
 
-    def test_device_configuration_query_rejected(self):
+    def test_another_models_query_rejected(self):
         response = self.client.get(
             reverse("assessment_security_rule_list"),
             {"control_query": self.mp_query.pk},

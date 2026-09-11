@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% comment %}
+The frame every configuration object page shares: the product's category bar across the top, the
+category's rail down the left, and a content pane that is the page's own.
+
+A page overrides `object_content` and gets the navigation, the heading and the PAN-OS address
+line for free. That address line is not decoration - it is the claim this whole frame makes,
+that an object is where the vendor keeps it, and it is on the page so the claim can be checked.
+{% endcomment %}
+
+{% block title %} | {{ config_object.label }}{% endblock %}
+
+{% block head %}
+{% include "components/partials/analytical_table_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 overflow-hidden">
+    <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
+
+        {% include "assessments/partials/configuration_nav.html" %}
+
+        <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+
+            {% include "assessments/partials/configuration_rail.html" %}
+
+            {# `relative`: the query builder overlay is absolutely positioned inside this pane, #}
+            {# so it covers the content and leaves the nav and rail reachable behind it. #}
+            <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pl-3">
+                {% block object_header %}
+                <div class="flex shrink-0 items-baseline gap-3 border-b border-slate-200 py-2">
+                    <h1 class="text-sm font-semibold text-slate-900">{{ config_object.label }}</h1>
+                    <div class="min-w-0 flex-1 truncate text-[11px] text-slate-500">
+                        {{ config_object.where }}
+                    </div>
+                </div>
+                {% endblock %}
+
+                <div class="min-h-0 flex-1 overflow-auto">
+                    {% block object_content %}{% endblock %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+{% endblock %}

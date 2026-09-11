@@ -13,7 +13,7 @@ from assessments.models import (
 from django.contrib.contenttypes.models import ContentType
 
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, FieldProvenance, ManagementInterface,
+    Appliance, FieldProvenance, ManagementInterface,
     ManagementService, ManagementStation, PermittedSource, Snapshot)  # noqa: F401
 
 
@@ -75,46 +75,6 @@ class ManagementInterfaceListViewTests(TestCase):
     def test_both_tabs_are_present_and_this_one_is_active(self):
         response = self.client.get(reverse("assessment_management_interface_list"))
         self.assertContains(response, "Device Configuration")
-        self.assertContains(response, "Management Interfaces")
-        self.assertContains(response, reverse("assessment_device_configuration_profile_list"))
-
-
-class DeviceConfigurationTableShapeTests(TestCase):
-    """The permitted-IP columns moved to the other tab; the table must stay square.
-
-    Nothing asserted this before, which is how removing two model fields left the header
-    declaring columns the body no longer rendered - every column after them shifted.
-    """
-
-    def test_header_and_body_declare_the_same_number_of_columns(self):
-        station = ManagementStation.objects.create(
-            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.shape")
-        appliance = Appliance.objects.create(
-            management_station=station, serial_number="S-S1", hostname="fw-shape")
-        snapshot = Snapshot.objects.create(
-            management_station=station, appliance=appliance, source_type="show_merged_config",
-            collected_at=timezone.now(), payload={})
-        DeviceConfigurationProfile.objects.create(
-            management_station=station, appliance=appliance, source_snapshot=snapshot,
-            config_source="local")
-
-        html = self.client.get(
-            reverse("assessment_device_configuration_profile_list")).content.decode()
-        body = re.search(r"<tbody>(.*?)</tbody>", html, re.S).group(1)
-        first_row = re.search(r"<tr[^>]*>(.*?)</tr>", body, re.S).group(1)
-        header = re.search(r"<thead>(.*?)</thead>", html, re.S).group(1)
-        header_rows = re.findall(r"<tr[^>]*>(.*?)</tr>", header, re.S)
-
-        cells = len(re.findall(r"<td", first_row))
-        columns = len(re.findall(r"<th", header_rows[-1]))
-        spans = sum(int(x) for x in re.findall(r'colspan="(\d+)"', header_rows[0])) \
-            + len(re.findall(r'<th(?![^>]*colspan)', header_rows[0]))
-        self.assertEqual(cells, columns, "body cells must match the column header row")
-        self.assertEqual(spans, columns, "group header spans must cover every column")
-
-    def test_permitted_ip_columns_are_gone_from_this_tab(self):
-        response = self.client.get(reverse("assessment_device_configuration_profile_list"))
-        self.assertNotContains(response, "Permitted IPs")
         self.assertContains(response, "Management Interfaces")
 
 

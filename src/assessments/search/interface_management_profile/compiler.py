@@ -30,6 +30,10 @@ def build_text_compiler(field_name, lookup_field):
         op, value = clause["op"], clause["value"]
         if op not in TEXT_OPERATORS:
             raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if op == "is_empty":
+            if not isinstance(value, str) or value.strip():
+                raise SearchSyntaxError(f"{field_name} is_empty expects an empty string.")
+            return InterfaceManagementProfile.objects.filter(**{lookup_field: ""}).values("pk")
         if not isinstance(value, str) or not value.strip():
             raise SearchSyntaxError(f"{field_name} search value must be a non-empty string.")
         suffix = {"eq": "iexact", "contains": "icontains",

@@ -19,14 +19,17 @@ from django.test import TestCase
 from django.utils import timezone
 
 from assessments.controls_catalog.registry import load_seed_payload
-from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.master_key_findings import generate_master_key_findings
+from assessments.management_tls_findings import generate_management_tls_findings
 from assessments.models import (
-    AssessmentRun, Control, ControlQuery, DeviceConfigurationFinding)
+    AssessmentRun, Control, ControlQuery, ManagementTlsFinding,
+    MasterKeyFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DeviceConfigurationProfile, ManagementStation,
-    NormalizationIssue, Snapshot)
+    Appliance, ApplianceGroup, ManagementStation,
+    ManagementTlsBinding, MasterKey, NormalizationIssue, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization import (
-    normalize_appliance_device_configuration)
+    normalize_appliance_certificate_objects,
+    normalize_appliance_management_tls, normalize_appliance_master_key)
 
 CONTROL_ID = "PAN-MGT-010"
 CERT_CONTROL_ID = "PAN-CRT-006"
@@ -45,7 +48,7 @@ class ManagementTlsControlTests(TestCase):
             spec = specs[control_id]
             control = Control.objects.create(
                 control_id=control_id, name=spec["name"],
-                control_type=Control.ControlType.DEVICE_CONFIGURATION,
+                control_type=Control.ControlType.MANAGEMENT_TLS,
                 description=spec["description"],
                 default_severity=spec["default_severity"],
                 target_model=spec["target_model"])
@@ -90,14 +93,18 @@ class ManagementTlsControlTests(TestCase):
                 source_type="config_predefined_certificates",
                 collected_at=timezone.now(),
                 payload={"certificate": {"entry": predefined_certs}})
-        normalize_appliance_device_configuration(appliance)
-        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+        # Rows first, then the binding - the order APPLIANCE_OBJECT_NORMALIZERS enforces. The
+        # binding resolves over SslTlsServiceProfile ROWS now, so without the first call every
+        # binding in this class would read as dangling.
+        normalize_appliance_certificate_objects(appliance)
+        normalize_appliance_management_tls(appliance)
+        return ManagementTlsBinding.objects.get(appliance=appliance)
 
     def _findings(self, control_id=CONTROL_ID):
-        generate_device_configuration_findings(self.run)
-        return {f.device_configuration_profile.appliance.hostname
-                for f in DeviceConfigurationFinding.objects.select_related(
-                    "control", "device_configuration_profile__appliance")
+        generate_management_tls_findings(self.run)
+        return {f.management_tls_binding.appliance.hostname
+                for f in ManagementTlsFinding.objects.select_related(
+                    "control", "management_tls_binding__appliance")
                 if f.control.control_id == control_id}
 
     def _cert(self, name, *, subject_hash, issuer_hash, issuer):
@@ -117,8 +124,8 @@ class ManagementTlsControlTests(TestCase):
         conservative choice made in the absence of evidence.
         """
         profile = self._profile("fw-unbound")
-        self.assertEqual(profile.ssl_tls_service_profile_name, "")
-        self.assertEqual(profile.ssl_tls_profile_scope, "")
+        self.assertEqual(profile.profile_name, "")
+        self.assertEqual(profile.profile_scope, "")
         self.assertIn("fw-unbound", self._findings())
 
     def test_a_shared_profile_at_tls_1_2_passes(self):
@@ -126,9 +133,9 @@ class ManagementTlsControlTests(TestCase):
             "fw-shared", bound="hardened",
             shared=self._entry("hardened", "tls1-2", "tls1-3"))
         self.assertEqual(
-            profile.ssl_tls_profile_scope,
-            DeviceConfigurationProfile.SSL_TLS_SCOPE_SHARED)
-        self.assertEqual(profile.ssl_tls_min_version, "tls1-2")
+            profile.profile_scope,
+            ManagementTlsBinding.SCOPE_SHARED)
+        self.assertEqual(profile.min_version, "tls1-2")
         self.assertNotIn("fw-shared", self._findings())
 
     def test_a_shared_profile_below_tls_1_2_is_a_finding(self):
@@ -150,10 +157,10 @@ class ManagementTlsControlTests(TestCase):
             predefined=self._entry("TLSv1.3_Default", "tls1-3", "tls1-3",
                                    certificate="TLSv1.3_Default"))
         self.assertEqual(
-            profile.ssl_tls_profile_scope,
-            DeviceConfigurationProfile.SSL_TLS_SCOPE_PREDEFINED)
-        self.assertEqual(profile.ssl_tls_min_version, "tls1-3")
-        self.assertEqual(profile.ssl_tls_certificate_name, "TLSv1.3_Default")
+            profile.profile_scope,
+            ManagementTlsBinding.SCOPE_PREDEFINED)
+        self.assertEqual(profile.min_version, "tls1-3")
+        self.assertEqual(profile.certificate_name, "TLSv1.3_Default")
 
     def test_a_weak_predefined_entry_would_beat_a_strong_shared_one(self):
         """The same rule where the verdict DOES turn on it.
@@ -171,9 +178,9 @@ class ManagementTlsControlTests(TestCase):
         """An unknown floor is not evidence of an acceptable one."""
         profile = self._profile("fw-dangling", bound="missing-profile")
         self.assertEqual(
-            profile.ssl_tls_profile_scope,
-            DeviceConfigurationProfile.SSL_TLS_SCOPE_UNRESOLVED)
-        self.assertEqual(profile.ssl_tls_min_version, "")
+            profile.profile_scope,
+            ManagementTlsBinding.SCOPE_UNRESOLVED)
+        self.assertEqual(profile.min_version, "")
         self.assertIn("fw-dangling", self._findings())
         self.assertTrue(
             NormalizationIssue.objects.filter(
@@ -192,9 +199,9 @@ class ManagementTlsControlTests(TestCase):
             "fw-silent", bound="bare",
             shared=[{"@name": "bare", "certificate": "cert"}])
         self.assertEqual(
-            profile.ssl_tls_profile_scope,
-            DeviceConfigurationProfile.SSL_TLS_SCOPE_SHARED)
-        self.assertEqual(profile.ssl_tls_min_version, "")
+            profile.profile_scope,
+            ManagementTlsBinding.SCOPE_SHARED)
+        self.assertEqual(profile.min_version, "")
         self.assertIn("fw-silent", self._findings())
 
 
@@ -222,9 +229,9 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
                                    certificate="TLSv1.3_Default"),
             predefined_certs=self._cert("TLSv1.3_Default", subject_hash="a95dc92c",
                                         issuer_hash="a95dc92c", issuer="013201001085"))
-        self.assertEqual(profile.ssl_tls_min_version, "tls1-3")
-        self.assertEqual(profile.ssl_tls_certificate_trust,
-                         DeviceConfigurationProfile.TRUST_SELF_SIGNED)
+        self.assertEqual(profile.min_version, "tls1-3")
+        self.assertEqual(profile.certificate_trust,
+                         ManagementTlsBinding.TRUST_SELF_SIGNED)
         self.assertNotIn("fw-shipped", self._findings(CONTROL_ID))
         self.assertIn("fw-shipped", self._findings(CERT_CONTROL_ID))
 
@@ -234,9 +241,9 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
             shared=self._entry("hardened", "tls1-2", "tls1-3", certificate="corp"),
             shared_certs=self._cert("corp", subject_hash="1111aaaa",
                                     issuer_hash="2222bbbb", issuer="/CN=Corp Issuing CA"))
-        self.assertEqual(profile.ssl_tls_certificate_trust,
-                         DeviceConfigurationProfile.TRUST_CA_ISSUED)
-        self.assertEqual(profile.ssl_tls_certificate_issuer, "/CN=Corp Issuing CA")
+        self.assertEqual(profile.certificate_trust,
+                         ManagementTlsBinding.TRUST_CA_ISSUED)
+        self.assertEqual(profile.certificate_issuer, "/CN=Corp Issuing CA")
         self.assertNotIn("fw-ca", self._findings(CERT_CONTROL_ID))
 
     def test_self_signed_is_decided_by_hashes_not_by_comparing_names(self):
@@ -253,8 +260,8 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
             shared=self._entry("p", "tls1-2", "tls1-3", certificate="c"),
             shared_certs=[{"@name": "c", "subject-hash": "dead", "issuer-hash": "dead",
                            "subject": "/CN=thing", "issuer": "thing"}])
-        self.assertEqual(profile.ssl_tls_certificate_trust,
-                         DeviceConfigurationProfile.TRUST_SELF_SIGNED)
+        self.assertEqual(profile.certificate_trust,
+                         ManagementTlsBinding.TRUST_SELF_SIGNED)
 
     def test_nothing_bound_still_reports(self):
         """Follows the precedent set for PAN-MGT-008.
@@ -265,15 +272,15 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
         banner exists.
         """
         profile = self._profile("fw-none")
-        self.assertEqual(profile.ssl_tls_certificate_trust, "")
+        self.assertEqual(profile.certificate_trust, "")
         self.assertIn("fw-none", self._findings(CERT_CONTROL_ID))
 
     def test_a_certificate_that_resolves_nowhere_is_undetermined_not_passed(self):
         profile = self._profile(
             "fw-nocert", bound="p",
             shared=self._entry("p", "tls1-2", "tls1-3", certificate="missing"))
-        self.assertEqual(profile.ssl_tls_certificate_trust,
-                         DeviceConfigurationProfile.TRUST_UNDETERMINED)
+        self.assertEqual(profile.certificate_trust,
+                         ManagementTlsBinding.TRUST_UNDETERMINED)
         self.assertIn("fw-nocert", self._findings(CERT_CONTROL_ID))
         self.assertNotIn("fw-nocert", self._findings(CONTROL_ID))
 
@@ -282,8 +289,8 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
             "fw-nohash", bound="p",
             shared=self._entry("p", "tls1-2", "tls1-3", certificate="c"),
             shared_certs=[{"@name": "c", "issuer": "/CN=Something"}])
-        self.assertEqual(profile.ssl_tls_certificate_trust,
-                         DeviceConfigurationProfile.TRUST_UNDETERMINED)
+        self.assertEqual(profile.certificate_trust,
+                         ManagementTlsBinding.TRUST_UNDETERMINED)
         self.assertIn("fw-nohash", self._findings(CERT_CONTROL_ID))
 
 
@@ -307,7 +314,7 @@ class MasterKeyControlTests(TestCase):
                 for c in load_seed_payload()["catalogs"][0]["controls"]}["PAN-CRT-007"]
         control = Control.objects.create(
             control_id="PAN-CRT-007", name=spec["name"],
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.MASTER_KEY,
             description=spec["description"],
             default_severity=spec["default_severity"],
             target_model=spec["target_model"])
@@ -332,30 +339,29 @@ class MasterKeyControlTests(TestCase):
                 management_station=self.station, appliance=appliance,
                 source_type="show_masterkey_properties", collected_at=timezone.now(),
                 payload=masterkey)
-        normalize_appliance_device_configuration(appliance)
-        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+        normalize_appliance_master_key(appliance)
+        return MasterKey.objects.get(appliance=appliance)
 
     def _findings(self):
-        generate_device_configuration_findings(self.run)
-        return {f.device_configuration_profile.appliance.hostname
-                for f in DeviceConfigurationFinding.objects.select_related(
-                    "control", "device_configuration_profile__appliance")
-                if f.control.control_id == "PAN-CRT-007"}
+        generate_master_key_findings(self.run)
+        return {f.master_key.appliance.hostname
+                for f in MasterKeyFinding.objects.select_related(
+                    "control", "master_key__appliance")}
 
     def test_expire_at_zero_is_the_default_key_and_fires(self):
         """What every lab device reports. The CLI renders this 0 as 'unspecified'."""
         profile = self._profile("fw-default", masterkey={
             "expire-at": "0", "remind-at": "0", "on-hsm": "no", "auto-renew-mkey": "0"})
-        self.assertEqual(profile.master_key_state,
-                         DeviceConfigurationProfile.MASTER_KEY_DEFAULT)
+        self.assertEqual(profile.state,
+                         MasterKey.STATE_DEFAULT)
         self.assertIn("fw-default", self._findings())
 
     def test_a_concrete_expiry_means_a_key_was_set_and_passes(self):
         profile = self._profile("fw-set", masterkey={
             "expire-at": "1830000000", "remind-at": "1829000000",
             "on-hsm": "no", "auto-renew-mkey": "0"})
-        self.assertEqual(profile.master_key_state, DeviceConfigurationProfile.MASTER_KEY_SET)
-        self.assertEqual(profile.master_key_expires_at, "1830000000")
+        self.assertEqual(profile.state, MasterKey.STATE_SET)
+        self.assertEqual(profile.expires_at, "1830000000")
         self.assertNotIn("fw-set", self._findings())
 
     def test_never_collected_is_undetermined_and_still_reports(self):
@@ -365,8 +371,8 @@ class MasterKeyControlTests(TestCase):
         existed is in this state, and the two are different facts even though both report.
         """
         profile = self._profile("fw-unasked", masterkey=None)
-        self.assertEqual(profile.master_key_state,
-                         DeviceConfigurationProfile.MASTER_KEY_UNDETERMINED)
+        self.assertEqual(profile.state,
+                         MasterKey.STATE_UNDETERMINED)
         self.assertIn("fw-unasked", self._findings())
 
     def test_a_reply_without_expire_at_is_undetermined_not_default(self):
@@ -377,8 +383,8 @@ class MasterKeyControlTests(TestCase):
         device for a reason that was never established.
         """
         profile = self._profile("fw-odd", masterkey={"on-hsm": "no", "auto-renew-mkey": "0"})
-        self.assertEqual(profile.master_key_state,
-                         DeviceConfigurationProfile.MASTER_KEY_UNDETERMINED)
+        self.assertEqual(profile.state,
+                         MasterKey.STATE_UNDETERMINED)
 
     def test_auto_renew_is_recorded_because_it_breaks_dating_the_change(self):
         """Non-zero auto-renew moves the expiry without the key changing.
@@ -388,5 +394,5 @@ class MasterKeyControlTests(TestCase):
         """
         profile = self._profile("fw-renew", masterkey={
             "expire-at": "1830000000", "on-hsm": "yes", "auto-renew-mkey": "720"})
-        self.assertEqual(profile.master_key_auto_renew_hours, 720)
-        self.assertTrue(profile.master_key_on_hsm)
+        self.assertEqual(profile.auto_renew_hours, 720)
+        self.assertTrue(profile.on_hsm)

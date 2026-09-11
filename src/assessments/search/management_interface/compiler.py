@@ -26,7 +26,6 @@ from assessments.search.management_interface.fields.services import (
 )
 from assessments.search.device_configuration.fields.scalar_text import (
     SUPPORTED_OPERATORS as TEXT_OPERATORS,
-    compile_scalar_text_clause,
 )
 from optivedge_integrations.integrations.models import ManagementInterface
 
@@ -45,6 +44,13 @@ def _text_lookup(clause, field_name, lookup_field):
     op, value = clause["op"], clause["value"]
     if op not in TEXT_OPERATORS:
         raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+    if op == "is_empty":
+        # Advertised by TEXT_OPERATORS and never implemented here. Nothing offered these
+        # operators to a person until the configuration query builder rendered the compiler's
+        # own registry, and then the dropdown carried an operator that could only ever error.
+        if not isinstance(value, str) or value.strip():
+            raise SearchSyntaxError(f"{field_name} is_empty expects an empty string.")
+        return {lookup_field: ""}
     if not isinstance(value, str) or not value.strip():
         raise SearchSyntaxError(f"{field_name} search value must be a non-empty string.")
     suffix = {"eq": "iexact", "contains": "icontains",

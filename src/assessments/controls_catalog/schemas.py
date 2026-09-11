@@ -127,7 +127,6 @@ def _validate_control_payload(control_payload: dict) -> dict:
 
     _RECOGNIZED_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
-        "device_configuration": "integrations.DeviceConfigurationProfile",
         "config": "",
     }
     if control_type in _RECOGNIZED_TYPE_TARGET_MODEL:
@@ -159,10 +158,9 @@ def _validate_control_payload(control_payload: dict) -> dict:
         "rationale": str(control_payload.get("rationale", "") or ""),
         "audit": str(control_payload.get("audit", "") or ""),
         "remediation": str(control_payload.get("remediation", "") or ""),
+        #: The severity a finding reports when only the baseline query matched. A non-baseline
+        #: query's `adjusted_severity` overrides it, worst match winning.
         "default_severity": default_severity,
-        #: Optional. Absent means every finding reports default_severity - the behaviour of
-        #: every control built before graded severity existed.
-        "severity_scale": control_payload.get("severity_scale") or {},
         "implementation_version": str(control_payload.get("implementation_version", "v1") or "v1"),
         "target_model": target_model,
         "is_active": _require_bool(

@@ -3,8 +3,9 @@
 
 {% block description %}
 Authentication profiles from <code>shared</code> and from every vsys, with the lockout and
-multi-factor settings behind <span class="font-medium">PAN-AUTH-018</span> and
-<span class="font-medium">020</span>.
+multi-factor settings behind <span class="font-medium">PAN-AUTH-018</span>,
+<span class="font-medium">PAN-AAA-010</span>, <span class="font-medium">PAN-AAA-011</span> and
+<span class="font-medium">PAN-AUTH-025</span>.
 {% endblock %}
 
 {% block guidance %}
@@ -16,6 +17,11 @@ multi-factor settings behind <span class="font-medium">PAN-AUTH-018</span> and
     <span class="font-medium">Failed attempts of 0 means UNLIMITED</span>, not strict, which is why
     this column states its meaning rather than its number. Lockout does not apply to SAML profiles
     at all.
+    <span class="font-medium text-slate-600">An MFA factor is not a second factor for an
+    administrator.</span> MFA server profiles are the firewall's direct integration with a
+    vendor's API, and PAN-OS invokes them through Authentication Policy only &mdash; never for
+    web-interface administrator login, and never for GlobalProtect. Administrator MFA has to
+    arrive through the FIRST factor, as RADIUS or SAML.
 </div>
 {% endblock %}
 
@@ -40,11 +46,18 @@ multi-factor settings behind <span class="font-medium">PAN-AUTH-018</span> and
         <span class="{% if row.lockout_weak %}text-amber-700{% else %}text-slate-800{% endif %}">{{ row.lockout }}</span>
     </td>
     <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
-        {% if row.profile.mfa_enabled %}<span class="text-slate-800">{{ row.profile.mfa_factor_count }} factor{{ row.profile.mfa_factor_count|pluralize }}</span>
-        {% else %}<span class="text-amber-700">off</span>{% endif %}
+        {% if row.profile.mfa_enabled %}<span class="{% if row.mfa_inert %}text-amber-700{% else %}text-slate-800{% endif %}">{{ row.profile.mfa_factor_count }} factor{{ row.profile.mfa_factor_count|pluralize }}</span>
+        {% for factor in row.profile.mfa_factor_names %}<div class="text-[10px] leading-3 text-slate-500">{{ factor }}</div>{% endfor %}
+        {% if row.mfa_inert %}<div class="text-[10px] leading-3 text-amber-700">not invoked for admin login</div>{% endif %}
+        {% else %}<span class="text-slate-600">off</span>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        <span class="{% if row.unused %}text-amber-700{% else %}text-slate-800{% endif %}">{{ row.referrers }}</span>
+        {% for where in row.referrer_paths %}<div class="mt-0.5 truncate text-[10px] leading-3 text-slate-500" title="{{ where }}">{{ where }}</div>{% endfor %}
     </td>
     <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">
-        {% if row.profile.allow_list_members %}{{ row.profile.allow_list_members|join:", " }}{% else %}<span class="text-amber-700">nobody</span>{% endif %}
+        {% if row.profile.allow_list_members %}<span class="{% if row.allow_all and row.administrative %}text-amber-700{% else %}text-slate-600{% endif %}">{{ row.profile.allow_list_members|join:", " }}</span>{% else %}<span class="text-amber-700">nobody</span>{% endif %}
+        {% if row.administrative %}<div class="text-[10px] leading-3 text-slate-500">administrator-bound</div>{% endif %}
     </td>
     <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
         {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
@@ -52,6 +65,6 @@ multi-factor settings behind <span class="font-medium">PAN-AUTH-018</span> and
     <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.profile.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
 </tr>
 {% empty %}
-<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">No authentication profile currently has an open finding.</td></tr>
+<tr><td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">No authentication profile currently has an open finding.</td></tr>
 {% endfor %}
 {% endblock %}

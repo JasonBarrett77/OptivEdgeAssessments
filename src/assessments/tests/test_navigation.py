@@ -16,6 +16,7 @@ from django.urls import reverse
 from assessments import app_meta
 from assessments.navigation import (
     DEVICE_TABS, DEVICE_TAB_URL_NAMES, SECTIONS, SECTION_BY_URL_NAME, tabs_in)
+from assessments import configuration_navigation as config_nav
 
 #: Endpoints that render no page of their own, so no sidebar item can be "active" for them.
 #: Each one must say why, and adding to this set is a deliberate act rather than a shortcut.
@@ -145,3 +146,113 @@ class DeviceSectionTests(TestCase):
         item = next(i for s in app_meta.SIDEBAR_SECTION for i in s.get("items") or ()
                     if i["label"] == "Device Configuration")
         self.assertEqual(set(item["active_names"]), set(DEVICE_TAB_URL_NAMES))
+
+
+class ConfigurationExplorerTests(TestCase):
+    """The PAN-OS-shaped frame: categories across the top, the category's rail down the side.
+
+    The claim this frame makes is that an object is where the VENDOR keeps it, so these tests
+    guard the shape rather than the styling - that every object is reachable, that a page
+    highlights itself and nothing else, and that the rail on a page is exactly its category.
+    """
+
+    def _url(self, obj):
+        return reverse("assessment_configuration_object",
+                       args=[config_nav.category_slug(obj.category), obj.slug])
+
+    def test_every_object_names_a_category_that_exists(self):
+        unknown = {o.category for o in config_nav.CONFIG_OBJECTS} - set(config_nav.CATEGORIES)
+        self.assertEqual(unknown, set(), f"objects in undeclared categories: {sorted(unknown)}")
+
+    def test_slugs_are_unique_within_a_category(self):
+        """The slug is half the URL. A duplicate makes one of the two unreachable."""
+        seen = [(o.category, o.slug) for o in config_nav.CONFIG_OBJECTS]
+        self.assertEqual(len(seen), len(set(seen)))
+
+    def test_the_groups_partition_a_categorys_objects_in_order(self):
+        for category in config_nav.CATEGORIES:
+            flattened = [o for _, objects in config_nav.groups_in(category) for o in objects]
+            self.assertEqual(flattened, list(config_nav.objects_in(category)), category)
+
+    def test_every_object_page_renders(self):
+        for obj in config_nav.CONFIG_OBJECTS:
+            self.assertEqual(self.client.get(self._url(obj)).status_code, 200, obj.slug)
+
+    def test_an_unknown_category_or_object_is_a_404(self):
+        """Not a 500, and not a silent fall back to the landing page - a URL that names an
+        object that does not exist is a broken link and should say so."""
+        self.assertEqual(self.client.get("/assessments/configuration/nope/management/").status_code, 404)
+        self.assertEqual(self.client.get("/assessments/configuration/device/nope/").status_code, 404)
+
+    def test_the_index_lands_on_the_named_category(self):
+        obj = config_nav.first_object(config_nav.LANDING_CATEGORY)
+        response = self.client.get("/assessments/configuration/")
+        self.assertRedirects(response, self._url(obj))
+
+    def test_the_rail_holds_exactly_the_open_objects_category(self):
+        """The point of the frame: what is on screen is one category's rail, not every object."""
+        rail_link = re.compile(r'<a\s+href="(/assessments/configuration/[^"]+)"\s+class="flex h-7')
+        for obj in config_nav.CONFIG_OBJECTS:
+            html = self.client.get(self._url(obj)).content.decode()
+            self.assertEqual(
+                set(rail_link.findall(html)),
+                {self._url(o) for o in config_nav.objects_in(obj.category)},
+                obj.slug)
+
+    def test_a_page_marks_itself_active_and_nothing_else(self):
+        active = re.compile(r'href="(/assessments/configuration/[^"]+)"\s+class="flex h-7[^"]*bg-slate-100')
+        for obj in config_nav.CONFIG_OBJECTS:
+            html = self.client.get(self._url(obj)).content.decode()
+            self.assertEqual(active.findall(html), [self._url(obj)], obj.slug)
+
+    def test_an_empty_category_renders_but_links_nowhere(self):
+        """Policies and Objects are empty until their views migrate. They still show, so a
+        reader can see what is missing - and a chip that linked to nothing would 404."""
+        empty = [c for c in config_nav.CATEGORIES if not config_nav.objects_in(c)]
+        self.assertTrue(empty, "this test is meaningless once every category is populated")
+        html = self.client.get("/assessments/configuration/", follow=True).content.decode()
+        for category in empty:
+            self.assertIn(category, html)
+            self.assertNotIn(f'href="/assessments/configuration/{category.lower()}/', html)
+
+    def test_every_named_findings_tab_resolves(self):
+        """`findings_url_name` crosses to the other surface over the same object. A typo there
+        is invisible until someone opens the one page that carries the link."""
+        for obj in config_nav.CONFIG_OBJECTS:
+            if obj.findings_url_name:
+                reverse(obj.findings_url_name)
+
+    def test_the_sidebar_highlights_the_explorer(self):
+        names = set()
+        for section in app_meta.SIDEBAR_SECTION:
+            for item in section.get("items") or ():
+                names |= set(item.get("active_names") or ())
+        self.assertIn("assessment_configuration_object", names)
+        self.assertIn("assessment_configuration_index", names)
+
+
+class TemplateCommentTests(TestCase):
+    """A broken template comment is not an error. It is CONTENT.
+
+    `{# ... #}` is single-line only. Spread it over two and Django stops treating it as a
+    comment and prints it, so a note to the next developer became a paragraph of grey text in
+    the middle of the configuration rail - twice, once per loop iteration. Nothing failed:
+    every test passed, the page returned 200, and it was caught by a person looking at it.
+
+    Checked over the FILES rather than by rendering, because a partial that is included in a
+    loop can leak in a page no test opens, and because the fix is the same either way: use
+    `{% comment %}` for anything that does not fit on one line.
+    """
+
+    def test_no_template_comment_spans_a_line(self):
+        root = Path(__file__).resolve().parent.parent / "templates"
+        offenders = []
+        for path in sorted(root.rglob("*.html")):
+            text = path.read_text()
+            for match in re.finditer(r"\{#", text):
+                rest = text[match.start():]
+                close = rest.find("#}")
+                if close == -1 or "\n" in rest[:close]:
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{path.relative_to(root)}:{line}")
+        self.assertEqual(offenders, [], f"use {{% comment %}} instead: {offenders}")

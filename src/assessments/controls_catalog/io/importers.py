@@ -152,7 +152,6 @@ def apply_catalog(*, catalog: Catalog, application_environment) -> CatalogApplyR
                 audit=control_payload["audit"],
                 remediation=control_payload["remediation"],
                 default_severity=control_payload["default_severity"],
-                severity_scale=control_payload.get("severity_scale") or {},
                 implementation_version=control_payload["implementation_version"],
                 target_model=control_payload.get("target_model", ""),
                 is_active=control_payload["is_active"],

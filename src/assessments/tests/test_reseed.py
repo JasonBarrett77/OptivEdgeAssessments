@@ -14,12 +14,12 @@ from django.utils import timezone
 from assessments.controls_catalog.io.importers import reseed_from_bundled_catalog
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
-    AssessmentRun, Catalog, Control, ControlQuery, DeviceConfigurationFinding)
+    AssessmentRun, Catalog, Control, ControlQuery, LoginBannerFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, ManagementStation, Snapshot)
+    Appliance, LoginBanner, ManagementStation, Snapshot)
 
 DEAD_QUERY = {
-    "model": "integrations.DeviceConfigurationProfile",
+    "model": "integrations.LoginBanner",
     "operator": "or",
     "clauses": [{"field": "http_disabled", "op": "eq", "value": False}],
 }
@@ -46,21 +46,21 @@ class ReseedTests(TestCase):
         self.config_snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
-        profile = DeviceConfigurationProfile.objects.create(
+        profile = LoginBanner.objects.create(
             management_station=self.station, appliance=appliance,
-            source_snapshot=self.config_snapshot, config_source="local")
+            source_snapshot=self.config_snapshot)
 
         stale = Control.objects.create(
             control_id="MGMT-001", name="Insecure services",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.LOGIN_BANNER,
             description="x", default_severity=Control.Severity.HIGH)
         ControlQuery.objects.create(
             control=stale, name="Baseline", canonical_query=DEAD_QUERY, is_baseline=True)
         run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.COMPLETED,
             started_at=timezone.now(), completed_at=timezone.now())
-        DeviceConfigurationFinding.objects.create(
-            assessment_run=run, control=stale, device_configuration_profile=profile,
+        LoginBannerFinding.objects.create(
+            assessment_run=run, control=stale, login_banner=profile,
             severity=Control.Severity.HIGH, title="t")
 
     def test_one_call_refreshes_discards_and_applies(self):
@@ -70,7 +70,7 @@ class ReseedTests(TestCase):
         self.assertIn("PAN-MGT-013", live)
         self.assertEqual(result.controls_created, len(live))
         self.assertEqual(AssessmentRun.objects.count(), 0)
-        self.assertEqual(DeviceConfigurationFinding.objects.count(), 0)
+        self.assertEqual(LoginBannerFinding.objects.count(), 0)
 
     def test_it_works_when_a_live_control_uses_a_removed_field(self):
         """The case that made the UI a dead end: the stale control blocks apply_catalog's
@@ -90,7 +90,7 @@ class ReseedTests(TestCase):
         its name. Deleting it would mean re-collecting from every device."""
         reseed_from_bundled_catalog(application_environment=None)
         self.assertTrue(Snapshot.objects.filter(pk=self.config_snapshot.pk).exists())
-        self.assertEqual(DeviceConfigurationProfile.objects.count(), 1)
+        self.assertEqual(LoginBanner.objects.count(), 1)
 
     def test_it_is_idempotent(self):
         first = reseed_from_bundled_catalog(application_environment=None)

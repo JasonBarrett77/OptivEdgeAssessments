@@ -1,0 +1,59 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+Administrator accounts from <code>mgt-config/users</code>, with the role each one holds, what it
+authenticates against, and the credentials it actually carries.
+<span class="font-medium">PAN-AUTH-019</span>, <span class="font-medium">021</span>,
+<span class="font-medium">022</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">The row shows what each control read, not its verdict.</span>
+    PAN-AUTH-019 reports an account unless <em>both</em> halves hold: authentication reaches an
+    <span class="font-medium">external</span> identity service &mdash; RADIUS, TACACS+, LDAP,
+    Kerberos, SAML or Cloud &mdash; and no credential is stored on the device.
+    <span class="font-medium">A bound profile is not evidence of centralization</span>: a profile
+    whose type is <code>local database</code> or <code>none</code> authenticates against the
+    firewall itself, and the Authentication column says so. A stored password on a bound account
+    is unreachable while the binding holds, and becomes live the moment somebody removes it.
+    &ldquo;Client cert only&rdquo; clears neither half. The Superusers column is
+    the appliance&rsquo;s superuser total and is blank on an account that holds another role.
+    <span class="font-medium text-slate-600">There is no MFA column</span>: an administrator&rsquo;s
+    second factor is enforced by the RADIUS, SAML or cloud service behind the profile, and the
+    firewall&rsquo;s configuration cannot show it.
+</div>
+{% endblock %}
+
+{% block empty_state %}No administrator accounts have been normalized. This needs a renormalize, which contacts no device.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.user.appliance }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <div class="text-slate-800">{{ row.user.name }}</div>
+        {% if show_provenance and row.provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.provenance }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <div class="text-slate-800">{{ row.role }}</div>
+        {% if row.role_scope %}<div class="mt-0.5 truncate text-[10px] leading-3 text-slate-500">{{ row.role_scope }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.superusers }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <span class="{% if row.local_only %}text-amber-700{% else %}text-slate-800{% endif %}">{{ row.authentication }}</span>
+        <div class="mt-0.5 truncate text-[10px] leading-3 text-slate-500">{{ row.binding }}</div>
+        {% if show_provenance and row.auth_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.auth_provenance }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.credentials }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.password_profile }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.user.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">No administrator account is currently reported by any of these controls.</td></tr>
+{% endfor %}
+{% endblock %}

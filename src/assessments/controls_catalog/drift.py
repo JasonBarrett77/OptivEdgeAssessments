@@ -4,8 +4,7 @@ Computes a SHA-256 hash over the assessment-relevant fields of controls and
 queries, sorted deterministically. Two hashes that match mean the live control
 state is identical to the catalog payload for assessment purposes.
 
-Control fields included: control_id, control_type, default_severity,
-severity_scale, is_active,
+Control fields included: control_id, control_type, default_severity, is_active,
 implementation_version, target_model.
 
 Query fields included: name, canonical_query, is_baseline, adjusted_severity,
@@ -28,7 +27,6 @@ def _control_fingerprint(
     control_id: str,
     control_type: str,
     default_severity: str,
-    severity_scale: dict,
     is_active: bool,
     implementation_version: str,
     target_model: str,
@@ -38,10 +36,6 @@ def _control_fingerprint(
         "control_id": control_id,
         "control_type": control_type,
         "default_severity": default_severity,
-        # In the fingerprint because it now changes what a finding REPORTS. Without it a
-        # seed whose only edit was a severity band would read as "in sync" while every
-        # finding's severity moved.
-        "severity_scale": severity_scale or {},
         "is_active": is_active,
         "implementation_version": implementation_version,
         "target_model": target_model,
@@ -86,7 +80,6 @@ def hash_live_controls() -> str:
             control.control_id,
             control.control_type,
             control.default_severity,
-            control.severity_scale,
             control.is_active,
             control.implementation_version,
             control.target_model,
@@ -108,7 +101,6 @@ def hash_catalog_payload(payload: dict) -> str:
             control["control_id"],
             control["control_type"],
             control["default_severity"],
-            control.get("severity_scale") or {},
             control["is_active"],
             control["implementation_version"],
             control.get("target_model", ""),

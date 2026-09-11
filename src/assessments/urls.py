@@ -21,7 +21,8 @@ from assessments.views import (
     ControlRunFindingsView,
     ControlRunConfigurationFindingsView,
     ControlUpdateView,
-    DeviceConfigurationProfileListView,
+    ConfigurationObjectView,
+    ConfigurationIndexView,
     InterfaceManagementProfileListView,
     LoginBannerListView,
     CertificateListView,
@@ -29,8 +30,11 @@ from assessments.views import (
     ManagementTlsListView,
     MasterKeyListView,
     AuthenticationProfileListView,
+    AuthenticationSequenceListView,
     AuthenticationSettingsListView,
     PasswordComplexityListView,
+    AdminUserListView,
+    ServerProfileListView,
     PasswordProfileListView,
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
@@ -162,9 +166,24 @@ urlpatterns = [
         name="assessment_authentication_profile_list",
     ),
     path(
+        "authentication-sequences/",
+        AuthenticationSequenceListView.as_view(),
+        name="assessment_authentication_sequence_list",
+    ),
+    path(
         "authentication-settings/",
         AuthenticationSettingsListView.as_view(),
         name="assessment_authentication_settings_list",
+    ),
+    path(
+        "aaa-server-profiles/",
+        ServerProfileListView.as_view(),
+        name="assessment_server_profile_list",
+    ),
+    path(
+        "administrators/",
+        AdminUserListView.as_view(),
+        name="assessment_admin_user_list",
     ),
     path(
         "password-profiles/",
@@ -176,10 +195,19 @@ urlpatterns = [
         PasswordComplexityListView.as_view(),
         name="assessment_password_complexity_list",
     ),
+    # The configuration explorer. Two segments, both the vendor's own vocabulary - the PAN-OS
+    # top-level tab, then the object as its left rail names it - so a URL reads as the place an
+    # engineer would click to. `configuration/` alone lands on Device's first object; see
+    # configuration_navigation.LANDING_CATEGORY for why that is named rather than derived.
     path(
-        "device-configuration/",
-        DeviceConfigurationProfileListView.as_view(),
-        name="assessment_device_configuration_profile_list",
+        "configuration/",
+        ConfigurationIndexView.as_view(),
+        name="assessment_configuration_index",
+    ),
+    path(
+        "configuration/<slug:category>/<slug:slug>/",
+        ConfigurationObjectView.as_view(),
+        name="assessment_configuration_object",
     ),
     path(
         "controls/<int:pk>/",

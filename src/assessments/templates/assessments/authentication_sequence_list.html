@@ -1,0 +1,49 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+Authentication sequences from <code>shared</code> and from every vsys, with the profiles each one
+tries in order and what each of them checks against. <span class="font-medium">PAN-AAA-012</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">A sequence tries its profiles top to bottom until one
+    succeeds</span>, so a <code>local database</code> member is a way in with a password the
+    firewall stores &mdash; reached whenever everything above it fails, including when the
+    external servers are down. PAN-AAA-012 reports that only on a sequence an
+    <span class="font-medium">administrator</span> authenticates through. The Help recommends
+    putting the local profile last for resilience; that is break-glass, and whether it is
+    documented is a question for the owner, not the configuration.
+</div>
+{% endblock %}
+
+{% block empty_state %}No authentication sequences have been normalized. This needs a renormalize, which contacts no device.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.sequence.appliance }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        <div class="text-slate-800">{{ row.sequence.name }}</div>
+        <div class="text-[10px] leading-3 text-slate-500">{{ row.sequence.scope }}{% if row.sequence.vsys_name %} &middot; {{ row.sequence.vsys_name }}{% endif %}</div>
+        {% if show_provenance and row.provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.provenance }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        {% for step in row.steps %}<div class="{% if step.local and row.administrative %}text-amber-700{% else %}text-slate-800{% endif %}">{{ forloop.counter }}. {{ step.name }} <span class="text-[10px] text-slate-500">{{ step.method }}</span></div>{% empty %}<span class="text-slate-500">Nothing</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.exit_on_failure }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        <span class="{% if row.unused %}text-amber-700{% else %}text-slate-800{% endif %}">{{ row.referrers }}</span>
+        {% if row.administrative %}<div class="text-[10px] leading-3 text-slate-500">administrator-bound</div>{% endif %}
+        {% for where in row.referrer_paths %}<div class="mt-0.5 truncate text-[10px] leading-3 text-slate-500" title="{{ where }}">{{ where }}</div>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.sequence.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No authentication sequence is currently reported by this control.</td></tr>
+{% endfor %}
+{% endblock %}

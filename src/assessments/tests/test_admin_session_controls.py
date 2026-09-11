@@ -22,14 +22,14 @@ from __future__ import annotations
 from django.test import TestCase
 from django.utils import timezone
 
-from assessments.controls_catalog.registry import load_seed_payload
-from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.tests._seed import seed_controls
+from assessments.authentication_settings_findings import generate_authentication_settings_findings
 from assessments.models import (
-    AssessmentRun, Control, ControlQuery, DeviceConfigurationFinding)
+    AssessmentRun, Control, ControlQuery, AuthenticationSettingsFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DeviceConfigurationProfile, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, AuthenticationSettings, ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization import (
-    normalize_appliance_device_configuration)
+    normalize_appliance_authentication_settings)
 
 CONTROLS = ["PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-016", "PAN-AUTH-017"]
 #: An untouched device: no lockout, no key expiry, and an hour-long idle session. NOT 015 -
@@ -44,20 +44,7 @@ class AdminSessionControlTests(TestCase):
         self.group = ApplianceGroup.objects.create(
             management_station=self.station, name="g-auth",
             group_type=ApplianceGroup.TYPE_STANDALONE)
-        specs = {c["control_id"]: c for c in load_seed_payload()["catalogs"][0]["controls"]}
-        for control_id in CONTROLS:
-            spec = specs[control_id]
-            control = Control.objects.create(
-                control_id=control_id, name=spec["name"],
-                control_type=Control.ControlType.DEVICE_CONFIGURATION,
-                description=spec["description"], default_severity=spec["default_severity"],
-                severity_scale=spec.get("severity_scale") or {},
-                target_model=spec["target_model"])
-            for query in spec["queries"]:
-                ControlQuery.objects.create(
-                    control=control, name=query["name"],
-                    canonical_query=query["canonical_query"],
-                    is_baseline=query["is_baseline"], is_active=query["is_active"])
+        seed_controls(CONTROLS, control_type=Control.ControlType.AUTHENTICATION_SETTINGS)
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
 
@@ -72,26 +59,25 @@ class AdminSessionControlTests(TestCase):
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(),
             payload={"config": {"devices": {"entry": entry}}})
-        normalize_appliance_device_configuration(appliance)
-        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+        normalize_appliance_authentication_settings(appliance)
+        return AuthenticationSettings.objects.get(appliance=appliance)
 
     def _findings(self, hostname):
-        generate_device_configuration_findings(self.run)
+        generate_authentication_settings_findings(self.run)
         return {f.control.control_id: f
-                for f in DeviceConfigurationFinding.objects.select_related(
-                    "control", "device_configuration_profile__appliance")
-                if f.device_configuration_profile.appliance.hostname == hostname
-                and f.control.control_id in set(CONTROLS)}
+                for f in AuthenticationSettingsFinding.objects.select_related(
+                    "control", "authentication_settings__appliance")
+                if f.authentication_settings.appliance.hostname == hostname}
 
     # --- implicit values -------------------------------------------------------------
 
     def test_an_untouched_device_reports_three_of_the_four(self):
         """The whole setting/management node absent. 015 must NOT fire: its zero is compliant."""
-        profile = self._profile("fw-bare")
-        self.assertEqual(profile.admin_lockout_failed_attempts, 0)
-        self.assertEqual(profile.admin_lockout_time_minutes, 0)
-        self.assertEqual(profile.api_key_lifetime_minutes, 0)
-        self.assertEqual(profile.idle_timeout_minutes, 60)
+        settings = self._profile("fw-bare")
+        self.assertEqual(settings.lockout_failed_attempts, 0)
+        self.assertEqual(settings.lockout_time_minutes, 0)
+        self.assertEqual(settings.api_key_lifetime_minutes, 0)
+        self.assertEqual(settings.idle_timeout_minutes, 60)
         self.assertEqual(set(self._findings("fw-bare")), UNCONFIGURED)
 
     def test_the_idle_timeout_default_of_sixty_is_what_fires_016(self):

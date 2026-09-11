@@ -34,16 +34,18 @@ from assessments.models import (
     AssessmentRun,
     Catalog,
     Control,
-    DeviceConfigurationFinding,
-    ManagementInterfaceFinding,
-    RuleFinding,
 )
+from assessments.finding_registry import FINDING_MODELS as REGISTERED_FINDING_MODELS
 from assessments.search.syntax import validate_search_payload
 
 #: Every model whose FK to Control is PROTECT. A stale control cannot be deleted while any
-#: of these reference it, and the error names only the first one it hits, so they are listed
-#: here rather than discovered one failed delete at a time.
-FINDING_MODELS = (RuleFinding, DeviceConfigurationFinding, ManagementInterfaceFinding)
+#: of these reference it, and the error names only the first one it hits, so they are all
+#: cleared rather than discovered one failed delete at a time.
+#:
+#: FROM THE REGISTRY, not listed. The hand-kept tuple named three of eighteen, so replacing a
+#: control with a certificate, authentication or administrator finding would have failed on
+#: the PROTECT this list exists to get past - the drift `finding_registry` was built to stop.
+FINDING_MODELS = REGISTERED_FINDING_MODELS
 
 
 def stale_controls() -> dict[str, list[str]]:

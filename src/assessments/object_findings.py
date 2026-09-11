@@ -26,7 +26,6 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from assessments.models import AssessmentRun, Control
-from assessments.severity_grading import graded_severity
 
 
 @dataclass(frozen=True)
@@ -99,8 +98,7 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
                     "assessment_run": assessment_run,
                     "control": control,
                     spec.subject_fk: obj,
-                    "severity": graded_severity(
-                        control, obj, severity_by_object_id[object_id]),
+                    "severity": severity_by_object_id[object_id],
                     "title": control.name,
                     "subject_name": spec.subject_name(obj),
                     "summary": spec.summary(obj, matched_queries),

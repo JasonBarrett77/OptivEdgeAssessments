@@ -40,10 +40,25 @@ class FindingRegistryTests(TestCase):
         for kind in FINDING_KINDS:
             self.assertIn(kind.control_type, valid, kind.name)
 
+    #: Labels the singular rule does not apply to, each with the reason. The rule is a
+    #: heuristic for catching "certificates" where "certificate" was meant; a label whose
+    #: SUBJECT is plural in the vendor's own UI is not that mistake.
+    PLURAL_BY_NAME = {
+        # Device > Setup > Management > Authentication Settings. "authentication setting"
+        # names nothing - the screen is one object made of several values.
+        "authentication settings",
+        # Device > Setup > Services. "update server setting" names nothing either.
+        "update server settings",
+        # Device > Setup > Management > Logging and Reporting Settings.
+        "logging settings",
+    }
+
     def test_labels_are_unique_and_prose_shaped(self):
         labels = [k.label for k in FINDING_KINDS]
         self.assertEqual(len(labels), len(set(labels)))
         for label in labels:
+            if label in self.PLURAL_BY_NAME:
+                continue
             self.assertFalse(label.endswith("s"), f"{label!r} should be singular")
 
     def test_counts_cover_every_kind(self):

@@ -72,11 +72,27 @@ SIDEBAR_SECTION = [
             },
             {
                 "label": "Device Configuration",
-                "href": "/assessments/device-configuration/",
+                #: The label names the AREA - the findings tabs - not a page. It used to
+                #: open the Device Configuration tab, which was deleted with its model on
+                #: 2026-09-11; the first tab left in the Device section is where it lands.
+                "href": "/assessments/management-interfaces/",
                 "icon": "monitor",
                 #: Derived - every tab in navigation.DEVICE_TABS, so a new tab cannot be
                 #: added without the sidebar following it.
                 "active_names": set(DEVICE_TAB_URL_NAMES),
+            },
+            {
+                #: Querying the configuration, organised the way the PAN-OS web interface
+                #: is. A DIFFERENT surface from Device Configuration, not its successor: that
+                #: item presents what the controls found, this one asks a question of the
+                #: configuration and shows what matches. Both stay.
+                "label": "Configuration",
+                "href": "/assessments/configuration/",
+                "icon": "settings",
+                "active_names": {
+                    "assessment_configuration_index",
+                    "assessment_configuration_object",
+                },
             },
         ],
     },

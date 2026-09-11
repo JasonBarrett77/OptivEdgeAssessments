@@ -11,13 +11,22 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    AdminUser,
+    ServerProfile,
     AuthenticationProfile,
+    AuthenticationSequence,
+    AuthenticationSettings,
+    LoggingSettings,
+    LoginBanner,
+    ManagementTlsBinding,
+    MasterKey,
+    UpdateServerSettings,
+    PasswordComplexityPolicy,
     PasswordProfile,
     Certificate,
     CertificateProfile,
     SslTlsServiceProfile,
     InterfaceManagementProfile,
-    DeviceConfigurationProfile,
     ManagementInterface,
     SecurityRule,
 )
@@ -38,18 +47,55 @@ class SecurityRuleSearchState(models.Model):
         return str(self.token)
 
 
+class ConfigurationSearchState(models.Model):
+    """A built query, parked server-side so the URL can carry a token instead of the JSON.
+
+    `SecurityRuleSearchState` does the same job for one model. This one carries `model_label`
+    because the configuration explorer has a page per object and a token that arrived from
+    another object's page must not be applied here - the fields would not compile, and a query
+    that silently matched nothing would look like an answer.
+
+    Rows are cheap and disposable: one per query a person builds, never edited, and the token
+    is the whole point - a built query survives a reload, a bookmark and a paste to a colleague
+    without the JSON going through the address bar.
+    """
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    #: The search registry's label for the model this query targets, e.g.
+    #: "integrations.InterfaceManagementProfile".
+    model_label = models.CharField(max_length=128)
+    query_text = models.TextField(blank=True)
+    canonical_query = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.model_label} {self.token}"
+
+
 class Control(models.Model):
     class ControlType(models.TextChoices):
         SECURITY_RULE = "security_rule", "Security Rule"
         CONFIG = "config", "Configuration"
-        DEVICE_CONFIGURATION = "device_configuration", "Device Configuration"
         MANAGEMENT_INTERFACE = "management_interface", "Management Interface"
         INTERFACE_MANAGEMENT_PROFILE = "interface_management_profile", "Interface Management Profile"
         SSL_TLS_SERVICE_PROFILE = "ssl_tls_service_profile", "SSL/TLS Service Profile"
         CERTIFICATE_PROFILE = "certificate_profile", "Certificate Profile"
         CERTIFICATE = "certificate", "Certificate"
         AUTHENTICATION_PROFILE = "authentication_profile", "Authentication Profile"
+        AUTHENTICATION_SEQUENCE = "authentication_sequence", "Authentication Sequence"
         PASSWORD_PROFILE = "password_profile", "Password Profile"
+        PASSWORD_COMPLEXITY = "password_complexity", "Minimum Password Complexity"
+        AUTHENTICATION_SETTINGS = "authentication_settings", "Authentication Settings"
+        LOGIN_BANNER = "login_banner", "Login Banner"
+        MASTER_KEY = "master_key", "Master Key"
+        UPDATE_SERVER = "update_server", "Update Server Settings"
+        LOGGING_SETTINGS = "logging_settings", "Logging and Reporting Settings"
+        MANAGEMENT_TLS = "management_tls", "Management TLS"
+        ADMIN_USER = "admin_user", "Administrator"
+        SERVER_PROFILE = "server_profile", "AAA Server Profile"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -69,15 +115,18 @@ class Control(models.Model):
     rationale = models.TextField(blank=True)
     audit = models.TextField(blank=True)
     remediation = models.TextField(blank=True)
+    #: The severity a finding reports when only the baseline query matched - the baseline-tier
+    #: severity, stored here rather than on the query because a control has exactly one baseline.
+    #: A non-baseline query carrying `adjusted_severity` overrides it, and the WORST such match
+    #: wins; see `control_queries.derive_control_query_severity_value`. That is the ONLY severity
+    #: mechanism. A second one - declarative bands on the control - existed until 2026-09-09 and
+    #: was removed: it was seed-only, reachable from no form, and produced every severity defect
+    #: this project had.
     default_severity = models.CharField(
         max_length=32,
         choices=Severity.choices,
         default=Severity.MEDIUM,
     )
-    #: Graded severity from the corpus: bands, sentinels and ranks. Empty means the control
-    #: reports `default_severity` for every finding, which is what all 30 controls did before
-    #: this existed. See `severity_for_measure`.
-    severity_scale = models.JSONField(default=dict, blank=True)
     implementation_version = models.CharField(max_length=64, default="v1")
     target_model = models.CharField(max_length=128, blank=True)
     is_active = models.BooleanField(default=True)
@@ -91,112 +140,28 @@ class Control(models.Model):
     #: in step, because nothing else does.
     _CONTROL_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
-        "device_configuration": "integrations.DeviceConfigurationProfile",
         "management_interface": "integrations.ManagementInterface",
         "interface_management_profile": "integrations.InterfaceManagementProfile",
         "ssl_tls_service_profile": "integrations.SslTlsServiceProfile",
         "certificate_profile": "integrations.CertificateProfile",
         "certificate": "integrations.Certificate",
         "authentication_profile": "integrations.AuthenticationProfile",
+        "authentication_sequence": "integrations.AuthenticationSequence",
         "password_profile": "integrations.PasswordProfile",
+        "password_complexity": "integrations.PasswordComplexityPolicy",
+        "authentication_settings": "integrations.AuthenticationSettings",
+        "login_banner": "integrations.LoginBanner",
+        "master_key": "integrations.MasterKey",
+        "update_server": "integrations.UpdateServerSettings",
+        "logging_settings": "integrations.LoggingSettings",
+        "management_tls": "integrations.ManagementTlsBinding",
+        "admin_user": "integrations.AdminUser",
+        "server_profile": "integrations.ServerProfile",
         "config": "",
     }
 
     class Meta:
         ordering = ["control_id"]
-
-    #: Worst first, so capping is a list-position comparison.
-    _SEVERITY_ORDER = ("critical", "high", "medium", "low", "informational")
-
-    def severity_for_measure(self, measure):
-        """Severity for one measured value, or None to fall back to `default_severity`.
-
-        The corpus grades 25 controls and this app reported `default_severity` for all of
-        them, so a 4-character password and an 11-character one arrived identical. The bands
-        are the corpus author's judgement and are not re-derived here.
-
-        Three rules, in this order, and the order is the whole thing:
-
-        SENTINELS FIRST, because PAN-OS overloads these fields and the overloaded value is not
-        on the scale at all. `failed-attempts 0` means lockout is DISABLED and `idle-timeout 0`
-        means sessions never expire - both worse than any large number, so a band lookup would
-        rank them as the best possible value. Sentinels are strings in the corpus and are
-        compared as strings.
-
-        THEN BANDS, keyed by `direction`: `higher-is-worse` bands carry `min` and are listed
-        worst first; `lower-is-worse` bands carry `max` and are listed best first. A null bound
-        is open-ended. `direction` SELECTS THE KEY - that is its documented meaning - and it is
-        not always the semantic reading: PAN-AUTH-014 is labelled `lower-is-worse` while its own
-        band labels say more attempts is worse. The keys are unambiguous, the label is not.
-
-        NEVER ABOVE `default_severity`. The corpus promises "a step severity never exceeds the
-        control severity, so the headline is always safe to report unmeasured"; a scale that
-        could escalate would quietly break that.
-
-        A null band severity means the value MEETS the baseline. That returns None, and no
-        finding should exist for it anyway - the query decides whether there IS a finding, this
-        decides only how bad it is.
-
-        SO NEVER GIVE A FIRING VALUE A NULL SEVERITY. It returns None, the caller falls back to
-        the control's default, and the result is correct by accident while the scale reads as
-        "this value passes" - the opposite of the truth. PAN-CRT-006 was first written that way,
-        with `self_signed` null: it graded nothing, and said self-signed was fine.
-        """
-        scale = self.severity_scale or {}
-        if not scale or measure is None:
-            return None
-
-        for sentinel in scale.get("sentinels") or []:
-            if str(sentinel.get("value")) == str(measure):
-                return self._capped(sentinel.get("severity"))
-
-        kind = scale.get("kind")
-        if kind == "ranked":
-            for rank in scale.get("ranks") or []:
-                if str(rank.get("value")) == str(measure):
-                    return self._capped(rank.get("severity"))
-            return None
-        if kind != "numeric":
-            return None
-
-        try:
-            value = int(measure)
-        except (TypeError, ValueError):
-            return None
-        key = "min" if scale.get("direction") == "higher-is-worse" else "max"
-        for band in scale.get("bands") or []:
-            bound = band.get(key)
-            if bound is None:
-                return self._capped(band.get("severity"))
-            if key == "min" and value >= bound:
-                return self._capped(band.get("severity"))
-            if key == "max" and value <= bound:
-                return self._capped(band.get("severity"))
-        return None
-
-    def _capped(self, severity):
-        """A band never reports worse than the control's own severity."""
-        if not severity:
-            return None
-        order = self._SEVERITY_ORDER
-        if severity not in order or self.default_severity not in order:
-            return severity
-        return (severity if order.index(severity) >= order.index(self.default_severity)
-                else self.default_severity)
-
-    def measured_field(self):
-        """The model field this control's baseline query reads, or None if not exactly one.
-
-        Derived rather than declared, for the reason the password tab derives its highlighting:
-        a second place naming the field would drift from the query the first time a threshold
-        moved. A control reading two different fields has no single measure and is not graded.
-        """
-        fields = set()
-        for query in self.queries.all():
-            for clause in (query.canonical_query or {}).get("clauses") or []:
-                if clause.get("field"):
-                    fields.add(clause["field"])
-        return next(iter(fields)) if len(fields) == 1 else None
 
     def __str__(self) -> str:
         return f"{self.control_id} - {self.name}"
@@ -211,14 +176,23 @@ class Control(models.Model):
 
     _TARGET_MODEL_LABELS = {
         "integrations.SecurityRule": "Security Rule",
-        "integrations.DeviceConfigurationProfile": "Device Configuration",
         "integrations.ManagementInterface": "Management Interface",
         "integrations.InterfaceManagementProfile": "Interface Management Profile",
         "integrations.SslTlsServiceProfile": "SSL/TLS Service Profile",
         "integrations.CertificateProfile": "Certificate Profile",
         "integrations.Certificate": "Certificate",
         "integrations.AuthenticationProfile": "Authentication Profile",
+        "integrations.AuthenticationSequence": "Authentication Sequence",
         "integrations.PasswordProfile": "Password Profile",
+        "integrations.PasswordComplexityPolicy": "Minimum Password Complexity",
+        "integrations.AuthenticationSettings": "Authentication Settings",
+        "integrations.LoginBanner": "Login Banner",
+        "integrations.MasterKey": "Master Key",
+        "integrations.UpdateServerSettings": "Update Server Settings",
+        "integrations.LoggingSettings": "Logging and Reporting Settings",
+        "integrations.ManagementTlsBinding": "Management TLS",
+        "integrations.AdminUser": "Administrator",
+        "integrations.ServerProfile": "AAA Server Profile",
     }
 
     @property
@@ -228,10 +202,6 @@ class Control(models.Model):
     @property
     def supports_security_rule_ui(self) -> bool:
         return self.target_model == "integrations.SecurityRule"
-
-    @property
-    def supports_device_configuration_ui(self) -> bool:
-        return self.target_model == "integrations.DeviceConfigurationProfile"
 
 
 class AssessmentRun(models.Model):
@@ -459,68 +429,6 @@ class RuleFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.rule_finding_id} <- {self.control_query_id}"
-
-
-class DeviceConfigurationFinding(FindingBase):
-    assessment_run = models.ForeignKey(
-        AssessmentRun,
-        on_delete=models.CASCADE,
-        related_name="device_configuration_findings",
-    )
-    control = models.ForeignKey(
-        Control,
-        on_delete=models.PROTECT,
-        related_name="device_configuration_findings",
-    )
-    device_configuration_profile = models.ForeignKey(
-        DeviceConfigurationProfile,
-        on_delete=models.CASCADE,
-        related_name="findings",
-    )
-    control_queries = models.ManyToManyField(
-        ControlQuery,
-        through="DeviceConfigurationFindingControlQuery",
-        related_name="device_configuration_findings",
-        blank=True,
-    )
-
-    class Meta(FindingBase.Meta):
-        indexes = FindingBase.Meta.indexes + [
-            models.Index(fields=["device_configuration_profile"]),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["assessment_run", "control", "device_configuration_profile"],
-                name="unique_device_configuration_finding_per_run_control_profile",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.control.control_id} on profile {self.device_configuration_profile_id}"
-
-
-class DeviceConfigurationFindingControlQuery(FindingControlQueryBase):
-    device_configuration_finding = models.ForeignKey(
-        DeviceConfigurationFinding,
-        on_delete=models.CASCADE,
-        related_name="query_links",
-    )
-    control_query = models.ForeignKey(
-        ControlQuery,
-        on_delete=models.CASCADE,
-        related_name="device_configuration_finding_links",
-    )
-
-    class Meta(FindingControlQueryBase.Meta):
-        constraints = [
-            models.UniqueConstraint(
-                fields=["device_configuration_finding", "control_query"],
-                name="unique_device_configuration_finding_control_query_link",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.device_configuration_finding_id} <- {self.control_query_id}"
 
 
 class Catalog(models.Model):
@@ -923,6 +831,373 @@ class AuthenticationProfileFindingControlQuery(FindingControlQueryBase):
         return f"{self.authentication_profile_finding_id} <- {self.control_query_id}"
 
 
+class AuthenticationSequenceFinding(ObjectFindingBase):
+    """A finding against one authentication sequence ON ONE APPLIANCE. PAN-AAA-012.
+
+    Per appliance and carrying its scope, as for authentication profiles: a template-pushed
+    sequence exists separately in each firewall's merged config, and a `shared` and a vsys
+    definition can share a name.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="authentication_sequence_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="authentication_sequence_findings")
+    authentication_sequence = models.ForeignKey(
+        AuthenticationSequence, on_delete=models.CASCADE, related_name="findings")
+    subject_scope = models.CharField(max_length=16, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="AuthenticationSequenceFindingControlQuery",
+        related_name="authentication_sequence_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["authentication_sequence"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "authentication_sequence"],
+                name="unique_aseq_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on authentication sequence {self.subject_name}"
+
+
+class AuthenticationSequenceFindingControlQuery(FindingControlQueryBase):
+    authentication_sequence_finding = models.ForeignKey(
+        AuthenticationSequenceFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="authentication_sequence_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["authentication_sequence_finding", "control_query"],
+                name="unique_aseq_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.authentication_sequence_finding_id} <- {self.control_query_id}"
+
+
+class ManagementTlsFinding(ObjectFindingBase):
+    """A finding against one appliance's management TLS binding. PAN-MGT-010 and PAN-CRT-006.
+
+    One row per appliance, two controls that fail independently: the shipped TLSv1.3_Default
+    profile passes the protocol floor and fails the certificate on the same row.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="management_tls_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="management_tls_findings")
+    management_tls_binding = models.ForeignKey(
+        ManagementTlsBinding, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ManagementTlsFindingControlQuery",
+        related_name="management_tls_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["management_tls_binding"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "management_tls_binding"],
+                name="unique_mt_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on management TLS {self.subject_name}"
+
+
+class ManagementTlsFindingControlQuery(FindingControlQueryBase):
+    management_tls_finding = models.ForeignKey(
+        ManagementTlsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="management_tls_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["management_tls_finding", "control_query"],
+                name="unique_mt_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.management_tls_finding_id} <- {self.control_query_id}"
+
+
+class MasterKeyFinding(ObjectFindingBase):
+    """A finding against one appliance's master key. PAN-CRT-007."""
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="master_key_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="master_key_findings")
+    master_key = models.ForeignKey(
+        MasterKey, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="MasterKeyFindingControlQuery",
+        related_name="master_key_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["master_key"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "master_key"],
+                name="unique_mk_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on master key {self.subject_name}"
+
+
+class MasterKeyFindingControlQuery(FindingControlQueryBase):
+    master_key_finding = models.ForeignKey(
+        MasterKeyFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="master_key_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["master_key_finding", "control_query"],
+                name="unique_mk_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.master_key_finding_id} <- {self.control_query_id}"
+
+
+class UpdateServerSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's update server settings. PAN-MGT-009."""
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="update_server_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="update_server_settings_findings")
+    update_server_settings = models.ForeignKey(
+        UpdateServerSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="UpdateServerSettingsFindingControlQuery",
+        related_name="update_server_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["update_server_settings"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "update_server_settings"],
+                name="unique_uss_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on update server settings {self.subject_name}"
+
+
+class UpdateServerSettingsFindingControlQuery(FindingControlQueryBase):
+    update_server_settings_finding = models.ForeignKey(
+        UpdateServerSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="update_server_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["update_server_settings_finding", "control_query"],
+                name="unique_uss_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.update_server_settings_finding_id} <- {self.control_query_id}"
+
+
+class LoggingSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's logging settings. PAN-MGT-011."""
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="logging_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="logging_settings_findings")
+    logging_settings = models.ForeignKey(
+        LoggingSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LoggingSettingsFindingControlQuery",
+        related_name="logging_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["logging_settings"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "logging_settings"],
+                name="unique_ls_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on logging settings {self.subject_name}"
+
+
+class LoggingSettingsFindingControlQuery(FindingControlQueryBase):
+    logging_settings_finding = models.ForeignKey(
+        LoggingSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="logging_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["logging_settings_finding", "control_query"],
+                name="unique_ls_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.logging_settings_finding_id} <- {self.control_query_id}"
+
+
+class LoginBannerFinding(ObjectFindingBase):
+    """A finding against one appliance's login banner. PAN-MGT-007 and 008."""
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="login_banner_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="login_banner_findings")
+    login_banner = models.ForeignKey(
+        LoginBanner, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LoginBannerFindingControlQuery",
+        related_name="login_banner_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["login_banner"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "login_banner"],
+                name="unique_lb_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on login banner {self.subject_name}"
+
+
+class LoginBannerFindingControlQuery(FindingControlQueryBase):
+    login_banner_finding = models.ForeignKey(
+        LoginBannerFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="login_banner_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["login_banner_finding", "control_query"],
+                name="unique_lb_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.login_banner_finding_id} <- {self.control_query_id}"
+
+
+class AuthenticationSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's device-wide authentication settings.
+
+    PAN-AUTH-014 to 017. One row per appliance, so `subject_name` is the appliance - the
+    settings have no name of their own.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="authentication_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="authentication_settings_findings")
+    authentication_settings = models.ForeignKey(
+        AuthenticationSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="AuthenticationSettingsFindingControlQuery",
+        related_name="authentication_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["authentication_settings"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "authentication_settings"],
+                name="unique_as_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on authentication settings {self.subject_name}"
+
+
+class AuthenticationSettingsFindingControlQuery(FindingControlQueryBase):
+    authentication_settings_finding = models.ForeignKey(
+        AuthenticationSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="authentication_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["authentication_settings_finding", "control_query"],
+                name="unique_as_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.authentication_settings_finding_id} <- {self.control_query_id}"
+
+
+class PasswordComplexityFinding(ObjectFindingBase):
+    """A finding against one appliance's minimum password complexity. PAN-AUTH-001 to 013.
+
+    The subject is ONE ROW PER APPLIANCE, so `subject_name` is the appliance rather than an
+    object name - the policy has no name of its own. It is still an ObjectFinding rather than a
+    device-configuration finding because the subject is a row that can be missing: an appliance
+    whose snapshot has no `mgt-config` at all gets no policy and therefore no finding, which is
+    the correct answer and not "compliant".
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="password_complexity_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="password_complexity_findings")
+    password_complexity_policy = models.ForeignKey(
+        PasswordComplexityPolicy, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="PasswordComplexityFindingControlQuery",
+        related_name="password_complexity_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["password_complexity_policy"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "password_complexity_policy"],
+                name="unique_pc_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on password complexity {self.subject_name}"
+
+
+class PasswordComplexityFindingControlQuery(FindingControlQueryBase):
+    password_complexity_finding = models.ForeignKey(
+        PasswordComplexityFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="password_complexity_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["password_complexity_finding", "control_query"],
+                name="unique_pc_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.password_complexity_finding_id} <- {self.control_query_id}"
+
+
 class PasswordProfileFinding(ObjectFindingBase):
     """A finding against one password profile ON ONE APPLIANCE.
 
@@ -969,3 +1244,103 @@ class PasswordProfileFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.password_profile_finding_id} <- {self.control_query_id}"
+
+
+class AdminUserFinding(ObjectFindingBase):
+    """A finding against one administrator account ON ONE APPLIANCE.
+
+    No `subject_scope`: `mgt-config/users` is neither shared nor per-vsys, so an account name
+    is already unique on an appliance - the same reason PasswordProfileFinding has none.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="admin_user_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="admin_user_findings")
+    admin_user = models.ForeignKey(
+        AdminUser, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="AdminUserFindingControlQuery",
+        related_name="admin_user_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["admin_user"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "admin_user"],
+                name="unique_au_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on administrator {self.subject_name}"
+
+
+class AdminUserFindingControlQuery(FindingControlQueryBase):
+    admin_user_finding = models.ForeignKey(
+        AdminUserFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="admin_user_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["admin_user_finding", "control_query"],
+                name="unique_au_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.admin_user_finding_id} <- {self.control_query_id}"
+
+
+class ServerProfileFinding(ObjectFindingBase):
+    """A finding against one AAA server profile, in the scope that defines it.
+
+    Carries `subject_scope` because a profile name is only unique WITHIN a scope: one appliance
+    can hold a shared `corp-ldap` and a vsys3 `corp-ldap`, and they are two objects with two
+    configurations. The same reason the certificate objects carry it.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="server_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="server_profile_findings")
+    server_profile = models.ForeignKey(
+        ServerProfile, on_delete=models.CASCADE, related_name="findings")
+    #: "shared", or "vsys:<name>". Wider than the 16 the certificate models use, because a vsys
+    #: name is part of the value here rather than a separate column.
+    subject_scope = models.CharField(max_length=72, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ServerProfileFindingControlQuery",
+        related_name="server_profile_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["server_profile"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "server_profile"],
+                name="unique_sp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on server profile {self.subject_name}"
+
+
+class ServerProfileFindingControlQuery(FindingControlQueryBase):
+    server_profile_finding = models.ForeignKey(
+        ServerProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="server_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["server_profile_finding", "control_query"],
+                name="unique_sp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.server_profile_finding_id} <- {self.control_query_id}"

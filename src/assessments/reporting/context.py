@@ -12,7 +12,7 @@ from assessments.control_queries import SEVERITY_RANK, severity_label
 #: InterfaceManagementProfile, SslTlsServiceProfile, CertificateProfile and Certificate
 #: findings reach no client report. Not fixed yet because the enumeration is expected to
 #: change as the remaining domains land - Jason, 2026-09-03. See views.LegacyFindingListView.
-from assessments.models import AssessmentRun, DeviceConfigurationFinding, RuleFinding
+from assessments.models import AssessmentRun, RuleFinding
 
 
 RISK_RATING_BY_SEVERITY = {
@@ -81,34 +81,23 @@ def get_latest_rule_assessment_run() -> AssessmentRun:
     return run
 
 
-def get_latest_device_configuration_assessment_run() -> AssessmentRun | None:
-    return (
-        AssessmentRun.objects.filter(device_configuration_findings__isnull=False)
-        .distinct()
-        .order_by("-created_at", "-pk")
-        .first()
-    )
-
-
 def build_report_context(*, assessment_run: AssessmentRun | None = None) -> HealthCheckReportContext:
     selected_run = assessment_run or get_latest_rule_assessment_run()
     rule_findings = list(_rule_findings_for_run(selected_run))
-    device_configuration_run = get_latest_device_configuration_assessment_run()
-    device_configuration_findings = list(_device_configuration_findings_for_run(device_configuration_run)) if device_configuration_run else []
     return HealthCheckReportContext(
         assessment_run=selected_run,
-        summary_rows=build_summary_rows(rule_findings, device_configuration_findings),
+        summary_rows=build_summary_rows(rule_findings),
         firewall_detail_rows=build_firewall_detail_rows(rule_findings),
     )
 
 
 def build_summary_rows(
     rule_findings: list[RuleFinding] | QuerySet[RuleFinding],
-    device_configuration_findings: list[DeviceConfigurationFinding] | QuerySet[DeviceConfigurationFinding] | None = None,
 ) -> list[SummaryRow]:
+    # Rule findings only. Device-configuration findings were the other source until
+    # DeviceConfigurationFinding was deleted on 2026-09-11; the models that replaced it are not
+    # read here - see AGENTS.md, "Surfaces pending replacement".
     grouped_rows = _build_rule_summary_candidates(list(rule_findings))
-    if device_configuration_findings:
-        grouped_rows.extend(_build_device_configuration_summary_candidates(list(device_configuration_findings)))
 
     grouped_rows.sort(
         key=lambda row: (
@@ -219,20 +208,6 @@ def _rule_findings_for_run(assessment_run: AssessmentRun) -> QuerySet[RuleFindin
     )
 
 
-def _device_configuration_findings_for_run(assessment_run: AssessmentRun | None) -> QuerySet[DeviceConfigurationFinding]:
-    if assessment_run is None:
-        return DeviceConfigurationFinding.objects.none()
-    return (
-        DeviceConfigurationFinding.objects.filter(assessment_run=assessment_run)
-        .select_related(
-            "control",
-            "device_configuration_profile__appliance",
-            "device_configuration_profile__management_station",
-        )
-        .prefetch_related("control_queries")
-    )
-
-
 def _build_rule_summary_candidates(findings: list[RuleFinding]) -> list[dict[str, object]]:
     grouped_findings: dict[tuple[int, str], list[RuleFinding]] = defaultdict(list)
     for finding in findings:
@@ -285,65 +260,6 @@ def _build_rule_summary_candidates(findings: list[RuleFinding]) -> list[dict[str
     return grouped_rows
 
 
-def _build_device_configuration_summary_candidates(findings: list[DeviceConfigurationFinding]) -> list[dict[str, object]]:
-    grouped_findings: dict[tuple[int, str], list[DeviceConfigurationFinding]] = defaultdict(list)
-    for finding in findings:
-        grouped_findings[(finding.control_id, finding.severity)].append(finding)
-
-    grouped_rows: list[dict[str, object]] = []
-    for control_findings in grouped_findings.values():
-        first_finding = control_findings[0]
-        control = first_finding.control
-        grouped_rows.append(
-            {
-                "control_id": control.control_id,
-                "control_name": control.name,
-                "recommendation": _build_summary_recommendation(control.remediation),
-                "highest_severity": _highest_severity([finding.severity for finding in control_findings]),
-                "finding_count": len(control_findings),
-                "scope_count": len({finding.device_configuration_profile.appliance_id for finding in control_findings}),
-                "query_names": [
-                    query_name
-                    for query_name in sorted(
-                        {
-                            query.name
-                            for finding in control_findings
-                            for query in finding.control_queries.all()
-                        }
-                    )
-                    if query_name.lower() != "baseline"
-                ],
-                "detail_table": DetailTable(
-                    title=f"{control.name} ({severity_label(control_findings[0].severity)})",
-                    first_column_heading="Appliance\nsource",
-                    detail_rows=tuple(
-                        DetailRow(
-                            primary=(
-                                finding.device_configuration_profile.appliance.hostname
-                                or finding.device_configuration_profile.appliance.serial_number
-                            ),
-                            secondary=(
-                                finding.device_configuration_profile.management_station.hostname
-                                or "Not specified"
-                            ),
-                            description=_build_device_configuration_description(finding),
-                            severity_label=severity_label(finding.severity),
-                        )
-                        for finding in sorted(
-                            control_findings,
-                            key=lambda finding: (
-                                finding.device_configuration_profile.appliance.hostname
-                                or finding.device_configuration_profile.appliance.serial_number,
-                                finding.pk,
-                            ),
-                        )
-                    ),
-                ),
-            }
-        )
-    return grouped_rows
-
-
 def _build_summary_recommendation(remediation: str) -> str:
     text = (remediation or "").strip()
     if not text:
@@ -380,10 +296,5 @@ def _build_observation_text(
 
 def _build_firewall_description(finding: RuleFinding) -> str:
     security_rule = finding.security_rule
-    summary = finding.summary.strip() or finding.control.description.strip() or finding.control.name
-    return summary
-
-
-def _build_device_configuration_description(finding: DeviceConfigurationFinding) -> str:
     summary = finding.summary.strip() or finding.control.description.strip() or finding.control.name
     return summary

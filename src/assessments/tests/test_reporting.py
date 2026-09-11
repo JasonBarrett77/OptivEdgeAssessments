@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.utils import timezone
 
-from assessments.models import AssessmentRun, Control, DeviceConfigurationFinding, RuleFinding
+from assessments.models import AssessmentRun, Control, RuleFinding
 from assessments.reporting.context import (
     RISK_RATING_BY_SEVERITY,
     build_firewall_detail_rows,
@@ -14,7 +14,6 @@ from optivedge_integrations.integrations.models import (
     Appliance,
     ApplianceGroup,
     EnforcementPoint,
-    DeviceConfigurationProfile,
     FieldProvenance,
     ManagementStation,
     SecurityRule,
@@ -31,14 +30,6 @@ class ReportingContextTests(TestCase):
             description="Prototype control description.",
             remediation="Restrict broad rules.",
             default_severity=Control.Severity.MEDIUM,
-        )
-        self.management_control = Control.objects.create(
-            control_id="MGMT-001",
-            name="Ensure insecure management services are disabled",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
-            description="Prototype management control description.",
-            remediation="Disable insecure management services.",
-            default_severity=Control.Severity.HIGH,
         )
         self.run = AssessmentRun.objects.create(
             name="Rule Findings 2026-05-01 09:00:00",
@@ -86,20 +77,6 @@ class ReportingContextTests(TestCase):
         self.assertEqual(context.assessment_run, self.run)
         self.assertEqual(len(context.summary_rows), 1)
         self.assertEqual(len(context.firewall_detail_rows), 1)
-
-    def test_build_report_context_includes_management_summary_rows(self):
-        self._create_finding(rule_name="rule-one", rule_position=1, severity=Control.Severity.MEDIUM)
-        self._create_management_finding(appliance_name="fw-mgmt-a", severity=Control.Severity.HIGH)
-
-        context = build_report_context()
-
-        self.assertEqual(len(context.summary_rows), 2)
-        self.assertEqual(context.summary_rows[0].control_id, "MGMT-001")
-        self.assertEqual(context.summary_rows[0].importance, "High")
-        self.assertEqual(context.summary_rows[1].control_id, "FW-RULE-PERMISSIVENESS-001")
-        self.assertEqual(len(context.firewall_detail_rows), 1)
-        self.assertEqual(context.summary_rows[0].detail_table.first_column_heading, "Appliance\nsource")
-        self.assertEqual(context.summary_rows[1].detail_table.first_column_heading, "Rule name\nprovenance")
 
     def test_summary_rows_format_local_firewall_provenance_for_report(self):
         self._create_finding(
@@ -192,39 +169,3 @@ class ReportingContextTests(TestCase):
             summary="Matched control query: Source is 'any'.",
         )
 
-    def _create_management_finding(self, *, appliance_name: str, severity: str) -> DeviceConfigurationFinding:
-        station = ManagementStation.objects.create(
-            station_type=ManagementStation.StationType.PAN_PANORAMA,
-            hostname=f"{appliance_name}.panorama.local",
-        )
-        group = ApplianceGroup.objects.create(
-            management_station=station,
-            name=f"{appliance_name}-group",
-        )
-        appliance = Appliance.objects.create(
-            management_station=station,
-            appliance_group=group,
-            hostname=appliance_name,
-            serial_number=f"{appliance_name}-serial",
-        )
-        snapshot = Snapshot.objects.create(
-            management_station=station,
-            appliance=appliance,
-            source_type="test",
-            collected_at=timezone.now(),
-        )
-        device_configuration_profile = DeviceConfigurationProfile.objects.create(
-            management_station=station,
-            appliance=appliance,
-            appliance_group=group,
-            source_snapshot=snapshot,
-            config_source=SecurityRule.SOURCE_LOCAL,
-        )
-        return DeviceConfigurationFinding.objects.create(
-            assessment_run=self.management_run,
-            control=self.management_control,
-            device_configuration_profile=device_configuration_profile,
-            severity=severity,
-            title=self.management_control.name,
-            summary="Matched control query: Baseline.",
-        )

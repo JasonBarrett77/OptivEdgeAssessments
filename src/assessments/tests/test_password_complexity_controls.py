@@ -1,5 +1,10 @@
 """PAN-AUTH-001 through 013 - password complexity.
 
+The subject moved on 2026-09-10 from `DeviceConfigurationProfile` to `PasswordComplexityPolicy`,
+the first cluster cut out of that aggregate. Nothing else about these thirteen changed, which is
+the point: the expectations below were written against the old model and pass unaltered against
+the new one, so the move is a change of address rather than of behaviour.
+
 Thirteen controls over one object, and the risk is that they look like thirteen copies of the
 same assertion. They are not. Three directions live here:
 
@@ -25,13 +30,13 @@ from django.test import TestCase
 from django.utils import timezone
 
 from assessments.controls_catalog.registry import load_seed_payload
-from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.password_complexity_findings import generate_password_complexity_findings
 from assessments.models import (
-    AssessmentRun, Control, ControlQuery, DeviceConfigurationFinding)
+    AssessmentRun, Control, ControlQuery, PasswordComplexityFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DeviceConfigurationProfile, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, ManagementStation, PasswordComplexityPolicy, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization import (
-    normalize_appliance_device_configuration)
+    normalize_appliance_password_complexity)
 
 CONTROLS = [f"PAN-AUTH-{n:03d}" for n in range(1, 14)]
 #: What a default device reports: everything except the two inverted ones.
@@ -50,7 +55,7 @@ class PasswordComplexityControlTests(TestCase):
             spec = specs[control_id]
             control = Control.objects.create(
                 control_id=control_id, name=spec["name"],
-                control_type=Control.ControlType.DEVICE_CONFIGURATION,
+                control_type=Control.ControlType.PASSWORD_COMPLEXITY,
                 description=spec["description"],
                 default_severity=spec["default_severity"],
                 target_model=spec["target_model"])
@@ -74,16 +79,15 @@ class PasswordComplexityControlTests(TestCase):
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(),
             payload={"config": config})
-        normalize_appliance_device_configuration(appliance)
-        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+        normalize_appliance_password_complexity(appliance)
+        return PasswordComplexityPolicy.objects.get(appliance=appliance)
 
     def _findings(self, hostname):
-        generate_device_configuration_findings(self.run)
+        generate_password_complexity_findings(self.run)
         return {f.control.control_id
-                for f in DeviceConfigurationFinding.objects.select_related(
-                    "control", "device_configuration_profile__appliance")
-                if f.device_configuration_profile.appliance.hostname == hostname
-                and f.control.control_id.startswith("PAN-AUTH")}
+                for f in PasswordComplexityFinding.objects.select_related(
+                    "control", "password_complexity_policy__appliance")
+                if f.password_complexity_policy.appliance.hostname == hostname}
 
     def test_an_untouched_device_fires_everything_except_the_inverted_two(self):
         """The shape both lab PA-5220s were in before anyone touched them.
@@ -168,18 +172,18 @@ class PasswordComplexityControlTests(TestCase):
         The setting is inert here - the device enforces nothing - and the finding is still
         true: the value IS below the floor, and it will bite the moment complexity is enabled.
         """
-        profile = self._profile("fw-off-but-weak", {
+        policy = self._profile("fw-off-but-weak", {
             "enabled": "no", "minimum-length": "8"})
-        self.assertEqual(profile.password_minimum_length, 8)
+        self.assertEqual(policy.minimum_length, 8)
         findings = self._findings("fw-off-but-weak")
         self.assertIn("PAN-AUTH-001", findings)
         self.assertIn("PAN-AUTH-002", findings)
 
     def test_absent_keys_normalize_to_the_measured_defaults(self):
         """PAN-OS writes only the flag; the zeros on the form are never stored."""
-        profile = self._profile("fw-flag-only", {"enabled": "yes"})
-        self.assertTrue(profile.password_complexity_enabled)
-        self.assertEqual(profile.password_minimum_length, 0)
-        self.assertEqual(profile.password_history_count, 0)
-        self.assertEqual(profile.password_post_expiration_grace_period, 0)
-        self.assertFalse(profile.password_block_username_inclusion)
+        policy = self._profile("fw-flag-only", {"enabled": "yes"})
+        self.assertTrue(policy.enabled)
+        self.assertEqual(policy.minimum_length, 0)
+        self.assertEqual(policy.history_count, 0)
+        self.assertEqual(policy.post_expiration_grace_period, 0)
+        self.assertFalse(policy.block_username_inclusion)

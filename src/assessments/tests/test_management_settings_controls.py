@@ -1,5 +1,11 @@
 """PAN-MGT-007/008/009/011 — the four management settings, end to end.
 
+The four now live on FOUR subjects, all cut out of `DeviceConfigurationProfile` on 2026-09-10:
+`LoginBanner` for 007 and 008, `UpdateServerSettings` for 009, `LoggingSettings` for 011. They
+stay in one test module because the assertion that matters spans them - an untouched device
+fires three of the four, and getting that right needs the two OPPOSITE defaults read correctly
+at once, which is exactly what a per-model test file would stop checking.
+
 The defaults are the whole risk here. `server-verification` absent means ENABLED and
 `enable-log-high-dp-load` absent means DISABLED, measured from the UI on a device with both
 keys absent. One shared assumption would have flagged every device for 009 and no device for
@@ -13,15 +19,26 @@ from django.test import TestCase
 from django.utils import timezone
 
 from assessments.controls_catalog.registry import load_seed_payload
-from assessments.device_configuration_findings import generate_device_configuration_findings
+from assessments.logging_settings_findings import generate_logging_settings_findings
+from assessments.login_banner_findings import generate_login_banner_findings
+from assessments.update_server_settings_findings import (
+    generate_update_server_settings_findings)
 from assessments.models import (
-    AssessmentRun, Control, ControlQuery, DeviceConfigurationFinding)
+    AssessmentRun, Control, ControlQuery, LoggingSettingsFinding, LoginBannerFinding,
+    UpdateServerSettingsFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DeviceConfigurationProfile, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization import (
-    normalize_appliance_device_configuration)
+    normalize_appliance_login_banner, normalize_appliance_services_settings)
 
 CONTROLS = ("PAN-MGT-007", "PAN-MGT-008", "PAN-MGT-009", "PAN-MGT-011")
+#: Which subject each control now reads. Two of the four have moved.
+CONTROL_TYPE = {
+    "PAN-MGT-007": Control.ControlType.LOGIN_BANNER,
+    "PAN-MGT-008": Control.ControlType.LOGIN_BANNER,
+    "PAN-MGT-009": Control.ControlType.UPDATE_SERVER,
+    "PAN-MGT-011": Control.ControlType.LOGGING_SETTINGS,
+}
 
 
 class ManagementSettingsControlTests(TestCase):
@@ -36,7 +53,7 @@ class ManagementSettingsControlTests(TestCase):
             spec = specs[control_id]
             control = Control.objects.create(
                 control_id=control_id, name=spec["name"],
-                control_type=Control.ControlType.DEVICE_CONFIGURATION,
+                control_type=CONTROL_TYPE[control_id],
                 description=spec["description"],
                 default_severity=spec["default_severity"],
                 target_model=spec["target_model"])
@@ -56,16 +73,23 @@ class ManagementSettingsControlTests(TestCase):
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(),
             payload={"config": {"devices": {"entry": {"deviceconfig": deviceconfig}}}})
-        normalize_appliance_device_configuration(appliance)
-        return DeviceConfigurationProfile.objects.get(appliance=appliance)
+        normalize_appliance_login_banner(appliance)
+        normalize_appliance_services_settings(appliance)
+        return appliance
 
     def _findings(self):
-        generate_device_configuration_findings(self.run)
-        return {
-            (f.control.control_id, f.device_configuration_profile.appliance.hostname)
-            for f in DeviceConfigurationFinding.objects.select_related(
-                "control", "device_configuration_profile__appliance")
-        }
+        """All three generators, unioned. The controls are still four; the subjects are now
+        four, and a caller asking "what fired on this device" should not have to know which."""
+        generate_login_banner_findings(self.run)
+        generate_update_server_settings_findings(self.run)
+        generate_logging_settings_findings(self.run)
+        found = set()
+        for model, subject in ((LoginBannerFinding, "login_banner"),
+                               (UpdateServerSettingsFinding, "update_server_settings"),
+                               (LoggingSettingsFinding, "logging_settings")):
+            for f in model.objects.select_related("control", f"{subject}__appliance"):
+                found.add((f.control.control_id, getattr(f, subject).appliance.hostname))
+        return found
 
     def test_an_untouched_device_fires_007_008_and_011(self):
         """The shape both PA-5220s are actually in: nothing set at all.

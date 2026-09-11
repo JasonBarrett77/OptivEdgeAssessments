@@ -21,8 +21,12 @@ from django.utils import timezone
 from assessments.navigation import DEVICE_TABS
 from assessments.tables import Column
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, AuthenticationProfile, Certificate, CertificateProfile,
-    DeviceConfigurationProfile, InterfaceManagementProfile, ManagementInterface,
+    AdminUser, Appliance, ApplianceGroup, AuthenticationProfile, AuthenticationSequence,
+    Certificate, CertificateProfile,
+    ServerProfile,
+    InterfaceManagementProfile, ManagementInterface,
+    AuthenticationSettings, LoginBanner, ManagementTlsBinding, MasterKey,
+    PasswordComplexityPolicy,
     ManagementStation, PasswordProfile, Snapshot, SslTlsServiceProfile)
 
 
@@ -78,7 +82,11 @@ class DeviceTabTableTests(TestCase):
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
         common = {"management_station": station, "appliance": appliance,
                   "source_snapshot": snapshot}
-        DeviceConfigurationProfile.objects.create(config_source="local", **common)
+        PasswordComplexityPolicy.objects.create(**common)
+        AuthenticationSettings.objects.create(**common)
+        LoginBanner.objects.create(**common)
+        MasterKey.objects.create(**common)
+        ManagementTlsBinding.objects.create(**common)
         ManagementInterface.objects.create(plane=ManagementInterface.PLANE_MGT, **common)
         InterfaceManagementProfile.objects.create(
             name="p", bound_interface_names=[], bound_interface_count=0, **common)
@@ -86,7 +94,12 @@ class DeviceTabTableTests(TestCase):
         CertificateProfile.objects.create(name="cp", scope="shared", **common)
         Certificate.objects.create(name="cert", scope="shared", **common)
         AuthenticationProfile.objects.create(name="auth", scope="shared", **common)
+        AuthenticationSequence.objects.create(name="seq", scope="shared", **common)
         PasswordProfile.objects.create(name="pwd", **common)
+        AdminUser.objects.create(name="admin", role_type=AdminUser.RoleType.SUPERUSER,
+                                 is_superuser=True, superuser_cohort_size=1, **common)
+        ServerProfile.objects.create(name="aaa", kind=ServerProfile.Kind.LDAP,
+                                     scope="shared", **common)
 
     def test_every_body_row_has_as_many_cells_as_the_header_declares(self):
         for tab in DEVICE_TABS:
@@ -141,11 +154,15 @@ class DeviceTabTableTests(TestCase):
 class DeviceTabViewConfigTests(TestCase):
     """`finding_controls = ()` means EVERY control of that finding model.
 
-    That is right for a tab owning a whole object type, and silently wrong for the four tabs
-    that share DeviceConfigurationProfile - Login Banner, Management TLS, Master Key and
-    Password Complexity all read DeviceConfigurationFinding, so a tab that forgets to name its
-    controls shows the other three's findings as its own. Removing `finding_controls` from
-    MasterKeyListView broke no test until this one existed; the page just filled up.
+    That is right for a tab owning a whole object type, and silently wrong for tabs that SHARE a
+    finding model: a tab that forgets to name its controls shows the others' findings as its own.
+    Four tabs used to share DeviceConfigurationFinding - Login Banner, Management TLS, Master Key
+    and Password Complexity - and removing `finding_controls` from MasterKeyListView broke no
+    test until this one existed; the page just filled up.
+
+    None share one now. The aggregate was split on 2026-09-10 and each of those tabs has a
+    finding model of its own, which is what the split was for. The rule stays, conditional, for
+    the next time two tabs are built over one model.
     """
 
     def _tab_views(self):
@@ -163,7 +180,11 @@ class DeviceTabViewConfigTests(TestCase):
             if view.finding_model is not None:
                 by_model[view.finding_model].append((tab, view))
         shared = {model: pairs for model, pairs in by_model.items() if len(pairs) > 1}
-        self.assertTrue(shared, "expected at least one finding model shared by several tabs")
+        # No assertion that sharing EXISTS. It used to, and the aggregate split removed the
+        # last of it on 2026-09-10 - five tabs that read DeviceConfigurationFinding now read a
+        # finding model each. Requiring a sharer to be present made this test fail on the
+        # success it was written to survive; the rule it guards is conditional, so it stays
+        # conditional.
         for model, pairs in shared.items():
             for tab, view in pairs:
                 self.assertTrue(

@@ -1,1 +1,1 @@
-"""Field compilers for device configuration search."""
+"""The shared text operator set - see scalar_text."""

@@ -21,18 +21,16 @@ from assessments.models import (
     Catalog,
     Control,
     ControlQuery,
-    DeviceConfigurationFinding,
-)
+    LoginBannerFinding)
 from optivedge_integrations.integrations.models import (
     Appliance,
-    DeviceConfigurationProfile,
+    LoginBanner,
     ManagementStation,
-    Snapshot,
-)
+    Snapshot)
 
 #: The exact query that broke the real environment: a field that no longer exists.
 DEAD_QUERY = {
-    "model": "integrations.DeviceConfigurationProfile",
+    "model": "integrations.LoginBanner",
     "operator": "or",
     "clauses": [{"field": "http_disabled", "op": "eq", "value": False}],
 }
@@ -54,24 +52,23 @@ class ApplyControlsCatalogCommandTests(TestCase):
         snapshot = Snapshot.objects.create(
             management_station=station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
-        self.profile = DeviceConfigurationProfile.objects.create(
-            management_station=station, appliance=appliance, source_snapshot=snapshot,
-            config_source="local")
+        self.profile = LoginBanner.objects.create(
+            management_station=station, appliance=appliance, source_snapshot=snapshot)
 
         # A live control whose stored query names a removed field, with a finding holding a
         # PROTECT reference to it - which is what makes the naive delete fail.
         self.stale = Control.objects.create(
             control_id="MGMT-001", name="Insecure services",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.LOGIN_BANNER,
             description="x", default_severity=Control.Severity.HIGH)
         ControlQuery.objects.create(
             control=self.stale, name="Baseline", canonical_query=DEAD_QUERY, is_baseline=True)
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.COMPLETED,
             started_at=timezone.now(), completed_at=timezone.now())
-        DeviceConfigurationFinding.objects.create(
+        LoginBannerFinding.objects.create(
             assessment_run=self.run, control=self.stale,
-            device_configuration_profile=self.profile,
+            login_banner=self.profile,
             severity=Control.Severity.HIGH, title="t")
 
     def _run(self, *args):
@@ -102,7 +99,7 @@ class ApplyControlsCatalogCommandTests(TestCase):
         self.assertNotIn("MGMT-001", live)
         self.assertIn("PAN-MGT-001", live)
         self.assertIn("PAN-MGT-006", live)
-        self.assertEqual(DeviceConfigurationFinding.objects.count(), 0)
+        self.assertEqual(LoginBannerFinding.objects.count(), 0)
 
     def test_apply_succeeds_despite_the_protected_finding(self):
         """The naive fix - delete the control - raises ProtectedError. The findings must go

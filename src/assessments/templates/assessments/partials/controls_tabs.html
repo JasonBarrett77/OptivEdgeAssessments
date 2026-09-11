@@ -1,18 +1,18 @@
 {% load lucide %}
 <div class="flex shrink-0 gap-2 border-b border-slate-200 px-4">
     <a
-        href="/assessments/catalogs/"
-        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'catalogs' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
-    >
-        {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
-        Catalogs
-    </a>
-    <a
         href="/assessments/controls/"
         class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'controls' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
     >
         {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
         Active Controls
+    </a>
+    <a
+        href="/assessments/catalogs/"
+        class="inline-flex h-9 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors {% if active_tab == 'catalogs' %}border-blue-500 text-slate-900{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
+    >
+        {% lucide "book-marked" class="h-3.5 w-3.5 shrink-0" %}
+        Catalogs
     </a>
     <a
         href="/assessments/system/"

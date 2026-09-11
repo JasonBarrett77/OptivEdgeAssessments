@@ -1,0 +1,435 @@
+{% extends "assessments/configuration_base.html" %}
+{% load lucide %}
+
+{% comment %}
+Ask a question of one object, read the answer. The pattern Security Rules established: a bar
+showing the query that is applied, an overlay that builds one, and the rows that match.
+
+The builder's field list is rendered from the COMPILER's own registry rather than written out
+here, which is the one thing this page does differently from the security rules page - there,
+the fields and their operators are typed into the template a second time.
+{% endcomment %}
+
+{% block object_content %}
+<div class="flex h-full min-h-0 flex-col">
+
+    <div class="flex shrink-0 items-center gap-2 py-2">
+        <div class="min-w-0 flex-1 truncate border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700"
+             title="{{ search_summary }}">
+            {% if search_query %}{{ search_summary }}{% else %}<span class="text-slate-400">No query applied</span>{% endif %}
+        </div>
+        <a href="?{% if search_state_token %}search_state={{ search_state_token }}&amp;{% endif %}edit_search=1"
+           class="inline-flex h-8 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
+            {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
+            {% if search_query %}Edit query{% else %}Build a query{% endif %}
+        </a>
+        {% if search_query %}
+        <a href="{{ clear_search_url }}"
+           class="inline-flex h-8 shrink-0 items-center border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
+            Clear
+        </a>
+        {% endif %}
+        <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
+            {{ shown_count }} of {{ total_count }}
+        </div>
+    </div>
+
+    {% if search_error %}
+    <div class="mb-2 shrink-0 border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+        {{ search_error }}
+    </div>
+    {% endif %}
+
+    {% if not total_count %}
+    <div class="px-4 py-8 text-center text-sm text-slate-500">
+        Nothing has been normalized yet.
+    </div>
+    {% elif not rows %}
+    <div class="px-4 py-8 text-center text-sm text-slate-500">
+        No {{ config_object.label }} matches this query.
+    </div>
+    {% else %}
+    <div class="min-h-0 flex-1 overflow-auto">
+        <table class="analytical-table w-full border-collapse">
+            <thead>
+                <tr>
+                    {% for column in columns %}
+                    <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">{{ column }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    {% for cell in row %}
+                    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800">{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+{% if edit_search_open %}
+{{ field_operators|json_script:"query-fields" }}
+{{ search_model|json_script:"query-model" }}
+{% comment %}
+Chrome, spacing and controls deliberately match the security rules builder. It is the same
+task on a different model, and two builders that look different read as two features - a
+person who has learned one should not have to learn this one.
+{% endcomment %}
+<div class="absolute inset-0 z-40 flex items-center justify-center bg-slate-900/20 px-6 py-6">
+    <div class="flex h-full max-h-full w-full max-w-7xl flex-col border border-slate-200 bg-white shadow-sm">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
+            <h1 class="truncate text-sm font-semibold text-slate-900">{{ config_object.label }} Query Builder</h1>
+            <a
+                href="{{ edit_search_close_url }}"
+                class="inline-flex h-8 w-8 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                aria-label="Close query builder"
+                title="Close"
+            >
+                {% lucide "x" class="h-4 w-4" %}
+            </a>
+        </div>
+        <form method="post" class="flex min-h-0 flex-1 flex-col">
+            {% csrf_token %}
+            <div class="min-h-0 flex-1 overflow-auto px-4 py-4">
+                <div class="flex flex-col gap-4">
+                    <div class="min-w-0 flex-1">
+                        <div id="query-builder-root" class="ml-4 mr-4 flex flex-col gap-1"></div>
+                        <div class="mt-4 flex justify-center">
+                            <button
+                                type="button"
+                                id="query-builder-add-group"
+                                class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                Add Group
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="query-json" name="search" rows="1" class="hidden">{{ search_payload }}</textarea>
+                    <div id="query-builder-json-preview" class="hidden border border-slate-200 bg-slate-50">
+                        <div class="border-b border-slate-200 px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                            Canonical Query JSON
+                        </div>
+                        <textarea
+                            id="query-json-preview"
+                            rows="12"
+                            readonly
+                            class="min-h-56 w-full resize-y border-0 bg-slate-50 px-3 py-3 font-mono text-[12px] text-slate-800 focus:outline-none"
+                        ></textarea>
+                    </div>
+                    <span id="query-builder-error" class="text-xs text-red-700">{{ search_error }}</span>
+                </div>
+            </div>
+            <div class="border-t border-slate-200 px-4 py-3">
+                <div class="flex items-center justify-between gap-4">
+                    <button
+                        type="submit"
+                        class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    >
+                        Apply Query
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            id="query-builder-json-toggle"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            aria-expanded="false"
+                            aria-controls="query-builder-json-preview"
+                        >
+                            Show JSON
+                        </button>
+                        <a
+                            href="{{ edit_search_close_url }}"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        >
+                            Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+(function () {
+    const root = document.getElementById("query-builder-root");
+    const jsonField = document.getElementById("query-json");
+    const preview = document.getElementById("query-json-preview");
+    const previewPanel = document.getElementById("query-builder-json-preview");
+    const jsonToggle = document.getElementById("query-builder-json-toggle");
+    const addGroupButton = document.getElementById("query-builder-add-group");
+    if (!root || !jsonField) { return; }
+
+    const MODEL = JSON.parse(document.getElementById("query-model").textContent);
+    const FIELDS = JSON.parse(document.getElementById("query-fields").textContent);
+    const FIELD_NAMES = Object.keys(FIELDS);
+
+    function newClause() {
+        const field = FIELD_NAMES[0];
+        return { field: field, op: FIELDS[field][0], value: "", negated: false };
+    }
+    function newGroup() { return { operator: "and", clauses: [newClause()] }; }
+    function isGroup(node) {
+        return node && Object.prototype.hasOwnProperty.call(node, "operator");
+    }
+    function hasGroups(node) { return node.clauses.some(isGroup); }
+
+    let tree;
+    try {
+        const existing = jsonField.value ? JSON.parse(jsonField.value) : null;
+        tree = existing && existing.operator ? existing : newGroup();
+    } catch (e) { tree = newGroup(); }
+    if (!tree.clauses || !tree.clauses.length) { tree.clauses = [newClause()]; }
+
+    // The compiler's value is typed: an integer field refuses a string and says so at apply
+    // time. Guessing from what was typed keeps that error for genuinely wrong input.
+    function coerce(text) {
+        const trimmed = String(text).trim();
+        if (trimmed === "true") { return true; }
+        if (trimmed === "false") { return false; }
+        if (trimmed !== "" && /^-?\d+$/.test(trimmed)) { return parseInt(trimmed, 10); }
+        return text;
+    }
+
+    // `model` belongs to the ROOT node only. A nested group carrying it is rejected outright -
+    // "Search group must only contain 'operator' and 'clauses'".
+    function serialise(node, isRoot) {
+        if (isGroup(node)) {
+            const group = { operator: node.operator,
+                            clauses: node.clauses.map(function (c) { return serialise(c, false); }) };
+            return isRoot ? Object.assign({ model: MODEL }, group) : group;
+        }
+        return { field: node.field, op: node.op, value: coerce(node.value),
+                 negated: !!node.negated };
+    }
+
+    function sync() {
+        const payload = serialise(tree, true);
+        jsonField.value = JSON.stringify(payload);
+        if (preview) { preview.value = JSON.stringify(payload, null, 2); }
+    }
+
+    function el(tag, className) {
+        const node = document.createElement(tag);
+        if (className) { node.className = className; }
+        return node;
+    }
+    function slot(child, className) {
+        const wrapper = el("div", "shrink-0 " + className);
+        wrapper.appendChild(child);
+        return wrapper;
+    }
+    function option(value, selected) {
+        const node = el("option");
+        node.value = value;
+        node.textContent = value;
+        if (value === selected) { node.selected = true; }
+        return node;
+    }
+
+    function depthClasses(depth) {
+        const palette = ["border-slate-200 bg-slate-50", "border-sky-200 bg-sky-50",
+                         "border-emerald-200 bg-emerald-50", "border-amber-200 bg-amber-50"];
+        return palette[depth % palette.length];
+    }
+
+    function toggleControl(checked, onChange, id) {
+        const label = el("label", "inline-grid cursor-pointer grid-cols-[auto,auto,auto,auto] items-center");
+        label.setAttribute("for", id);
+        const input = el("input", "peer sr-only appearance-none");
+        input.type = "checkbox";
+        input.id = id;
+        input.checked = checked;
+        input.addEventListener("change", onChange);
+        const track = el("span", "relative inline-flex h-4 w-7 shrink-0 rounded-full bg-slate-300 transition-colors duration-200 peer-checked:bg-blue-600 peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-blue-500/20 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 after:content-[\'\'] peer-checked:after:translate-x-3");
+        track.setAttribute("aria-hidden", "true");
+        const spacer = el("span", "col-start-3 row-start-1 ml-2 text-xs leading-none text-slate-600");
+        spacer.innerHTML = "&nbsp;";
+        const off = el("span", "col-start-4 row-start-1 text-xs leading-none text-slate-600 transition-all duration-200 peer-checked:-translate-y-0.5 peer-checked:opacity-0");
+        off.textContent = "No";
+        const on = el("span", "col-start-4 row-start-1 translate-y-0.5 opacity-0 text-xs leading-none text-slate-600 transition-all duration-200 peer-checked:translate-y-0 peer-checked:opacity-100");
+        on.textContent = "Yes";
+        [input, track, spacer, off, on].forEach(function (n) { label.appendChild(n); });
+        return label;
+    }
+
+    function headerRow() {
+        const header = el("div", "flex flex-wrap items-end gap-2 px-3");
+        [["", "w-8"], ["", "w-10"], ["Field", "min-w-0 flex-[1.2_1_0%]"],
+         ["Operator", "min-w-0 flex-[0.8_1_0%]"], ["Value", "min-w-0 flex-[1.8_1_0%]"],
+         ["Negate?", "w-24"]].forEach(function (pair) {
+            const node = el("div", pair[1] + " shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-600");
+            node.textContent = pair[0];
+            header.appendChild(node);
+        });
+        return header;
+    }
+
+    function clauseRow(node, parent, index, path) {
+        const row = el("div", "px-3 py-1");
+        const layout = el("div", "flex flex-wrap items-center gap-2");
+
+        const remove = el("button", "inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700");
+        remove.type = "button";
+        remove.setAttribute("aria-label", "Remove clause");
+        remove.innerHTML = `{% lucide "x" class="h-3 w-3" %}`;
+        remove.addEventListener("click", function () {
+            parent.clauses.splice(index, 1);
+            if (!parent.clauses.length) { parent.clauses.push(newClause()); }
+            render();
+        });
+
+        const operator = el("div", "inline-flex h-8 w-full items-center justify-center text-sm font-medium uppercase tracking-wide text-slate-600");
+        operator.textContent = index > 0 ? parent.operator : "";
+
+        const field = el("select", "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900");
+        FIELD_NAMES.forEach(function (name) { field.appendChild(option(name, node.field)); });
+        field.addEventListener("change", function () {
+            node.field = field.value;
+            // Operators are per FIELD. Keeping the old one across a change is how a query that
+            // looks right compiles to "unsupported operator".
+            if (FIELDS[node.field].indexOf(node.op) === -1) { node.op = FIELDS[node.field][0]; }
+            render();
+        });
+
+        const op = el("select", "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900");
+        FIELDS[node.field].forEach(function (name) { op.appendChild(option(name, node.op)); });
+        op.addEventListener("change", function () { node.op = op.value; sync(); });
+
+        const value = el("input", "h-8 w-full border border-slate-300 bg-white px-2 text-sm text-slate-900");
+        value.type = "text";
+        value.value = node.value === null || node.value === undefined ? "" : String(node.value);
+        value.addEventListener("input", function () { node.value = value.value; sync(); });
+
+        const negate = toggleControl(Boolean(node.negated), function (event) {
+            node.negated = event.target.checked;
+            sync();
+        }, "query-clause-negated-" + path);
+
+        layout.appendChild(slot(remove, "flex w-8 justify-center"));
+        layout.appendChild(slot(operator, "w-10"));
+        layout.appendChild(slot(field, "min-w-0 flex-[1.2_1_0%]"));
+        layout.appendChild(slot(op, "min-w-0 flex-[0.8_1_0%]"));
+        layout.appendChild(slot(value, "min-w-0 flex-[1.8_1_0%]"));
+        layout.appendChild(slot(negate, "flex w-24 justify-start"));
+        row.appendChild(layout);
+        return row;
+    }
+
+    function connector(operator, onToggle) {
+        const wrapper = el("div", "relative z-10 -my-4 flex justify-center");
+        const button = el("button", operator === "and"
+            ? "inline-flex h-8 min-w-16 items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-4 text-[11px] font-medium uppercase tracking-wide text-blue-700 shadow-sm hover:bg-blue-100"
+            : "inline-flex h-8 min-w-16 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 text-[11px] font-medium uppercase tracking-wide text-amber-700 shadow-sm hover:bg-amber-100");
+        button.type = "button";
+        button.textContent = operator.toUpperCase();
+        button.setAttribute("aria-label", "Toggle group operator");
+        button.addEventListener("click", onToggle);
+        wrapper.appendChild(button);
+        return wrapper;
+    }
+
+    function loneClauseBox(clause, parent, index, depth, path) {
+        const box = el("div", "relative flex flex-col gap-3 border px-6 py-4 " + depthClasses(depth));
+        const body = el("div", "flex flex-col");
+        body.appendChild(headerRow());
+        body.appendChild(clauseRow(clause, parent, index, path));
+        box.appendChild(body);
+        return box;
+    }
+
+    function groupBox(node, parent, index, depth, path) {
+        const group = el("div", "relative flex flex-col gap-3 border px-6 py-4 " + depthClasses(depth));
+
+        if (!hasGroups(node) && node.clauses.length > 1) {
+            const toggle = el("button", "absolute top-1/2 left-0 z-10 inline-flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700 shadow-sm hover:bg-blue-50");
+            toggle.type = "button";
+            toggle.setAttribute("aria-label", "Toggle group operator");
+            toggle.innerHTML = `{% lucide "refresh-cw" class="h-4 w-4" %}`;
+            toggle.addEventListener("click", function () {
+                node.operator = node.operator === "and" ? "or" : "and";
+                render();
+            });
+            group.appendChild(toggle);
+        }
+        if (parent) {
+            const drop = el("button", "absolute top-1/2 right-0 z-10 inline-flex h-10 w-10 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50");
+            drop.type = "button";
+            drop.setAttribute("aria-label", "Delete group");
+            drop.innerHTML = `{% lucide "trash-2" class="h-4 w-4" %}`;
+            drop.addEventListener("click", function () {
+                parent.clauses.splice(index, 1);
+                if (!parent.clauses.length) { parent.clauses.push(newClause()); }
+                render();
+            });
+            group.appendChild(drop);
+        }
+
+        const body = el("div", "flex flex-col");
+        if (hasGroups(node)) {
+            const stack = el("div", "flex flex-col gap-1");
+            node.clauses.forEach(function (child, i) {
+                if (i > 0) {
+                    stack.appendChild(connector(node.operator, function () {
+                        node.operator = node.operator === "and" ? "or" : "and";
+                        render();
+                    }));
+                }
+                // A bare clause sitting beside a group still needs a box, but it must be
+                // rendered against its REAL parent. Wrapping it in a synthetic group
+                // `{clauses: [child]}` looked identical and silently broke removal: the delete
+                // spliced a throwaway array and the clause stayed in the tree.
+                stack.appendChild(isGroup(child)
+                    ? groupBox(child, node, i, depth + 1, path + "-" + i)
+                    : loneClauseBox(child, node, i, depth + 1, path + "-" + i));
+            });
+            body.appendChild(stack);
+        } else {
+            body.appendChild(headerRow());
+            node.clauses.forEach(function (child, i) {
+                body.appendChild(clauseRow(child, node, i, path + "-" + i));
+            });
+            const addRow = el("div", "px-3 pt-2");
+            const layout = el("div", "flex flex-wrap items-center gap-3");
+            const add = el("button", "inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700");
+            add.type = "button";
+            add.setAttribute("aria-label", "Add clause");
+            add.innerHTML = `{% lucide "plus" class="h-3 w-3" %}`;
+            add.addEventListener("click", function () { node.clauses.push(newClause()); render(); });
+            layout.appendChild(slot(add, "flex w-8 justify-center"));
+            addRow.appendChild(layout);
+            body.appendChild(addRow);
+        }
+        group.appendChild(body);
+        return group;
+    }
+
+    function render() {
+        root.innerHTML = "";
+        root.appendChild(groupBox(tree, null, 0, 0, "0"));
+        sync();
+    }
+
+    if (addGroupButton) {
+        addGroupButton.addEventListener("click", function () {
+            // A group beside the existing clauses, not around them: the root stays the root.
+            tree.clauses.push(newGroup());
+            render();
+        });
+    }
+    if (jsonToggle && previewPanel) {
+        jsonToggle.addEventListener("click", function () {
+            const open = previewPanel.classList.toggle("hidden") === false;
+            jsonToggle.setAttribute("aria-expanded", String(open));
+            jsonToggle.textContent = open ? "Hide JSON" : "Show JSON";
+        });
+    }
+    render();
+})();
+</script>
+{% endif %}
+{% endblock %}

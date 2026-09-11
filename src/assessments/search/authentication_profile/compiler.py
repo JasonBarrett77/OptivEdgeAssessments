@@ -81,6 +81,9 @@ FIELD_COMPILERS = {
     "user_domain": build_text_compiler("user_domain", "user_domain"),
     "username_modifier": build_text_compiler("username_modifier", "username_modifier"),
     "mfa_enabled": build_boolean_compiler("mfa_enabled", "mfa_enabled"),
+    "allow_list_is_all": build_boolean_compiler("allow_list_is_all", "allow_list_is_all"),
+    "is_administrative": build_boolean_compiler("is_administrative", "is_administrative"),
+    "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "lockout_failed_attempts": build_integer_compiler(
         "lockout_failed_attempts", "lockout_failed_attempts"),
     "lockout_time_minutes": build_integer_compiler(

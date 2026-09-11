@@ -172,17 +172,18 @@ or topology.
   was a latent bug, and now reads `ManagementStation.station_type` (`is_panorama_managed()`).
   That is the explicit discriminant; use it here too.
 
-* **`DeviceConfigurationProfile` is one row per Appliance, so an HA pair produces two.**
-  Most of its fields (NTP, banner, idle timeout, permitted-IPs, service enablement) are
-  synchronized across the pair, so a control targeting them yields two identical findings
-  for what is one configuration. HA fields genuinely differ per node and should not be
-  collapsed. There is currently nothing comparing the two profiles, so a pair that has
+* **The device-wide models are one row per Appliance, so an HA pair produces two.**
+  `PasswordComplexityPolicy`, `AuthenticationSettings`, `LoginBanner`, `ManagementTlsBinding`,
+  `MasterKey`, `UpdateServerSettings` and `LoggingSettings` hold settings that are mostly
+  synchronized across the pair, so a control targeting them yields two identical findings for
+  what is one configuration. HA state, when it is modelled, genuinely differs per node and
+  should not be collapsed. There is currently nothing comparing the peers, so a pair that has
   *drifted* where it should be synced produces no finding at all.
 
 * **An enforcement point is a vsys, and a single-vsys firewall is still a vsys.** There is
-  no "device-level" assessment target for policy or objects; `Control.target_model` picks
-  between `integrations.SecurityRule` / `integrations.DeviceConfigurationProfile` and that
-  is the whole vocabulary.
+  no "device-level" assessment target for policy or objects. Device-wide settings are
+  appliance-scoped models of their own, and `Control._CONTROL_TYPE_TARGET_MODEL` is the whole
+  vocabulary: one model per control type.
 
 ## Operating modes are not assessed, deliberately
 
@@ -204,21 +205,41 @@ a field.
 Until then: the estate is assumed to be in normal operational mode, which is true of every lab
 device and stated here so it is a known assumption rather than an accident.
 
-## Graded severity
+## Severity
 
-A control may carry a `severity_scale` from the corpus: `bands` (numeric) or `ranks` (named
-values), plus `sentinels`. `Control.severity_for_measure(value)` reads it and
-`severity_grading.graded_severity` applies it when a finding is created, falling back to
-`default_severity` whenever it cannot say.
+**One mechanism: queries.** A control has exactly one baseline query saying what fires, and
+`Control.default_severity` is the severity a finding reports when only that matched. A
+non-baseline query carrying `adjusted_severity` states a severity for a specific condition;
+where several match, the worst wins — `control_queries.derive_control_query_severity_value` —
+and it overrides the baseline tier in either direction. Downward is the important one: it is how
+an assessor relaxes a finding in the field.
 
-Three rules that are easy to get backwards: **sentinels are checked first** (PAN-OS overloads
-0, and a band lookup would rank it best when it means the protection is off); **`direction`
-selects the band key** — `higher-is-worse` uses `min`, `lower-is-worse` uses `max` — and is not
-always the semantic reading; and a band **never reports worse than the control's own
-severity**, so the headline stays safe to quote unmeasured.
+**The most severe matching adjustment wins, deliberately — even over one written to relax.** An
+operator who writes a query for critical assets and later a broader one for normal assets that
+overlaps it gets the critical severity on the overlap, whichever was written first. Relaxing a
+finding therefore works only where no more severe adjustment also matches. Jason, 2026-09-11:
+"Yes that was intentional."
 
-The field being measured is read from the control's own baseline query, not declared, so it
-cannot drift from the threshold it grades.
+One finding per (assessment run, control, object), guaranteed by a unique constraint, however
+many queries match. `matched_query_names` on the finding records which ones did.
+
+**A baseline query must not carry a severity** — `ControlQuery.clean()` and the catalog schema
+both refuse it, because the baseline tier's severity lives on the control. **A non-baseline
+query must**, or it matches and contributes nothing.
+
+**A severity query fires on its own**, so it has to repeat whatever else the baseline required.
+A query scoped only to the measured field widens the control.
+
+A second mechanism — declarative `severity_scale` bands on the control — existed until
+2026-09-09 and was removed. It was seed-only and reachable from no form, so operators could not
+touch it; it was capped and could never escalate; and it produced every severity defect this
+project had. The ten scaled controls became eight operator queries with a proven-zero behaviour
+diff — most bands equalled the control default and needed no query at all. Do not reintroduce
+it; `tests/test_severity_assignment.py` asserts no seed carries one.
+
+**Sentinels need their own query.** PAN-OS overloads 0 — `failed-attempts 0` is lockout off,
+`idle-timeout 0` is sessions never expiring — and it sorts as the gentlest value on any range
+comparison. Write `eq 0` separately at the severity the meaning deserves.
 
 ## Shared machinery for findings
 
@@ -244,10 +265,11 @@ two query parameters, groups findings by subject in one query, filters to rows w
 and sets the counts.
 
 `finding_controls = ()` means **every** control of that finding model. That is right for a tab
-owning an object type outright, and silently wrong for the four tabs sharing
-`DeviceConfigurationProfile` - omit it there and the tab shows the other three's findings.
-`test_device_tab_tables` fails when a tab sharing a finding model does not name its controls,
-or when two tabs claim the same one.
+owning an object type outright, and silently wrong for tabs that share a finding model - omit it
+there and each tab shows the others' findings. No two tabs have shared one since
+`DeviceConfigurationProfile` was split and deleted on 2026-09-11, but `test_device_tab_tables`
+still fails when a tab sharing a finding model does not name its controls, or when two tabs
+claim the same one.
 
 ## Device tab templates
 
@@ -267,9 +289,18 @@ Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportun
 
 **The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) and
 **the client report** (`reporting/context.py`, `reporting/workbook_data.py`) both enumerate
-exactly two finding models — `RuleFinding` and `DeviceConfigurationFinding`. Seven exist. The
-other five are invisible in both: 22 of the lab's 72 findings, including every certificate
-finding.
+exactly one finding model — `RuleFinding`. **Seventeen exist.** The other sixteen are invisible
+in both, including every certificate finding, every authentication finding, every administrator
+finding and every device-wide setting.
+
+**Until 2026-09-11 they enumerated a second, `DeviceConfigurationFinding`.**
+`DeviceConfigurationProfile` was split into seven models, one per control cluster, and then
+deleted with its finding model. The 22 controls that wrote `DeviceConfigurationFinding` -
+password complexity, authentication settings, login banner, master key, update server, logging,
+management TLS - now write seven finding models neither surface enumerates, so the
+device-configuration findings the client deliverable used to include are gone from it. That
+follows this section's rule rather than breaking it, and is recorded here so the loss is counted
+rather than discovered.
 
 It is worse than an omission on the report side: `build_report_context()` raises
 `ValueError("No assessment run with rule findings exists.")` when there are no `RuleFinding`

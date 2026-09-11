@@ -33,30 +33,49 @@ class DeviceTab(NamedTuple):
     section: str
 
 
-#: Section order, left to right. Keyed on where the object's config lives in PAN-OS - the same
-#: test the models already use to decide scope, so a tab's section is not a new judgment call.
+#: Section order, left to right.
 #:
 #: A flat bar was already wrapping at ten tabs, and ten is 30 of 235 controls from 3 of 28
 #: domains. The corpus has 43 distinct config subtrees at depth two, and object tabs track
 #: subtrees rather than controls, so the flat bar was heading for roughly forty entries.
 #: Sections cap what is on screen at the size of one subtree instead of the whole corpus.
-SECTIONS: tuple[str, ...] = ("Device", "Certificates", "Network")
+#:
+#: Sections were originally keyed on where the object's config lives in PAN-OS, so that a tab's
+#: section was not a new judgment call. AUTHENTICATION IS THE EXCEPTION, and it is deliberate:
+#: the six tabs in it live in three different subtrees - `deviceconfig` (Authentication Settings,
+#: Password Complexity), `mgt-config` (Administrators) and `shared` (Authentication Profiles,
+#: Password Profiles, AAA Server Profiles) - and keying on the subtree scattered them across a
+#: Device section that had grown to eleven tabs. An engineer asking "how do administrators get
+#: in here" was reading three of those eleven and had no way to know which three.
+#:
+#: So the rule is: key on the subtree unless a QUESTION spans several of them, and then key on
+#: the question. Anything else lands in Device by default, which is what Device now is - the
+#: appliance settings that are nobody else's story.
+SECTIONS: tuple[str, ...] = ("Device", "Authentication", "Certificates", "Network")
 
 
 #: Display order, left to right.
 DEVICE_TABS: tuple[DeviceTab, ...] = (
-    # Device - deviceconfig/... and mgt-config/..., one row per appliance for most of them.
-    DeviceTab("assessment_device_configuration_profile_list", "Device Configuration", "monitor", "Device"),
+    # Device - the appliance's own settings, mostly one row per appliance.
     DeviceTab("assessment_management_interface_list", "Management Interfaces", "shield", "Device"),
     DeviceTab("assessment_login_banner_list", "Login Banner", "book-marked", "Device"),
     DeviceTab("assessment_management_tls_list", "Management TLS", "clipboard-check", "Device"),
     DeviceTab("assessment_master_key_list", "Master Key", "refresh-cw", "Device"),
-    DeviceTab("assessment_password_complexity_list", "Password Complexity", "eye", "Device"),
-    DeviceTab("assessment_authentication_settings_list", "Authentication Settings",
-              "clipboard-check", "Device"),
+    # Authentication - who can log in, how they are challenged, and against what. Ordered as the
+    # question is asked: the accounts, the profile each one resolves through, the device-wide
+    # settings behind that, the servers it reaches, and the password policy underneath.
+    DeviceTab("assessment_admin_user_list", "Administrators", "shield", "Authentication"),
     DeviceTab("assessment_authentication_profile_list", "Authentication Profiles",
-              "shield", "Device"),
-    DeviceTab("assessment_password_profile_list", "Password Profiles", "book-marked", "Device"),
+              "shield", "Authentication"),
+    DeviceTab("assessment_authentication_sequence_list", "Authentication Sequences",
+              "list-checks", "Authentication"),
+    DeviceTab("assessment_authentication_settings_list", "Authentication Settings",
+              "clipboard-check", "Authentication"),
+    DeviceTab("assessment_server_profile_list", "AAA Server Profiles", "server", "Authentication"),
+    DeviceTab("assessment_password_profile_list", "Password Profiles", "book-marked",
+              "Authentication"),
+    DeviceTab("assessment_password_complexity_list", "Password Complexity", "eye",
+              "Authentication"),
     # Certificates - shared/certificate, certificate-profile, ssl-tls-service-profile. All three
     # are appliance-anchored objects with a scope on the row rather than device settings.
     DeviceTab("assessment_certificate_list", "Certificates", "clipboard-check", "Certificates"),

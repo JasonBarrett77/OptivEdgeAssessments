@@ -18,12 +18,12 @@ The banner shown before authentication, and whether an administrator must
                         <tr class="hover:bg-slate-50">
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.profile.appliance }}</td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800" style="max-width:28rem">
-                                {% if row.profile.login_banner %}<span title="{{ row.profile.login_banner }}">{{ row.profile.login_banner|truncatechars:90 }}</span>
+                                {% if row.profile.text %}<span title="{{ row.profile.text }}">{{ row.profile.text|truncatechars:90 }}</span>
                                 {% else %}<span class="text-amber-700">Not set</span>{% endif %}
                                 {% if show_provenance and row.banner_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.banner_provenance }}</div>{% endif %}
                             </td>
                             <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
-                                {% if row.profile.ack_login_banner %}<span class="text-slate-800">Required</span>
+                                {% if row.profile.acknowledgement_required %}<span class="text-slate-800">Required</span>
                                 {% else %}<span class="text-amber-700">Not required</span>{% endif %}
                                 {% if show_provenance and row.ack_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.ack_provenance }}</div>{% endif %}
                             </td>

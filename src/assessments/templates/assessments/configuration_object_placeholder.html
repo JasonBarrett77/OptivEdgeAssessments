@@ -1,0 +1,26 @@
+{% extends "assessments/configuration_base.html" %}
+
+{% block object_content %}
+<div class="max-w-2xl px-1 py-6 text-[12px] leading-5 text-slate-600">
+    <p class="text-slate-500">
+        No query view for this object. Its settings are fields OF the device configuration
+        rather than an object of their own &mdash; the login banner, the management TLS binding,
+        the authentication settings, the minimum password complexity and the master key state all
+        live there, and
+        <a class="font-medium text-blue-700 underline" href="/assessments/configuration/device/management/">Device &rsaquo; Setup &rsaquo; Management</a>
+        already queries them.
+    </p>
+    <p class="mt-3">
+        A page of its own would need a model and a compiler of its own. Until something needs
+        that, the question is askable one level up.
+    </p>
+    {% if config_object.findings_href %}
+    <p class="mt-3">
+        A different question &mdash; <span class="font-medium text-slate-800">what did the
+        controls find</span> &mdash; is answered by this object's findings tab,
+        <a class="font-medium text-blue-700 underline" href="{{ config_object.findings_href }}">{{ config_object.findings_href }}</a>.
+        That page stays where it is; the two are siblings over the same object.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

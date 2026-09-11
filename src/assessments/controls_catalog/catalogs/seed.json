@@ -13,9 +13,422 @@
       },
       "controls": [
         {
+          "control_id": "PAN-AAA-001",
+          "name": "LDAP Server Profiles Require SSL/TLS",
+          "control_type": "server_profile",
+          "default_severity": "critical",
+          "description": "An LDAP bind carries the bind account's credentials. Without SSL/TLS they cross the network in the clear, and anyone on the path reads the account that can enumerate the directory.\n\nABSENT MEANS ON. `ssl` is IMPLICIT YES - measured 2026-09-09 by writing a profile without the key and opening it in the UI, where the box renders checked. So this fires only on an EXPLICIT `no`. Reading the key as \"absent means off\" would report every profile that has never been edited as cleartext.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\nApplies to profiles used for administrator authentication, User-ID group mapping and GlobalProtect alike - the profile does not know what will reference it.",
+          "rationale": "A cleartext bind hands over the account that can read the whole directory.",
+          "audit": "Device > Server Profiles > LDAP > <profile> > Require SSL/TLS secured connection.",
+          "remediation": "Tick Require SSL/TLS secured connection, and pair it with port 636 and certificate verification (PAN-AAA-002) - encryption without verification still accepts any certificate presented.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "LDAP profiles with SSL/TLS explicitly off.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "ldap"
+                  },
+                  {
+                    "field": "ldap_ssl",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-002",
+          "name": "LDAP Verify Server Certificate",
+          "control_type": "server_profile",
+          "default_severity": "high",
+          "description": "Encryption without verification stops an eavesdropper and not an interceptor: the firewall will complete a TLS handshake with whatever presents itself, so a machine-in-the-middle collects the bind credentials and relays the session.\n\nABSENT MEANS OFF here, unlike its neighbour four lines up the same dialog. The Help says so outright - \"Select this option (cleared by default)\" - and the committed object omits it. So this fires on absence, and PAN-AAA-001 does not. Neighbouring checkboxes on one screen do not share a default.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\nIt fires whether or not SSL is on. A profile with neither has two things to fix and the remediation for this one is the same either way.",
+          "rationale": "TLS to an unverified server authenticates nothing.",
+          "audit": "Device > Server Profiles > LDAP > <profile> > Verify Server Certificate for SSL sessions.",
+          "remediation": "Import the CA that issued the directory server's certificate into the firewall certificate store, then tick Verify Server Certificate.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "LDAP profiles not verifying the server certificate.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "ldap"
+                  },
+                  {
+                    "field": "ldap_verify_server_certificate",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-004",
+          "name": "RADIUS Uses Strong Authentication Protocol",
+          "control_type": "server_profile",
+          "default_severity": "high",
+          "description": "PAP sends the password obscured only by the shared secret, so anyone who learns the secret - or captures enough traffic - recovers credentials. CHAP removes that, and PEAP-MSCHAPv2 or EAP-TTLS put the whole exchange inside TLS with server-certificate validation.\n\nTWO TIERS, and they are the corpus's own: CHAP is the MINIMUM and PEAP-MSCHAPv2 the PREFERRED. PAP reports at the control's `high`; CHAP reports `medium` through the second query below. Anything TLS-wrapped passes.\n\nNO IMPLICIT VALUE IS NEEDED. `protocol` is refused at COMMIT if omitted, so a RADIUS profile that exists always states one - measured, not assumed.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\n",
+          "rationale": "The protocol decides whether a captured RADIUS exchange yields a password.",
+          "audit": "Device > Server Profiles > RADIUS > <profile> > Authentication Protocol.",
+          "remediation": "Move to PEAP-MSCHAPv2 or EAP-TTLS, which needs a certificate profile on the RADIUS profile so the server certificate is validated. CHAP is the floor, not the target.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "RADIUS profiles below the preferred protocol.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "radius"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "protocol",
+                        "op": "eq",
+                        "value": "PAP"
+                      },
+                      {
+                        "field": "protocol",
+                        "op": "eq",
+                        "value": "CHAP"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Meets the minimum, misses the target",
+              "short_description": "CHAP - the corpus minimum, not its preferred.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "radius"
+                  },
+                  {
+                    "field": "protocol",
+                    "op": "eq",
+                    "value": "CHAP"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-006",
+          "name": "TACACS+ Profile Hardening",
+          "control_type": "server_profile",
+          "default_severity": "medium",
+          "description": "TACACS+ encrypts the body of its packets with the shared secret, but PAP still carries the password in a form recoverable by anyone holding that secret. CHAP is the corpus minimum and its preferred value both.\n\nTHE CORPUS NOTE'S WIRE FORM IS WRONG FOR THIS KIND. It says to write `<protocol><CHAP/></protocol>`; measured 2026-09-09, tacplus stores `protocol` as TEXT and refuses the element form - \"tacplus -> <name> -> protocol is invalid\". The RADIUS profile beside it does take the element form, and `action=complete` returns the same value list for both, so the schema oracle cannot tell them apart.\n\nThe enumeration measured on this platform is CHAP | PAP. The corpus mentions `auto` on 12.1; it is not offered here.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\n",
+          "rationale": "PAP inside TACACS+ is recoverable by anyone holding the shared secret.",
+          "audit": "Device > Server Profiles > TACACS+ > <profile> > Authentication Protocol.",
+          "remediation": "Set the protocol to CHAP. Pair it with use-single-connection and a per-device shared secret, and reach the TACACS+ server over the management network only.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "TACACS+ profiles using PAP.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "tacplus"
+                  },
+                  {
+                    "field": "protocol",
+                    "op": "eq",
+                    "value": "PAP"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-008",
+          "name": "SAML IdP Certificate Validation Enabled",
+          "control_type": "server_profile",
+          "default_severity": "critical",
+          "description": "With validation off the firewall accepts a SAML assertion signed by anything. That is CVE-2020-2021, an authentication bypass: forge an assertion and become any user the IdP could have named.\n\nABSENT MEANS ON. `validate-idp-certificate` is IMPLICIT YES - measured by writing a profile without the key and opening it in the UI, where the box renders checked. So this fires only on an EXPLICIT `no`, which is somebody having turned it off. Reading absence as \"off\" would report every unedited SAML profile in an estate as bypassable.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\nA bare saml-idp profile cannot exist: `certificate`, `entity-id`, `sso-url` and `sso-bindings` are all refused at commit if missing, so there is always an IdP certificate for this setting to validate.",
+          "rationale": "Validation off is an authentication bypass with a CVE attached.",
+          "audit": "Device > Server Profiles > SAML Identity Provider > <profile> > Validate Identity Provider Certificate.",
+          "remediation": "Tick Validate Identity Provider Certificate. It needs the IdP's signing certificate to be CA-issued and a certificate profile holding that CA; a self-signed IdP certificate is the case the CVE mitigation assumes.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "SAML profiles with IdP certificate validation explicitly off.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "saml-idp"
+                  },
+                  {
+                    "field": "saml_validate_idp_certificate",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-009",
+          "name": "SAML Message Signing Enforced",
+          "control_type": "server_profile",
+          "default_severity": "medium",
+          "description": "Signing the firewall's own authentication requests protects the outbound leg: without it an attacker can tamper with a request in flight. The corpus sets no MINIMUM here - certificate validation already covers the inbound assertion - so this is a preferred-value control and carries its preferred-gap severity.\n\nABSENT MEANS ON, measured the same way as PAN-AAA-008. Fires only on an explicit `no`.\n\nEVERY QUERY CLAUSES ON `kind`. Six kinds share one table and the measured implicit values live on every row, so a query on this column alone would fire on kinds it means nothing for.\n\nThe signing certificate itself is configured on the authentication profile, not here, so a finding on this leaf is about the flag rather than about a missing certificate.",
+          "rationale": "An unsigned request leg is tamperable in flight.",
+          "audit": "Device > Server Profiles > SAML Identity Provider > <profile> > Sign SAML Message to IdP.",
+          "remediation": "Tick Sign SAML Message to IdP, and set a Certificate for Signing Requests on the authentication profile that uses this IdP.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "SAML profiles not signing messages to the IdP.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "saml-idp"
+                  },
+                  {
+                    "field": "saml_want_auth_requests_signed",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
+          "control_id": "PAN-AAA-010",
+          "name": "Authentication Profile Allow Lists Scoped",
+          "control_type": "authentication_profile",
+          "default_severity": "high",
+          "description": "An authentication profile's allow-list decides WHICH users may authenticate through it. Set to `all`, every user the method can reach is admitted - so on a profile bound to administrators, one directory-wide phishing success reaches the management plane.\n\nSCOPED TO ADMINISTRATIVE PROFILES, which is the corpus's own scoping and the same ruling Jason gave for PAN-AUTH-020: \"GlobalProtect, Captive Portal, and even unused authentication profiles are very much separate controls.\" A profile counts as administrative when something under `mgt-config/users` or `deviceconfig/system` names it - derived from the referrer walk PAN-AUTH-025 already performs, which is what turns \"which profiles do administrators use\" from an open question into a column.\n\nTHE SUBJECT IS THE PROFILE, not the administrator. PAN-AUTH-019 and 020 moved to the account because their assertions were about a person's exposure; this one is about a property OF the profile and the remediation is on the profile, so it stays here. Jason, 2026-09-09: the per-user ruling \"is not a general rule. The other authentication profile controls should stay profile-centric.\"\n\n`all` is not a value somebody chose - it is what the Add form leaves behind, and all nine profiles on the lab carry it. That is why the administrative clause is load-bearing rather than decorative: without it this fires on every authentication profile in every estate.",
+          "rationale": "An admin-bound profile open to the whole directory turns one phished user into management-plane access.",
+          "audit": "Device > Authentication Profile > <profile> > Advanced > Allow List, for each profile an administrator authenticates through.",
+          "remediation": "Replace `all` with the named administrator group, sourced through LDAP group mapping over a verified TLS connection (PAN-AAA-001 and 002). Where the profile serves both administrators and users, split it - the allow-list is the only thing separating them.",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AuthenticationProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Administrator-bound profiles whose allow list is `all`.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "allow_list_is_all",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-AAA-011",
+          "name": "Administrator MFA Delivered by RADIUS or SAML",
+          "control_type": "authentication_profile",
+          "default_severity": "high",
+          "description": "An MFA server profile is the firewall's DIRECT integration with a vendor's API - Duo v2, Okta Adaptive, PingID or RSA SecurID - and the platform invokes it for END-USER authentication through Authentication Policy only. It is not invoked for administrator login to the web interface, and not for GlobalProtect.\n\nSo an authentication profile that an administrator authenticates through, carrying an MFA factor, does not give that administrator a second factor. It gives the configuration the APPEARANCE of one. That is the finding: not missing MFA, which is PAN-AUTH-019's subject, but MFA that is configured, visible in the UI, reported by every config audit as present, and silently ignored at the moment it would matter.\n\nThree passages say so in different words. Guide p.221: \"For remote user authentication to GlobalProtect portals and gateways and for administrator authentication to the Panorama and PAN-OS web interface, the firewall integrates with MFA vendors using RADIUS and SAML only.\" Help p.941 says the API integration enforces MFA \"through Authentication policy for end-user authentication only (not for GlobalProtect authentication or administrator authentication)\". Help p.839 says it of the Factors tab itself: \"Although you can configure additional factors, they will not be enforced for these use cases.\" None of them was trusted alone: the same Help was measured wrong twice this month on the lockout fields. Measured 2026-09-10: an administrator bound to a profile whose one factor points at an unresolvable Duo host logged in instantly with the password alone.\n\nADMINISTRATIVE is the whole control. The identical profile serving Authentication Policy is correct configuration and must not fire - which is why the lab carries the pair, two profiles differing in nothing but whether an administrator is bound to one.",
+          "rationale": "Administrators appear to have a second factor and do not have one.",
+          "audit": "Device > Authentication Profile > <profile> > Factors, for each profile named under mgt-config/users or deviceconfig/system. Any MFA server profile listed there is inert for administrator login.",
+          "remediation": "Deliver the second factor through the first factor instead: point the profile's Type at a RADIUS server profile for the MFA vendor's RADIUS endpoint, or at a SAML IdP that enforces MFA. Then remove the Factors entry, which is doing nothing. Keep vendor-API MFA profiles for Authentication Policy, where they work.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Administrator-bound profiles with additional factors enabled and at least one listed.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "mfa_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "mfa_factor_count",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AuthenticationProfile"
+        },
+        {
+          "control_id": "PAN-AAA-012",
+          "name": "Authentication Sequence Fallback Order Safe",
+          "control_type": "authentication_sequence",
+          "default_severity": "medium",
+          "description": "An authentication sequence tries its profiles top to bottom until one succeeds, so a member whose method is `local-database` or `none` is a way in with a credential the firewall itself holds - reached whenever everything above it fails, including when the external servers are down or unreachable. On a sequence an ADMINISTRATOR authenticates through, that is a management-plane login that bypasses the identity system, and an attacker who can knock the external servers over can force it.\n\nSCOPED TO ADMINISTRATIVE SEQUENCES, the corpus's own wording: \"No admin-facing authentication sequence falls back to local-database.\" A sequence counts as administrative when something under `mgt-config/users` or `deviceconfig/system` names it - every administrative binding accepts a sequence, measured 2026-09-11, including both device-wide leaves, which REFUSE a local-database profile but accept a sequence containing one. The identical sequence behind captive portal is other people's control, and the lab carries the pair.\n\nTHE VENDOR RECOMMENDS THIS SHAPE. Help p.843: \"Make the local authentication profile the last profile in the sequence so it's only used if all external authentication methods fail.\" The corpus excepts documented break-glass; whether it is documented is not in the configuration, so the control reports and the consultant decides.\n\n`exit-sequence-on-failure` (implicit NO, measured) does not clear it: it stops the sequence when credentials match a profile and fail, and a server that does not answer is not a failed match.",
+          "rationale": "A local fallback on an administrator sequence is a login the identity system cannot revoke.",
+          "audit": "Device > Authentication Sequence - for each sequence named under an administrator account or Device > Setup > Management > Authentication Settings, list the profiles in order and each one's Type.",
+          "remediation": "Remove local-database profiles from administrator-facing sequences. Keep break-glass as a separate, documented local account with its own profile rather than a silent fallback inside every administrator's login path.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Administrator-bound sequences with a local-database or none member.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSequence",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "has_local_member",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AuthenticationSequence"
+        },
+        {
+          "control_id": "PAN-AAA-013",
+          "name": "Unused AAA Server Profiles Removed (Hygiene)",
+          "control_type": "server_profile",
+          "default_severity": "low",
+          "description": "A server profile nothing references is configuration debt: a live definition nobody audits, often pointing at an AAA server that was decommissioned, and one binding away from being used.\n\nAN UNUSED CLAIM IS ONLY AS GOOD AS THE LIST OF HIDING PLACES, so the reference count comes from walking the WHOLE merged payload for `server-profile` rather than visiting known paths - the same walk PAN-AUTH-025 uses, and the same reason: a path an enumeration missed would report an in-use profile as unused, and the remediation here is deletion.\n\nA reference from inside a vsys resolves to that vsys's profile of the name when one exists and to the shared one otherwise. Attributing it wrongly is two errors at once - the real profile reports unused and the same-named orphan reports in use.\n\nThis one does NOT clause on kind: an orphan is an orphan whatever it authenticates.",
+          "rationale": "An orphaned AAA profile is a live definition nobody is maintaining.",
+          "audit": "Device > Server Profiles - for each profile, search the configuration for its name.",
+          "remediation": "Delete the profile. PAN-OS refuses a delete that would break a reference and names the referring path, so a refusal is itself the answer to 'is this really unused'.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServerProfile"
+        },
+        {
           "control_id": "PAN-AUTH-001",
           "name": "Enable Minimum Password Complexity Enforcement",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "The master switch for the password-complexity engine. While it is off, every individual requirement on the device is stored but not enforced - a device can show a 12-character minimum and accept a one-character password.\\n\\nMeasured 2026-09-03: absent means OFF, and enabling it through the UI writes ONLY the flag. The zeros shown on that form are rendered defaults, not stored values, so the easiest path through the GUI produces a policy that is switched on and requires nothing.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Enabled.",
@@ -28,11 +441,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_complexity_enabled",
+                    "field": "enabled",
                     "op": "eq",
                     "value": false
                   }
@@ -43,12 +456,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-002",
           "name": "Minimum Password Length",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Enforces a floor on local administrator password length. The corpus minimum is 12 (CIS) and the preferred value 15 (DISA STIG).\\n\\nThe configurable range is 6 to 16, so a zero is reachable only by ABSENCE - a deliberate zero cannot be written. A stored 0 for this key therefore always means never configured.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Length.",
@@ -61,11 +474,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_minimum_length",
+                    "field": "minimum_length",
                     "op": "lt",
                     "value": 12
                   }
@@ -74,47 +487,37 @@
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
+            },
+            {
+              "name": "Severity: 9 to 11",
+              "short_description": "characters 9 to 11 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "minimum_length",
+                    "op": "gte",
+                    "value": 9
+                  },
+                  {
+                    "field": "minimum_length",
+                    "op": "lte",
+                    "value": 11
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile",
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "characters",
-            "measure": "Configured minimum-length value for local administrator passwords.",
-            "direction": "lower-is-worse",
-            "bands": [
-              {
-                "max": 5,
-                "severity": "high",
-                "label": "5 or fewer \u2014 trivially brute-forced"
-              },
-              {
-                "max": 8,
-                "severity": "high",
-                "label": "6 to 8 characters"
-              },
-              {
-                "max": 11,
-                "severity": "medium",
-                "label": "9 to 11 \u2014 below the 12-character baseline"
-              },
-              {
-                "max": 14,
-                "severity": "medium",
-                "label": "12 to 14 \u2014 meets baseline, misses the 15-character target"
-              },
-              {
-                "max": null,
-                "severity": null,
-                "label": "15 or more \u2014 meets best practice"
-              }
-            ]
-          }
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-003",
           "name": "Require Uppercase Letters in Passwords",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "At least one uppercase letter, widening the effective character set against guessing.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Uppercase Letters.",
@@ -127,11 +530,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_minimum_uppercase",
+                    "field": "minimum_uppercase",
                     "op": "lt",
                     "value": 1
                   }
@@ -142,12 +545,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-004",
           "name": "Require Lowercase Letters in Passwords",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "At least one lowercase letter, widening the effective character set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Lowercase Letters.",
@@ -160,11 +563,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_minimum_lowercase",
+                    "field": "minimum_lowercase",
                     "op": "lt",
                     "value": 1
                   }
@@ -175,12 +578,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-005",
           "name": "Require Numeric Characters in Passwords",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "At least one digit, widening the effective character set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Numeric Letters.",
@@ -193,11 +596,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_minimum_numeric",
+                    "field": "minimum_numeric",
                     "op": "lt",
                     "value": 1
                   }
@@ -208,12 +611,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-006",
           "name": "Require Special Characters in Passwords",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "At least one non-alphanumeric character, defeating dictionary-word passwords.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Minimum Special Characters.",
@@ -226,11 +629,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_minimum_special",
+                    "field": "minimum_special",
                     "op": "lt",
                     "value": 1
                   }
@@ -241,12 +644,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-007",
           "name": "Block Username Inclusion in Passwords",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Blocks passwords containing the username or its reverse - one of the most-guessed weak patterns.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Block Username Inclusion.",
@@ -259,11 +662,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_block_username_inclusion",
+                    "field": "block_username_inclusion",
                     "op": "eq",
                     "value": false
                   }
@@ -274,12 +677,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-008",
           "name": "New Password Minimum Character Difference",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Requires characters to change on rotation, stopping trivial increments like Password1 to Password2. Corpus minimum 3, preferred 8.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > New Password Differs By Characters.",
@@ -292,11 +695,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_new_differs_by_characters",
+                    "field": "new_differs_by_characters",
                     "op": "lt",
                     "value": 3
                   }
@@ -307,12 +710,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-009",
           "name": "Prevent Password Reuse (History Count)",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "The number of previous passwords checked on change. Zero means the new password is checked against NO history, so the previous password can be set again immediately. Corpus minimum 5, preferred 24.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Prevent Password Reuse Limit.",
@@ -325,11 +728,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_history_count",
+                    "field": "history_count",
                     "op": "lt",
                     "value": 5
                   }
@@ -340,40 +743,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile",
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "passwords remembered",
-            "measure": "Configured password-history-count value.",
-            "direction": "lower-is-worse",
-            "bands": [
-              {
-                "max": 0,
-                "severity": "medium",
-                "label": "0 \u2014 the same password can be set again immediately"
-              },
-              {
-                "max": 4,
-                "severity": "medium",
-                "label": "1 to 4 \u2014 below the 5-generation baseline"
-              },
-              {
-                "max": 23,
-                "severity": "low",
-                "label": "5 to 23 \u2014 meets baseline, misses the 24-generation target"
-              },
-              {
-                "max": null,
-                "severity": null,
-                "label": "24 or more \u2014 meets best practice"
-              }
-            ]
-          }
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-010",
           "name": "Password Expiration Period",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Bounds how long a leaked credential stays usable. The corpus minimum is 90 days and the preferred value 60.\\n\\nThis is the one setting on this form where BOTH ENDS are wrong. Zero means passwords NEVER expire, and a large value means they expire too rarely - so the control fires on 0 and on anything above 90, and passes between 1 and 90. A less-than comparison would have passed a 365-day expiry and failed the preferred 60.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Required Password Change Period.",
@@ -386,16 +761,16 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_expiration_period",
+                    "field": "expiration_period",
                     "op": "eq",
                     "value": 0
                   },
                   {
-                    "field": "password_expiration_period",
+                    "field": "expiration_period",
                     "op": "gt",
                     "value": 90
                   }
@@ -406,47 +781,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile",
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "days until password expiry",
-            "measure": "Configured expiration-period value.",
-            "direction": "higher-is-worse",
-            "bands": [
-              {
-                "min": 366,
-                "severity": "medium",
-                "label": "never expires in practice \u2014 a year or more"
-              },
-              {
-                "min": 91,
-                "severity": "medium",
-                "label": "91 to 365 days \u2014 past the 90-day baseline"
-              },
-              {
-                "min": 61,
-                "severity": "low",
-                "label": "61 to 90 days \u2014 meets baseline, misses the 60-day target"
-              },
-              {
-                "min": 1,
-                "severity": null,
-                "label": "60 days or fewer \u2014 meets best practice"
-              }
-            ],
-            "sentinels": [
-              {
-                "value": "0",
-                "severity": "medium",
-                "label": "0 \u2014 passwords never expire"
-              }
-            ]
-          }
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-011",
           "name": "Password Expiration Warning Period",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Days of warning before a password expires, so rotations happen deliberately rather than as lockouts. Corpus minimum 7, preferred 14.\\n\\nAssessed independently of PAN-AUTH-010: a missing warning period is wrong whether or not passwords expire today, and it stays wrong the moment an expiry is set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Expiration Warning Period.",
@@ -459,11 +799,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_expiration_warning_period",
+                    "field": "expiration_warning_period",
                     "op": "lt",
                     "value": 7
                   }
@@ -474,12 +814,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-012",
           "name": "Disallow Post-Expiration Admin Logins",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "How many times an administrator may still log in after their password has expired. The secure value is ZERO, which is also the default - so this control fires only where somebody has deliberately allowed expired credentials to keep working.\\n\\nThe range is 0 to 3.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Post Expiration Admin Login Count.",
@@ -492,11 +832,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_post_expiration_admin_login_count",
+                    "field": "post_expiration_admin_login_count",
                     "op": "gt",
                     "value": 0
                   }
@@ -507,12 +847,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-013",
           "name": "Disallow Post-Expiration Grace Period",
-          "control_type": "device_configuration",
+          "control_type": "password_complexity",
           "description": "Days during which an expired password still works. The secure value is ZERO, which is also the default, so this fires only where a grace window was deliberately configured.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Post Expiration Grace Period.",
@@ -525,11 +865,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "password_post_expiration_grace_period",
+                    "field": "post_expiration_grace_period",
                     "op": "gt",
                     "value": 0
                   }
@@ -540,12 +880,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.PasswordComplexityPolicy"
         },
         {
           "control_id": "PAN-AUTH-014",
           "name": "Failed Login Attempts Before Lockout",
-          "control_type": "device_configuration",
+          "control_type": "authentication_settings",
           "description": "Locks an administrator account after N consecutive failed logins, which is what stops online password guessing and spraying.\\n\\nBOUNDED AT BOTH ENDS, and the low end is not what it looks like. The device accepts 0 to 10. A 0 does not mean 'strict' - it means LOCKOUT IS DISABLED ENTIRELY, so it is the worst value available rather than the best, and it is also the implicit value: measured 2026-09-04 on the unconfigured Authentication Settings form. A comparison written as 'more than 5 is a finding' passes every unconfigured device in an estate.\\n\\nThe corpus grades 'more than 10' as high; the device grammar is 0-10, so that band cannot be reached. The reachable grading is 0 (sentinel, high), 1-5 (passes), 6-10 (medium).",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Setup > Management > Authentication Settings > Failed Attempts.",
@@ -558,16 +898,16 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.AuthenticationSettings",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "admin_lockout_failed_attempts",
+                    "field": "lockout_failed_attempts",
                     "op": "eq",
                     "value": 0
                   },
                   {
-                    "field": "admin_lockout_failed_attempts",
+                    "field": "lockout_failed_attempts",
                     "op": "gt",
                     "value": 5
                   }
@@ -576,44 +916,37 @@
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
+            },
+            {
+              "name": "Severity: 6 to 10",
+              "short_description": "failed attempts before lockout 6 to 10 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "lockout_failed_attempts",
+                    "op": "gte",
+                    "value": 6
+                  },
+                  {
+                    "field": "lockout_failed_attempts",
+                    "op": "lte",
+                    "value": 10
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
           ],
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "failed attempts before lockout",
-            "measure": "Configured admin-lockout failed-attempts value.",
-            "direction": "lower-is-worse",
-            "bands": [
-              {
-                "max": 5,
-                "severity": null,
-                "label": "1 to 5 \u2014 meets the baseline (3 or fewer is best practice)"
-              },
-              {
-                "max": 10,
-                "severity": "medium",
-                "label": "6 to 10 \u2014 past the baseline"
-              },
-              {
-                "max": null,
-                "severity": "high",
-                "label": "more than 10 \u2014 little practical protection"
-              }
-            ],
-            "sentinels": [
-              {
-                "value": "0",
-                "severity": "high",
-                "label": "0 \u2014 lockout disabled entirely; fails every benchmark"
-              }
-            ]
-          },
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.AuthenticationSettings"
         },
         {
           "control_id": "PAN-AUTH-015",
           "name": "Admin Account Lockout Duration",
-          "control_type": "device_configuration",
+          "control_type": "authentication_settings",
           "description": "How long a locked administrator account stays locked. The device accepts 0 to 60 minutes.\n\nZERO IS THE STRONGEST VALUE HERE, which is the opposite of PAN-AUTH-014 on the same screen, and the reason the two cannot share a shape. The PAN-OS field help states it outright: \"A value of 0 (default) means the lockout applies until another administrator manually unlocks the account\" - and, explicitly, that failed-attempts set with lockout-time left at 0 locks the user until a manual unlock. So 0 is stricter than any duration, not weaker, and reporting it as \"below 15 minutes\" would flag the most restrictive setting available as a weakness.\n\nThe finding is therefore the EXCLUDED MIDDLE: 1 to 14 minutes - long enough to have been set deliberately, short enough not to throttle a guessing attack. 0 is also the implicit value, so an untouched device does not fire this. That is correct: with failed-attempts also 0 nothing ever locks, and PAN-AUTH-014 is the control that says so.\n\nThere is no severity scale, and none is needed - a 14-minute window has nothing to grade inside it.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Setup > Management > Authentication Settings > Lockout Time.",
@@ -626,16 +959,16 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.AuthenticationSettings",
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "admin_lockout_time_minutes",
+                    "field": "lockout_time_minutes",
                     "op": "gt",
                     "value": 0
                   },
                   {
-                    "field": "admin_lockout_time_minutes",
+                    "field": "lockout_time_minutes",
                     "op": "lt",
                     "value": 15
                   }
@@ -646,12 +979,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.AuthenticationSettings"
         },
         {
           "control_id": "PAN-AUTH-016",
           "name": "Management Session Idle Timeout",
-          "control_type": "device_configuration",
+          "control_type": "authentication_settings",
           "description": "Ends an idle GUI or CLI session, closing the window in which an unattended console can be used by whoever walks past it. The device accepts 1 to 1440 minutes, or 0.\\n\\nBOUNDED AT BOTH ENDS. 0 means sessions NEVER time out and is a sentinel - worse than any large number, though a naive comparison ranks it as the best possible value.\\n\\nThe implicit value is 60, MEASURED rather than assumed: the unconfigured form labels the field '60 (default)' - 2026-09-04, PA-5220. That matters because it decides what an untouched device reports. At 60 it is a live session an hour after the administrator walked away, which is a finding; had the implicit value been 0 it would have been the sentinel instead, and a more serious one.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Setup > Management > Authentication Settings > Idle Timeout.",
@@ -664,7 +997,7 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.AuthenticationSettings",
                 "operator": "or",
                 "clauses": [
                   {
@@ -682,44 +1015,37 @@
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
+            },
+            {
+              "name": "Severity: 11 to 60",
+              "short_description": "minutes of idle time before logout 11 to 60 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "gte",
+                    "value": 11
+                  },
+                  {
+                    "field": "idle_timeout_minutes",
+                    "op": "lte",
+                    "value": 60
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
           ],
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "minutes of idle time before logout",
-            "measure": "Configured idle-timeout value on the management session.",
-            "direction": "higher-is-worse",
-            "bands": [
-              {
-                "min": 61,
-                "severity": "high",
-                "label": "over an hour \u2014 an unattended console stays live"
-              },
-              {
-                "min": 11,
-                "severity": "medium",
-                "label": "11 to 60 minutes \u2014 past the 10-minute baseline"
-              },
-              {
-                "min": 1,
-                "severity": null,
-                "label": "10 minutes or fewer \u2014 meets the baseline"
-              }
-            ],
-            "sentinels": [
-              {
-                "value": "0",
-                "severity": "high",
-                "label": "0 \u2014 sessions never time out; fails every benchmark"
-              }
-            ]
-          },
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.AuthenticationSettings"
         },
         {
           "control_id": "PAN-AUTH-017",
           "name": "API Key Lifetime Configured",
-          "control_type": "device_configuration",
+          "control_type": "authentication_settings",
           "description": "How long a generated API key stays valid. The device accepts 1 to 525600 minutes, or 0.\\n\\nThe floor is ANY non-zero lifetime, so this fires on one value: 0, meaning keys never expire. A stolen key is then permanent, and the only remedy is expiring every key at once. 0 is also the implicit value - measured 2026-09-04, where the form reads '0 (default)' - so every device that has not been configured fires this.\\n\\nThe corpus grades longer lifetimes too (over a day medium, over a week high), but those bands sit above the floor and are unreachable while the assertion is 'configured at all'. They are kept rather than trimmed, because the scale is the corpus author's and a later tightening of the floor would want them.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Setup > Management > Authentication Settings > API Key Lifetime.",
@@ -732,7 +1058,7 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.AuthenticationSettings",
                 "operator": "or",
                 "clauses": [
                   {
@@ -747,37 +1073,7 @@
               "is_active": true
             }
           ],
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "minutes of API key validity",
-            "measure": "Configured API key lifetime. Unset means keys never expire.",
-            "direction": "higher-is-worse",
-            "bands": [
-              {
-                "min": 10081,
-                "severity": "high",
-                "label": "more than a week"
-              },
-              {
-                "min": 1441,
-                "severity": "medium",
-                "label": "1 to 7 days \u2014 past the 24-hour target"
-              },
-              {
-                "min": 1,
-                "severity": null,
-                "label": "24 hours or fewer \u2014 meets best practice"
-              }
-            ],
-            "sentinels": [
-              {
-                "value": "0",
-                "severity": "high",
-                "label": "0 or unset \u2014 keys never expire, so a stolen key is permanent"
-              }
-            ]
-          },
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.AuthenticationSettings"
         },
         {
           "control_id": "PAN-AUTH-018",
@@ -794,7 +1090,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Lockout disabled, or a limit looser than 3 attempts.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -816,7 +1112,7 @@
                       {
                         "field": "lockout_failed_attempts",
                         "op": "gt",
-                        "value": 5
+                        "value": 3
                       }
                     ]
                   }
@@ -825,63 +1121,279 @@
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
+            },
+            {
+              "name": "Severity: 4 to 5",
+              "short_description": "failed attempts before lockout 4 to 5 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "method",
+                    "op": "eq",
+                    "value": "saml-idp",
+                    "negated": true
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "gte",
+                        "value": 4
+                      },
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "lte",
+                        "value": 5
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Severity: 6 to 10",
+              "short_description": "failed attempts before lockout 6 to 10 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "method",
+                    "op": "eq",
+                    "value": "saml-idp",
+                    "negated": true
+                  },
+                  {
+                    "operator": "and",
+                    "clauses": [
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "gte",
+                        "value": 6
+                      },
+                      {
+                        "field": "lockout_failed_attempts",
+                        "op": "lte",
+                        "value": 10
+                      }
+                    ]
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
-          ],
-          "severity_scale": {
-            "kind": "numeric",
-            "metric": "failed attempts before lockout",
-            "measure": "Configured authentication-profile lockout failed-attempts value.",
-            "direction": "lower-is-worse",
-            "bands": [
-              {
-                "max": 5,
-                "severity": null,
-                "label": "1 to 5 \u2014 meets the baseline (3 or fewer is best practice)"
-              },
-              {
-                "max": 10,
-                "severity": "medium",
-                "label": "6 to 10 \u2014 past the baseline"
-              },
-              {
-                "max": null,
-                "severity": "high",
-                "label": "more than 10 \u2014 little practical protection"
-              }
-            ],
-            "sentinels": [
-              {
-                "value": "0",
-                "severity": "high",
-                "label": "0 \u2014 lockout disabled entirely"
-              }
-            ]
-          }
+          ]
         },
         {
           "control_id": "PAN-AUTH-020",
           "name": "Multi-Factor Authentication for Administrative Access",
-          "control_type": "authentication_profile",
-          "description": "Requires multi-factor authentication on the authentication profiles that ADMINISTRATORS use, so a stolen password alone cannot reach the management plane.\\n\\nINACTIVE, DELIBERATELY. It is built and tested but generates no findings, because it cannot yet be scoped to administrators. Nothing records which profiles administrators use: that needs the administrator model over mgt-config/users for the per-user binding, AND the device-wide binding at deviceconfig/system/authentication-profile, which is not in PAN-AUTH-019's corpus xpath either.\\n\\nLeft broad it fires on every authentication profile in the estate, including those serving GlobalProtect and Captive Portal. Jason, 2026-09-04: those are separate controls, as are unused profiles (PAN-AUTH-025). A control named for administrative access that reports a GlobalProtect profile is not over-reporting, it is answering a different question under this one's name - and its severity is critical, so the noise would be loud and confident.\\n\\nActivate it when the administrator model lands, by narrowing the query to profiles reachable from an administrator. The device enforces a prerequisite that does not need encoding: mfa-enable is REJECTED unless the profile already references an MFA factor, so an enabled profile always has one.",
+          "control_type": "admin_user",
+          "description": "DEFERRED 2026-09-10 - not derivable from configuration. Jason: \"PAN-AUTH-020 is not derived from the config, lock that decision in.\"\n\nPAN-OS gives an administrator a second factor only through the FIRST factor - a RADIUS server, a SAML identity provider, or the Cloud Authentication Service - and none of the three records in the firewall's configuration whether MFA is enforced on the other side. The one factor the configuration DOES show, the Factors tab, is not enforced for administrators: measured 2026-09-10, oep-mfa-admin logged in with its password alone through a profile carrying an MFA factor (PAN-AAA-011 reports that trap). The Cloud Authentication `force-mfa` key records an operator's claim about the IdP, not a check.\n\nSo a pass here would credit MFA the configuration cannot see, and a failure would fire on administrators whose MFA lives on the server. Kept in the catalog, inactive, so the model, compiler and tests remain; the evidence belongs to the RADIUS/SAML/CIE side.\n\nRequires a second factor on the path an ADMINISTRATOR authenticates by, so a stolen password alone cannot reach the management plane.\n\nTHE FINDING IS ABOUT A PERSON, NOT A PROFILE. This was first built over AuthenticationProfile and left inactive, because a profile row cannot say which administrators are exposed: two accounts on one appliance can sit behind different profiles, and the estate's profiles also serve GlobalProtect and Captive Portal, which are separate controls. Jason, 2026-09-08, ABOUT THIS CONTROL AND PAN-AUTH-019 SPECIFICALLY: \"We generate findings per user, not per profile... A row is a specific user, and its values are the value checks.\" So it reports one finding per administrator, on the same row as that account's other findings.\n\nTHAT IS NOT A GENERAL RULE, and he said so on 2026-09-09: the other authentication profile controls stay profile-centric. PAN-AUTH-018 asserts something about a profile's own lockout configuration and its subject is the profile. What moves a control onto the account is that its assertion is about a PERSON'S exposure, which a profile row cannot express because two administrators on one appliance can sit behind different profiles.\n\nIT RESOLVES THROUGH TWO BINDINGS. The per-account `mgt-config/users/entry/authentication-profile` wins; otherwise the device-wide `deviceconfig/system/authentication-profile` covers the account. `admin_mfa_enabled` is the resolved profile's flag.\n\nNO PROFILE AT ALL FIRES. An administrator on the local database has no second factor, so a stolen password alone reaches the management plane - which is exactly what this asserts. It is a separate failure from PAN-AUTH-019 (the credential is local and unrevocable) and both report on the row, because one bad thing is not excused by another.\n\nThe device enforces a prerequisite that needs no encoding: `mfa-enable` is REJECTED unless the profile already references an MFA factor, so an enabled profile always has one. A SAML profile may carry MFA at the identity provider instead, which this cannot see - that is a downgrade the assessor makes.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
-          "audit": "Device > Authentication Profile > <profile> > Factors > Enable Additional Authentication Factors.",
+          "audit": "Device > Administrators > <account> > Authentication Profile, then Device > Authentication Profile > <that profile> > Factors > Enable Additional Authentication Factors. Where the account names no profile, check Device > Setup > Management > Authentication Settings.",
           "remediation": "Create an MFA server profile, add it as a factor on the authentication profile, then enable Multi Factor Authentication - in that order, because the device refuses the flag without a factor. SAML profiles may carry MFA at the identity provider instead, which this control cannot see.",
           "default_severity": "critical",
           "implementation_version": "v1",
           "is_active": false,
+          "target_model": "integrations.AdminUser",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No second factor governs this administrator.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "admin_mfa_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-AUTH-019",
+          "name": "External Authentication for Administrator Accounts",
+          "control_type": "admin_user",
+          "description": "An administrator account is centrally authenticated only when BOTH halves hold: authentication reaches an external identity service, and no credential is stored on the device. This reports every account where either fails.\n\nA BOUND PROFILE IS NOT EVIDENCE OF CENTRALIZATION. The method matters. On the lab, three of the four accounts that passed an earlier version of this control were reaching the firewall's OWN local user database through a profile - `oep-auth-lockout` and `oep-auth-hardened` are method `local-database`, and `aegis_auth_prof` names no method at all. A control titled for external authentication was passing accounts that do not use it. External means RADIUS, TACACS+, LDAP, Kerberos, SAML or Cloud.\n\nA STORED CREDENTIAL STILL COUNTS EVEN WHERE A PROFILE IS BOUND. Measured 2026-09-08 as an A/B on one account: with its authentication profile unbound it authenticated; with the same password and the profile bound back a minute later it was refused, and the device logged the profile and its unreachable server. A per-account profile takes precedence and the local password is not tried. So the credential is unreachable while the binding holds - and it is still a secret that leaves with a configuration backup, and becomes live the moment somebody removes the profile. Latent, the way a password profile that weakens the global policy is a latent exemption. Jason, 2026-09-08: \"mfa/external=yes and local phash=no\".\n\nBOTH CREDENTIAL KINDS COUNT. The corpus note names `phash` only; an SSH public key in the same config is exactly as local. pan-fw-111's `azureuser` carries no password at all and is a superuser reachable by a key nobody centrally holds.\n\nThe DEVICE-WIDE binding `deviceconfig/system/authentication-profile` is honoured when the account names no profile of its own, and it is a different mechanism from the per-account one. Measured 2026-09-08 with both device-wide leaves pushed at an unreachable server, two attempts two seconds apart: an account with NO credential was sent to the profile and timed out, while an account holding a stored password authenticated locally and the profile was never consulted for it. So it covers exactly the accounts that have no local credential - which is why resolving through it is right, and why an account holding a password is not excused by it.\n\n`client-certificate-only` clears nothing. Web Interface Help p.825 scopes it to the web interface - \"Use only client certificate authentication (web)\" - and it neither replaces the stored credential nor centralizes the account.\n\nThis is a POSTURE control. A break-glass account is a legitimate reason for one of these to exist, and an assessor gives it; the control's job is to put every one of them in front of somebody, not to decide which are documented. That reading is reinforced by the other edge of the precedence measurement: when the AAA server is down, nobody bound to it per-account can log in at all.",
+          "rationale": "A credential that exists only on the device is one no joiner-mover-leaver process can reach.",
+          "audit": "Device > Administrators > <account> > Authentication Profile, then Device > Authentication Profile > <that profile> > Authentication > Type. Check the account's Password and SSH key while you are there.",
+          "remediation": "Bind the account to an authentication profile whose type is TACACS+, RADIUS, LDAP, Kerberos or SAML - not `local database` and not `none` - and then remove its local password and any public key. Removing the credential is the half that gets skipped, and it is the half that survives somebody unbinding the profile later. Where an account must stay local as break-glass, vault the credential offline, alert on its use, and record the decision.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AdminUser",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Not reached by an external identity service, or holding a device-stored credential.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "centrally_authenticated",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-AUTH-021",
+          "name": "Default 'admin' Account Disabled or Replaced",
+          "control_type": "admin_user",
+          "description": "`admin` is the username every PAN-OS device ships with and every password spray starts from. Named per-person accounts should carry day-to-day work, and the default account should be deleted or held as vaulted break-glass.\n\nIT FIRES ON PRESENCE, AT THE CORPUS SEVERITY. Whether the password is still the factory one is not in the configuration - `phash` is a hash - so this cannot confirm the whole failure the severity describes. That is not a reason to soften it. The consultant can see the account, ask how it is held, and reduce the severity when it meets the control language; nothing downstream can raise a severity that arrived understated, so an understated one is the finding nobody looks at again.\n\nJason, 2026-09-08: \"if an account with name 'admin' exists, it should be a critical finding. The consultant can then do the work to reduce the severity if it meets minimum control language. We can't account for that.\"\n\nThe corpus's `minimum_value_descr` and `preferred_value_descr` split this into a password check and a presence check, and the split does not survive contact with what a config read can see. Read the two together: the assertion is that the default account should not be sitting there.",
+          "rationale": "A universally known username is a free half of every credential-stuffing attempt.",
+          "audit": "Device > Administrators - is there an entry named `admin`, and do named superusers exist beside it?",
+          "remediation": "Create and TEST a named superuser first, then delete `admin`. Where it is kept as break-glass, vault the credential, bind login alerting to it, record the decision - and downgrade the finding, which is the assessor's call rather than the tool's.",
+          "default_severity": "critical",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AdminUser",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An account named admin exists.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "name",
+                    "op": "eq",
+                    "value": "admin"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-AUTH-022",
+          "name": "Limit Number of Superuser Accounts",
+          "control_type": "admin_user",
+          "description": "Every superuser is a full-compromise path: the role can rewrite policy, read secrets, create further administrators and disable the logging that would show it. Day-to-day work belongs on least-privilege roles.\n\nTHE FINDING NAMES THE ACCOUNTS, NOT THE APPLIANCE. The assertion is about a count, but the remediation is per-account - somebody decides which of the seven get demoted - so each superuser reports, and they share one graded severity because they share one cause.\n\n`superuser_cohort_size` is the appliance's superuser total written onto each superuser row, and 0 on every account holding another role. That is literally correct - a devicereader belongs to no superuser cohort - and it keeps every query on this control to ONE field, so a threshold is the only number in play. The graded severities are the two non-baseline queries below: 3 to 5 reports low, 6 to 10 reports medium, and anything above reports the control default.\n\nThresholds are the corpus's proposed baselines - 5 minimum, 2 preferred - and are pending sign-off.",
+          "rationale": "Superuser count is the size of the blast radius, and it only ever grows on its own.",
+          "audit": "Device > Administrators - count entries whose Administrator Type is Dynamic / Superuser.",
+          "remediation": "Move operators, auditors and automation onto custom admin roles scoped to what they do, and leave superuser to a named few plus break-glass. Demoting an account does not disturb how it authenticates.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AdminUser",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "More than two superusers on this appliance.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "superuser_cohort_size",
+                    "op": "gt",
+                    "value": 2
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Severity: 3 to 5",
+              "short_description": "superuser accounts 3 to 5 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "superuser_cohort_size",
+                    "op": "gte",
+                    "value": 3
+                  },
+                  {
+                    "field": "superuser_cohort_size",
+                    "op": "lte",
+                    "value": 5
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Severity: 6 to 10",
+              "short_description": "superuser accounts 6 to 10 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "superuser_cohort_size",
+                    "op": "gte",
+                    "value": 6
+                  },
+                  {
+                    "field": "superuser_cohort_size",
+                    "op": "lte",
+                    "value": 10
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-AUTH-025",
+          "name": "Unused Authentication Profiles (Hygiene)",
+          "control_type": "authentication_profile",
+          "description": "An authentication profile that nothing references is configuration debt. It authenticates nobody while it stays unreferenced, but it is a definition nobody is maintaining, and binding it later applies whatever it was left holding - often a stale AAA server, or no lockout at all.\n\nAN UNUSED CLAIM IS ONLY AS GOOD AS THE LIST OF HIDING PLACES. The CLI grammar names eight referrer paths on a firewall: the two `deviceconfig/system` leaves, per-administrator `mgt-config/users`, captive portal, GlobalProtect portal and gateway, secure web gateway, and authentication objects. Rather than visit those eight, the normalizer walks the WHOLE merged payload for the two referrer keys - a path the grammar missed would otherwise make this control report an in-use profile as unused, which is the worst direction for a hygiene control to fail in. The grammar list is kept as a cross-check on the walk.\n\nFour of the eight have been seen carrying a real reference and confirmed readable from merged config, and they cover all four structural shapes: an appliance-level container of entries, a device leaf, a vsys leaf, and a leaf nested inside a vsys entry. The four unseen paths reuse those shapes.\n\nA REFERENCE RESOLVES BY SCOPE. A referrer inside a vsys resolves to that vsys's profile of the name when one exists and to the shared one otherwise, so the count lands on the definition actually in use rather than on a same-named neighbour.\n\nReported per appliance. A profile pushed from a template exists separately in each firewall's configuration, and referenced on one device but not another is two facts about two devices.",
+          "rationale": "An orphaned profile is a live definition nobody audits, one binding away from being in use.",
+          "audit": "Device > Authentication Profile - for each profile, search the configuration for its name.",
+          "remediation": "Delete the profile. PAN-OS refuses a delete that would break a reference and names the referring path in the error, so a refusal is itself the answer to 'is this really unused'. Where a profile is staged for work not yet done, record that rather than leaving it to be rediscovered.",
+          "default_severity": "low",
+          "implementation_version": "v1",
+          "is_active": true,
           "target_model": "integrations.AuthenticationProfile",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Profiles nothing on the appliance references.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "mfa_enabled",
+                    "field": "referrer_count",
                     "op": "eq",
-                    "value": false
+                    "value": 0
                   }
                 ]
               },
@@ -1126,39 +1638,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.SslTlsServiceProfile",
-          "severity_scale": {
-            "kind": "ranked",
-            "metric": "minimum TLS version",
-            "measure": "Configured min-version on the SSL/TLS service profile.",
-            "ranks": [
-              {
-                "value": "tls1-0",
-                "severity": "high",
-                "label": "TLS 1.0 \u2014 deprecated by RFC 8996"
-              },
-              {
-                "value": "tls1-1",
-                "severity": "high",
-                "label": "TLS 1.1 \u2014 deprecated by RFC 8996"
-              },
-              {
-                "value": "tls1-2",
-                "severity": null,
-                "label": "TLS 1.2 \u2014 meets the baseline"
-              },
-              {
-                "value": "tls1-3",
-                "severity": null,
-                "label": "TLS 1.3 \u2014 meets best practice"
-              }
-            ]
-          }
+          "target_model": "integrations.SslTlsServiceProfile"
         },
         {
           "control_id": "PAN-CRT-006",
           "name": "Management Certificate Issued by Trusted CA",
-          "control_type": "device_configuration",
+          "control_type": "management_tls",
           "description": "The management UI certificate should chain to an organisation-trusted CA rather than the factory self-signed certificate, so administrators can detect man-in-the-middle interception of management sessions.\\n\\nSplit from PAN-MGT-010 because the protocol floor and the certificate are independent and have different remediations. Measured 2026-09-02: the shipped TLSv1.3_Default profile - the obvious fix for PAN-MGT-010 - carries /config/predefined/certificate's TLSv1.3_Default, which is the device's OWN factory certificate, common-name equal to the chassis serial and self-signed. Remediating PAN-MGT-010 the easy way therefore leaves this control failing, which is exactly why it is its own control.\\n\\nWhat is decidable here is CA-ISSUED versus SELF-SIGNED, from PAN-OS's own subject and issuer hashes. Whether the issuing CA is the ORGANISATION'S is not a configuration fact and this control does not claim to decide it - the issuer is reported so a human can. A CA-issued certificate from an unexpected authority will pass and still deserve attention, and the corpus's preferred state goes further still: an internal-CA certificate whose SAN matches the management FQDN and which admin browsers already trust.\\n\\nWHAT THIS CAN AND CANNOT DECIDE. Trust is not readable from configuration - there is no trust store here - so this classifies the ISSUER CHAIN as far as the device shows it. A chain terminating at a self-signed CA that is itself on the device is a PRIVATE root: nothing trusts it by default, and a browser rejects it exactly as it rejects a self-signed leaf. A chain that leaves the device may reach a public root, which cannot be confirmed here and is not claimed.\\n\\nThat distinction was previously collapsed, and the collapse hid a real case: a certificate signed by a lab CA created minutes earlier classified as CA-issued and PASSED, while Chrome refused the same chain with NET::ERR_CERT_AUTHORITY_INVALID. The control was named for trust and asserted only 'not self-signed'.\\n\\nThe private-CA case is graded DOWN from the self-signed one rather than treated as equal. An organisation's own internal CA is also private, and a certificate it issued is a different conversation from one the device signed for itself - the remediation is to distribute the root or move to a public CA, not to stop using self-signed certificates. Jason, 2026-09-07.\\n\\nTHIS SEVERITY SCALE IS LOCAL, not from the corpus. controls.json carries no scale for this control; the bands below were added with the classification they grade.",
           "rationale": "A self-signed management certificate trains administrators to click through browser warnings, which is precisely the reflex a man-in-the-middle on the management network depends on. The warning is the only thing distinguishing the real device from an impostor, and it stops being a signal once it is always present.",
           "audit": "Confirm the SSL/TLS service profile bound at Device > Setup > Management > General Settings names a certificate whose Issuer differs from its Subject, and that the issuer is an authority the organisation recognises. Device > Certificate Management > Certificates shows both.",
@@ -1171,11 +1656,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.ManagementTlsBinding",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "ssl_tls_certificate_trust",
+                    "field": "certificate_trust",
                     "op": "eq",
                     "value": "ca_issued",
                     "negated": true
@@ -1185,47 +1670,32 @@
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
+            },
+            {
+              "name": "Severity: private_ca",
+              "short_description": "issuer chain of the management certificate private_ca \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.ManagementTlsBinding",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "certificate_trust",
+                    "op": "eq",
+                    "value": "private_ca"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile",
-          "severity_scale": {
-            "kind": "ranked",
-            "metric": "issuer chain of the management certificate",
-            "measure": "Resolved trust classification of the certificate bound to the management interface.",
-            "$origin": "LOCAL - added 2026-09-07 with the private-CA classification. Not from controls.json.",
-            "ranks": [
-              {
-                "value": "",
-                "severity": "medium",
-                "label": "no certificate bound at all - the device serves its factory certificate"
-              },
-              {
-                "value": "self_signed",
-                "severity": "medium",
-                "label": "signed by the device itself - no authority at all"
-              },
-              {
-                "value": "undetermined",
-                "severity": "medium",
-                "label": "the chain could not be resolved - an engineer must look"
-              },
-              {
-                "value": "private_ca",
-                "severity": "low",
-                "label": "issued by a private CA on this device - trusted wherever its root was distributed, which is a different remediation from a self-signed certificate"
-              },
-              {
-                "value": "ca_issued",
-                "severity": null,
-                "label": "the chain leaves this device and may reach a public root - does not fire"
-              }
-            ]
-          }
+          "target_model": "integrations.ManagementTlsBinding"
         },
         {
           "control_id": "PAN-CRT-007",
           "name": "Master Key Changed from Default",
-          "control_type": "device_configuration",
+          "control_type": "master_key",
           "description": "The master key encrypts every private key and stored secret on the device. The factory default is a PUBLICLY KNOWN value, so a firewall that never set one is protecting its key material with a shared secret anybody can look up - including the private keys behind its certificates.\n\nDetected from `show system masterkey-properties`. An `expire-at` of 0 - which the CLI renders as 'unspecified' - means no key was ever set. The inference is that a lifetime is MANDATORY when setting one, in both the CLI and the GUI, so a key that has been set always carries a concrete expiry.\n\nThe corpus names this control '...and Rotated'. One test covers both halves: a concrete expiry means a key was set AND that a lifetime exists for it, so there is a rotation schedule. What cannot be established is WHEN it was changed - expire-at minus lifetime breaks when auto-renew is non-zero, since the expiry moves without the key changing - nor by whom, since no attribution field exists anywhere.",
           "rationale": "Every other cryptographic control on the device rests on this one. A hardened SSL/TLS profile with a CA-issued certificate protects nothing if the private key behind it is encrypted with a value published in vendor documentation.",
           "audit": "Run `show system masterkey-properties`. Expiry and reminder reading 'unspecified' means the default key is still in use. Concrete dates mean a key has been set.",
@@ -1238,11 +1708,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.MasterKey",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "master_key_state",
+                    "field": "state",
                     "op": "eq",
                     "value": "set",
                     "negated": true
@@ -1254,7 +1724,7 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.MasterKey"
         },
         {
           "control_id": "PAN-CRT-009",
@@ -1445,7 +1915,7 @@
         {
           "control_id": "PAN-MGT-007",
           "name": "Login Banner Configured",
-          "control_type": "device_configuration",
+          "control_type": "login_banner",
           "description": "A login banner presented before authentication states who may use the device and that use is monitored. Absent, an administrator sees nothing before the prompt.\\n\\nThe wording is site-specific and legal rather than technical, so this control asserts only that a banner exists. Whether it carries approved language is an interview question, not a configuration one.",
           "rationale": "A banner is the notice that makes unauthorised use provable in many jurisdictions, and several frameworks require one before any authentication prompt.",
           "audit": "Confirm a login banner is present and carries organisation-approved wording.",
@@ -1458,11 +1928,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.LoginBanner",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "login_banner",
+                    "field": "text",
                     "op": "is_empty",
                     "value": ""
                   }
@@ -1473,12 +1943,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.LoginBanner"
         },
         {
           "control_id": "PAN-MGT-008",
           "name": "Force Admins to Acknowledge Login Banner",
-          "control_type": "device_configuration",
+          "control_type": "login_banner",
           "description": "Requires an administrator to positively acknowledge the login banner rather than read past it.\n\nReported wherever acknowledgement is off, including on a device with no banner. PAN-OS greys the setting out until a banner exists, so remediating this one may mean setting a banner first - which is PAN-MGT-007, and the two are reported independently rather than one standing in for the other.",
           "rationale": "Acknowledgement converts a passive notice into a recorded action by the administrator, which is what gives the banner evidentiary weight.",
           "audit": "Confirm administrators must acknowledge the banner before proceeding.",
@@ -1491,11 +1961,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.LoginBanner",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "ack_login_banner",
+                    "field": "acknowledgement_required",
                     "op": "eq",
                     "value": false
                   }
@@ -1506,12 +1976,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.LoginBanner"
         },
         {
           "control_id": "PAN-MGT-009",
           "name": "Verify Update Server Identity",
-          "control_type": "device_configuration",
+          "control_type": "update_server",
           "description": "Validates the update server's TLS certificate before content is downloaded, so a man-in-the-middle cannot deliver tampered content updates.\\n\\nEnabled by default: absent from configuration means ON, measured 2026-09-01. A finding here therefore means it was deliberately turned off.",
           "rationale": "Content updates are executable inputs to inspection. Accepting them from an unauthenticated server undermines every signature-based control on the device.",
           "audit": "Confirm Verify Update Server Identity is enabled.",
@@ -1524,11 +1994,11 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.UpdateServerSettings",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "server_verification_enabled",
+                    "field": "verify_identity",
                     "op": "eq",
                     "value": false
                   }
@@ -1539,12 +2009,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.UpdateServerSettings"
         },
         {
           "control_id": "PAN-MGT-010",
           "name": "Harden Management Interface TLS Protocol",
-          "control_type": "device_configuration",
+          "control_type": "management_tls",
           "description": "Binds an SSL/TLS service profile to the management web interface so administrative sessions negotiate TLS 1.2 or better.\\n\\nScope is the PROTOCOL FLOOR only. The certificate that profile presents is PAN-CRT-006, and the two are genuinely independent: the shipped TLSv1.3_Default profile satisfies this control and still serves the device's own self-signed factory certificate, so passing here says nothing about trust.\\n\\nAbsence is a finding, not a default pass. Measured 2026-09-02 by negotiation: with no profile bound, a PA-5220 management interface accepts TLS 1.1 and refuses only TLS 1.0. Binding a profile is what raises the floor.\\n\\nThe profile name resolves over two scopes, and PREDEFINED BEATS SHARED. A custom profile written under the shipped name TLSv1.3_Default is ignored entirely, settings and certificate alike, so the name alone does not tell you what is in force.",
           "rationale": "The management interface carries full administrative authority, and TLS 1.1 has no acceptable modern cipher suites. An unbound interface is not merely unhardened: it is measurably weaker than the hardened profile PAN-OS already ships and could have bound for free.",
           "audit": "Confirm an SSL/TLS service profile is bound at Device > Setup > Management > General Settings, and that the profile it resolves to sets Min Version to TLS 1.2 or higher. Where the bound name matches a predefined profile, read the PREDEFINED definition - a same-named custom profile is not in force.",
@@ -1557,21 +2027,21 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.ManagementTlsBinding",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "ssl_tls_service_profile_name",
+                    "field": "profile_name",
                     "op": "is_empty",
                     "value": ""
                   },
                   {
-                    "field": "ssl_tls_min_version",
+                    "field": "min_version",
                     "op": "eq",
                     "value": "tls1-0"
                   },
                   {
-                    "field": "ssl_tls_min_version",
+                    "field": "min_version",
                     "op": "eq",
                     "value": "tls1-1"
                   },
@@ -1579,13 +2049,13 @@
                     "operator": "and",
                     "clauses": [
                       {
-                        "field": "ssl_tls_service_profile_name",
+                        "field": "profile_name",
                         "op": "is_empty",
                         "value": "",
                         "negated": true
                       },
                       {
-                        "field": "ssl_tls_min_version",
+                        "field": "min_version",
                         "op": "is_empty",
                         "value": ""
                       }
@@ -1598,12 +2068,12 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.ManagementTlsBinding"
         },
         {
           "control_id": "PAN-MGT-011",
           "name": "Enable Log on High DP Load",
-          "control_type": "device_configuration",
+          "control_type": "logging_settings",
           "description": "Logs a system event when dataplane CPU is sustained at a high level - an early signal of flooding, decryption overload, or a device outgrowing its sizing.\\n\\nDisabled by default: absent from configuration means OFF, measured 2026-09-01, so an untouched device reports this finding.",
           "rationale": "Sustained high dataplane load degrades inspection before it degrades throughput, and without this event the first symptom is usually a user complaint.",
           "audit": "Confirm Enable Log on High DP Load is set.",
@@ -1616,7 +2086,7 @@
               "name": "Baseline",
               "short_description": "Default baseline query.",
               "canonical_query": {
-                "model": "integrations.DeviceConfigurationProfile",
+                "model": "integrations.LoggingSettings",
                 "operator": "or",
                 "clauses": [
                   {
@@ -1631,7 +2101,7 @@
               "is_active": true
             }
           ],
-          "target_model": "integrations.DeviceConfigurationProfile"
+          "target_model": "integrations.LoggingSettings"
         },
         {
           "control_id": "PAN-MGT-013",

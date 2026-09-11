@@ -8,12 +8,23 @@ from assessments.search.exceptions import SearchSyntaxError
 
 
 SECURITY_RULE_QUERY_MODEL = "integrations.SecurityRule"
-DEVICE_CONFIGURATION_MODEL = "integrations.DeviceConfigurationProfile"
 MANAGEMENT_INTERFACE_MODEL = "integrations.ManagementInterface"
 INTERFACE_MANAGEMENT_PROFILE_MODEL = "integrations.InterfaceManagementProfile"
 SSL_TLS_SERVICE_PROFILE_MODEL = "integrations.SslTlsServiceProfile"
 CERTIFICATE_PROFILE_MODEL = "integrations.CertificateProfile"
 CERTIFICATE_MODEL = "integrations.Certificate"
+AUTHENTICATION_PROFILE_MODEL = "integrations.AuthenticationProfile"
+AUTHENTICATION_SEQUENCE_MODEL = "integrations.AuthenticationSequence"
+PASSWORD_COMPLEXITY_MODEL = "integrations.PasswordComplexityPolicy"
+AUTHENTICATION_SETTINGS_MODEL = "integrations.AuthenticationSettings"
+LOGIN_BANNER_MODEL = "integrations.LoginBanner"
+MANAGEMENT_TLS_MODEL = "integrations.ManagementTlsBinding"
+MASTER_KEY_MODEL = "integrations.MasterKey"
+UPDATE_SERVER_SETTINGS_MODEL = "integrations.UpdateServerSettings"
+LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
+PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
+ADMIN_USER_MODEL = "integrations.AdminUser"
+SERVER_PROFILE_MODEL = "integrations.ServerProfile"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -28,10 +39,6 @@ SEVERITY_RANK = {
 
 def default_security_rule_search_query():
     return {"model": SECURITY_RULE_QUERY_MODEL, "operator": "and", "clauses": []}
-
-
-def default_device_configuration_search_query():
-    return {"model": DEVICE_CONFIGURATION_MODEL, "operator": "and", "clauses": []}
 
 
 def severity_label(severity_value: str) -> str:
@@ -112,14 +119,6 @@ def evaluate_control_queries(queryset, control):
     )
 
 
-def evaluate_device_configuration_control_queries(queryset, control):
-    return evaluate_queryset_control_queries(
-        queryset,
-        control,
-        model_name=control.target_model or DEVICE_CONFIGURATION_MODEL,
-    )
-
-
 def evaluate_interface_management_profile_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,
@@ -136,11 +135,83 @@ def evaluate_ssl_tls_service_profile_control_queries(queryset, control):
     )
 
 
+def evaluate_master_key_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or MASTER_KEY_MODEL,
+    )
+
+
+def evaluate_update_server_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or UPDATE_SERVER_SETTINGS_MODEL,
+    )
+
+
+def evaluate_logging_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LOGGING_SETTINGS_MODEL,
+    )
+
+
+def evaluate_management_tls_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or MANAGEMENT_TLS_MODEL,
+    )
+
+
+def evaluate_login_banner_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LOGIN_BANNER_MODEL,
+    )
+
+
+def evaluate_authentication_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or AUTHENTICATION_SETTINGS_MODEL,
+    )
+
+
+def evaluate_password_complexity_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or PASSWORD_COMPLEXITY_MODEL,
+    )
+
+
 def evaluate_password_profile_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,
         control,
         model_name=control.target_model or PASSWORD_PROFILE_MODEL,
+    )
+
+
+def evaluate_server_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SERVER_PROFILE_MODEL,
+    )
+
+
+def evaluate_admin_user_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or ADMIN_USER_MODEL,
     )
 
 
@@ -173,4 +244,12 @@ def evaluate_management_interface_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or MANAGEMENT_INTERFACE_MODEL,
+    )
+
+
+def evaluate_authentication_sequence_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or AUTHENTICATION_SEQUENCE_MODEL,
     )

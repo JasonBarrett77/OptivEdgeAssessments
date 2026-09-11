@@ -12,11 +12,9 @@ from urllib.parse import urlencode
 
 from assessments.forms import ControlForm, ControlQueryForm
 from assessments.control_queries import (
-    DEVICE_CONFIGURATION_MODEL,
     SECURITY_RULE_QUERY_MODEL,
     default_security_rule_search_query,
     evaluate_control_queries,
-    evaluate_device_configuration_control_queries,
     severity_label,
 )
 from assessments.reporting import (
@@ -30,6 +28,8 @@ from assessments.configuration_findings import regenerate_configuration_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
 from assessments.tables import Column
+from assessments import configuration_navigation as config_nav
+from assessments import configuration_results as config_results
 from django.contrib.contenttypes.models import ContentType
 
 from assessments.search.management_interface.fields.services import (
@@ -41,28 +41,41 @@ from assessments.search.management_interface.fields.exposure import (
 )
 from assessments.models import (
     AuthenticationProfileFinding,
+    AuthenticationSequenceFinding,
+    AdminUserFinding,
+    ServerProfileFinding,
+    AuthenticationSettingsFinding,
+    LoggingSettingsFinding,
+    LoginBannerFinding,
+    ManagementTlsFinding,
+    MasterKeyFinding,
+    PasswordComplexityFinding,
+    UpdateServerSettingsFinding,
     PasswordProfileFinding,
     ApplicationEnvironmentCatalogState,
     Control,
     ControlQuery,
+    ConfigurationSearchState,
     CertificateFinding,
     CertificateProfileFinding,
-    DeviceConfigurationFinding,
     InterfaceManagementProfileFinding,
     ManagementInterfaceFinding,
     RuleFinding,
     SecurityRuleSearchState,
     SslTlsServiceProfileFinding,
 )
-from assessments.search.compiler import apply_search, apply_search_node, parse_search_payload
+from assessments.search.compiler import (
+    apply_search, apply_search_node, compile_predicate, parse_search_payload)
+from assessments.search import registry as search_registry
 from assessments.search.exceptions import SearchSyntaxError
 from assessments.security_rule_queries import (
     build_security_rule_display_queryset,
     get_cached_security_rule_pks,
 )
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Count
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
@@ -78,11 +91,20 @@ from optivedge_integrations.integrations.presentation import (
 )
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    AdminUser,
+    ServerProfile,
     AuthenticationProfile,
+    AuthenticationSequence,
+    AuthenticationSettings,
+    LoggingSettings,
+    LoginBanner,
+    ManagementTlsBinding,
+    MasterKey,
+    PasswordComplexityPolicy,
+    UpdateServerSettings,
     PasswordProfile,
     Certificate,
     CertificateProfile,
-    DeviceConfigurationProfile,
     FieldProvenance,
     InterfaceManagementProfile,
     ManagementInterface,
@@ -106,8 +128,31 @@ SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
 CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
 CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
-AUTHENTICATION_PROFILE_CONTROLS = ("PAN-AUTH-018", "PAN-AUTH-020")
+#: PAN-AUTH-020 is NOT here. It asks whether a second factor governs an ADMINISTRATOR, which
+#: is a fact about a person reached through a binding - a profile row cannot say which people
+#: are exposed. It reports on the Administrators tab.
+#:
+#: That is a decision about 019 and 020, NOT a direction of travel for this tab. Jason,
+#: 2026-09-09: "it is not a general rule. The other authentication profile controls should stay
+#: profile-centric." The test is what the finding NAMES - "this profile has no lockout" is
+#: reportable about a profile; "this administrator is reachable by a password alone" is not,
+#: because two accounts on one appliance can sit behind different profiles.
+AUTHENTICATION_PROFILE_CONTROLS = (
+    "PAN-AUTH-018", "PAN-AUTH-025", "PAN-AAA-010", "PAN-AAA-011")
+AUTHENTICATION_SEQUENCE_CONTROLS = ("PAN-AAA-012",)
 PASSWORD_PROFILE_CONTROLS = ("PAN-AUTH-026",)
+#: All three assess the same account and fail independently, which is the whole reason they
+#: share a tab: `admin` on pan-fw-111 fires all three at once.
+#:
+#: PAN-AUTH-020 was here and is DEFERRED - not derivable from configuration (Jason,
+#: 2026-09-10). An administrator's second factor arrives through RADIUS, SAML or the Cloud
+#: Authentication Service, and the firewall records none of the other side's policy; the one
+#: factor the configuration does show, the Factors tab, is not enforced for administrators.
+ADMIN_USER_CONTROLS = ("PAN-AUTH-019", "PAN-AUTH-021", "PAN-AUTH-022")
+#: Six kinds on one tab, because they are one object type with one set of questions asked
+#: differently. Six tabs would put one profile per page on most estates.
+SERVER_PROFILE_CONTROLS = ("PAN-AAA-001", "PAN-AAA-002", "PAN-AAA-004", "PAN-AAA-006",
+                           "PAN-AAA-008", "PAN-AAA-009", "PAN-AAA-013")
 
 
 def build_profile_rows(profiles, severity_by_profile_id=None):
@@ -362,8 +407,8 @@ class LegacyFindingListView(TemplateView):
     `-created_at` and paginated, with no grouping, no severity filter and no object context -
     and the per-object tabs strictly dominate it for browsing.
 
-    It is also INCOMPLETE, which is part of why it reads as thin. Seven finding models exist
-    and this view knows two: RuleFinding and DeviceConfigurationFinding. ManagementInterface,
+    It is also INCOMPLETE, which is part of why it reads as thin. Eighteen finding models exist
+    and this view knows one: RuleFinding. ManagementInterface,
     InterfaceManagementProfile, SslTlsServiceProfile, CertificateProfile and Certificate
     findings do not appear at all - 22 of the lab's 72 findings, the whole certificates domain
     among them. Nothing fails; they are simply not queried.
@@ -385,14 +430,10 @@ class LegacyFindingListView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        tab = self.request.GET.get("tab", "security-rules")
-        if tab not in {"security-rules", "device-configuration"}:
-            tab = "security-rules"
-        context["active_tab"] = tab
-        if tab == "security-rules":
-            context.update(self._security_rule_context())
-        else:
-            context.update(self._device_configuration_context())
+        # One tab now. The device-configuration tab went with DeviceConfigurationFinding on
+        # 2026-09-11; a bookmarked ?tab=device-configuration lands here rather than erroring.
+        context["active_tab"] = "security-rules"
+        context.update(self._security_rule_context())
         return context
 
     def _finding_display(self, finding):
@@ -637,32 +678,12 @@ class LegacyFindingListView(TemplateView):
             ),
         }
 
-    def _device_configuration_context(self):
-        queryset = (
-            DeviceConfigurationFinding.objects.select_related(
-                "assessment_run",
-                "control",
-                "device_configuration_profile",
-                "device_configuration_profile__management_station",
-                "device_configuration_profile__appliance",
-                "device_configuration_profile__appliance_group",
-            )
-            .prefetch_related("control_queries")
-            .order_by("-created_at", "-pk")
-        )
-        paginator = Paginator(queryset, PAGE_SIZE)
-        page_obj = paginator.get_page(self.request.GET.get("page"))
-        return {
-            "device_configuration_findings": page_obj.object_list,
-            "page_obj": page_obj,
-            "page_range": pagination_range(page_obj),
-        }
-
 
 class RuleFindingDocxDownloadView(View):
-    """Covers RuleFinding and DeviceConfigurationFinding only - see reporting/context.py.
+    """Covers RuleFinding only - see reporting/context.py. DeviceConfigurationFinding was the
+    other, until that model was deleted on 2026-09-11.
 
-    The other five finding models reach no client deliverable. Worse, this 500s outright when
+    The other seventeen finding models reach no client deliverable. Worse, this 500s outright when
     there are no RuleFinding rows at all: `build_report_context()` raises rather than reporting
     on what exists. The lab has 72 findings, none of them rule findings, and both downloads
     fail there today.
@@ -790,8 +811,8 @@ class DeviceTabListView(TemplateView):
 
     `finding_controls` empty means EVERY control of that finding model, which is what the
     interface-profile tab wants. Naming them is for tabs showing one slice of a model's
-    findings - the four DeviceConfigurationProfile tabs all read the same model and must not
-    show each other's.
+    findings - no two tabs share a finding model today, but four did until 2026-09-10 and the
+    next pair that does will need it.
 
     Ordering is declared rather than defaulted because it is load-bearing for the rendered
     page, and three of these tabs sort by more than hostname.
@@ -995,7 +1016,7 @@ class LoginBannerListView(DeviceTabListView):
     controls between them - PAN-MGT-007 and PAN-MGT-008 - so they belong together and apart.
 
     Unlike the surfaces and profiles tabs, provenance here is stored under NAMED fields
-    rather than "__entry__": a DeviceConfigurationProfile carries many values on one row, so
+    rather than "__entry__": the banner and its acknowledgement are pushed independently, so
     each field has its own provenance record.
     """
 
@@ -1013,14 +1034,15 @@ class LoginBannerListView(DeviceTabListView):
 
     tab_title = "Login Banner"
     has_provenance_toggle = True
-    subject_model = DeviceConfigurationProfile
-    finding_model = DeviceConfigurationFinding
-    finding_subject_field = "device_configuration_profile"
+    subject_model = LoginBanner
+    subject_order = ("appliance__hostname",)
+    finding_model = LoginBannerFinding
+    finding_subject_field = "login_banner"
     finding_controls = BANNER_CONTROLS
 
     def row_context(self, subjects):
-        return {"banner_sources": _entry_provenance(subjects, "login_banner"),
-                "ack_sources": _entry_provenance(subjects, "ack_login_banner")}
+        return {"banner_sources": _entry_provenance(subjects, "text"),
+                "ack_sources": _entry_provenance(subjects, "acknowledgement_required")}
 
     def build_row(self, profile, findings, banner_sources, ack_sources):
         return {
@@ -1044,8 +1066,9 @@ class ManagementTlsListView(DeviceTabListView):
     certificate is the device's own self-signed one. Splitting them across tabs would hide
     the single most common remediation trap.
 
-    Provenance is under a NAMED field rather than "__entry__" - a DeviceConfigurationProfile
-    carries many values on one row - and only the BINDING has any. The resolved values are
+    Provenance is under a NAMED field rather than "__entry__", and only the BINDING has any.
+    Since 2026-09-10 the subject is `ManagementTlsBinding`, which reads the floor and the
+    certificate THROUGH the profile row rather than copying them - the copies had drifted. The resolved values are
     read from a profile object elsewhere in the tree, so they carry no @ptpl of their own and
     a provenance line under them would be an invention.
     """
@@ -1066,13 +1089,14 @@ class ManagementTlsListView(DeviceTabListView):
 
     tab_title = "Management TLS"
     has_provenance_toggle = True
-    subject_model = DeviceConfigurationProfile
-    finding_model = DeviceConfigurationFinding
-    finding_subject_field = "device_configuration_profile"
+    subject_model = ManagementTlsBinding
+    subject_order = ("appliance__hostname",)
+    finding_model = ManagementTlsFinding
+    finding_subject_field = "management_tls_binding"
     finding_controls = MANAGEMENT_TLS_CONTROLS
 
     def row_context(self, subjects):
-        return {"binding_sources": _entry_provenance(subjects, "ssl_tls_service_profile_name")}
+        return {"binding_sources": _entry_provenance(subjects, "profile_name")}
 
     def build_row(self, profile, findings, binding_sources):
         return {
@@ -1231,13 +1255,14 @@ class MasterKeyListView(DeviceTabListView):
     )
 
     tab_title = "Master Key"
-    subject_model = DeviceConfigurationProfile
-    finding_model = DeviceConfigurationFinding
-    finding_subject_field = "device_configuration_profile"
+    subject_model = MasterKey
+    subject_order = ("appliance__hostname",)
+    finding_model = MasterKeyFinding
+    finding_subject_field = "master_key"
     finding_controls = MASTER_KEY_CONTROLS
 
     def build_row(self, profile, findings):
-        raw_expiry = (profile.master_key_expires_at or "").strip()
+        raw_expiry = (profile.expires_at or "").strip()
         # The API returns 0 where the CLI prints "unspecified". Rendered in the CLI's
         # words, because that is what an engineer sees when they go and check.
         if raw_expiry and raw_expiry != "0":
@@ -1300,111 +1325,6 @@ class CertificateListView(DeviceTabListView):
             "expired": days_left is not None and days_left < 0,
             "findings": findings,
         }
-
-class DeviceConfigurationProfileListView(TemplateView):
-    template_name = "assessments/device_configuration_profile_list.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        profiles = (
-            DeviceConfigurationProfile.objects.select_related(
-                "management_station",
-                "appliance",
-                "appliance_group",
-            )
-            .order_by("management_station__hostname", "appliance__hostname", "pk")
-        )
-
-        selected_control = None
-        selected_control_query = None
-        severity_by_profile_id = {}
-        filter_suffix = ""
-
-        context["show_control_severity"] = False
-        context["search_summary"] = "All device configuration profiles"
-        context["search_error"] = ""
-        context["selected_control_query_count"] = 0
-        context["selected_control_skipped_queries"] = 0
-        context["applied_control_close_url"] = reverse("assessment_device_configuration_profile_list")
-
-        control_id = self.request.GET.get("control")
-        control_query_id = self.request.GET.get("control_query")
-
-        if control_id:
-            try:
-                selected_control = Control.objects.get(pk=int(control_id))
-                if selected_control.target_model != DEVICE_CONFIGURATION_MODEL:
-                    context["search_error"] = (
-                        f"Control {selected_control.control_id} is a "
-                        f"{selected_control.get_control_type_display()} control and cannot "
-                        f"be applied to device configuration profiles."
-                    )
-                    selected_control = None
-                else:
-                    (
-                        profiles,
-                        active_queries,
-                        skipped_queries,
-                        _matched_by_profile,
-                        severity_by_profile_id,
-                    ) = evaluate_device_configuration_control_queries(profiles, selected_control)
-                    severity_by_profile_id = {
-                        profile_id: severity_label(severity_value)
-                        for profile_id, severity_value in severity_by_profile_id.items()
-                    }
-                    context["show_control_severity"] = True
-                    context["selected_control_query_count"] = len(active_queries)
-                    context["selected_control_skipped_queries"] = skipped_queries
-                    context["search_summary"] = (
-                        f"Control candidates: {selected_control.control_id} "
-                        f"({len(active_queries)} quer{'y' if len(active_queries) == 1 else 'ies'})"
-                    )
-                    filter_suffix = f"&control={control_id}"
-            except (Control.DoesNotExist, ValueError, TypeError):
-                context["search_error"] = "Control could not be found."
-
-        elif control_query_id:
-            try:
-                selected_control_query = ControlQuery.objects.select_related("control").get(
-                    pk=int(control_query_id)
-                )
-                canonical_query = selected_control_query.canonical_query
-                if not isinstance(canonical_query, dict) or canonical_query.get("model") != DEVICE_CONFIGURATION_MODEL:
-                    context["search_error"] = "This query does not target device configuration profiles."
-                    selected_control_query = None
-                else:
-                    try:
-                        profiles = apply_search_node(profiles, canonical_query)
-                        context["search_summary"] = (
-                            f"Query: {selected_control_query.control.control_id} / "
-                            f"{selected_control_query.name}"
-                        )
-                        filter_suffix = f"&control_query={control_query_id}"
-                    except SearchSyntaxError as exc:
-                        context["search_error"] = str(exc) or "Saved query is invalid."
-                        selected_control_query = None
-            except (ControlQuery.DoesNotExist, ValueError, TypeError):
-                context["search_error"] = "Saved query could not be found."
-
-        context["selected_control"] = selected_control
-        context["selected_control_query"] = selected_control_query
-        context["filter_suffix"] = filter_suffix
-
-        # Filtering complete — now paginate.
-        paginator = Paginator(profiles, PAGE_SIZE)
-        page_obj = paginator.get_page(self.request.GET.get("page"))
-
-        context["profile_rows"] = build_profile_rows(
-            page_obj.object_list,
-            severity_by_profile_id=severity_by_profile_id,
-        )
-        context["page_obj"] = page_obj
-        context["page_range"] = pagination_range(page_obj)
-        context["total_row_count"] = paginator.count
-
-        return context
-
 
 def report_finding_run(request, message: str, *, skipped_queries: int) -> None:
     """Report a findings run, escalating to a warning when a query was dropped.
@@ -1863,29 +1783,32 @@ AUTHENTICATION_SETTINGS_CONTROLS = ("PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-01
 #: here. "unassessed" marks the three keys PAN-OS accepts that no corpus control reads; they are
 #: shown because collecting a value and then hiding it is how a page starts lying about what was
 #: looked at, and they are styled apart so nobody mistakes one for a passing check.
+#: Field names carry no `password_` prefix since the subject became `PasswordComplexityPolicy`
+#: on 2026-09-10: on a model that IS the password policy the prefix said nothing. The three
+#: `unassessed_*` cells are values PAN-OS accepts that no corpus control reads.
 PASSWORD_COMPLEXITY_GROUPS = (
     ("Composition", (
-        ("password_minimum_length", "Length", "length"),
-        ("password_minimum_uppercase", "Uppercase", "int"),
-        ("password_minimum_lowercase", "Lowercase", "int"),
-        ("password_minimum_numeric", "Numeric", "int"),
-        ("password_minimum_special", "Special", "int"),
-        ("password_block_username_inclusion", "Blocks username", "bool"),
-        ("password_block_repeated_characters", "Repeated chars", "unassessed_int"),
+        ("minimum_length", "Length", "length"),
+        ("minimum_uppercase", "Uppercase", "int"),
+        ("minimum_lowercase", "Lowercase", "int"),
+        ("minimum_numeric", "Numeric", "int"),
+        ("minimum_special", "Special", "int"),
+        ("block_username_inclusion", "Blocks username", "bool"),
+        ("block_repeated_characters", "Repeated chars", "unassessed_int"),
     )),
     ("Reuse", (
-        ("password_new_differs_by_characters", "Differs by", "int"),
-        ("password_history_count", "History", "int"),
+        ("new_differs_by_characters", "Differs by", "int"),
+        ("history_count", "History", "int"),
     )),
     ("Expiry", (
-        ("password_expiration_period", "Period", "days_never"),
-        ("password_expiration_warning_period", "Warning", "int"),
+        ("expiration_period", "Period", "days_never"),
+        ("expiration_warning_period", "Warning", "int"),
     )),
     ("Password change", (
-        ("password_post_expiration_admin_login_count", "Post-expiry logins", "int"),
-        ("password_post_expiration_grace_period", "Grace period", "int"),
-        ("password_change_on_first_login", "On first login", "unassessed_bool"),
-        ("password_change_period_block", "Period block", "unassessed_int"),
+        ("post_expiration_admin_login_count", "Post-expiry logins", "int"),
+        ("post_expiration_grace_period", "Grace period", "int"),
+        ("change_on_first_login", "On first login", "unassessed_bool"),
+        ("change_period_block", "Period block", "unassessed_int"),
     )),
 )
 
@@ -1954,9 +1877,10 @@ class PasswordComplexityListView(DeviceTabListView):
 
     tab_title = "Password Complexity"
     has_provenance_toggle = True
-    subject_model = DeviceConfigurationProfile
-    finding_model = DeviceConfigurationFinding
-    finding_subject_field = "device_configuration_profile"
+    subject_model = PasswordComplexityPolicy
+    subject_order = ("appliance__hostname",)
+    finding_model = PasswordComplexityFinding
+    finding_subject_field = "password_complexity_policy"
     finding_controls = PASSWORD_COMPLEXITY_CONTROLS
     finding_order = ("control__control_id",)
 
@@ -1966,8 +1890,7 @@ class PasswordComplexityListView(DeviceTabListView):
             for _, cells in PASSWORD_COMPLEXITY_GROUPS
             for field, _, _ in cells
         }
-        provenance_by_field["password_complexity_enabled"] = _entry_provenance(
-            subjects, "password_complexity_enabled")
+        provenance_by_field["enabled"] = _entry_provenance(subjects, "enabled")
         return {"fields_by_control": _fields_by_control(PASSWORD_COMPLEXITY_CONTROLS),
                 "provenance_by_field": provenance_by_field}
 
@@ -1994,9 +1917,8 @@ class PasswordComplexityListView(DeviceTabListView):
             "profile": profile,
             "groups": groups,
             "findings": findings,
-            "enabled_provenance": provenance_by_field[
-                "password_complexity_enabled"].get(profile.pk, ""),
-            "enabled_weak": "password_complexity_enabled" in weak_fields,
+            "enabled_provenance": provenance_by_field["enabled"].get(profile.pk, ""),
+            "enabled_weak": "enabled" in weak_fields,
         }
 
 
@@ -2015,9 +1937,10 @@ class AuthenticationSettingsListView(DeviceTabListView):
     template_name = "assessments/authentication_settings_list.html"
     tab_title = "Authentication Settings"
     has_provenance_toggle = True
-    subject_model = DeviceConfigurationProfile
-    finding_model = DeviceConfigurationFinding
-    finding_subject_field = "device_configuration_profile"
+    subject_model = AuthenticationSettings
+    subject_order = ("appliance__hostname",)
+    finding_model = AuthenticationSettingsFinding
+    finding_subject_field = "authentication_settings"
     finding_controls = AUTHENTICATION_SETTINGS_CONTROLS
     finding_order = ("control__control_id",)
 
@@ -2031,7 +1954,9 @@ class AuthenticationSettingsListView(DeviceTabListView):
         Column("Collected"),
     )
 
-    FIELDS = ("admin_lockout_failed_attempts", "admin_lockout_time_minutes",
+    #: The `admin_` prefix went with the aggregate on 2026-09-10: on a model that IS the
+    #: administrator settings it said nothing.
+    FIELDS = ("lockout_failed_attempts", "lockout_time_minutes",
               "idle_timeout_minutes", "api_key_lifetime_minutes")
 
     def row_context(self, subjects):
@@ -2048,8 +1973,8 @@ class AuthenticationSettingsListView(DeviceTabListView):
             return {"value": value, "meaning": meaning, "weak": field in weak,
                     "provenance": provenance_by_field.get(field, {}).get(profile.pk, "")}
 
-        attempts = profile.admin_lockout_failed_attempts
-        lockout = profile.admin_lockout_time_minutes
+        attempts = profile.lockout_failed_attempts
+        lockout = profile.lockout_time_minutes
         idle = profile.idle_timeout_minutes
         lifetime = profile.api_key_lifetime_minutes
         return {
@@ -2058,9 +1983,9 @@ class AuthenticationSettingsListView(DeviceTabListView):
             "cells": [
                 # Each zero says what it MEANS. Two of these columns hold a 0 that is the
                 # worst available value and one holds a 0 that is the best.
-                cell("admin_lockout_failed_attempts", attempts,
+                cell("lockout_failed_attempts", attempts,
                      "lockout disabled" if attempts == 0 else f"after {attempts}"),
-                cell("admin_lockout_time_minutes", lockout,
+                cell("lockout_time_minutes", lockout,
                      "until released" if lockout == 0 else f"{lockout} min"),
                 cell("idle_timeout_minutes", idle,
                      "never" if idle == 0 else f"{idle} min"),
@@ -2081,6 +2006,12 @@ class AuthenticationProfileListView(DeviceTabListView):
     Failed Attempts renders its meaning rather than its number when it is zero, for the reason
     the Authentication Settings tab does: 0 there is UNLIMITED ATTEMPTS, the worst value
     available, and a bare "0" beside a Lockout column reads as strictness.
+
+    The MFA column used to amber "off" and leave a factor count plain. That was backwards for
+    administrator-bound profiles: PAN-OS invokes vendor-API MFA server profiles for
+    Authentication Policy only, so "1 factor" on a profile an administrator logs in through is
+    the finding (PAN-AAA-011) and "off" there is no control's business - PAN-AUTH-019 assesses
+    an administrator's exposure, on the account, on another tab.
     """
 
     template_name = "assessments/authentication_profile_list.html"
@@ -2099,6 +2030,7 @@ class AuthenticationProfileListView(DeviceTabListView):
         Column("Method"),
         Column("Lockout"),
         Column("MFA"),
+        Column("Referenced By"),
         Column("Allow List"),
         Column("Findings"),
         Column("Collected"),
@@ -2117,8 +2049,77 @@ class AuthenticationProfileListView(DeviceTabListView):
                              + ("until released" if profile.lockout_time_minutes == 0
                                 else f"{profile.lockout_time_minutes} min")),
             "lockout_weak": attempts == 0,
+            # "all" alone is not a finding; "all on a profile an administrator authenticates
+            # through" is. The row says which, because the allow-list cell reads identically on
+            # all nine lab profiles, of which five report and four do not.
+            "administrative": profile.is_administrative,
+            "allow_all": profile.allow_list_is_all,
+            # "Nothing" rather than 0: a blank or a bare zero in a reference column reads as
+            # "not counted" exactly where it means "counted, and the answer was none".
+            "referrers": (f"{profile.referrer_count} place(s)" if profile.referrer_count
+                          else "Nothing"),
+            "referrer_paths": profile.referrer_paths,
+            "unused": profile.referrer_count == 0,
+            # PAN-AAA-011 fires on MFA being PRESENT, which is the opposite direction from every
+            # other control here, so the MFA cell cannot render "on" as good and "off" as bad.
+            # It amber-flags a factor list on an administrator-bound profile - where PAN-OS does
+            # not invoke it - and says so, because "1 factor" is otherwise the most reassuring
+            # cell on the row and is exactly the finding.
+            "mfa_inert": profile.is_administrative and profile.mfa_enabled
+                         and profile.mfa_factor_count > 0,
             "external": profile.method_is_external,
             "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
+
+
+class AuthenticationSequenceListView(DeviceTabListView):
+    """Authentication sequences. PAN-AAA-012.
+
+    The members are listed IN ORDER with each one's method, because the order is the meaning:
+    the firewall tries them top to bottom until one succeeds, so a local-database member is
+    reached whenever everything above it fails. A local member is ambered only on an
+    administrator-bound sequence - the same members behind captive portal are not this
+    control's business, and the Referenced By cell says which kind each row is, because the
+    scoping clause is derived and the member list alone reads identically on both.
+    """
+
+    template_name = "assessments/authentication_sequence_list.html"
+    tab_title = "Authentication Sequences"
+    all_label = "All sequences"
+    has_provenance_toggle = True
+    subject_model = AuthenticationSequence
+    subject_order = ("appliance__hostname", "scope", "name")
+    finding_model = AuthenticationSequenceFinding
+    finding_subject_field = "authentication_sequence"
+    finding_controls = AUTHENTICATION_SEQUENCE_CONTROLS
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Sequence"),
+        Column("Profiles, In Order"),
+        Column("Exit On Failure"),
+        Column("Referenced By"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
+
+    def build_row(self, sequence, findings, sources):
+        local = set(sequence.local_member_names)
+        return {
+            "sequence": sequence,
+            "steps": [{"name": name, "method": method or "not found", "local": name in local}
+                      for name, method in zip(sequence.member_names, sequence.member_methods)],
+            "exit_on_failure": "yes" if sequence.exit_sequence_on_failure else "no",
+            "administrative": sequence.is_administrative,
+            "referrers": (f"{sequence.referrer_count} place(s)" if sequence.referrer_count
+                          else "Nothing"),
+            "referrer_paths": sequence.referrer_paths,
+            "unused": sequence.referrer_count == 0,
+            "provenance": sources.get(sequence.pk, ""),
             "findings": findings,
         }
 
@@ -2174,3 +2175,381 @@ class PasswordProfileListView(DeviceTabListView):
             "provenance": sources.get(profile.pk, ""),
             "findings": findings,
         }
+
+
+class AdminUserListView(DeviceTabListView):
+    """Administrator accounts and every control that assesses one. PAN-AUTH-019, 021, 022.
+
+    There is no MFA column, deliberately. It used to show the bound profile's Factors list, and
+    ambered accounts without one - so `oep-mfa-admin`, whose factor PAN-OS never invokes for an
+    administrator, read as the protected account on the page. Nothing in the configuration can
+    say whether an administrator has MFA, so a column claiming to is the one thing this page
+    must not carry. The declared factor is still visible on Authentication Profiles, where
+    PAN-AAA-011 reports it as inert.
+
+    The row carries what each control READ rather than its verdict: the role, the superuser
+    total the role belongs to, and the credentials the account actually holds. An engineer
+    reading "PAN-AUTH-019 high" needs to see that the account has a password and no profile
+    before they can act, and all three findings land on the same row because there is one
+    object to remediate.
+
+    "Nothing" and "Local database" are written out. A blank credentials cell would be the
+    account with no credential at all - a real state, and one worth reading as a fact rather
+    than as a rendering gap.
+    """
+
+    template_name = "assessments/admin_user_list.html"
+    tab_title = "Administrators"
+    all_label = "All accounts"
+    has_provenance_toggle = True
+    subject_model = AdminUser
+    subject_order = ("appliance__hostname", "name")
+    finding_model = AdminUserFinding
+    finding_subject_field = "admin_user"
+    finding_controls = ADMIN_USER_CONTROLS
+    finding_order = ("control__control_id",)
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Account"),
+        Column("Role"),
+        Column("Superusers"),
+        Column("Authentication"),
+        Column("Credentials"),
+        Column("Password Profile"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    @staticmethod
+    def _credentials(user):
+        held = [label for present, label in ((user.has_password, "Password"),
+                                             (user.has_public_key, "SSH key")) if present]
+        if user.client_certificate_only:
+            held.append("Client cert only (web)")
+        return ", ".join(held) if held else "Nothing"
+
+    def row_context(self, subjects):
+        return {
+            "sources": _entry_provenance(subjects),
+            "auth_sources": _entry_provenance(subjects, "authentication_profile_name"),
+        }
+
+    def build_row(self, user, findings, sources, auth_sources):
+        binding_none = AdminUser.AuthenticationBinding.NONE
+        return {
+            "user": user,
+            "role": user.get_role_type_display(),
+            "role_scope": user.role_scope or user.custom_role_profile,
+            # 0 is not "no superusers on this appliance", it is "this account is not one of
+            # them" - so the cell says what the column means rather than printing the number.
+            "superusers": user.superuser_cohort_size if user.is_superuser else "",
+            "authentication": user.effective_authentication_profile or "Local database",
+            "external": user.authentication_is_external,
+            # Blank when nothing is bound: the cell above already says "Local database", and
+            # repeating the binding's own label under it reads as two facts, not one. Where a
+            # profile IS bound, the sub-line says whether it actually reaches an external
+            # service - "corp-tacacs / Per-account" reads as centralized and may not be.
+            "binding": ("" if user.authentication_binding == binding_none else
+                        f"{user.get_authentication_binding_display()}"
+                        f"{' - sequence' if user.authentication_sequence else ''}"
+                        f"{'' if user.authentication_is_external else ' - not external'}"),
+            "auth_provenance": auth_sources.get(user.pk, ""),
+            "credentials": self._credentials(user),
+            "local_only": not user.centrally_authenticated,
+            "password_profile": user.password_profile_name or "None",
+            "provenance": sources.get(user.pk, ""),
+            "findings": findings,
+        }
+
+
+class ServerProfileListView(DeviceTabListView):
+    """AAA server profiles of every kind, with the setting each control reads. PAN-AAA-*.
+
+    ONE TABLE, SIX KINDS, so the Settings column is per-kind rather than one column per field:
+    six kinds by four settings is twenty-four columns of which twenty are blank on any row. What
+    an engineer needs is the profile, what type it is, and the value to change.
+
+    Settings are rendered in the words of the screen they live on, because the reader is going
+    to that screen next.
+    """
+
+    template_name = "assessments/server_profile_list.html"
+    tab_title = "AAA Server Profiles"
+    all_label = "All profiles"
+    has_provenance_toggle = True
+    subject_model = ServerProfile
+    subject_order = ("appliance__hostname", "kind", "name")
+    finding_model = ServerProfileFinding
+    finding_subject_field = "server_profile"
+    finding_controls = SERVER_PROFILE_CONTROLS
+    finding_order = ("control__control_id",)
+
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Profile"),
+        Column("Type"),
+        Column("Servers"),
+        Column("Settings"),
+        Column("Referenced By"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+
+    @staticmethod
+    def _settings(profile):
+        """[(label, value, is_weak)] for this kind, in the words of its own screen."""
+        kind = profile.kind
+        if kind == ServerProfile.Kind.LDAP:
+            return [("SSL/TLS", "on" if profile.ldap_ssl else "off", not profile.ldap_ssl),
+                    ("Verify certificate",
+                     "on" if profile.ldap_verify_server_certificate else "off",
+                     not profile.ldap_verify_server_certificate)]
+        if kind in (ServerProfile.Kind.RADIUS, ServerProfile.Kind.TACPLUS):
+            weak = (profile.protocol in ("PAP", "CHAP")
+                    if kind == ServerProfile.Kind.RADIUS else profile.protocol == "PAP")
+            return [("Protocol", profile.protocol or "unset", weak)]
+        if kind == ServerProfile.Kind.SAML_IDP:
+            return [("Validate IdP certificate",
+                     "on" if profile.saml_validate_idp_certificate else "off",
+                     not profile.saml_validate_idp_certificate),
+                    ("Sign messages",
+                     "on" if profile.saml_want_auth_requests_signed else "off",
+                     not profile.saml_want_auth_requests_signed)]
+        if kind == ServerProfile.Kind.MFA:
+            return [("Vendor", profile.mfa_vendor_type or "unset", False)]
+        if kind == ServerProfile.Kind.UNKNOWN:
+            return [("Unrecognised type", profile.raw_kind or "unknown", True)]
+        return []
+
+    def row_context(self, subjects):
+        return {"sources": _entry_provenance(subjects)}
+
+    def build_row(self, profile, findings, sources):
+        return {
+            "profile": profile,
+            "kind": profile.get_kind_display(),
+            "scope": (profile.scope if profile.scope == "shared"
+                      else f"{profile.scope} {profile.vsys_name}"),
+            "servers": ", ".join(profile.server_addresses) or "none",
+            "settings": self._settings(profile),
+            "certificate": profile.certificate_reference,
+            "admin_use_only": profile.admin_use_only,
+            # "Nothing" rather than 0: a bare zero in a reference column reads as "not counted"
+            # exactly where it means "counted, and the answer was none".
+            "referrers": (f"{profile.referrer_count} place(s)" if profile.referrer_count
+                          else "Nothing"),
+            "referrer_paths": profile.referrer_paths,
+            "unused": profile.referrer_count == 0,
+            "provenance": sources.get(profile.pk, ""),
+            "findings": findings,
+        }
+
+
+class ConfigurationObjectView(TemplateView):
+    """One object in the configuration explorer, inside the PAN-OS-shaped frame.
+
+    What lands here is the pair `/assessments/security-rules/` already has: a query built over
+    this object's fields, and the objects that match it. That is a DIFFERENT surface from the
+    findings tabs under Device Configuration, which present what the controls found - these
+    pages are for asking a question and reading the answer, including trying out a control's
+    query before it is a control. Both surfaces stay; each object links to the other.
+
+    Every object routes here for now. The frame is being built before the views that fill it, so
+    that the ORGANISATION - which category an object is in, which rail group, in what order - is
+    reviewable while it is still cheap to move things. A rail that is wrong after fifteen views
+    are attached to it is fifteen rewrites; a rail that is wrong today is one tuple.
+
+    The category and the object both come from the URL rather than from a class attribute,
+    because there is one view and fifteen pages. When a real view replaces the placeholder for an
+    object it takes the nav context from here rather than rebuilding it - `nav_context` is the
+    part worth sharing, and it is a function so a ListView can use it too.
+    """
+
+    def config_object(self):
+        category = config_nav.CATEGORY_BY_SLUG.get(self.kwargs.get("category", ""))
+        if category is None:
+            raise Http404(f"no such configuration category: {self.kwargs.get('category')!r}")
+        obj = config_nav.CONFIG_OBJECTS_BY_KEY.get((category, self.kwargs.get("slug", "")))
+        if obj is None:
+            raise Http404(f"{category} has no object {self.kwargs.get('slug')!r}")
+        return obj
+
+    def get_template_names(self):
+        return ["assessments/configuration_object_query.html"
+                if self.config_object().search_model
+                else "assessments/configuration_object_placeholder.html"]
+
+    def post(self, request, *args, **kwargs):
+        """Store the built query and redirect to it, rather than rendering the results here.
+
+        A POST that renders leaves the browser on a page that cannot be reloaded, bookmarked or
+        sent to anyone, and re-submits on back. The token in the URL is what makes a built query
+        a thing you can pass around.
+        """
+        obj = self.config_object()
+        if not obj.search_model:
+            raise Http404("this object has no query view")
+        here = reverse("assessment_configuration_object",
+                       args=[config_nav.category_slug(obj.category), obj.slug])
+        payload = (request.POST.get("search") or "").strip()
+        if not payload:
+            return HttpResponseRedirect(here)
+        try:
+            node = parse_search_payload(payload)
+            compile_predicate(config_results.RESULTS[obj.slug].base_queryset().model, node)
+        except SearchSyntaxError as exc:
+            context = self.get_context_data(**kwargs)
+            context.update({
+                "search_error": str(exc),
+                "search_payload": payload,
+                "edit_search_open": True,
+            })
+            return self.render_to_response(context)
+        state = ConfigurationSearchState.objects.create(
+            model_label=obj.search_model,
+            query_text=request.POST.get("q", ""),
+            canonical_query=node,
+        )
+        return HttpResponseRedirect(f"{here}?search_state={state.token}")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        obj = self.config_object()
+        context.update(configuration_nav_context(obj))
+        if obj.search_model:
+            context.update(self.query_context(obj))
+        return context
+
+    def query_context(self, obj):
+        spec = config_results.RESULTS[obj.slug]
+        rows = spec.base_queryset()
+        total = rows.count()
+        node = None
+        error = ""
+
+        token = self.request.GET.get("search_state", "")
+        if token:
+            try:
+                state = ConfigurationSearchState.objects.get(token=token)
+            except (ConfigurationSearchState.DoesNotExist, ValidationError, ValueError):
+                error = "That query is no longer available. Build it again."
+            else:
+                # A token from ANOTHER object's page compiles against fields this model does
+                # not have. Refusing it by name is the difference between an error and a page
+                # that says "0 results" about a question it never asked.
+                if state.model_label != obj.search_model:
+                    error = (f"That query targets {state.model_label} and cannot be applied to "
+                             f"{obj.label}.")
+                else:
+                    node = state.canonical_query
+
+        control_query_id = self.request.GET.get("control_query")
+        if control_query_id and not error:
+            try:
+                saved = ControlQuery.objects.select_related("control").get(pk=int(control_query_id))
+            except (ControlQuery.DoesNotExist, ValueError, TypeError):
+                error = "Saved query could not be found."
+            else:
+                model = (saved.canonical_query or {}).get("model")
+                if model != obj.search_model:
+                    error = (f"{saved.control.control_id}'s query targets {model} and cannot be "
+                             f"applied to {obj.label}.")
+                else:
+                    node = saved.canonical_query
+
+        if node is not None and not error:
+            try:
+                rows = apply_search_node(rows, node)
+            except SearchSyntaxError as exc:
+                error, node = str(exc), None
+
+        return {
+            "search_model": obj.search_model,
+            "search_state_token": token,
+            # The builder's field list comes from the COMPILER's registry, so a field the
+            # compiler cannot handle is never offered. The security rules builder hard-codes
+            # both lists in its template and they are a second copy to keep in step.
+            "field_operators": {
+                name: sorted(ops)
+                for name, ops in sorted(
+                    search_registry.get_model_entry(obj.search_model)["field_operators"].items())
+                # `spec.fields` scopes the dropdown where several rail items share a model.
+                # Empty means the page IS the model and offers everything.
+                if not spec.fields or name in spec.fields
+            },
+            "columns": spec.columns,
+            "rows": [spec.row(item) for item in rows],
+            "total_count": total,
+            "shown_count": rows.count() if node is not None else total,
+            "search_query": node,
+            "search_summary": describe_search_node(node),
+            "search_payload": json.dumps(node) if node else "",
+            "search_error": error,
+            "edit_search_open": self.request.GET.get("edit_search") == "1",
+            "edit_search_close_url": build_query_string_without(self.request, "edit_search"),
+            "clear_search_url": build_query_string_without(
+                self.request, "search_state", "control_query", "edit_search"),
+        }
+
+
+def configuration_nav_context(active):
+    """The category bar and the rail, for whichever object is open.
+
+    Derived from the URL's object rather than passed in per page, for the reason the device tab
+    bar derives its active section: a hand-passed active marker is a second thing to keep in
+    step, and it goes wrong silently.
+    """
+    def href(obj):
+        return reverse("assessment_configuration_object",
+                       args=[config_nav.category_slug(obj.category), obj.slug])
+
+    return {
+        "categories": [
+            {
+                "name": name,
+                "count": len(config_nav.objects_in(name)),
+                # An empty category has nothing to link to. It still renders, greyed, because
+                # the point of showing the product's four categories is that a reader can see
+                # what has not been built yet as well as what has.
+                "href": href(config_nav.first_object(name)) if config_nav.first_object(name) else "",
+                "is_active": name == active.category,
+            }
+            for name in config_nav.CATEGORIES
+        ],
+        "rail": [
+            {
+                "heading": heading,
+                "objects": [
+                    {
+                        "label": obj.label,
+                        "icon": obj.icon,
+                        "href": href(obj),
+                        "is_active": obj.slug == active.slug,
+                    }
+                    for obj in objects
+                ],
+            }
+            for heading, objects in config_nav.groups_in(active.category)
+        ],
+        "config_object": {
+            "label": active.label,
+            "where": active.where,
+            "findings_href": (reverse(active.findings_url_name)
+                              if active.findings_url_name else ""),
+        },
+    }
+
+
+class ConfigurationIndexView(View):
+    """`/assessments/configuration/` - redirect to the landing object rather than render.
+
+    A category index page would be a fourth thing to design and would be passed through without
+    being read. The explorer's first screen should be an object.
+    """
+
+    def get(self, request, *args, **kwargs):
+        obj = config_nav.landing()
+        return HttpResponseRedirect(reverse(
+            "assessment_configuration_object",
+            args=[config_nav.category_slug(obj.category), obj.slug]))

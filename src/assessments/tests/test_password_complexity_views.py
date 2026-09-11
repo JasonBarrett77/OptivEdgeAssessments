@@ -18,25 +18,26 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from assessments.models import AssessmentRun, Control, ControlQuery, DeviceConfigurationFinding
+from assessments.models import (
+    AssessmentRun, Control, ControlQuery, PasswordComplexityFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, FieldProvenance, ManagementStation, Snapshot)
+    Appliance, FieldProvenance, ManagementStation, PasswordComplexityPolicy, Snapshot)
 
 CONTROLS = [f"PAN-AUTH-{n:03d}" for n in range(1, 14)]
 FIELD_BY_CONTROL = {
-    "PAN-AUTH-001": ("password_complexity_enabled",),
-    "PAN-AUTH-002": ("password_minimum_length",),
-    "PAN-AUTH-003": ("password_minimum_uppercase",),
-    "PAN-AUTH-004": ("password_minimum_lowercase",),
-    "PAN-AUTH-005": ("password_minimum_numeric",),
-    "PAN-AUTH-006": ("password_minimum_special",),
-    "PAN-AUTH-007": ("password_block_username_inclusion",),
-    "PAN-AUTH-008": ("password_new_differs_by_characters",),
-    "PAN-AUTH-009": ("password_history_count",),
-    "PAN-AUTH-010": ("password_expiration_period",),
-    "PAN-AUTH-011": ("password_expiration_warning_period",),
-    "PAN-AUTH-012": ("password_post_expiration_admin_login_count",),
-    "PAN-AUTH-013": ("password_post_expiration_grace_period",),
+    "PAN-AUTH-001": ("enabled",),
+    "PAN-AUTH-002": ("minimum_length",),
+    "PAN-AUTH-003": ("minimum_uppercase",),
+    "PAN-AUTH-004": ("minimum_lowercase",),
+    "PAN-AUTH-005": ("minimum_numeric",),
+    "PAN-AUTH-006": ("minimum_special",),
+    "PAN-AUTH-007": ("block_username_inclusion",),
+    "PAN-AUTH-008": ("new_differs_by_characters",),
+    "PAN-AUTH-009": ("history_count",),
+    "PAN-AUTH-010": ("expiration_period",),
+    "PAN-AUTH-011": ("expiration_warning_period",),
+    "PAN-AUTH-012": ("post_expiration_admin_login_count",),
+    "PAN-AUTH-013": ("post_expiration_grace_period",),
 }
 
 
@@ -51,12 +52,12 @@ class PasswordComplexityListViewTests(TestCase):
         for control_id, fields in FIELD_BY_CONTROL.items():
             control = Control.objects.create(
                 control_id=control_id, name=control_id,
-                control_type=Control.ControlType.DEVICE_CONFIGURATION,
+                control_type=Control.ControlType.PASSWORD_COMPLEXITY,
                 description="x", default_severity=Control.Severity.MEDIUM)
             ControlQuery.objects.create(
                 control=control, name="Baseline", is_baseline=True, is_active=True,
                 canonical_query={
-                    "model": "integrations.DeviceConfigurationProfile", "operator": "or",
+                    "model": "integrations.PasswordComplexityPolicy", "operator": "or",
                     "clauses": [{"field": f, "op": "lt", "value": 1} for f in fields]})
             self.controls[control_id] = control
 
@@ -66,15 +67,15 @@ class PasswordComplexityListViewTests(TestCase):
         snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
-        return DeviceConfigurationProfile.objects.create(
+        return PasswordComplexityPolicy.objects.create(
             management_station=self.station, appliance=appliance, source_snapshot=snapshot,
-            config_source="local", **values)
+            **values)
 
     def _fire(self, profile, *control_ids):
         for control_id in control_ids:
-            DeviceConfigurationFinding.objects.create(
+            PasswordComplexityFinding.objects.create(
                 assessment_run=self.run, control=self.controls[control_id],
-                device_configuration_profile=profile,
+                password_complexity_policy=profile,
                 severity=Control.Severity.MEDIUM, title=control_id)
 
     def _cells(self, response, hostname):
@@ -93,7 +94,7 @@ class PasswordComplexityListViewTests(TestCase):
         self.assertEqual(len(response.context["rows"][0]["findings"]), 11)
 
     def test_a_cell_is_weak_only_when_its_own_control_fired(self):
-        profile = self._profile("fw-one", password_minimum_length=8, password_history_count=2)
+        profile = self._profile("fw-one", minimum_length=8, history_count=2)
         self._fire(profile, "PAN-AUTH-002")
         cells = self._cells(self.client.get(
             reverse("assessment_password_complexity_list")), "fw-one")
@@ -107,9 +108,9 @@ class PasswordComplexityListViewTests(TestCase):
         gets all three right without knowing the threshold, because the highlight follows the
         finding.
         """
-        never = self._profile("fw-never", password_expiration_period=0)
-        rarely = self._profile("fw-rarely", password_expiration_period=365)
-        fine = self._profile("fw-fine", password_expiration_period=60)
+        never = self._profile("fw-never", expiration_period=0)
+        rarely = self._profile("fw-rarely", expiration_period=365)
+        fine = self._profile("fw-fine", expiration_period=60)
         self._fire(never, "PAN-AUTH-010")
         self._fire(rarely, "PAN-AUTH-010")
         response = self.client.get(reverse("assessment_password_complexity_list"))
@@ -121,7 +122,7 @@ class PasswordComplexityListViewTests(TestCase):
     def test_unassessed_values_are_shown_and_never_marked_weak(self):
         """Three keys PAN-OS accepts that no control reads. Shown, so the page does not imply
         the assessed subset is the whole object; never amber, so nobody reads one as a pass."""
-        profile = self._profile("fw-unassessed", password_block_repeated_characters=0)
+        profile = self._profile("fw-unassessed", block_repeated_characters=0)
         self._fire(profile, *CONTROLS)
         cells = self._cells(self.client.get(
             reverse("assessment_password_complexity_list")), "fw-unassessed")
@@ -130,15 +131,15 @@ class PasswordComplexityListViewTests(TestCase):
             self.assertFalse(cells[label]["weak"])
 
     def test_provenance_renders_a_pushed_value_and_stays_blank_for_a_local_one(self):
-        profile = self._profile("fw-prov", password_minimum_length=8, password_history_count=2)
-        content_type = ContentType.objects.get_for_model(DeviceConfigurationProfile)
+        profile = self._profile("fw-prov", minimum_length=8, history_count=2)
+        content_type = ContentType.objects.get_for_model(PasswordComplexityPolicy)
         FieldProvenance.objects.create(
             content_type=content_type, object_id=profile.pk,
-            field_name="password_minimum_length", provenance_type="template",
+            field_name="minimum_length", provenance_type="template",
             raw_value="ptpl_fw-core-tpa")
         FieldProvenance.objects.create(
             content_type=content_type, object_id=profile.pk,
-            field_name="password_history_count", provenance_type="local", raw_value="")
+            field_name="history_count", provenance_type="local", raw_value="")
         url = reverse("assessment_password_complexity_list")
         cells = self._cells(self.client.get(url + "?provenance=1"), "fw-prov")
         self.assertEqual(cells["Length"]["provenance"], "ptpl_fw-core-tpa")
@@ -148,7 +149,7 @@ class PasswordComplexityListViewTests(TestCase):
 
     def test_the_findings_filter_hides_clean_appliances(self):
         dirty = self._profile("fw-dirty")
-        self._profile("fw-clean", password_minimum_length=15)
+        self._profile("fw-clean", minimum_length=15)
         self._fire(dirty, "PAN-AUTH-002")
         response = self.client.get(
             reverse("assessment_password_complexity_list") + "?findings=1")

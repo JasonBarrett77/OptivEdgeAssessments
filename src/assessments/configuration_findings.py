@@ -6,7 +6,7 @@ target-model split behind it is an implementation detail. A user pressing one bu
 expects one assessment run, so the per-type generators fill a run they are handed rather
 than each creating their own.
 
-Adding a control type means adding one line to GENERATORS. It should not mean adding a
+Adding a control type means adding one line to GENERATORS - and a test fails until you do. It should not mean adding a
 button, because the number of buttons is a question about what a user is asking, not about
 how many models back the answer.
 """
@@ -17,38 +17,59 @@ from dataclasses import dataclass
 
 from django.utils import timezone
 
-from assessments.device_configuration_findings import generate_device_configuration_findings
-from assessments.ssl_tls_service_profile_findings import (
-    generate_ssl_tls_service_profile_findings,
-)
-from assessments.certificate_findings import (
-    generate_certificate_findings,
-)
-from assessments.password_profile_findings import (
-    generate_password_profile_findings,
-)
-from assessments.authentication_profile_findings import (
-    generate_authentication_profile_findings,
-)
-from assessments.certificate_profile_findings import (
-    generate_certificate_profile_findings,
-)
+from assessments.admin_user_findings import generate_admin_user_findings
+from assessments.authentication_profile_findings import generate_authentication_profile_findings
+from assessments.authentication_sequence_findings import generate_authentication_sequence_findings
+from assessments.authentication_settings_findings import generate_authentication_settings_findings
+from assessments.certificate_findings import generate_certificate_findings
+from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
 )
+from assessments.logging_settings_findings import generate_logging_settings_findings
+from assessments.login_banner_findings import generate_login_banner_findings
 from assessments.management_interface_findings import generate_management_interface_findings
-from assessments.models import AssessmentRun
+from assessments.management_tls_findings import generate_management_tls_findings
+from assessments.master_key_findings import generate_master_key_findings
+from assessments.models import AssessmentRun, Control
+from assessments.password_complexity_findings import generate_password_complexity_findings
+from assessments.password_profile_findings import generate_password_profile_findings
+from assessments.server_profile_findings import generate_server_profile_findings
+from assessments.ssl_tls_service_profile_findings import (
+    generate_ssl_tls_service_profile_findings,
+)
+from assessments.update_server_settings_findings import generate_update_server_settings_findings
 
-#: Ordered so a report reads device-wide settings before per-surface exposure.
+T = Control.ControlType
+
+#: (label, the control type whose findings it writes, generator). Ordered so a report reads
+#: device-wide settings before per-surface exposure, then the objects.
+#:
+#: The control type is carried so a test can compare this tuple with `finding_registry`. The
+#: tuple fell behind the registry twice without anything failing: the administrator and AAA
+#: server generators were never added, and when `DeviceConfigurationProfile` was split into
+#: seven models on 2026-09-10, none of the seven was either - so for a day the one button
+#: produced no findings at all for 24 controls. `test_configuration_findings_run` now checks the
+#: two agree.
 GENERATORS = (
-    ("device configuration", generate_device_configuration_findings),
-    ("management interface", generate_management_interface_findings),
-    ("interface management profile", generate_interface_management_profile_findings),
-    ("ssl/tls service profile", generate_ssl_tls_service_profile_findings),
-    ("certificate profile", generate_certificate_profile_findings),
-    ("authentication profile", generate_authentication_profile_findings),
-    ("password profile", generate_password_profile_findings),
-    ("certificate", generate_certificate_findings),
+    ("password complexity", T.PASSWORD_COMPLEXITY, generate_password_complexity_findings),
+    ("authentication settings", T.AUTHENTICATION_SETTINGS, generate_authentication_settings_findings),
+    ("login banner", T.LOGIN_BANNER, generate_login_banner_findings),
+    ("management TLS", T.MANAGEMENT_TLS, generate_management_tls_findings),
+    ("master key", T.MASTER_KEY, generate_master_key_findings),
+    ("update server", T.UPDATE_SERVER, generate_update_server_settings_findings),
+    ("logging settings", T.LOGGING_SETTINGS, generate_logging_settings_findings),
+    ("management interface", T.MANAGEMENT_INTERFACE, generate_management_interface_findings),
+    ("interface management profile", T.INTERFACE_MANAGEMENT_PROFILE,
+     generate_interface_management_profile_findings),
+    ("ssl/tls service profile", T.SSL_TLS_SERVICE_PROFILE, generate_ssl_tls_service_profile_findings),
+    ("certificate profile", T.CERTIFICATE_PROFILE, generate_certificate_profile_findings),
+    ("certificate", T.CERTIFICATE, generate_certificate_findings),
+    ("authentication profile", T.AUTHENTICATION_PROFILE, generate_authentication_profile_findings),
+    ("authentication sequence", T.AUTHENTICATION_SEQUENCE, generate_authentication_sequence_findings),
+    ("password profile", T.PASSWORD_PROFILE, generate_password_profile_findings),
+    ("administrator", T.ADMIN_USER, generate_admin_user_findings),
+    ("aaa server profile", T.SERVER_PROFILE, generate_server_profile_findings),
 )
 
 
@@ -72,7 +93,7 @@ def regenerate_configuration_findings() -> ConfigurationFindingRunResult:
     totals = [0, 0, 0, 0]
     by_kind = {}
     try:
-        for label, generate in GENERATORS:
+        for label, _control_type, generate in GENERATORS:
             counts = generate(assessment_run)
             by_kind[label] = counts
             totals = [a + b for a, b in zip(totals, counts)]

@@ -10,9 +10,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from assessments.models import (
-    AssessmentRun, Control, DeviceConfigurationFinding)
+    AssessmentRun, Control, LoginBannerFinding)
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceConfigurationProfile, FieldProvenance, ManagementStation, Snapshot)
+    Appliance, FieldProvenance, LoginBanner, ManagementStation, Snapshot)
 
 
 class LoginBannerListViewTests(TestCase):
@@ -24,13 +24,13 @@ class LoginBannerListViewTests(TestCase):
             started_at=timezone.now(), completed_at=timezone.now())
         self.control_007 = Control.objects.create(
             control_id="PAN-MGT-007", name="Login Banner Configured",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.LOGIN_BANNER,
             description="x", default_severity=Control.Severity.LOW)
         self.bare = self._profile("fw-bare", banner="", ack=False)
         self.good = self._profile("fw-good", banner="Authorized users only.", ack=True)
-        DeviceConfigurationFinding.objects.create(
+        LoginBannerFinding.objects.create(
             assessment_run=self.run, control=self.control_007,
-            device_configuration_profile=self.bare,
+            login_banner=self.bare,
             severity=Control.Severity.LOW, title="t")
 
     def _profile(self, hostname, banner, ack):
@@ -39,9 +39,9 @@ class LoginBannerListViewTests(TestCase):
         snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
-        return DeviceConfigurationProfile.objects.create(
+        return LoginBanner.objects.create(
             management_station=self.station, appliance=appliance, source_snapshot=snapshot,
-            config_source="local", login_banner=banner, ack_login_banner=ack)
+            text=banner, acknowledgement_required=ack)
 
     def test_lists_every_appliance_by_default(self):
         response = self.client.get(reverse("assessment_login_banner_list"))
@@ -64,11 +64,11 @@ class LoginBannerListViewTests(TestCase):
         """An unrelated device-configuration control must not leak onto this tab."""
         other = Control.objects.create(
             control_id="PAN-MGT-011", name="Log on High DP Load",
-            control_type=Control.ControlType.DEVICE_CONFIGURATION,
+            control_type=Control.ControlType.LOGGING_SETTINGS,
             description="x", default_severity=Control.Severity.LOW)
-        DeviceConfigurationFinding.objects.create(
+        LoginBannerFinding.objects.create(
             assessment_run=self.run, control=other,
-            device_configuration_profile=self.good,
+            login_banner=self.good,
             severity=Control.Severity.LOW, title="t")
         rows = {r["profile"].appliance.hostname: r for r in self.client.get(
             reverse("assessment_login_banner_list")).context["rows"]}
@@ -77,11 +77,12 @@ class LoginBannerListViewTests(TestCase):
                          ["PAN-MGT-007"])
 
     def test_provenance_is_off_by_default_and_reads_a_named_field(self):
-        """DeviceConfigurationProfile carries many values on one row, so provenance is stored
-        per field rather than under "__entry__" as it is on the surfaces and profiles tabs."""
+        """Provenance is per FIELD rather than under "__entry__" as it is on the surfaces and
+        profiles tabs: the banner and its acknowledgement are pushed independently, and a single
+        entry marker could not say which of the two a template supplied."""
         FieldProvenance.objects.create(
-            content_type=ContentType.objects.get_for_model(DeviceConfigurationProfile),
-            object_id=self.good.pk, field_name="login_banner",
+            content_type=ContentType.objects.get_for_model(LoginBanner),
+            object_id=self.good.pk, field_name="text",
             provenance_type=FieldProvenance.ProvenanceType.TEMPLATE,
             raw_key="@ptpl", raw_value="stack_fw-core-tpa")
 
@@ -112,8 +113,3 @@ class LoginBannerListViewTests(TestCase):
             self.assertContains(response, label)
         self.assertContains(response, "bg-slate-800 text-white\"\n        >\n            Device")
 
-    def test_the_banner_columns_left_device_configuration(self):
-        """Moved, not duplicated - the same precedent as permitted IPs moving to the
-        surfaces tab. Two places showing one value drift."""
-        response = self.client.get(reverse("assessment_device_configuration_profile_list"))
-        self.assertNotContains(response, ">Ack Banner</th>")
