@@ -87,6 +87,11 @@ from assessments.search.management_tls.compiler import (
     MANAGEMENT_TLS_MODEL,
     compile_management_tls_search_node,
 )
+from assessments.search.management_ssh.compiler import (
+    FIELD_OPERATOR_REGISTRY as MANAGEMENT_SSH_FIELD_OPERATOR_REGISTRY,
+    MANAGEMENT_SSH_MODEL,
+    compile_management_ssh_search_node,
+)
 from assessments.search.login_banner.compiler import (
     FIELD_OPERATOR_REGISTRY as LOGIN_BANNER_FIELD_OPERATOR_REGISTRY,
 )
@@ -137,6 +142,7 @@ from optivedge_integrations.integrations.models import (
     LoggingSettings,
     LoginBanner,
     ManagementTlsBinding,
+    ManagementSshSettings,
     MasterKey,
     UpdateServerSettings,
     PasswordComplexityPolicy,
@@ -214,6 +220,11 @@ MODEL_REGISTRY = {
         "model_class": ManagementTlsBinding,
         "field_operators": MANAGEMENT_TLS_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_management_tls_search_node,
+    },
+    MANAGEMENT_SSH_MODEL: {
+        "model_class": ManagementSshSettings,
+        "field_operators": MANAGEMENT_SSH_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_management_ssh_search_node,
     },
     LOGIN_BANNER_MODEL: {
         "model_class": LoginBanner,

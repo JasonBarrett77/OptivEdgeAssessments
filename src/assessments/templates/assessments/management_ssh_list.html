@@ -1,0 +1,53 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+What each appliance's management SSH server offers &mdash; the bound profile's lists where it sets
+them, the device default where it does not. <span class="font-medium">PAN-MCR-001</span> and
+<span class="font-medium">PAN-MCR-003</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">With no profile bound the device offers its built-in
+    default</span>, which includes <code>hmac-sha1</code>, <code>umac-64</code> and
+    <code>diffie-hellman-group14-sha1</code> &mdash; measured on 11.1 and 11.2. A profile that sets
+    only some lists leaves the others at that default.
+    <span class="font-medium text-slate-600">A bound profile is not in force until the SSH service
+    restarts</span> (<code>set ssh service-restart mgmt</code>), and the configuration does not
+    record whether it has.
+</div>
+{% endblock %}
+
+{% block empty_state %}No management SSH settings have been normalized. This needs a renormalize, which contacts no device.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.ssh.appliance }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5">
+        {% if row.ssh.profile_name %}<div class="text-slate-800">{{ row.ssh.profile_name }}</div>{% if not row.ssh.profile_found %}<div class="text-[10px] leading-3 text-amber-700">not found &mdash; device default</div>{% endif %}{% else %}<span class="text-amber-700">None &mdash; device default</span>{% endif %}
+        {% if show_provenance and row.binding_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.binding_provenance }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% if row.cbc %}<div class="text-amber-700">CBC: {{ row.cbc|join:", " }}</div>{% else %}<div class="text-slate-800">no CBC</div>{% endif %}
+        <div class="text-[10px] leading-3 text-slate-500">{% if row.ssh.ciphers_default %}device default{% else %}profile{% endif %}</div>
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% if row.ssh.weak_macs %}<div class="text-amber-700">{{ row.ssh.weak_macs|join:", " }}</div>{% else %}<div class="text-slate-800">SHA-2 only</div>{% endif %}
+        <div class="text-[10px] leading-3 text-slate-500">{% if row.ssh.macs_default %}device default{% else %}profile{% endif %}</div>
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        <div class="text-slate-800">{% if row.ssh.offers_sha1_kex %}includes group14-sha1{% else %}no SHA-1{% endif %}</div>
+        <div class="text-[10px] leading-3 text-slate-500">{% if row.ssh.kex_default %}device default{% else %}profile{% endif %}</div>
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.ssh.host_key_type }} {{ row.ssh.host_key_bits }}{% if not row.ssh.defaults_measured %}<div class="text-[10px] leading-3 text-slate-500">default unmeasured for this release</div>{% endif %}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.ssh.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">No appliance is currently reported by these controls.</td></tr>
+{% endfor %}
+{% endblock %}

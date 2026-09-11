@@ -34,6 +34,7 @@ from optivedge_integrations.integrations.models import (
     LoggingSettings,
     LoginBanner,
     ManagementTlsBinding,
+    ManagementSshSettings,
     MasterKey,
     UpdateServerSettings,
     PasswordComplexityPolicy,
@@ -124,6 +125,20 @@ RESULTS = {
              else ("unresolved" if p.profile_name else "-")),
             p.certificate_name or "None",
             p.get_certificate_trust_display() if p.certificate_trust else "-",
+        ),
+    ),
+    "management-ssh": ResultsSpec(
+        columns=("Appliance", "Bound Profile", "CBC Cipher", "Weak MACs", "SHA-1 KEX", "Host Key"),
+        base_queryset=_ordered(ManagementSshSettings, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            # No profile means the device default, which is the answer - spelled out.
+            (s.profile_name if s.profile_found else
+             (f"{s.profile_name} (not found)" if s.profile_name else "None - device default")),
+            _yes_no(s.offers_cbc_cipher),
+            ", ".join(s.weak_macs) or "none",
+            _yes_no(s.offers_sha1_kex),
+            f"{s.host_key_type} {s.host_key_bits}",
         ),
     ),
     "authentication-settings": ResultsSpec(

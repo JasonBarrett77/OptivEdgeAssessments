@@ -60,6 +60,7 @@ DEVICE_TABS: tuple[DeviceTab, ...] = (
     DeviceTab("assessment_management_interface_list", "Management Interfaces", "shield", "Device"),
     DeviceTab("assessment_login_banner_list", "Login Banner", "book-marked", "Device"),
     DeviceTab("assessment_management_tls_list", "Management TLS", "clipboard-check", "Device"),
+    DeviceTab("assessment_management_ssh_list", "Management SSH", "shield", "Device"),
     DeviceTab("assessment_master_key_list", "Master Key", "refresh-cw", "Device"),
     # Authentication - who can log in, how they are challenged, and against what. Ordered as the
     # question is asked: the accounts, the profile each one resolves through, the device-wide

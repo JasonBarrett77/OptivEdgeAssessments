@@ -71,6 +71,8 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.MASTER_KEY, "master key"),
     FindingKind(m.ManagementTlsFinding, "management_tls_binding",
                 m.Control.ControlType.MANAGEMENT_TLS, "management TLS binding"),
+    FindingKind(m.ManagementSshFinding, "management_ssh_settings",
+                m.Control.ControlType.MANAGEMENT_SSH, "management SSH server"),
     FindingKind(m.UpdateServerSettingsFinding, "update_server_settings",
                 m.Control.ControlType.UPDATE_SERVER, "update server settings"),
     FindingKind(m.LoggingSettingsFinding, "logging_settings",

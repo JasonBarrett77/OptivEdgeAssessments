@@ -48,6 +48,7 @@ from assessments.models import (
     LoggingSettingsFinding,
     LoginBannerFinding,
     ManagementTlsFinding,
+    ManagementSshFinding,
     MasterKeyFinding,
     PasswordComplexityFinding,
     UpdateServerSettingsFinding,
@@ -99,6 +100,7 @@ from optivedge_integrations.integrations.models import (
     LoggingSettings,
     LoginBanner,
     ManagementTlsBinding,
+    ManagementSshSettings,
     MasterKey,
     PasswordComplexityPolicy,
     UpdateServerSettings,
@@ -122,6 +124,9 @@ BANNER_CONTROLS = ("PAN-MGT-007", "PAN-MGT-008")
 #: TLSv1.3_Default profile satisfies the protocol floor and still serves the device's own
 #: self-signed certificate, so they pass and fail independently on the same row.
 MANAGEMENT_TLS_CONTROLS = ("PAN-MGT-010", "PAN-CRT-006")
+#: Ciphers and MACs, one row per appliance. Only these two can fail at the corpus minimum -
+#: nothing below it is selectable or in the measured default (2026-09-11).
+MANAGEMENT_SSH_CONTROLS = ("PAN-MCR-001", "PAN-MCR-003")
 #: Two controls, one object, and they fail independently - the floor and the algorithms. Shown
 #: together on one row per profile, because an engineer fixes the profile, not the control.
 SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
@@ -1104,6 +1109,48 @@ class ManagementTlsListView(DeviceTabListView):
             "binding_provenance": binding_sources.get(profile.pk, ""),
             "findings": findings,
         }
+
+
+class ManagementSshListView(DeviceTabListView):
+    """What each appliance's management SSH server offers. PAN-MCR-001 and 003.
+
+    Each list says whether it came from the BOUND PROFILE or the DEVICE DEFAULT, because the
+    remediation differs - bind a profile, or edit the one bound - and because the default is
+    not in the configuration: it was measured (2026-09-11, 11.1 and 11.2, identical) and the row
+    says when a release's default is unmeasured. The guidance line repeats what every finding
+    says: a bound profile is not in force until the SSH service restarts.
+    """
+
+    template_name = "assessments/management_ssh_list.html"
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Bound Profile"),
+        Column("Ciphers"),
+        Column("MACs"),
+        Column("Key Exchange"),
+        Column("Host Key"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+    tab_title = "Management SSH"
+    has_provenance_toggle = True
+    subject_model = ManagementSshSettings
+    subject_order = ("appliance__hostname",)
+    finding_model = ManagementSshFinding
+    finding_subject_field = "management_ssh_settings"
+    finding_controls = MANAGEMENT_SSH_CONTROLS
+
+    def row_context(self, subjects):
+        return {"binding_sources": _entry_provenance(subjects, "profile_name")}
+
+    def build_row(self, ssh, findings, binding_sources):
+        return {
+            "ssh": ssh,
+            "cbc": [c for c in ssh.ciphers if c.endswith("-cbc")],
+            "binding_provenance": binding_sources.get(ssh.pk, ""),
+            "findings": findings,
+        }
+
 
 class SslTlsServiceProfileListView(DeviceTabListView):
     """Every SSL/TLS service profile as an OBJECT, with all its findings on one row.

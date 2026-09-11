@@ -19,6 +19,7 @@ PASSWORD_COMPLEXITY_MODEL = "integrations.PasswordComplexityPolicy"
 AUTHENTICATION_SETTINGS_MODEL = "integrations.AuthenticationSettings"
 LOGIN_BANNER_MODEL = "integrations.LoginBanner"
 MANAGEMENT_TLS_MODEL = "integrations.ManagementTlsBinding"
+MANAGEMENT_SSH_MODEL = "integrations.ManagementSshSettings"
 MASTER_KEY_MODEL = "integrations.MasterKey"
 UPDATE_SERVER_SETTINGS_MODEL = "integrations.UpdateServerSettings"
 LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
@@ -252,4 +253,12 @@ def evaluate_authentication_sequence_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or AUTHENTICATION_SEQUENCE_MODEL,
+    )
+
+
+def evaluate_management_ssh_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or MANAGEMENT_SSH_MODEL,
     )

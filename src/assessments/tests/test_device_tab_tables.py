@@ -25,7 +25,7 @@ from optivedge_integrations.integrations.models import (
     Certificate, CertificateProfile,
     ServerProfile,
     InterfaceManagementProfile, ManagementInterface,
-    AuthenticationSettings, LoginBanner, ManagementTlsBinding, MasterKey,
+    AuthenticationSettings, LoginBanner, ManagementTlsBinding, ManagementSshSettings, MasterKey,
     PasswordComplexityPolicy,
     ManagementStation, PasswordProfile, Snapshot, SslTlsServiceProfile)
 
@@ -87,6 +87,7 @@ class DeviceTabTableTests(TestCase):
         LoginBanner.objects.create(**common)
         MasterKey.objects.create(**common)
         ManagementTlsBinding.objects.create(**common)
+        ManagementSshSettings.objects.create(**common)
         ManagementInterface.objects.create(plane=ManagementInterface.PLANE_MGT, **common)
         InterfaceManagementProfile.objects.create(
             name="p", bound_interface_names=[], bound_interface_count=0, **common)

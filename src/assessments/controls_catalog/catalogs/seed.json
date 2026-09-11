@@ -1766,6 +1766,72 @@
           "target_model": "integrations.SslTlsServiceProfile"
         },
         {
+          "control_id": "PAN-MCR-001",
+          "name": "SSH Management Ciphers Restricted to Strong Algorithms",
+          "control_type": "management_ssh",
+          "default_severity": "high",
+          "description": "Restricts the management SSH server to AES-128-CTR or stronger. The only weaker ciphers PAN-OS can offer are the three CBC modes, selectable in a profile; the default offer contains none, so this fires only on a profile that adds one.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "CBC-mode SSH ciphers are exposed to plaintext-recovery attacks that CTR and GCM are not.",
+          "audit": "Device > Certificate Management > SSH Service Profile - the profile bound under Device > Setup > Management > SSH Management Profiles: Ciphers.",
+          "remediation": "Remove aes128-cbc, aes192-cbc and aes256-cbc from the bound profile, commit, then run `set ssh service-restart mgmt`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A CBC cipher is offered.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offers_cbc_cipher",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementSshSettings"
+        },
+        {
+          "control_id": "PAN-MCR-003",
+          "name": "SSH MAC Algorithms Restricted",
+          "control_type": "management_ssh",
+          "default_severity": "medium",
+          "description": "Restricts session integrity to HMAC-SHA2. The device default offers hmac-sha1, hmac-sha1-etm and umac-64/128 alongside SHA-2, so an appliance with no profile - or one whose profile leaves MACs unset - fires, as does a profile that selects hmac-sha1.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "SHA-1 and 64-bit UMAC tags are below the SHA-2 floor for session integrity.",
+          "audit": "The bound SSH management profile's MAC list, or the device default when none is bound or the list is unset.",
+          "remediation": "Bind an SSH management profile whose MAC list is hmac-sha2-512 (and hmac-sha2-256 for compatibility), commit, then run `set ssh service-restart mgmt`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A MAC other than HMAC-SHA2 is offered.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offers_weak_mac",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementSshSettings"
+        },
+        {
           "control_id": "PAN-MGT-001",
           "name": "Disable Telnet on Management Surfaces",
           "control_type": "management_interface",

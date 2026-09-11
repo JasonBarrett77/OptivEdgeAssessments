@@ -30,6 +30,7 @@ from assessments.logging_settings_findings import generate_logging_settings_find
 from assessments.login_banner_findings import generate_login_banner_findings
 from assessments.management_interface_findings import generate_management_interface_findings
 from assessments.management_tls_findings import generate_management_tls_findings
+from assessments.management_ssh_findings import generate_management_ssh_findings
 from assessments.master_key_findings import generate_master_key_findings
 from assessments.models import AssessmentRun, Control
 from assessments.password_complexity_findings import generate_password_complexity_findings
@@ -56,6 +57,7 @@ GENERATORS = (
     ("authentication settings", T.AUTHENTICATION_SETTINGS, generate_authentication_settings_findings),
     ("login banner", T.LOGIN_BANNER, generate_login_banner_findings),
     ("management TLS", T.MANAGEMENT_TLS, generate_management_tls_findings),
+    ("management SSH", T.MANAGEMENT_SSH, generate_management_ssh_findings),
     ("master key", T.MASTER_KEY, generate_master_key_findings),
     ("update server", T.UPDATE_SERVER, generate_update_server_settings_findings),
     ("logging settings", T.LOGGING_SETTINGS, generate_logging_settings_findings),

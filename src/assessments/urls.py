@@ -28,6 +28,7 @@ from assessments.views import (
     CertificateListView,
     CertificateProfileListView,
     ManagementTlsListView,
+    ManagementSshListView,
     MasterKeyListView,
     AuthenticationProfileListView,
     AuthenticationSequenceListView,
@@ -139,6 +140,11 @@ urlpatterns = [
         "management-tls/",
         ManagementTlsListView.as_view(),
         name="assessment_management_tls_list",
+    ),
+    path(
+        "management-ssh/",
+        ManagementSshListView.as_view(),
+        name="assessment_management_ssh_list",
     ),
     path(
         "ssl-tls-profiles/",
