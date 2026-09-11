@@ -1,4 +1,4 @@
-"""Finding generation for the management SSH controls. PAN-MCR-001 and 003.
+"""Finding generation for the management SSH controls. PAN-MCR-001, 002 and 003.
 
 The sentence says whether each list came from the BOUND PROFILE or from the DEVICE DEFAULT,
 because the remediation differs: a default is fixed by binding a profile, a profile by editing it.
@@ -41,8 +41,17 @@ def _subject(obj) -> str:
     if obj.offers_cbc_cipher:
         cbc = [c for c in obj.ciphers if c.endswith("-cbc")]
         parts.append(f"CBC ciphers {', '.join(cbc)} from {_source(obj, obj.ciphers_default)}")
+    if obj.kex_default:
+        parts.append("key exchange unrestricted - the device's whole default set, "
+                     "diffie-hellman-group14-sha1 included")
+    elif obj.offers_sha1_kex:
+        parts.append(f"key exchange restricted by profile {obj.profile_name} but still including "
+                     "diffie-hellman-group14-sha1")
     if obj.offers_weak_mac:
         parts.append(f"MACs {', '.join(obj.weak_macs)} from {_source(obj, obj.macs_default)}")
+    elif obj.offers_sha2_256_mac:
+        parts.append(f"SHA-2 MACs only, the weakest hmac-sha2-256 (preferred: hmac-sha2-512), "
+                     f"from {_source(obj, obj.macs_default)}")
     if not obj.defaults_measured and (obj.ciphers_default or obj.macs_default or obj.kex_default):
         parts.append("the device default offer is unmeasured for this PAN-OS version")
     subject = "; ".join(parts)

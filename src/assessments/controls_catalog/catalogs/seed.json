@@ -1799,11 +1799,67 @@
           "target_model": "integrations.ManagementSshSettings"
         },
         {
+          "control_id": "PAN-MCR-002",
+          "name": "SSH Key Exchange Algorithms Restricted",
+          "control_type": "management_ssh",
+          "default_severity": "high",
+          "description": "The management SSH server's key exchange must be restricted to an explicit list. With no SSH management profile bound - or a bound profile whose KEX list is absent OR EMPTY - the device advertises its entire built-in set: curve25519, the NIST ECDH curves, group-exchange-sha256, group16-sha512, group14-sha256 and diffie-hellman-group14-sha1. Measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical; an explicitly empty `<kex/>` commits and offers exactly what an absent list does. Jason, 2026-09-11: \"we fire if KEX is missing.\"\n\nNothing weaker than group14-sha1 is selectable in a profile or in the measured default, so the failure is the ABSENCE of a restriction rather than a weak value inside one. A configured list that still includes group14-sha1 - SHA-1 key exchange, which RFC 9142 calls deprecated and a last resort - reports at low, a preferred-state gap against the ECDH curves PAN-OS marks recommended.\n\nA bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "An unrestricted SSH server negotiates whatever the client asks for, SHA-1 key exchange included.",
+          "audit": "Device > Setup > Management > SSH Management Profiles - the bound server profile's KEX list (Device > Certificate Management > SSH Service Profile). No profile, or no KEX list in it, means every KEX the device supports.",
+          "remediation": "Bind an SSH management profile whose KEX list is ecdh-sha2-nistp256/384/521, commit, then run `set ssh service-restart mgmt`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No KEX restriction - the device advertises its whole default set.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kex_default",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Severity: configured list includes group14-sha1",
+              "short_description": "Restricted, but diffie-hellman-group14-sha1 is still in the list.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kex_default",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "offers_sha1_kex",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementSshSettings"
+        },
+        {
           "control_id": "PAN-MCR-003",
           "name": "SSH MAC Algorithms Restricted",
           "control_type": "management_ssh",
           "default_severity": "medium",
-          "description": "Restricts session integrity to HMAC-SHA2. The device default offers hmac-sha1, hmac-sha1-etm and umac-64/128 alongside SHA-2, so an appliance with no profile - or one whose profile leaves MACs unset - fires, as does a profile that selects hmac-sha1.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "description": "Restricts session integrity to HMAC-SHA2. The device default offers hmac-sha1, hmac-sha1-etm and umac-64/128 alongside SHA-2, so an appliance with no profile - or one whose profile leaves MACs unset - fires, as does a profile that selects hmac-sha1.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.\n\nSEVERITY is the corpus band, converted to a query: any MAC below SHA-2 reports at the control's medium; a server offering only SHA-2 but still including hmac-sha2-256 reports at low, a preferred-state gap against hmac-sha2-512.",
           "rationale": "SHA-1 and 64-bit UMAC tags are below the SHA-2 floor for session integrity.",
           "audit": "The bound SSH management profile's MAC list, or the device default when none is bound or the list is unset.",
           "remediation": "Bind an SSH management profile whose MAC list is hmac-sha2-512 (and hmac-sha2-256 for compatibility), commit, then run `set ssh service-restart mgmt`.",
@@ -1824,6 +1880,29 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Severity: weakest MAC hmac-sha2-256",
+              "short_description": "SHA-2 only, but hmac-sha2-256 is still offered - meets the floor, misses the preferred hmac-sha2-512.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offers_weak_mac",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "offers_sha2_256_mac",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
               "is_active": true
             }
           ],

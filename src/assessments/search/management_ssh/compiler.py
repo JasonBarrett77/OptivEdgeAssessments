@@ -73,6 +73,8 @@ FIELD_COMPILERS = {
     "offers_cbc_cipher": build_boolean_compiler("offers_cbc_cipher", "offers_cbc_cipher"),
     "offers_weak_mac": build_boolean_compiler("offers_weak_mac", "offers_weak_mac"),
     "offers_sha1_kex": build_boolean_compiler("offers_sha1_kex", "offers_sha1_kex"),
+    "offers_weak_kex": build_boolean_compiler("offers_weak_kex", "offers_weak_kex"),
+    "offers_sha2_256_mac": build_boolean_compiler("offers_sha2_256_mac", "offers_sha2_256_mac"),
     "ciphers_default": build_boolean_compiler("ciphers_default", "ciphers_default"),
     "kex_default": build_boolean_compiler("kex_default", "kex_default"),
     "macs_default": build_boolean_compiler("macs_default", "macs_default"),
