@@ -295,7 +295,7 @@ finding and every device-wide setting.
 
 **Until 2026-09-11 they enumerated a second, `DeviceConfigurationFinding`.**
 `DeviceConfigurationProfile` was split into seven models, one per control cluster, and then
-deleted with its finding model. The 22 controls that wrote `DeviceConfigurationFinding` -
+deleted with its finding model. The 24 controls that wrote `DeviceConfigurationFinding` -
 password complexity, authentication settings, login banner, master key, update server, logging,
 management TLS - now write seven finding models neither surface enumerates, so the
 device-configuration findings the client deliverable used to include are gone from it. That
