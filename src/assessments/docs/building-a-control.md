@@ -352,6 +352,12 @@ and are then deleted, and empty is its normal state.
       were created for their SHAPE rather than their realism, which brought the confirmed-readable
       set to all four structural shapes: a container of entries, a device leaf, a vsys leaf, and
       a leaf nested inside a vsys entry.*
+      **And a referring key can hold a MEMBER LIST, under a key you have not seen.** Twice now
+      a walk matched only leaves: MFA factors are `multi-factor-auth/factors/member` and a
+      sequence's profiles are `authentication-profiles/member`, and both references vanished
+      silently — an in-use MFA server profile and every profile used through a sequence reported
+      unused. The cross-check that found both was searching the payload for the object NAMES and
+      listing every path whose value is one; run it whenever a referrer key set changes.
 - [ ] **A reference from inside a scope resolves within that scope first.** Attributing it to
       the wrong definition is two errors at once — the real object reports unused and the orphan
       reports in use. *The path builder read `@name` off the parent instead of the entry, so
