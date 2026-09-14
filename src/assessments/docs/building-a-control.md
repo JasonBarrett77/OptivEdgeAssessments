@@ -933,6 +933,30 @@ and are then deleted, and empty is its normal state.
 - [ ] **Migration** — and check whether an existing environment needs a data migration.
 - [ ] **Say what the operator must run**: migrate → renormalize → reseed → regenerate
       findings. Renormalize needs no device connection; a sync does.
+- [ ] **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
+      re-normalized.** `→ control-changes.json` A migration creates the column; only normalization
+      fills it. Between the two, every row holds the field's DEFAULT - and for a boolean that
+      default is `False`, which on a "does this device offer something weak" column means
+      compliant. So the control does not error and does not render an empty page: it passes every
+      device, which is indistinguishable from a hardened estate. *Measured 2026-09-14 on one copy
+      of the lab, with only the re-normalize differing: PAN-MCR-001, 002 and 003 fired on 0 of 3
+      migrated-and-reseeded, and on 2 of 3 after re-normalizing from the same stored snapshots,
+      as `non_preferred_ciphers` went from `[]` to `['aes128-cbc']`. Nothing failed in between.*
+      **So a control whose query moves to a new column is not landed when its tests pass.** Say
+      the sequence in its record - migrate, RENORMALIZE, reseed, regenerate - and say what
+      skipping the re-normalize looks like, because "it reports nothing" will otherwise be read as
+      good news.
+      **Give the column a default that FIRES.** The hazard is not the gap between migrating and
+      normalizing; it is that the natural default sits on the compliant side. `False` on "does
+      this device offer something weak" is the safe-looking value and the dangerous one. The
+      precedent was already here: `MasterKey` records a key nobody asked about as `undetermined`,
+      which fires, because "we never asked" must not look like "we asked and it was fine". A
+      derived column carries the same obligation - pair the firing default with a data migration
+      marking existing rows not-yet-computed.
+      **This bites a column ADDED to rows that already exist, and only that.** A brand-new model
+      has no rows until normalization creates them, so there is no window in which a stale row
+      reads as compliant - a new model is absent, and absence is visible. Adding a field to a
+      populated model is the case to think about.
 - [ ] **Audit a staged document against the TRANSCRIPT, not against memory.** Feedback arrives
       across many turns and some of it lands nowhere; recall cannot tell an item you applied from
       one you meant to. The session transcript is on disk — extract every user turn and check the
