@@ -1,4 +1,4 @@
-"""Finding generation for the management SSH controls. PAN-MCR-001, 002 and 003.
+"""Finding generation for the management SSH controls. PAN-MCR-001 to 005.
 
 The sentence says whether each list came from the BOUND PROFILE or from the DEVICE DEFAULT,
 because the remediation differs: a default is fixed by binding a profile, a profile by editing it.
@@ -52,6 +52,11 @@ def _subject(obj) -> str:
     elif obj.offers_sha2_256_mac:
         parts.append(f"SHA-2 MACs only, the weakest hmac-sha2-256 (preferred: hmac-sha2-512), "
                      f"from {_source(obj, obj.macs_default)}")
+    if obj.host_key_type == "RSA" and obj.host_key_bits < 3072:
+        parts.append(f"an RSA {obj.host_key_bits} host key (112-bit strength)"
+                     + ("" if obj.profile_found else ", the device default"))
+    if not obj.rekey_interval_seconds:
+        parts.append("no time-based rekey interval")
     if not obj.defaults_measured and (obj.ciphers_default or obj.macs_default or obj.kex_default):
         parts.append("the device default offer is unmeasured for this PAN-OS version")
     subject = "; ".join(parts)

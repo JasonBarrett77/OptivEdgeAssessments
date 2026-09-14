@@ -25,7 +25,7 @@ class ManagementSshControlTests(TestCase):
         self.appliance = Appliance.objects.create(
             management_station=self.station, appliance_group=self.group,
             serial_number="S-MSSH", hostname="fw-mssh", software_version="11.1.13-h3")
-        seed_controls(["PAN-MCR-001", "PAN-MCR-002", "PAN-MCR-003"],
+        seed_controls(["PAN-MCR-001", "PAN-MCR-002", "PAN-MCR-003", "PAN-MCR-004", "PAN-MCR-005"],
                       control_type=Control.ControlType.MANAGEMENT_SSH)
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
@@ -44,10 +44,14 @@ class ManagementSshControlTests(TestCase):
         generate_management_ssh_findings(self.run)
         return {f.control.control_id: f for f in ManagementSshFinding.objects.select_related("control")}
 
-    def test_the_device_default_fires_002_and_003_and_not_001(self):
+    def test_the_device_default_fires_everything_but_001(self):
+        """RSA 2048 and no rekey interval are the defaults, so 004 and 005 report too."""
         found = self._findings()
-        self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003"})
+        self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003", "PAN-MCR-004", "PAN-MCR-005"})
         self.assertEqual(found["PAN-MCR-002"].severity, "high")
+        self.assertEqual(found["PAN-MCR-004"].severity, "medium")
+        self.assertEqual(found["PAN-MCR-005"].severity, "low")
+        self.assertIn("RSA 2048 host key", found["PAN-MCR-004"].summary)
         self.assertEqual(found["PAN-MCR-003"].severity, "medium")
         self.assertIn("hmac-sha1", found["PAN-MCR-003"].summary)
         self.assertIn("the device default", found["PAN-MCR-003"].summary)
@@ -55,12 +59,15 @@ class ManagementSshControlTests(TestCase):
     def test_a_ciphers_only_profile_still_fires_003_on_the_default_macs(self):
         """tpa-a's shape: the unset MAC list is the default, not empty."""
         found = self._findings({"ciphers": {"member": ["aes256-gcm"]}})
-        self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003"})
+        self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003",
+                                      "PAN-MCR-004", "PAN-MCR-005"})
         self.assertIn(RESTART_CAVEAT, found["PAN-MCR-003"].summary)
 
     def test_a_cbc_cipher_fires_001(self):
         found = self._findings({"ciphers": {"member": ["aes128-cbc", "aes256-gcm"]},
                                 "kex": {"member": ["ecdh-sha2-nistp384"]},
+                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                "session-rekey": {"interval": "3600"},
                                 "mac": {"member": ["hmac-sha2-512"]}})
         self.assertEqual(set(found), {"PAN-MCR-001"})
         self.assertEqual(found["PAN-MCR-001"].severity, "high")
@@ -75,6 +82,8 @@ class ManagementSshControlTests(TestCase):
         preferred hmac-sha2-512."""
         found = self._findings({"ciphers": {"member": ["aes256-gcm"]},
                                 "kex": {"member": ["ecdh-sha2-nistp256"]},
+                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                "session-rekey": {"interval": "3600"},
                                 "mac": {"member": ["hmac-sha2-256", "hmac-sha2-512"]}})
         self.assertEqual(set(found), {"PAN-MCR-003"})
         self.assertEqual(found["PAN-MCR-003"].severity, "low")
@@ -89,15 +98,35 @@ class ManagementSshControlTests(TestCase):
     def test_a_fully_restricted_profile_fires_nothing(self):
         self.assertEqual(self._findings({"ciphers": {"member": ["aes256-gcm"]},
                                          "kex": {"member": ["ecdh-sha2-nistp384"]},
+                                         "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                         "session-rekey": {"interval": "3600"},
                                          "mac": {"member": ["hmac-sha2-512"]}}), {})
+
+    def test_rsa_3072_passes_004(self):
+        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp384"]},
+                                "default-hostkey": {"key-type": {"RSA": "3072"}},
+                                "session-rekey": {"interval": "600"},
+                                "mac": {"member": ["hmac-sha2-512"]}})
+        self.assertEqual(found, {})
+
+    def test_an_ecdsa_key_without_a_rekey_interval_fires_only_005(self):
+        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp384"]},
+                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                "mac": {"member": ["hmac-sha2-512"]}})
+        self.assertEqual(set(found), {"PAN-MCR-005"})
+        self.assertIn("no time-based rekey interval", found["PAN-MCR-005"].summary)
 
     def test_an_explicitly_empty_kex_list_is_unrestricted(self):
         """Measured on tpa-a: `<kex/>` commits and offers the whole default set."""
-        found = self._findings({"kex": None, "mac": {"member": ["hmac-sha2-512"]}})
+        found = self._findings({"kex": None, "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                "session-rekey": {"interval": "3600"},
+                                "mac": {"member": ["hmac-sha2-512"]}})
         self.assertEqual(set(found), {"PAN-MCR-002"})
 
     def test_a_restricted_list_keeping_group14_sha1_reports_low(self):
         found = self._findings({"kex": {"member": ["ecdh-sha2-nistp256", "diffie-hellman-group14-sha1"]},
+                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
+                                "session-rekey": {"interval": "3600"},
                                 "mac": {"member": ["hmac-sha2-512"]}})
         self.assertEqual(set(found), {"PAN-MCR-002"})
         self.assertEqual(found["PAN-MCR-002"].severity, "low")

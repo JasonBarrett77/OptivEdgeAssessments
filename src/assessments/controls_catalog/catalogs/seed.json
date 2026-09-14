@@ -1911,6 +1911,77 @@
           "target_model": "integrations.ManagementSshSettings"
         },
         {
+          "control_id": "PAN-MCR-004",
+          "name": "Strong SSH Host Key",
+          "control_type": "management_ssh",
+          "default_severity": "medium",
+          "description": "The management SSH server authenticates itself to administrators with ONE host key - the default type only, measured 2026-09-11: tpa-b, whose profile sets ECDSA 256, offers ecdsa-sha2-nistp256 and nothing else, while the untouched devices offer RSA (2048, read off the wire with ssh-keyscan).\n\nRAISED ABOVE THE CORPUS MINIMUM, deliberately. controls.json says the default RSA 2048 \"meets the floor for authenticating the device to administrators; no change required\", which leaves the control with no reachable failure - every selectable value is at least 112-bit. This fires at the 128-bit floor instead: RSA below 3072 bits. RSA 2048 is 112-bit strength, which NIST SP 800-131A Rev.3 and IR 8547 (both drafts) deprecate for signatures after 2030, and PAN-OS's own documentation recommends the ECDSA 256 key. A consultant who disagrees can lower it; a control that can never fire cannot be argued with at all.\n\nECDSA at any offered size (256/384/521) passes, as does RSA 3072 or 4096. Key ROTATION is not assessed: the configuration records the key's type and size, never its age.\n\nThe subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
+          "rationale": "An RSA 2048 host key is 112-bit strength, deprecated for signatures after 2030; ECDSA 256 is 128-bit and is what PAN-OS recommends.",
+          "audit": "Device > Certificate Management > SSH Service Profile > Hostkey, on the profile bound under Device > Setup > Management. Unset means RSA 2048.",
+          "remediation": "Set the bound profile's host key to ECDSA 256 (or RSA 3072+), commit, then run `set ssh service-restart mgmt`. Regenerating a host key keeps the existing type, so the type has to be set here. Administrators' known_hosts entries change.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An RSA host key below 3072 bits - 112-bit strength.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "host_key_type",
+                    "op": "eq",
+                    "value": "RSA"
+                  },
+                  {
+                    "field": "host_key_bits",
+                    "op": "lt",
+                    "value": 3072
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementSshSettings"
+        },
+        {
+          "control_id": "PAN-MCR-005",
+          "name": "SSH Session Rekeying Configured",
+          "control_type": "management_ssh",
+          "default_severity": "low",
+          "description": "Rekeying bounds how much traffic one session key protects. PAN-OS offers three triggers - data volume, time interval and packet count - and whichever is reached first rekeys. Only the TIME INTERVAL is assessed, and its default is no time-based rekeying at all (Help p.905): this fires when no interval is set.\n\nRFC 4253 section 9 recommends rekeying after one gigabyte or one hour, whichever comes sooner. The interval's configurable range is 10 to 3600 seconds, so every settable value meets the hour; 'configured' is the whole assertion and no threshold comparison is needed. The data trigger is not assessed: its default is the cipher's own limit of 1-4 GB, and an interactive management session rarely moves a gigabyte, so the interval is the trigger that acts.\n\nNOT A FIPS-CC CHECK. The guide's rekeying REQUIREMENT (p.1308, p.1310) is about the HA1 control link in FIPS-CC mode, not the management SSH server, and HA profiles are not modelled here. A firewall in FIPS-CC mode with an unconfigured HA1 rekey is a different finding this control does not make.\n\nThe subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
+          "rationale": "With no time-based rekey, one session key protects a management session for its whole life.",
+          "audit": "Device > Certificate Management > SSH Service Profile > Interval, on the bound profile. Unset means no time-based rekeying.",
+          "remediation": "Set the bound profile's rekey Interval (10-3600 seconds; 3600 matches RFC 4253), commit, then run `set ssh service-restart mgmt`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No time-based rekey interval is set.",
+              "canonical_query": {
+                "model": "integrations.ManagementSshSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rekey_interval_seconds",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementSshSettings"
+        },
+        {
           "control_id": "PAN-MGT-001",
           "name": "Disable Telnet on Management Surfaces",
           "control_type": "management_interface",
