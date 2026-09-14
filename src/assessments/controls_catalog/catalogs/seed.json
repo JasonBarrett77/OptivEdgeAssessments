@@ -1770,20 +1770,20 @@
           "name": "SSH Management Ciphers Restricted to Strong Algorithms",
           "control_type": "management_ssh",
           "default_severity": "high",
-          "description": "Restricts the management SSH server to AES-128-CTR or stronger. The only weaker ciphers PAN-OS can offer are the three CBC modes, selectable in a profile; the default offer contains none, so this fires only on a profile that adds one.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
-          "rationale": "CBC-mode SSH ciphers are exposed to plaintext-recovery attacks that CTR and GCM are not.",
-          "audit": "Device > Certificate Management > SSH Service Profile - the profile bound under Device > Setup > Management > SSH Management Profiles: Ciphers.",
-          "remediation": "Remove aes128-cbc, aes192-cbc and aes256-cbc from the bound profile, commit, then run `set ssh service-restart mgmt`.",
+          "description": "Restricts the management SSH server to the corpus PREFERRED cipher - aes256-gcm, with aes256-ctr allowed beside it. The control fires on either fault: a cipher outside that pair is offered, or aes256-gcm is not offered at all.\n\nASSERTS THE PREFERRED VALUE, NOT THE MINIMUM, from 2026-09-14. The minimum (AES-128-CTR or stronger) could only fail through a profile that adds one of the three CBC modes, because nothing weaker is selectable and the default offer contains none - so almost every device passed a cipher control while offering chacha20-poly1305, aes128-ctr, aes192-ctr and aes128-gcm. The preferred value is reachable everywhere, and an unrestricted device now reports at this control's own severity. Jason, 2026-09-14: \"the preferred should replace the minimum. I'll let the consultant reduce severity based on risk.\" The corpus parenthetical \"(add aes256-ctr for older clients)\" is an ALLOWANCE beside the preferred cipher, not an alternative to it, which is why a list of aes256-ctr alone still fires.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "AES-256-GCM is an AEAD cipher at the largest key size PAN-OS offers; everything else in the default offer is smaller, unauthenticated, or both, and the CBC modes a profile can add are exposed to plaintext-recovery attacks.",
+          "audit": "Device > Certificate Management > SSH Service Profile - the profile bound under Device > Setup > Management > SSH Management Profiles: Ciphers. No profile, or no cipher list in it, means the device's whole default offer.",
+          "remediation": "Set the bound profile's cipher list to aes256-gcm, adding aes256-ctr only for clients that cannot do GCM, commit, then run `set ssh service-restart mgmt`.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A CBC cipher is offered.",
+              "short_description": "A cipher outside aes256-gcm/aes256-ctr is offered, or aes256-gcm is not.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "offers_cbc_cipher",
+                    "field": "ciphers_below_preferred",
                     "op": "eq",
                     "value": true
                   }
@@ -1803,20 +1803,20 @@
           "name": "SSH Key Exchange Algorithms Restricted",
           "control_type": "management_ssh",
           "default_severity": "high",
-          "description": "The management SSH server's key exchange must be restricted to an explicit list. With no SSH management profile bound - or a bound profile whose KEX list is absent OR EMPTY - the device advertises its entire built-in set: curve25519, the NIST ECDH curves, group-exchange-sha256, group16-sha512, group14-sha256 and diffie-hellman-group14-sha1. Measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical; an explicitly empty `<kex/>` commits and offers exactly what an absent list does. Jason, 2026-09-11: \"we fire if KEX is missing.\"\n\nThe corpus frames this around group1 and group-exchange-sha1, which no release advertises: the Compatibility Matrix lists nine KEX algorithms for administrative sessions on 10.2, 11.2 and 12.2, and neither of those is among them. Nothing weaker than group14-sha1 is selectable in a profile or in the measured default, so the failure is the ABSENCE of a restriction rather than a weak value inside one. A configured list that still includes group14-sha1 - SHA-1 key exchange, which RFC 9142 calls deprecated and a last resort - reports at low, a preferred-state gap against the ECDH curves PAN-OS marks recommended.\n\nA bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
-          "rationale": "An unrestricted SSH server negotiates whatever the client asks for, SHA-1 key exchange included.",
+          "description": "Restricts the management SSH server's key exchange to the corpus PREFERRED family - ECDH over a NIST curve, with curve25519 accepted as the alternative the corpus names. The control fires on either fault: a KEX outside that set is offered, or no ECDH is.\n\nWith no SSH management profile bound - or a bound profile whose KEX list is absent OR EMPTY - the device advertises its entire built-in set: curve25519, the NIST ECDH curves, group-exchange-sha256, group16-sha512, group14-sha256 and diffie-hellman-group14-sha1. Measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical; an explicitly empty `<kex/>` commits and offers exactly what an absent list does. Jason, 2026-09-11: \"we fire if KEX is missing.\" The finite-field groups in that set are what makes it fire, so an unrestricted device still reports.\n\nASSERTS THE PREFERRED VALUE, NOT THE MINIMUM, from 2026-09-14. The corpus minimum excludes group1 and group-exchange-sha1, which no release advertises: the Compatibility Matrix lists nine KEX algorithms for administrative sessions on 10.2, 11.2 and 12.2, and neither is among them. A list that keeps diffie-hellman-group14-sha1 - SHA-1 key exchange, which RFC 9142 calls deprecated and a last resort - used to report at low as a preferred-state gap; it now reports at this control's own severity, and the graded band is gone. Jason, 2026-09-14: \"the preferred should replace the minimum. I'll let the consultant reduce severity based on risk.\"\n\nA bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "An unrestricted SSH server negotiates whatever the client asks for, SHA-1 key exchange included; the ECDH curves are the only KEX algorithms PAN-OS marks recommended.",
           "audit": "Device > Setup > Management > SSH Management Profiles - the bound server profile's KEX list (Device > Certificate Management > SSH Service Profile). No profile, or no KEX list in it, means every KEX the device supports.",
           "remediation": "Bind an SSH management profile whose KEX list is ecdh-sha2-nistp256/384/521, commit, then run `set ssh service-restart mgmt`.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "No KEX restriction - the device advertises its whole default set.",
+              "short_description": "A key exchange outside the ECDH curves is offered, or none of them is.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "kex_default",
+                    "field": "kex_below_preferred",
                     "op": "eq",
                     "value": true
                   }
@@ -1824,29 +1824,6 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
-            },
-            {
-              "name": "Severity: configured list includes group14-sha1",
-              "short_description": "Restricted, but diffie-hellman-group14-sha1 is still in the list.",
-              "canonical_query": {
-                "model": "integrations.ManagementSshSettings",
-                "operator": "and",
-                "clauses": [
-                  {
-                    "field": "kex_default",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "offers_sha1_kex",
-                    "op": "eq",
-                    "value": true
-                  }
-                ]
-              },
-              "is_baseline": false,
-              "adjusted_severity": "low",
               "is_active": true
             }
           ],
@@ -1859,20 +1836,20 @@
           "name": "SSH MAC Algorithms Restricted",
           "control_type": "management_ssh",
           "default_severity": "medium",
-          "description": "Restricts session integrity to HMAC-SHA2. The device default offers hmac-sha1, hmac-sha1-etm and umac-64/128 alongside SHA-2, so an appliance with no profile - or one whose profile leaves MACs unset - fires, as does a profile that selects hmac-sha1.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.\n\nSEVERITY is the corpus band, converted to a query: any MAC below SHA-2 reports at the control's medium; a server offering only SHA-2 but still including hmac-sha2-256 reports at low, a preferred-state gap against hmac-sha2-512.",
-          "rationale": "SHA-1 and 64-bit UMAC tags are below the SHA-2 floor for session integrity.",
+          "description": "Restricts session integrity to the corpus PREFERRED MAC - hmac-sha2-512, with hmac-sha2-256 kept beside it for compatibility. The control fires on either fault: a MAC outside that pair is offered, or hmac-sha2-512 is not offered at all. The device default offers hmac-sha1, hmac-sha1-etm and umac-64/128 alongside SHA-2, so an appliance with no profile - or one whose profile leaves MACs unset - fires, as does a profile that selects hmac-sha1.\n\nASSERTS THE PREFERRED VALUE, NOT THE MINIMUM, from 2026-09-14. Jason, 2026-09-14: \"the preferred should replace the minimum. I'll let the consultant reduce severity based on risk.\" In practice this control moves least of the five: the corpus parenthetical \"(keep 256 for compatibility)\" is an explicit ALLOWANCE, so a list of hmac-sha2-512 and hmac-sha2-256 is the preferred state and does not report - what changed is that a SHA-2-only list MISSING hmac-sha2-512 now fires at the control's own severity, and the low band that used to grade hmac-sha2-256 as a preferred-state gap is gone. A graded band between the minimum and the preferred is no longer built on any control.\n\nThe subject is what the management SSH server OFFERS: the bound profile's list where it sets one, and the device's built-in default where it does not - measured 2026-09-11 on 11.1 (PA-5220) and 11.2 (PA-VM), identical. A profile that sets only some lists leaves the others at the default. A bound profile is not in force until the SSH service restarts (`set ssh service-restart mgmt`), which the configuration does not record, so a finding describes the configured offer.",
+          "rationale": "SHA-1 and 64-bit UMAC tags are below the SHA-2 floor for session integrity, and hmac-sha2-512 is the strongest tag PAN-OS offers.",
           "audit": "The bound SSH management profile's MAC list, or the device default when none is bound or the list is unset.",
-          "remediation": "Bind an SSH management profile whose MAC list is hmac-sha2-512 (and hmac-sha2-256 for compatibility), commit, then run `set ssh service-restart mgmt`.",
+          "remediation": "Bind an SSH management profile whose MAC list is hmac-sha2-512, keeping hmac-sha2-256 only where a client needs it, commit, then run `set ssh service-restart mgmt`.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A MAC other than HMAC-SHA2 is offered.",
+              "short_description": "A MAC outside hmac-sha2-512/hmac-sha2-256 is offered, or hmac-sha2-512 is not.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "offers_weak_mac",
+                    "field": "macs_below_preferred",
                     "op": "eq",
                     "value": true
                   }
@@ -1880,29 +1857,6 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
-            },
-            {
-              "name": "Severity: weakest MAC hmac-sha2-256",
-              "short_description": "SHA-2 only, but hmac-sha2-256 is still offered - meets the floor, misses the preferred hmac-sha2-512.",
-              "canonical_query": {
-                "model": "integrations.ManagementSshSettings",
-                "operator": "and",
-                "clauses": [
-                  {
-                    "field": "offers_weak_mac",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "offers_sha2_256_mac",
-                    "op": "eq",
-                    "value": true
-                  }
-                ]
-              },
-              "is_baseline": false,
-              "adjusted_severity": "low",
               "is_active": true
             }
           ],
@@ -1915,27 +1869,28 @@
           "name": "Strong SSH Host Key",
           "control_type": "management_ssh",
           "default_severity": "medium",
-          "description": "The management SSH server authenticates itself to administrators with ONE host key - the default type only, measured 2026-09-11: tpa-b, whose profile sets ECDSA 256, offers ecdsa-sha2-nistp256 and nothing else, while the untouched devices offer RSA (2048, read off the wire with ssh-keyscan).\n\nRAISED ABOVE THE CORPUS MINIMUM, deliberately. controls.json says the default RSA 2048 \"meets the floor for authenticating the device to administrators; no change required\", which leaves the control with no reachable failure - every selectable value is at least 112-bit. This fires at the 128-bit floor instead: RSA below 3072 bits. RSA 2048 is 112-bit strength, which NIST SP 800-131A Rev.3 and IR 8547 (both drafts) deprecate for signatures after 2030, and PAN-OS's own documentation recommends the ECDSA 256 key. A consultant who disagrees can lower it; a control that can never fire cannot be argued with at all.\n\nECDSA at any offered size (256/384/521) passes, as does RSA 3072 or 4096. PAN-OS marks exactly ONE value recommended - ECDSA 256 - and says nothing in favour of 384 or 521; preferring them is a strength argument, not a vendor one. On a FIPS-CC device, ECC key-pair generation is listed for P-256 and P-384 only, so an ECDSA 521 host key may not be a validated operation there. Key ROTATION is not assessed: the configuration records the key's type and size, never its age.\n\nThe subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
-          "rationale": "An RSA 2048 host key is 112-bit strength, deprecated for signatures after 2030; ECDSA 256 is 128-bit and is what PAN-OS recommends.",
-          "audit": "Device > Certificate Management > SSH Service Profile > Hostkey, on the profile bound under Device > Setup > Management. Unset means RSA 2048.",
-          "remediation": "Set the bound profile's host key to ECDSA 256 (or RSA 3072+), commit, then run `set ssh service-restart mgmt`. Regenerating a host key keeps the existing type, so the type has to be set here. Administrators' known_hosts entries change.",
+          "description": "The management SSH server authenticates itself to administrators with ONE host key - the default type only, measured 2026-09-11: tpa-b, whose profile sets ECDSA 256, offers ecdsa-sha2-nistp256 and nothing else, while the untouched devices offer RSA (2048, read off the wire with ssh-keyscan).\n\nASSERTS THE CORPUS PREFERRED VALUE - ECDSA with a 256-bit key - from 2026-09-14. The minimum says the default RSA 2048 \"meets the floor ... no change required\", which leaves the control no reachable failure at all, since every selectable value is at least 112-bit. Jason, 2026-09-14: \"the preferred should replace the minimum. I'll let the consultant reduce severity based on risk.\" So an RSA host key now reports at ANY size, including the 3072 and 4096 that passed under this control's earlier 128-bit-floor reading; the relaxation for an estate standardised on large RSA keys is the consultant's to make.\n\nA STRONGER ECDSA CURVE IS NOT A FINDING. ECDSA 384 and 521 are above the preferred value, and replacing the minimum with the preferred does not turn being better than preferred into a failure. On a FIPS-CC device, ECC key-pair generation is listed for P-256 and P-384 only, so an ECDSA 521 host key may not be a validated operation there - a reason to prefer 256 or 384, not to report 521 here.\n\nHOSTKEY = ALL REPORTS, measured 2026-09-14 on tpa-a: `all` takes no key size and serves an RSA key alongside ecdsa-sha2-nistp256/384/521 at once, so an administrator can still be presented with the RSA 2048 key this control is about. The same measurement found the ECDSA keys persist after the setting is deleted, so on a device that has ever been set to `all`, an absent hostkey no longer means RSA alone.\n\nKey ROTATION is not assessed: the configuration records the key's type and size, never its age. The subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
+          "rationale": "An RSA 2048 host key is 112-bit strength, deprecated for signatures after 2030; ECDSA 256 is 128-bit and is the one host key type PAN-OS marks recommended.",
+          "audit": "Device > Certificate Management > SSH Service Profile > Hostkey, on the profile bound under Device > Setup > Management. Unset means RSA 2048; All means RSA and every ECDSA curve together.",
+          "remediation": "Set the bound profile's host key to ECDSA 256, commit, then run `set ssh service-restart mgmt`. Regenerating a host key keeps the existing type, so the type has to be set here. Administrators' known_hosts entries change.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An RSA host key below 3072 bits - 112-bit strength.",
+              "short_description": "The host key is not ECDSA, or is an ECDSA key below 256 bits.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
-                "operator": "and",
+                "operator": "or",
                 "clauses": [
                   {
                     "field": "host_key_type",
                     "op": "eq",
-                    "value": "RSA"
+                    "value": "ECDSA",
+                    "negated": true
                   },
                   {
                     "field": "host_key_bits",
                     "op": "lt",
-                    "value": 3072
+                    "value": 256
                   }
                 ]
               },
@@ -1953,7 +1908,7 @@
           "name": "SSH Session Rekeying Configured",
           "control_type": "management_ssh",
           "default_severity": "low",
-          "description": "Rekeying bounds how much traffic one session key protects. PAN-OS offers three triggers - data volume, time interval and packet count - and whichever is reached first rekeys. Only the TIME INTERVAL is assessed, and its default is no time-based rekeying at all (Help p.905): this fires when no interval is set.\n\nRFC 4253 section 9 recommends rekeying after one gigabyte or one hour, whichever comes sooner. The interval's configurable range is 10 to 3600 seconds, so every settable value meets the hour; 'configured' is the whole assertion and no threshold comparison is needed. The data trigger is not assessed: its default is the cipher's own limit of 1-4 GB, and an interactive management session rarely moves a gigabyte, so the interval is the trigger that acts.\n\nNOT A FIPS-CC CHECK. The guide's rekeying REQUIREMENT (p.1308, p.1310) is about the HA1 control link in FIPS-CC mode, not the management SSH server, and HA profiles are not modelled here. A firewall in FIPS-CC mode with an unconfigured HA1 rekey is a different finding this control does not make.\n\nThe subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
+          "description": "Rekeying bounds how much traffic one session key protects. PAN-OS offers three triggers - data volume, time interval and packet count - and whichever is reached first rekeys. Only the TIME INTERVAL is assessed, and its default is no time-based rekeying at all (Help p.905): this fires when no interval is set.\n\nTHE PREFERRED VALUE IS ALREADY THE ASSERTION. The corpus preferred is 3600 seconds - \"rekeys at least hourly\" - and the interval's configurable range is 10 to 3600, so every settable value satisfies it and a shorter interval is stronger rather than weaker. Applying the preferred-value rule of 2026-09-14 to this control therefore changes nothing: 'configured' remains the whole assertion, with no threshold comparison to make.\n\nRFC 4253 section 9 recommends rekeying after one gigabyte or one hour, whichever comes sooner. The data trigger is not assessed: its default is the cipher's own limit of 1-4 GB, and an interactive management session rarely moves a gigabyte, so the interval is the trigger that acts.\n\nNOT A FIPS-CC CHECK. The guide's rekeying REQUIREMENT (p.1308, p.1310) is about the HA1 control link in FIPS-CC mode, not the management SSH server, and HA profiles are not modelled here. A firewall in FIPS-CC mode with an unconfigured HA1 rekey is a different finding this control does not make.\n\nThe subject is the management SSH server's effective configuration: the bound profile's value where it sets one, the device default where it does not - measured 2026-09-11 on 11.1 and 11.2. A bound profile is not in force until `set ssh service-restart mgmt`, which the configuration does not record.",
           "rationale": "With no time-based rekey, one session key protects a management session for its whole life.",
           "audit": "Device > Certificate Management > SSH Service Profile > Interval, on the bound profile. Unset means no time-based rekeying.",
           "remediation": "Set the bound profile's rekey Interval (10-3600 seconds; 3600 matches RFC 4253), commit, then run `set ssh service-restart mgmt`.",

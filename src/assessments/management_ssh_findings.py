@@ -38,22 +38,40 @@ def _subject(obj) -> str:
     else:
         head = f"{obj.appliance} binds SSH management profile {obj.profile_name}"
     parts = [head]
-    if obj.offers_cbc_cipher:
-        cbc = [c for c in obj.ciphers if c.endswith("-cbc")]
-        parts.append(f"CBC ciphers {', '.join(cbc)} from {_source(obj, obj.ciphers_default)}")
-    if obj.kex_default:
-        parts.append("key exchange unrestricted - the device's whole default set, "
-                     "diffie-hellman-group14-sha1 included")
-    elif obj.offers_sha1_kex:
-        parts.append(f"key exchange restricted by profile {obj.profile_name} but still including "
-                     "diffie-hellman-group14-sha1")
-    if obj.offers_weak_mac:
-        parts.append(f"MACs {', '.join(obj.weak_macs)} from {_source(obj, obj.macs_default)}")
-    elif obj.offers_sha2_256_mac:
-        parts.append(f"SHA-2 MACs only, the weakest hmac-sha2-256 (preferred: hmac-sha2-512), "
-                     f"from {_source(obj, obj.macs_default)}")
-    if obj.host_key_type == "RSA" and obj.host_key_bits < 3072:
-        parts.append(f"an RSA {obj.host_key_bits} host key (112-bit strength)"
+    # Each list says WHICH fault put it below the preferred value: members outside the allowed
+    # set, or the preferred algorithm missing from an otherwise allowed list. The remediation is
+    # the opposite in each case, so the sentence cannot collapse them.
+    if obj.ciphers_below_preferred:
+        if obj.non_preferred_ciphers:
+            detail = (f"ciphers {', '.join(obj.non_preferred_ciphers)} beyond the preferred "
+                      f"aes256-gcm/aes256-ctr")
+            if obj.offers_cbc_cipher:
+                detail += ", CBC mode among them"
+        else:
+            detail = "no aes256-gcm cipher"
+        parts.append(f"{detail}, from {_source(obj, obj.ciphers_default)}")
+    if obj.kex_below_preferred:
+        if obj.kex_default:
+            parts.append("key exchange unrestricted - the device's whole default set, "
+                         "diffie-hellman-group14-sha1 included")
+        elif obj.non_preferred_kex:
+            parts.append(f"key exchange {', '.join(obj.non_preferred_kex)} beyond the preferred "
+                         f"ECDH curves, from profile {obj.profile_name}")
+        else:
+            parts.append(f"no ECDH key exchange, from {_source(obj, obj.kex_default)}")
+    if obj.macs_below_preferred:
+        if obj.non_preferred_macs:
+            detail = (f"MACs {', '.join(obj.non_preferred_macs)} beyond the preferred "
+                      f"hmac-sha2-512/hmac-sha2-256")
+        else:
+            detail = "no hmac-sha2-512 MAC"
+        parts.append(f"{detail}, from {_source(obj, obj.macs_default)}")
+    # PAN-MCR-004's preferred value is ECDSA 256. A LARGER ECDSA curve is stronger and does not
+    # report; `all` does, because it serves an RSA key alongside the ECDSA ones.
+    if obj.host_key_type.lower() == "all":
+        parts.append("host key type All - an RSA key served alongside every ECDSA curve")
+    elif obj.host_key_type.upper() != "ECDSA" or obj.host_key_bits < 256:
+        parts.append(f"a {obj.host_key_type} {obj.host_key_bits} host key (preferred: ECDSA 256)"
                      + ("" if obj.profile_found else ", the device default"))
     if not obj.rekey_interval_seconds:
         parts.append("no time-based rekey interval")

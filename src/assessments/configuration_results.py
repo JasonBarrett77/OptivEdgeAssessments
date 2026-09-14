@@ -161,17 +161,24 @@ RESULTS = {
         ),
     ),
     "management-ssh": ResultsSpec(
-        columns=("Appliance", "Bound Profile", "CBC Cipher", "Weak MACs", "SHA-1 KEX", "Host Key"),
+        columns=("Appliance", "Bound Profile", "Ciphers", "KEX", "MACs", "Host Key"),
         base_queryset=_ordered(ManagementSshSettings, "appliance__hostname"),
         row=lambda s: (
             str(s.appliance),
             # No profile means the device default, which is the answer - spelled out.
             (s.profile_name if s.profile_found else
              (f"{s.profile_name} (not found)" if s.profile_name else "None - device default")),
-            _yes_no(s.offers_cbc_cipher),
-            ", ".join(s.weak_macs) or "none",
-            _yes_no(s.offers_sha1_kex),
-            f"{s.host_key_type} {s.host_key_bits}",
+            # Each algorithm cell answers the question its control now asks - does the offer hold
+            # the preferred value and nothing outside its allowed set - and names what broke it.
+            # These columns used to show the minimum-value flags, which no control asserts.
+            ("preferred" if not s.ciphers_below_preferred
+             else (", ".join(s.non_preferred_ciphers) or "no aes256-gcm")),
+            ("preferred" if not s.kex_below_preferred
+             else (", ".join(s.non_preferred_kex) or "no ECDH")),
+            ("preferred" if not s.macs_below_preferred
+             else (", ".join(s.non_preferred_macs) or "no hmac-sha2-512")),
+            ("All (RSA + every ECDSA curve)" if s.host_key_type.lower() == "all"
+             else f"{s.host_key_type} {s.host_key_bits}"),
         ),
     ),
     "authentication-settings": ResultsSpec(

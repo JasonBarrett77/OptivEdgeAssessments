@@ -1,4 +1,4 @@
-"""Canonical search compiler for the management SSH server. PAN-MCR-001 and 003.
+"""Canonical search compiler for the management SSH server. PAN-MCR-001 to 005.
 
 One row per appliance: what its management SSH server OFFERS - the bound profile's lists where
 it sets them, the device's measured default offer where it does not. The algorithm lists are
@@ -75,6 +75,10 @@ FIELD_COMPILERS = {
     "offers_sha1_kex": build_boolean_compiler("offers_sha1_kex", "offers_sha1_kex"),
     "offers_weak_kex": build_boolean_compiler("offers_weak_kex", "offers_weak_kex"),
     "offers_sha2_256_mac": build_boolean_compiler("offers_sha2_256_mac", "offers_sha2_256_mac"),
+    "ciphers_below_preferred": build_boolean_compiler(
+        "ciphers_below_preferred", "ciphers_below_preferred"),
+    "kex_below_preferred": build_boolean_compiler("kex_below_preferred", "kex_below_preferred"),
+    "macs_below_preferred": build_boolean_compiler("macs_below_preferred", "macs_below_preferred"),
     "ciphers_default": build_boolean_compiler("ciphers_default", "ciphers_default"),
     "kex_default": build_boolean_compiler("kex_default", "kex_default"),
     "macs_default": build_boolean_compiler("macs_default", "macs_default"),

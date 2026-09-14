@@ -1,7 +1,14 @@
-"""PAN-MCR-001 and 003 over the management SSH server's effective offer.
+"""PAN-MCR-001 to 005 over the management SSH server's effective offer.
 
-001 can only fire on a profile that adds a CBC cipher - the measured default offers none. 003 fires
-on the default itself, which offers hmac-sha1 and umac, and on a profile that selects hmac-sha1.
+Every one of these controls asserts the corpus PREFERRED value (2026-09-14), so the device's own
+default offer now fires all five: its ciphers, KEX and MACs each carry algorithms outside the
+preferred sets, its host key is RSA 2048, and it has no rekey interval.
+
+The cases that earn their place are the ones where "preferred" does NOT mean strictest.
+hmac-sha2-256 beside hmac-sha2-512 is compliant, because the corpus keeps 256 "for compatibility";
+an ECDSA 384 host key passes, because it is stronger than the preferred 256 rather than weaker; and
+aes256-ctr ALONE still fires, because its parenthetical adds it beside aes256-gcm rather than
+substituting for it. Those three readings are the whole content of the rule.
 """
 
 from django.test import TestCase
@@ -14,6 +21,16 @@ from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization.management_ssh import (
     normalize_management_ssh)
+
+#: Every list at its preferred value. A case testing ONE list overrides that key, so each
+#: assertion can be an exact set of findings rather than a membership check.
+PREFERRED = {
+    "ciphers": {"member": ["aes256-gcm"]},
+    "kex": {"member": ["ecdh-sha2-nistp384"]},
+    "mac": {"member": ["hmac-sha2-512"]},
+    "default-hostkey": {"key-type": {"ECDSA": "256"}},
+    "session-rekey": {"interval": "3600"},
+}
 
 
 class ManagementSshControlTests(TestCase):
@@ -44,89 +61,114 @@ class ManagementSshControlTests(TestCase):
         generate_management_ssh_findings(self.run)
         return {f.control.control_id: f for f in ManagementSshFinding.objects.select_related("control")}
 
-    def test_the_device_default_fires_everything_but_001(self):
-        """RSA 2048 and no rekey interval are the defaults, so 004 and 005 report too."""
+    def _preferred(self, **overrides):
+        """The all-preferred profile with some lists replaced. A None value leaves the key in
+        place holding nothing, which is what an explicitly empty `<kex/>` looks like."""
+        return {**PREFERRED, **overrides}
+
+    def test_the_device_default_fires_all_five(self):
+        """No profile bound. Under the preferred-value rule the built-in offer fails every list -
+        chacha20 and the 128-bit ciphers, the finite-field KEX groups, hmac-sha1 and umac."""
         found = self._findings()
-        self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003", "PAN-MCR-004", "PAN-MCR-005"})
+        self.assertEqual(set(found), {"PAN-MCR-001", "PAN-MCR-002", "PAN-MCR-003",
+                                      "PAN-MCR-004", "PAN-MCR-005"})
+        self.assertEqual(found["PAN-MCR-001"].severity, "high")
         self.assertEqual(found["PAN-MCR-002"].severity, "high")
+        self.assertEqual(found["PAN-MCR-003"].severity, "medium")
         self.assertEqual(found["PAN-MCR-004"].severity, "medium")
         self.assertEqual(found["PAN-MCR-005"].severity, "low")
-        self.assertIn("RSA 2048 host key", found["PAN-MCR-004"].summary)
-        self.assertEqual(found["PAN-MCR-003"].severity, "medium")
+        self.assertIn("chacha20-poly1305@openssh.com", found["PAN-MCR-001"].summary)
         self.assertIn("hmac-sha1", found["PAN-MCR-003"].summary)
         self.assertIn("the device default", found["PAN-MCR-003"].summary)
+        self.assertIn("RSA 2048 host key", found["PAN-MCR-004"].summary)
 
-    def test_a_ciphers_only_profile_still_fires_003_on_the_default_macs(self):
-        """tpa-a's shape: the unset MAC list is the default, not empty."""
+    def test_a_ciphers_only_profile_leaves_every_other_list_at_the_default(self):
+        """tpa-a's shape: the unset MAC list is the default, not empty. Only 001 is answered."""
         found = self._findings({"ciphers": {"member": ["aes256-gcm"]}})
         self.assertEqual(set(found), {"PAN-MCR-002", "PAN-MCR-003",
                                       "PAN-MCR-004", "PAN-MCR-005"})
         self.assertIn(RESTART_CAVEAT, found["PAN-MCR-003"].summary)
 
-    def test_a_cbc_cipher_fires_001(self):
-        found = self._findings({"ciphers": {"member": ["aes128-cbc", "aes256-gcm"]},
-                                "kex": {"member": ["ecdh-sha2-nistp384"]},
-                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                "session-rekey": {"interval": "3600"},
-                                "mac": {"member": ["hmac-sha2-512"]}})
+    def test_a_cbc_cipher_fires_001_and_is_named_as_cbc(self):
+        found = self._findings(self._preferred(ciphers={"member": ["aes128-cbc", "aes256-gcm"]}))
         self.assertEqual(set(found), {"PAN-MCR-001"})
         self.assertEqual(found["PAN-MCR-001"].severity, "high")
         self.assertIn("aes128-cbc", found["PAN-MCR-001"].summary)
+        self.assertIn("CBC mode among them", found["PAN-MCR-001"].summary)
+
+    def test_aes256_ctr_is_allowed_beside_the_preferred_cipher(self):
+        """The corpus parenthetical "(add aes256-ctr for older clients)" is an allowance."""
+        self.assertEqual(
+            self._findings(self._preferred(ciphers={"member": ["aes256-gcm", "aes256-ctr"]})), {})
+
+    def test_aes256_ctr_alone_fires_because_the_preferred_cipher_is_missing(self):
+        """An allowance beside the preferred value is not a substitute for it."""
+        found = self._findings(self._preferred(ciphers={"member": ["aes256-ctr"]}))
+        self.assertEqual(set(found), {"PAN-MCR-001"})
+        self.assertIn("no aes256-gcm cipher", found["PAN-MCR-001"].summary)
 
     def test_a_profile_selecting_hmac_sha1_fires_003(self):
-        found = self._findings({"mac": {"member": ["hmac-sha1", "hmac-sha2-512"]}})
-        self.assertIn("PAN-MCR-003", found)
-
-    def test_sha2_256_as_the_weakest_mac_reports_low(self):
-        """tpa-b's shape: the corpus band for a server that meets the floor and misses the
-        preferred hmac-sha2-512."""
-        found = self._findings({"ciphers": {"member": ["aes256-gcm"]},
-                                "kex": {"member": ["ecdh-sha2-nistp256"]},
-                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                "session-rekey": {"interval": "3600"},
-                                "mac": {"member": ["hmac-sha2-256", "hmac-sha2-512"]}})
+        found = self._findings(self._preferred(mac={"member": ["hmac-sha1", "hmac-sha2-512"]}))
         self.assertEqual(set(found), {"PAN-MCR-003"})
-        self.assertEqual(found["PAN-MCR-003"].severity, "low")
-        self.assertIn("hmac-sha2-256", found["PAN-MCR-003"].summary)
-
-    def test_the_low_band_does_not_downgrade_a_weak_mac(self):
-        """Worst wins: hmac-sha1 alongside hmac-sha2-256 stays medium."""
-        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp256"]},
-                                "mac": {"member": ["hmac-sha1", "hmac-sha2-256"]}})
         self.assertEqual(found["PAN-MCR-003"].severity, "medium")
+        self.assertIn("hmac-sha1", found["PAN-MCR-003"].summary)
 
-    def test_a_fully_restricted_profile_fires_nothing(self):
-        self.assertEqual(self._findings({"ciphers": {"member": ["aes256-gcm"]},
-                                         "kex": {"member": ["ecdh-sha2-nistp384"]},
-                                         "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                         "session-rekey": {"interval": "3600"},
-                                         "mac": {"member": ["hmac-sha2-512"]}}), {})
+    def test_hmac_sha2_256_beside_512_is_the_preferred_state(self):
+        """tpa-b's shape. The corpus keeps 256 "for compatibility", so this does NOT report - the
+        low band that used to grade it as a preferred-state gap is gone rather than promoted."""
+        self.assertEqual(
+            self._findings(self._preferred(mac={"member": ["hmac-sha2-256", "hmac-sha2-512"]})), {})
 
-    def test_rsa_3072_passes_004(self):
-        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp384"]},
-                                "default-hostkey": {"key-type": {"RSA": "3072"}},
-                                "session-rekey": {"interval": "600"},
-                                "mac": {"member": ["hmac-sha2-512"]}})
-        self.assertEqual(found, {})
+    def test_sha2_256_without_512_fires_at_the_control_severity(self):
+        """What the preferred value actually changed for 003, and there is no graded band."""
+        found = self._findings(self._preferred(mac={"member": ["hmac-sha2-256"]}))
+        self.assertEqual(set(found), {"PAN-MCR-003"})
+        self.assertEqual(found["PAN-MCR-003"].severity, "medium")
+        self.assertIn("no hmac-sha2-512 MAC", found["PAN-MCR-003"].summary)
 
-    def test_an_ecdsa_key_without_a_rekey_interval_fires_only_005(self):
-        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp384"]},
-                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                "mac": {"member": ["hmac-sha2-512"]}})
+    def test_a_fully_preferred_profile_fires_nothing(self):
+        self.assertEqual(self._findings(dict(PREFERRED)), {})
+
+    def test_rsa_3072_now_fires_004(self):
+        """It passed under this control's earlier 128-bit-floor reading. The preferred value is
+        ECDSA, so any RSA key reports and the consultant relaxes it where an estate needs RSA."""
+        found = self._findings(self._preferred(**{"default-hostkey": {"key-type": {"RSA": "3072"}}}))
+        self.assertEqual(set(found), {"PAN-MCR-004"})
+        self.assertIn("RSA 3072 host key", found["PAN-MCR-004"].summary)
+
+    def test_ecdsa_384_passes_because_it_is_stronger_than_preferred(self):
+        """Replacing the minimum with the preferred must not make being better than the preferred
+        value a finding."""
+        self.assertEqual(
+            self._findings(self._preferred(**{"default-hostkey": {"key-type": {"ECDSA": "384"}}})), {})
+
+    def test_hostkey_all_fires_004(self):
+        """Measured 2026-09-14: `all` takes no size and serves an RSA key alongside every ECDSA
+        curve, so the RSA 2048 key this control is about is still presented."""
+        found = self._findings(self._preferred(**{"default-hostkey": {"key-type": {"all": None}}}))
+        self.assertEqual(set(found), {"PAN-MCR-004"})
+        self.assertIn("host key type All", found["PAN-MCR-004"].summary)
+
+    def test_no_rekey_interval_fires_only_005(self):
+        found = self._findings(self._preferred(**{"session-rekey": None}))
         self.assertEqual(set(found), {"PAN-MCR-005"})
         self.assertIn("no time-based rekey interval", found["PAN-MCR-005"].summary)
 
+    def test_a_shorter_rekey_interval_passes(self):
+        """The preferred 3600 is a ceiling - the range is 10 to 3600 and rekeying more often is
+        stronger - so every settable value satisfies the control."""
+        self.assertEqual(self._findings(self._preferred(**{"session-rekey": {"interval": "600"}})), {})
+
     def test_an_explicitly_empty_kex_list_is_unrestricted(self):
         """Measured on tpa-a: `<kex/>` commits and offers the whole default set."""
-        found = self._findings({"kex": None, "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                "session-rekey": {"interval": "3600"},
-                                "mac": {"member": ["hmac-sha2-512"]}})
+        found = self._findings(self._preferred(kex=None))
         self.assertEqual(set(found), {"PAN-MCR-002"})
+        self.assertIn("key exchange unrestricted", found["PAN-MCR-002"].summary)
 
-    def test_a_restricted_list_keeping_group14_sha1_reports_low(self):
-        found = self._findings({"kex": {"member": ["ecdh-sha2-nistp256", "diffie-hellman-group14-sha1"]},
-                                "default-hostkey": {"key-type": {"ECDSA": "256"}},
-                                "session-rekey": {"interval": "3600"},
-                                "mac": {"member": ["hmac-sha2-512"]}})
+    def test_a_restricted_list_keeping_group14_sha1_fires_at_the_control_severity(self):
+        """It reported at low as a preferred-state gap until 2026-09-14; the band is gone."""
+        found = self._findings(self._preferred(
+            kex={"member": ["ecdh-sha2-nistp256", "diffie-hellman-group14-sha1"]}))
         self.assertEqual(set(found), {"PAN-MCR-002"})
-        self.assertEqual(found["PAN-MCR-002"].severity, "low")
+        self.assertEqual(found["PAN-MCR-002"].severity, "high")
+        self.assertIn("diffie-hellman-group14-sha1", found["PAN-MCR-002"].summary)
