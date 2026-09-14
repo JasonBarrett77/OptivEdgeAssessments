@@ -44,8 +44,6 @@ from assessments.views import (
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
     LegacyFindingListView,
-    RuleFindingDocxDownloadView,
-    RuleFindingXlsxDownloadView,
     SecurityRuleListView,
 )
 
@@ -101,24 +99,11 @@ urlpatterns = [
         ControlRunConfigurationFindingsView.as_view(),
         name="assessment_control_run_configuration_findings",
     ),
-    # Moved off "findings/" so the good name is free for whatever replaces this. The two
-    # report downloads below deliberately KEEP their paths: report.docx is the client
-    # deliverable, a separate permanent concept that should not inherit "legacy" merely
-    # because it is currently reached from this page.
+    # Moved off "findings/" so the good name is free for whatever replaces this.
     path(
         "findings-legacy/",
         LegacyFindingListView.as_view(),
         name="assessment_legacy_finding_list",
-    ),
-    path(
-        "findings/report.docx",
-        RuleFindingDocxDownloadView.as_view(),
-        name="assessment_rule_finding_docx_download",
-    ),
-    path(
-        "findings/report.xlsx",
-        RuleFindingXlsxDownloadView.as_view(),
-        name="assessment_rule_finding_xlsx_download",
     ),
     path(
         "system/",

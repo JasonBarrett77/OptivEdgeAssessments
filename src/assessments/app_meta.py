@@ -101,8 +101,6 @@ SIDEBAR_SECTION = [
         "active_names": {
             "assessment_security_rule_plain_language",
             "assessment_legacy_finding_list",
-            "assessment_rule_finding_docx_download",
-            "assessment_rule_finding_xlsx_download",
         },
         "items": [
             {
@@ -111,8 +109,6 @@ SIDEBAR_SECTION = [
                 "icon": "flag",
                 "active_names": {
                     "assessment_legacy_finding_list",
-                    "assessment_rule_finding_docx_download",
-                    "assessment_rule_finding_xlsx_download",
                 },
             },
             {

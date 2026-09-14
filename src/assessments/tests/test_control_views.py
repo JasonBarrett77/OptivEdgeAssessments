@@ -116,8 +116,6 @@ class ControlViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Security Rule Findings")
         self.assertContains(response, "No rule findings available.")
-        self.assertContains(response, reverse("assessment_rule_finding_docx_download"))
-        self.assertContains(response, reverse("assessment_rule_finding_xlsx_download"))
 
     def test_control_detail_view_renders(self):
         response = self.client.get(
@@ -723,70 +721,6 @@ class ControlViewTests(TestCase):
         self.assertEqual(len(opened), 1)
         self.assertIn(f["a_high"].pk, [item["id"] for item in opened[0]["findings"]])
         self.assertContains(response, "<details open")
-
-    def test_rule_finding_docx_download_returns_attachment(self):
-        security_rule = self.create_security_rule()
-        assessment_run = AssessmentRun.objects.create(
-            name="Rule Findings Run",
-            status=AssessmentRun.Status.COMPLETED,
-            started_at=timezone.now(),
-            completed_at=timezone.now(),
-        )
-        finding = RuleFinding.objects.create(
-            assessment_run=assessment_run,
-            control=self.control,
-            security_rule=security_rule,
-            status=RuleFinding.Status.OPEN,
-            severity=Control.Severity.HIGH,
-            title=self.control.name,
-            summary="Matched control query: Baseline permissiveness.",
-        )
-        RuleFindingControlQuery.objects.create(
-            rule_finding=finding,
-            control_query=self.control.queries.first(),
-        )
-
-        response = self.client.get(reverse("assessment_rule_finding_docx_download"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response["Content-Type"],
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        self.assertIn("attachment;", response["Content-Disposition"])
-        self.assertTrue(response.content.startswith(b"PK"))
-
-    def test_rule_finding_xlsx_download_returns_attachment(self):
-        security_rule = self.create_security_rule()
-        assessment_run = AssessmentRun.objects.create(
-            name="Rule Findings Run",
-            status=AssessmentRun.Status.COMPLETED,
-            started_at=timezone.now(),
-            completed_at=timezone.now(),
-        )
-        finding = RuleFinding.objects.create(
-            assessment_run=assessment_run,
-            control=self.control,
-            security_rule=security_rule,
-            status=RuleFinding.Status.OPEN,
-            severity=Control.Severity.HIGH,
-            title=self.control.name,
-            summary="Matched control query: Baseline permissiveness.",
-        )
-        RuleFindingControlQuery.objects.create(
-            rule_finding=finding,
-            control_query=self.control.queries.first(),
-        )
-
-        response = self.client.get(reverse("assessment_rule_finding_xlsx_download"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response["Content-Type"],
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        self.assertIn("attachment;", response["Content-Disposition"])
-        self.assertTrue(response.content.startswith(b"PK"))
 
 
 class ControlQueryFormModelValidationTests(TestCase):

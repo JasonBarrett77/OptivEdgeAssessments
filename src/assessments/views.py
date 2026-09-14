@@ -6,8 +6,6 @@ integration data. Keep collector and normalization logic in `integrations`.
 
 import datetime as _dt
 import json
-import tempfile
-from pathlib import Path
 from urllib.parse import urlencode
 
 from assessments.forms import ControlForm, ControlQueryForm
@@ -16,12 +14,6 @@ from assessments.control_queries import (
     default_security_rule_search_query,
     evaluate_control_queries,
     severity_label,
-)
-from assessments.reporting import (
-    build_report_context,
-    build_workbook_export_data,
-    render_health_check_report,
-    render_health_check_workbook,
 )
 from assessments.findings import regenerate_rule_findings
 from assessments.configuration_findings import regenerate_configuration_findings
@@ -80,7 +72,7 @@ from assessments.security_rule_queries import (
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count
-from django.http import Http404, HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
@@ -94,7 +86,6 @@ from optivedge_integrations.integrations.presentation import (
     listed_member_values,
     security_rule_config_source_label,
 )
-from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     AdminUser,
     ServerProfile,
@@ -352,15 +343,6 @@ def build_control_detail_context(control):
     return {
         "control_queries": control.queries.order_by("-is_baseline", "name", "pk"),
     }
-
-
-def get_application_environment():
-    application_environments = list(ApplicationEnvironment.objects.order_by("pk")[:2])
-    if len(application_environments) > 1:
-        raise ValueError("Expected a single ApplicationEnvironment record for this deployment.")
-    if not application_environments:
-        raise ValueError("ApplicationEnvironment must be configured before generating the report.")
-    return application_environments[0]
 
 
 class RightOverlayMixin:
@@ -703,82 +685,6 @@ class LegacyFindingListView(TemplateView):
                 page=page_number,
             ),
         }
-
-
-class RuleFindingDocxDownloadView(View):
-    """Covers RuleFinding only - see reporting/context.py. DeviceConfigurationFinding was the
-    other, until that model was deleted on 2026-09-11.
-
-    The other seventeen finding models reach no client deliverable. Worse, this 500s outright when
-    there are no RuleFinding rows at all: `build_report_context()` raises rather than reporting
-    on what exists. The lab has 72 findings, none of them rule findings, and both downloads
-    fail there today.
-
-    Deliberately not fixed; the enumeration is expected to change as the remaining domains
-    land. See `LegacyFindingListView` for the full account.
-    """
-
-    def get(self, request, *args, **kwargs):
-        application_environment = get_application_environment()
-        context = build_report_context()
-
-        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as temp_file:
-            temp_path = Path(temp_file.name)
-        try:
-            output_path = render_health_check_report(
-                output_path=temp_path,
-                context=context,
-                client_name=application_environment.client_name,
-                short_name=application_environment.client_short_name,
-                report_date=context.assessment_run.created_at.astimezone().strftime("%B %-d, %Y"),
-                revision_number="0.1",
-                opportunity_number=application_environment.opportunity_number.removeprefix("OP-"),
-            )
-            report_bytes = output_path.read_bytes()
-        finally:
-            temp_path.unlink(missing_ok=True)
-
-        filename = (
-            f"{application_environment.client_short_name.lower()}-"
-            f"pan-health-check-{context.assessment_run.created_at.strftime('%Y%m%d')}.docx"
-        )
-        response = HttpResponse(
-            report_bytes,
-            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
-
-
-class RuleFindingXlsxDownloadView(View):
-    def get(self, request, *args, **kwargs):
-        application_environment = get_application_environment()
-        context = build_report_context()
-        generated_date = context.assessment_run.created_at.astimezone().strftime("%B %-d, %Y")
-        export_data = build_workbook_export_data(generated_date=generated_date)
-
-        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_file:
-            temp_path = Path(temp_file.name)
-        try:
-            output_path = render_health_check_workbook(
-                output_path=temp_path,
-                export_data=export_data,
-            )
-            report_bytes = output_path.read_bytes()
-        finally:
-            temp_path.unlink(missing_ok=True)
-
-        filename = (
-            f"{application_environment.client_short_name.lower()}-"
-            f"pan-health-check-{context.assessment_run.created_at.strftime('%Y%m%d')}.xlsx"
-        )
-        response = HttpResponse(
-            report_bytes,
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
-
 
 
 class SystemView(TemplateView):

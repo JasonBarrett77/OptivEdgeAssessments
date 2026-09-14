@@ -30,16 +30,10 @@
                     <p class="pt-0.5 text-xs text-slate-500">
                         Persisted findings from the most recent assessment run &mdash;
                         <span class="font-medium text-amber-800">two of seven finding models only</span>.
-                        Certificate, SSL/TLS profile and management interface findings do not appear here or
-                        in the downloads. Use the per-object tabs under Device Configuration for those.
+                        Certificate, SSL/TLS profile and management interface findings do not appear
+                        here. Use the per-object tabs under Device Configuration for those.
                     </p>
                 </div>
-                {% if active_tab == "security-rules" %}
-                <div class="flex items-center gap-2">
-                    <a href="{% url 'assessment_rule_finding_docx_download' %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download DOCX</a>
-                    <a href="{% url 'assessment_rule_finding_xlsx_download' %}" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Download XLSX</a>
-                </div>
-                {% endif %}
             </div>
 
             <div class="flex shrink-0 gap-2 border-b border-slate-200 px-4">

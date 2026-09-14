@@ -22,8 +22,6 @@ from assessments import configuration_navigation as config_nav
 #: Each one must say why, and adding to this set is a deliberate act rather than a shortcut.
 NON_PAGE_URL_NAMES = {
     # Downloads: return a file and no HTML.
-    "assessment_rule_finding_docx_download",
-    "assessment_rule_finding_xlsx_download",
     "assessment_catalog_download",
     "assessment_catalog_seed_download",
     # POST actions: mutate, then redirect to a page that IS covered.
@@ -85,13 +83,6 @@ class NavigationCoverageTests(TestCase):
                       for s in app_meta.SIDEBAR_SECTION}
         self.assertNotIn("Findings", by_section["Assessments"])
         self.assertIn("Findings (Legacy)", by_section["Experimental"])
-
-    def test_the_report_downloads_kept_their_urls(self):
-        """The deliverable path is a separate permanent concept; it did not move."""
-        self.assertTrue(reverse("assessment_rule_finding_docx_download").endswith(
-            "findings/report.docx"))
-        self.assertTrue(reverse("assessment_rule_finding_xlsx_download").endswith(
-            "findings/report.xlsx"))
 
     def test_the_findings_page_moved_off_the_good_name(self):
         self.assertTrue(reverse("assessment_legacy_finding_list").endswith("findings-legacy/"))
