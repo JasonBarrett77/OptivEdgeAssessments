@@ -145,7 +145,12 @@ class PasswordComplexityControlTests(TestCase):
                          {"PAN-AUTH-012", "PAN-AUTH-013"})
 
     def test_expiration_period_is_wrong_at_both_ends(self):
-        """A less-than comparison would pass a 365-day expiry and fail the preferred 60."""
+        """Both ends, at the PREFERRED threshold.
+
+        A less-than comparison would pass a 365-day expiry. The threshold is the corpus
+        preferred 60 rather than its minimum 90 (Jason, 2026-09-14), so a 90-day expiry - the
+        old floor - now fires, and only 1 to 60 passes.
+        """
         base = {"enabled": "yes", "minimum-length": "15",
                 "minimum-uppercase-letters": "1", "minimum-lowercase-letters": "1",
                 "minimum-numeric-letters": "1", "minimum-special-characters": "1",
@@ -154,7 +159,7 @@ class PasswordComplexityControlTests(TestCase):
         for hostname, period, should_fire in (
             ("fw-never", "0", True),      # never expires
             ("fw-preferred", "60", False),
-            ("fw-minimum", "90", False),
+            ("fw-old-minimum", "90", True),
             ("fw-too-long", "365", True),
         ):
             self._profile(hostname, {**base, "password-change": {
@@ -163,7 +168,7 @@ class PasswordComplexityControlTests(TestCase):
                 "post-expiration-grace-period": "0"}})
         self.assertIn("PAN-AUTH-010", self._findings("fw-never"))
         self.assertNotIn("PAN-AUTH-010", self._findings("fw-preferred"))
-        self.assertNotIn("PAN-AUTH-010", self._findings("fw-minimum"))
+        self.assertIn("PAN-AUTH-010", self._findings("fw-old-minimum"))
         self.assertIn("PAN-AUTH-010", self._findings("fw-too-long"))
 
     def test_a_weak_value_fires_even_while_the_engine_is_off(self):

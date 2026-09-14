@@ -160,9 +160,10 @@ class AdminUserControlTests(TestCase):
             admin_user__name="one_of_seven", control__control_id="PAN-AUTH-022")
         self.assertEqual(finding.severity, "medium")
 
-    def test_the_deferred_020_stays_silent_on_an_account_it_used_to_fire_on(self):
-        """PAN-AUTH-020 is DEFERRED - not derivable from configuration. Jason, 2026-09-10:
-        "PAN-AUTH-020 is not derived from the config, lock that decision in."
+    def test_the_interview_only_020_stays_silent_on_an_account_it_used_to_fire_on(self):
+        """PAN-AUTH-020 is an INTERVIEW QUESTION, complete, and asserts nothing from config.
+        Jason, 2026-09-10: "PAN-AUTH-020 is not derived from the config, lock that decision in.";
+        2026-09-14: "it needs to be handled via interview. Let's mark 020 as complete."
 
         Administrator MFA arrives only through RADIUS, SAML or the Cloud Authentication Service,
         and the configuration records none of the other side's MFA policy; the one factor it

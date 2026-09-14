@@ -31,8 +31,9 @@ about what can be asked here, and an item backed by an unwritten control answers
 
 Checked when the rule was set: all fifteen items clear it, and the split above is what that check
 produced rather than a layout somebody chose. The tally per item was 2, 4, 2, 2, 4, 13, 1, 3, 4,
-2, 1, 2, 7, 1, 1 - and the one control in the catalog that is NOT complete, PAN-AUTH-020
-(deferred), sits on Administrators, which has three others.
+2, 1, 2, 7, 1, 1 - and PAN-AUTH-020, the one catalog control that generates no findings, sits
+on Administrators, which has three others. It is COMPLETE as an interview question rather than a
+query (Jason, 2026-09-14), so it neither earns a rail item nor takes one away.
 
 The tally cannot be asserted from here: "completed" lives in OptivEdgeProbe's controls-status.csv
 and this app must not read across repos for it. Re-run the check by hand when adding an item.

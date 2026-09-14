@@ -683,10 +683,10 @@
           "control_id": "PAN-AUTH-008",
           "name": "New Password Minimum Character Difference",
           "control_type": "password_complexity",
-          "description": "Requires characters to change on rotation, stopping trivial increments like Password1 to Password2. Corpus minimum 3, preferred 8.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "description": "Requires characters to change on rotation, stopping trivial increments like Password1 to Password2. Corpus minimum 3, preferred 8; this control asserts the preferred 8. Jason, 2026-09-14: the control asserts the corpus PREFERRED value, not the minimum - one check, at the stricter number. An assessor who sees the finding reduces its severity where the weaker value is justified.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > New Password Differs By Characters.",
-          "remediation": "Set New Password Differs By Characters to at least 3; 8 approaches half of a 15-character password.",
+          "remediation": "Set New Password Differs By Characters to at least 8, which approaches half of a 15-character password.",
           "default_severity": "medium",
           "implementation_version": "v1",
           "is_active": true,
@@ -701,7 +701,7 @@
                   {
                     "field": "new_differs_by_characters",
                     "op": "lt",
-                    "value": 3
+                    "value": 8
                   }
                 ]
               },
@@ -716,10 +716,10 @@
           "control_id": "PAN-AUTH-009",
           "name": "Prevent Password Reuse (History Count)",
           "control_type": "password_complexity",
-          "description": "The number of previous passwords checked on change. Zero means the new password is checked against NO history, so the previous password can be set again immediately. Corpus minimum 5, preferred 24.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "description": "The number of previous passwords checked on change. Zero means the new password is checked against NO history, so the previous password can be set again immediately. Corpus minimum 5, preferred 24; this control asserts the preferred 24. Jason, 2026-09-14: the control asserts the corpus PREFERRED value, not the minimum - one check, at the stricter number. An assessor who sees the finding reduces its severity where the weaker value is justified.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Prevent Password Reuse Limit.",
-          "remediation": "Set Prevent Password Reuse Limit to at least 5; 24 defeats cycling through a small pool.",
+          "remediation": "Set Prevent Password Reuse Limit to at least 24, which defeats cycling through a small pool.",
           "default_severity": "medium",
           "implementation_version": "v1",
           "is_active": true,
@@ -734,7 +734,7 @@
                   {
                     "field": "history_count",
                     "op": "lt",
-                    "value": 5
+                    "value": 24
                   }
                 ]
               },
@@ -749,10 +749,10 @@
           "control_id": "PAN-AUTH-010",
           "name": "Password Expiration Period",
           "control_type": "password_complexity",
-          "description": "Bounds how long a leaked credential stays usable. The corpus minimum is 90 days and the preferred value 60.\\n\\nThis is the one setting on this form where BOTH ENDS are wrong. Zero means passwords NEVER expire, and a large value means they expire too rarely - so the control fires on 0 and on anything above 90, and passes between 1 and 90. A less-than comparison would have passed a 365-day expiry and failed the preferred 60.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "description": "Bounds how long a leaked credential stays usable. The corpus minimum is 90 days and the preferred value 60; this control asserts the preferred 60. Jason, 2026-09-14: the control asserts the corpus PREFERRED value, not the minimum - one check, at the stricter number. An assessor who sees the finding reduces its severity where the weaker value is justified.\\n\\nThis is the one setting on this form where BOTH ENDS are wrong. Zero means passwords NEVER expire, and a large value means they expire too rarely - so the control fires on 0 and on anything above 60, and passes between 1 and 60. A less-than comparison would have passed a 365-day expiry and failed the preferred 60.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Required Password Change Period.",
-          "remediation": "Set Required Password Change Period to 90 days or fewer, and not to 0. Where MFA and breach monitoring are in place, review whether forced rotation is still the right policy for your standard - this control asserts the corpus floor.",
+          "remediation": "Set Required Password Change Period to 60 days or fewer, and not to 0. Where MFA and breach monitoring are in place, review whether forced rotation is still the right policy for your standard - this control asserts the corpus preferred value.",
           "default_severity": "medium",
           "implementation_version": "v1",
           "is_active": true,
@@ -772,7 +772,7 @@
                   {
                     "field": "expiration_period",
                     "op": "gt",
-                    "value": 90
+                    "value": 60
                   }
                 ]
               },
@@ -787,10 +787,10 @@
           "control_id": "PAN-AUTH-011",
           "name": "Password Expiration Warning Period",
           "control_type": "password_complexity",
-          "description": "Days of warning before a password expires, so rotations happen deliberately rather than as lockouts. Corpus minimum 7, preferred 14.\\n\\nAssessed independently of PAN-AUTH-010: a missing warning period is wrong whether or not passwords expire today, and it stays wrong the moment an expiry is set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
+          "description": "Days of warning before a password expires, so rotations happen deliberately rather than as lockouts. Corpus minimum 7, preferred 14; this control asserts the preferred 14. Jason, 2026-09-14: the control asserts the corpus PREFERRED value, not the minimum - one check, at the stricter number. An assessor who sees the finding reduces its severity where the weaker value is justified.\\n\\nAssessed independently of PAN-AUTH-010: a missing warning period is wrong whether or not passwords expire today, and it stays wrong the moment an expiry is set.\\n\\nThese settings are INERT while password complexity is disabled - the device enforces none of them. That does not change this finding, which is true either way, but it does change the remediation: fixing this alone accomplishes nothing until PAN-AUTH-001 is also fixed.",
           "rationale": "Administrative passwords are the last barrier when every other control has been bypassed, and a firewall's administrator holds the policy that protects everything behind it.",
           "audit": "Device > Setup > Management > Minimum Password Complexity > Expiration Warning Period.",
-          "remediation": "Set Expiration Warning Period to at least 7 days; 14 gives distributed teams more runway. The maximum is 30.",
+          "remediation": "Set Expiration Warning Period to at least 14 days, which gives distributed teams more runway. The maximum is 30.",
           "default_severity": "low",
           "implementation_version": "v1",
           "is_active": true,
@@ -805,7 +805,7 @@
                   {
                     "field": "expiration_warning_period",
                     "op": "lt",
-                    "value": 7
+                    "value": 14
                   }
                 ]
               },
@@ -947,10 +947,10 @@
           "control_id": "PAN-AUTH-015",
           "name": "Admin Account Lockout Duration",
           "control_type": "authentication_settings",
-          "description": "How long a locked administrator account stays locked. The device accepts 0 to 60 minutes.\n\nZERO IS THE STRONGEST VALUE HERE, which is the opposite of PAN-AUTH-014 on the same screen, and the reason the two cannot share a shape. The PAN-OS field help states it outright: \"A value of 0 (default) means the lockout applies until another administrator manually unlocks the account\" - and, explicitly, that failed-attempts set with lockout-time left at 0 locks the user until a manual unlock. So 0 is stricter than any duration, not weaker, and reporting it as \"below 15 minutes\" would flag the most restrictive setting available as a weakness.\n\nThe finding is therefore the EXCLUDED MIDDLE: 1 to 14 minutes - long enough to have been set deliberately, short enough not to throttle a guessing attack. 0 is also the implicit value, so an untouched device does not fire this. That is correct: with failed-attempts also 0 nothing ever locks, and PAN-AUTH-014 is the control that says so.\n\nThere is no severity scale, and none is needed - a 14-minute window has nothing to grade inside it.",
+          "description": "How long a locked administrator account stays locked. The device accepts 0 to 60 minutes.\n\nZERO IS THE STRONGEST VALUE HERE, which is the opposite of PAN-AUTH-014 on the same screen, and the reason the two cannot share a shape. The PAN-OS field help states it outright: \"A value of 0 (default) means the lockout applies until another administrator manually unlocks the account\" - and, explicitly, that failed-attempts set with lockout-time left at 0 locks the user until a manual unlock. So 0 is stricter than any duration, not weaker, and reporting it as \"below 30 minutes\" would flag the most restrictive setting available as a weakness.\n\nThe finding is therefore the EXCLUDED MIDDLE: 1 to 29 minutes - long enough to have been set deliberately, short enough not to throttle a guessing attack. The corpus minimum is 15 and the preferred value 30, and the threshold is the preferred. Jason, 2026-09-14: the control asserts the corpus PREFERRED value, not the minimum - one check, at the stricter number. An assessor who sees the finding reduces its severity where the weaker value is justified. 0 is also the implicit value, so an untouched device does not fire this. That is correct: with failed-attempts also 0 nothing ever locks, and PAN-AUTH-014 is the control that says so.\n\nThere is no severity scale, and none is needed - a 29-minute window has nothing to grade inside it.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Setup > Management > Authentication Settings > Lockout Time.",
-          "remediation": "Set Lockout Time to at least 30 minutes; Palo Alto's own field help recommends 30 \"to prevent continuous login attempts from a malicious actor\", and the corpus floor is 15. The maximum is 60.\n\nLeaving it at 0 is stronger still - the account holds until an administrator unlocks it - and is a legitimate choice. Understand the trade first: an attacker who can reach the login page can lock every administrator out and leave them there. Pair either choice with a non-zero Failed Attempts (PAN-AUTH-014), or nothing locks at all.\n\nA locked account is released with `request authentication unlock-admin`; `show authentication locked-users` lists them.",
+          "remediation": "Set Lockout Time to at least 30 minutes; Palo Alto's own field help recommends 30 \"to prevent continuous login attempts from a malicious actor\", which is also the corpus preferred value this control asserts. The maximum is 60.\n\nLeaving it at 0 is stronger still - the account holds until an administrator unlocks it - and is a legitimate choice. Understand the trade first: an attacker who can reach the login page can lock every administrator out and leave them there. Pair either choice with a non-zero Failed Attempts (PAN-AUTH-014), or nothing locks at all.\n\nA locked account is released with `request authentication unlock-admin`; `show authentication locked-users` lists them.",
           "default_severity": "high",
           "implementation_version": "v1",
           "is_active": true,
@@ -970,7 +970,7 @@
                   {
                     "field": "lockout_time_minutes",
                     "op": "lt",
-                    "value": 15
+                    "value": 30
                   }
                 ]
               },
@@ -1196,7 +1196,7 @@
           "control_id": "PAN-AUTH-020",
           "name": "Multi-Factor Authentication for Administrative Access",
           "control_type": "admin_user",
-          "description": "DEFERRED 2026-09-10 - not derivable from configuration. Jason: \"PAN-AUTH-020 is not derived from the config, lock that decision in.\"\n\nPAN-OS gives an administrator a second factor only through the FIRST factor - a RADIUS server, a SAML identity provider, or the Cloud Authentication Service - and none of the three records in the firewall's configuration whether MFA is enforced on the other side. The one factor the configuration DOES show, the Factors tab, is not enforced for administrators: measured 2026-09-10, oep-mfa-admin logged in with its password alone through a profile carrying an MFA factor (PAN-AAA-011 reports that trap). The Cloud Authentication `force-mfa` key records an operator's claim about the IdP, not a check.\n\nSo a pass here would credit MFA the configuration cannot see, and a failure would fire on administrators whose MFA lives on the server. Kept in the catalog, inactive, so the model, compiler and tests remain; the evidence belongs to the RADIUS/SAML/CIE side.\n\nRequires a second factor on the path an ADMINISTRATOR authenticates by, so a stolen password alone cannot reach the management plane.\n\nTHE FINDING IS ABOUT A PERSON, NOT A PROFILE. This was first built over AuthenticationProfile and left inactive, because a profile row cannot say which administrators are exposed: two accounts on one appliance can sit behind different profiles, and the estate's profiles also serve GlobalProtect and Captive Portal, which are separate controls. Jason, 2026-09-08, ABOUT THIS CONTROL AND PAN-AUTH-019 SPECIFICALLY: \"We generate findings per user, not per profile... A row is a specific user, and its values are the value checks.\" So it reports one finding per administrator, on the same row as that account's other findings.\n\nTHAT IS NOT A GENERAL RULE, and he said so on 2026-09-09: the other authentication profile controls stay profile-centric. PAN-AUTH-018 asserts something about a profile's own lockout configuration and its subject is the profile. What moves a control onto the account is that its assertion is about a PERSON'S exposure, which a profile row cannot express because two administrators on one appliance can sit behind different profiles.\n\nIT RESOLVES THROUGH TWO BINDINGS. The per-account `mgt-config/users/entry/authentication-profile` wins; otherwise the device-wide `deviceconfig/system/authentication-profile` covers the account. `admin_mfa_enabled` is the resolved profile's flag.\n\nNO PROFILE AT ALL FIRES. An administrator on the local database has no second factor, so a stolen password alone reaches the management plane - which is exactly what this asserts. It is a separate failure from PAN-AUTH-019 (the credential is local and unrevocable) and both report on the row, because one bad thing is not excused by another.\n\nThe device enforces a prerequisite that needs no encoding: `mfa-enable` is REJECTED unless the profile already references an MFA factor, so an enabled profile always has one. A SAML profile may carry MFA at the identity provider instead, which this cannot see - that is a downgrade the assessor makes.",
+          "description": "COMPLETE AS AN INTERVIEW QUESTION, not a config check. Jason, 2026-09-14: \"This is not a config check, it needs to be handled via interview. Let's mark 020 as complete.\" It stays in the catalogue, inactive and generating no findings, so the question and the reason travel with the control. The interview: how does each administrator's login get a second factor - which RADIUS, SAML or Cloud Identity Engine policy enforces it, and are any administrators exempt? Deferred 2026-09-10 for the same reason: Jason: \"PAN-AUTH-020 is not derived from the config, lock that decision in.\"\n\nPAN-OS gives an administrator a second factor only through the FIRST factor - a RADIUS server, a SAML identity provider, or the Cloud Authentication Service - and none of the three records in the firewall's configuration whether MFA is enforced on the other side. The one factor the configuration DOES show, the Factors tab, is not enforced for administrators: measured 2026-09-10, oep-mfa-admin logged in with its password alone through a profile carrying an MFA factor (PAN-AAA-011 reports that trap). The Cloud Authentication `force-mfa` key records an operator's claim about the IdP, not a check.\n\nSo a pass here would credit MFA the configuration cannot see, and a failure would fire on administrators whose MFA lives on the server. Kept in the catalog, inactive, so the model, compiler and tests remain; the evidence belongs to the RADIUS/SAML/CIE side.\n\nRequires a second factor on the path an ADMINISTRATOR authenticates by, so a stolen password alone cannot reach the management plane.\n\nTHE FINDING IS ABOUT A PERSON, NOT A PROFILE. This was first built over AuthenticationProfile and left inactive, because a profile row cannot say which administrators are exposed: two accounts on one appliance can sit behind different profiles, and the estate's profiles also serve GlobalProtect and Captive Portal, which are separate controls. Jason, 2026-09-08, ABOUT THIS CONTROL AND PAN-AUTH-019 SPECIFICALLY: \"We generate findings per user, not per profile... A row is a specific user, and its values are the value checks.\" So it reports one finding per administrator, on the same row as that account's other findings.\n\nTHAT IS NOT A GENERAL RULE, and he said so on 2026-09-09: the other authentication profile controls stay profile-centric. PAN-AUTH-018 asserts something about a profile's own lockout configuration and its subject is the profile. What moves a control onto the account is that its assertion is about a PERSON'S exposure, which a profile row cannot express because two administrators on one appliance can sit behind different profiles.\n\nIT RESOLVES THROUGH TWO BINDINGS. The per-account `mgt-config/users/entry/authentication-profile` wins; otherwise the device-wide `deviceconfig/system/authentication-profile` covers the account. `admin_mfa_enabled` is the resolved profile's flag.\n\nNO PROFILE AT ALL FIRES. An administrator on the local database has no second factor, so a stolen password alone reaches the management plane - which is exactly what this asserts. It is a separate failure from PAN-AUTH-019 (the credential is local and unrevocable) and both report on the row, because one bad thing is not excused by another.\n\nThe device enforces a prerequisite that needs no encoding: `mfa-enable` is REJECTED unless the profile already references an MFA factor, so an enabled profile always has one. A SAML profile may carry MFA at the identity provider instead, which this cannot see - that is a downgrade the assessor makes.",
           "rationale": "Administrative access to the firewall is access to every policy behind it.",
           "audit": "Device > Administrators > <account> > Authentication Profile, then Device > Authentication Profile > <that profile> > Factors > Enable Additional Authentication Factors. Where the account names no profile, check Device > Setup > Management > Authentication Settings.",
           "remediation": "Create an MFA server profile, add it as a factor on the authentication profile, then enable Multi Factor Authentication - in that order, because the device refuses the flag without a factor. SAML profiles may carry MFA at the identity provider instead, which this control cannot see.",

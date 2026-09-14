@@ -102,18 +102,19 @@ class AdminSessionControlTests(TestCase):
     # --- 015: zero is the best value -------------------------------------------------
 
     def test_only_the_excluded_middle_fires_015(self):
-        """0 is stricter than any duration; 15+ meets the floor; 1-14 is the finding.
+        """0 is stricter than any duration; 30+ meets the preferred; 1-29 is the finding.
 
-        The 30 is the vendor's own recommendation and 15 the corpus floor, so a value between
-        them passes - the control asserts the floor, and the remediation names the target.
+        The threshold is the corpus PREFERRED 30, which is also the vendor's own recommendation
+        (Jason, 2026-09-14). The corpus minimum 15 therefore FIRES - a value between the two is
+        no longer a pass, and an assessor reduces the severity where 15 is judged enough.
         """
         self._profile("fw-manual", {"admin-lockout": {"lockout-time": "0"}})
         self._profile("fw-short", {"admin-lockout": {"lockout-time": "5"}})
-        self._profile("fw-floor", {"admin-lockout": {"lockout-time": "15"}})
+        self._profile("fw-old-minimum", {"admin-lockout": {"lockout-time": "15"}})
         self._profile("fw-good", {"admin-lockout": {"lockout-time": "30"}})
         self.assertNotIn("PAN-AUTH-015", self._findings("fw-manual"))
         self.assertIn("PAN-AUTH-015", self._findings("fw-short"))
-        self.assertNotIn("PAN-AUTH-015", self._findings("fw-floor"))
+        self.assertIn("PAN-AUTH-015", self._findings("fw-old-minimum"))
         self.assertNotIn("PAN-AUTH-015", self._findings("fw-good"))
 
     def test_the_two_lockout_controls_disagree_about_zero(self):

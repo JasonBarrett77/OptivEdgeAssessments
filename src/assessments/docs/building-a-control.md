@@ -407,6 +407,23 @@ and are then deleted, and empty is its normal state.
       **A corpus field can be an artefact of how the corpus was built.** Where
       `minimum_value_descr` and `preferred_value_descr` split one assertion into two, read them
       together rather than treating the split as a finding about the control.
+- [ ] **Assert the PREFERRED value, not the minimum — one check, at the stricter number.**
+      `→ control-changes.json` Where the corpus names both, the control fires below the preferred
+      and the finding carries the control's own severity. Do NOT build a graded band between the
+      minimum and the preferred, and do not assert the minimum and leave the preferred unasserted.
+      *Jason, 2026-09-14: "Let's simplify the class by setting the preferred as the only control
+      check. There's no alternative... the preferred should replace the minimum. I'll let the
+      consultant reduce severity based on risk." Five controls had shipped asserting only the
+      minimum while the corpus also named a preferred and a `preferred_gap_severity` —
+      PAN-AUTH-008, 009, 010, 011 and 015 — so a device sitting between the two reported nothing.
+      The same shape was open in PAN-MCR-001 and 003.* It is the same principle as the item above,
+      at the other end: report the stricter reading and leave the relaxation to the only person
+      holding the context. **`preferred_gap_severity` is therefore not something to implement** —
+      a band it grades cannot exist once the preferred is the threshold.
+      **The sentinel and direction rules still apply.** A preferred value that is NUMERICALLY
+      LOWER than the minimum (PAN-AUTH-010: minimum 90 days, preferred 60) still needs both ends,
+      and a sentinel keeps its own meaning (PAN-AUTH-015: 0 is locked until an administrator
+      releases, which is stronger than any duration and must not fire).
 - [ ] **Check whether the assertion is broader than the control's title.** `→ control-changes.json` A control named
       for one subject often asserts something true of several. *PAN-MGT-001/002/003 were
       written for the management interface and apply to every administrative surface.*

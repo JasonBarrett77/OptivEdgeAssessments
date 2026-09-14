@@ -153,10 +153,12 @@ SECURITY_PROFILE_CONTROLS = ("PAN-SPY-001", "PAN-VLN-001")
 #: All three assess the same account and fail independently, which is the whole reason they
 #: share a tab: `admin` on pan-fw-111 fires all three at once.
 #:
-#: PAN-AUTH-020 was here and is DEFERRED - not derivable from configuration (Jason,
-#: 2026-09-10). An administrator's second factor arrives through RADIUS, SAML or the Cloud
-#: Authentication Service, and the firewall records none of the other side's policy; the one
-#: factor the configuration does show, the Factors tab, is not enforced for administrators.
+#: PAN-AUTH-020 was here and is COMPLETE AS AN INTERVIEW QUESTION - not derivable from
+#: configuration (Jason, 2026-09-10; marked complete 2026-09-14). An administrator's second
+#: factor arrives through RADIUS, SAML or the Cloud Authentication Service, and the firewall
+#: records none of the other side's policy; the one factor the configuration does show, the
+#: Factors tab, is not enforced for administrators. The question it became is recorded in
+#: control-changes.json, and it generates no findings by design.
 ADMIN_USER_CONTROLS = ("PAN-AUTH-019", "PAN-AUTH-021", "PAN-AUTH-022")
 #: Six kinds on one tab, because they are one object type with one set of questions asked
 #: differently. Six tabs would put one profile per page on most estates.
