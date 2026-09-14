@@ -457,6 +457,20 @@ and are then deleted, and empty is its normal state.
       over-broad" sounds like a query. A role entry records only the features explicitly SET —
       the lab's role stores three — so breadth needs the implicit value of every webui, restapi
       and xmlapi feature PAN-OS has. Hundreds of enumerations for one control.*
+- [ ] **A control that cannot be decided from config is FINISHED when it becomes an INTERVIEW
+      QUESTION — not deferred, and not outstanding.** `→ control-changes.json` Write the question
+      the consultant will ask, record it beside the reason the configuration cannot answer it, and
+      count the control complete. *Jason, 2026-09-14, on PAN-AUTH-020: "This is not a config check,
+      it needs to be handled via interview. Let's mark 020 as complete." `build_controls_csv` counts
+      `interview` as complete for that reason, and the same ruling completed PAN-AAA-003, PAN-AAA-007
+      and PAN-AUTH-023 — four controls that had been reading as unfinished work for weeks.*
+      **`deferred` and `decided` still mean outstanding.** A control waiting on a model, an oracle
+      or a ruling is not finished; one whose answer lives in a person is.
+      **A control BUILT before the discovery stays in the catalogue, inactive**, so the question and
+      the reason travel with it and it generates no findings by design. One never built needs no seed
+      entry at all. *PAN-AUTH-020 is in seed.json with `is_active` false, carrying its interview text
+      in the description; PAN-AAA-003, PAN-AAA-007 and PAN-AUTH-023 are in neither the seed nor the
+      database.*
 - [ ] **Watch the breadth of what fires.** *006 firing on any enabled service would flag every
       interface with `ping` on. It fires on the five administrative services only.*
 - [ ] **Adding a member to an enum? Check every map keyed by that enum.** Nothing enforces
