@@ -2371,6 +2371,219 @@
           ]
         },
         {
+          "control_id": "PAN-SVC-001",
+          "name": "Redundant NTP Servers Configured",
+          "control_type": "ntp_settings",
+          "default_severity": "high",
+          "description": "Two NTP servers must be configured. PAN-OS has exactly two slots - `ntp-servers/primary-ntp-server` and `secondary-ntp-server`, measured 2026-09-14 on 11.1 (PA-5220) and 11.2 (PA-VM) - so this fires when fewer than two are set.\n\nTWO THINGS THE CORPUS ASKS FOR ARE NOT DECIDABLE HERE, and the control says so rather than implying it checked them. The preferred value is \"primary plus secondary from independent trusted internal sources\": the device records two addresses and nothing about who operates them, so TRUSTED and INDEPENDENT are the assessor's judgement. And SYNCHRONIZATION is operational - `show ntp` reports `reachable` and `status: synched` per server, which is why the corpus marks this control live-device-state - while this reads configuration. A server that is configured and answering nothing satisfies this control, and every finding carries that caveat.\n\nThe lab holds both states without any change being made for it: pan-fw-111 configures one server and fires, both PA-5220s configure two and pass.",
+          "rationale": "A single time source is a single point of failure for log timestamps, certificate validity and scheduled jobs - and the corpus notes STIG requires two authoritative sources.",
+          "audit": "Device > Setup > Services > NTP. Confirm both NTP Server Address fields are populated, and confirm with the operator that the two are independent trusted sources.",
+          "remediation": "Configure a second NTP server from a different trusted internal source: `set deviceconfig system ntp-servers secondary-ntp-server ntp-server-address <ntp2>`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Fewer than two NTP servers are configured.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "server_count",
+                    "op": "lt",
+                    "value": 2
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.NtpSettings"
+        },
+        {
+          "control_id": "PAN-SVC-002",
+          "name": "NTP Authentication Enabled",
+          "control_type": "ntp_settings",
+          "default_severity": "medium",
+          "description": "Every configured NTP server must authenticate its time updates with a symmetric key. `authentication-type` is a choice node completing to exactly `none`, `symmetric-key` and `autokey` on 11.1 and 11.2, and Help p.751 states None is the default - which is the state of all three lab devices.\n\nASSERTS THE PREFERRED VALUE. The corpus minimum is explicitly no requirement at all (\"unauthenticated NTP from trusted internal sources meets the floor\"), so asserting it would give a control that can never fire; the preferred value is the literal `symmetric-key`.\n\nAUTOKEY DOES NOT SATISFY IT. It is a different mechanism rather than a stronger grade of the same one, and the corpus names the symmetric-key literal. A device using autokey reports, and the finding names it as autokey rather than as unauthenticated, because the remediation differs.\n\nA DEVICE WITH NO NTP SERVER ALSO FIRES: it has no authenticated time source. PAN-SVC-001 is what reports the absence itself, so the two are separate findings about one cause.\n\nThe ALGORITHM is recorded and not asserted. PAN-OS offers `sha1` and `md5` and nothing else, so there is no stronger choice to require.",
+          "rationale": "Unauthenticated NTP lets an attacker on the path skew device time, which defeats log correlation and certificate expiry checks.",
+          "audit": "Device > Setup > Services > NTP > Authentication Type, on BOTH servers. None is the default.",
+          "remediation": "Set Authentication Type to Symmetric Key on each configured server, with a Key ID, an algorithm and a shared key: `set deviceconfig system ntp-servers primary-ntp-server authentication-type symmetric-key key-id <id> algorithm sha1 authentication-key <key>`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A configured NTP server does not authenticate with a symmetric key.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "all_servers_symmetric_key",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.NtpSettings"
+        },
+        {
+          "control_id": "PAN-SVC-004",
+          "name": "SNMP v3 Only (v1/v2c Disabled)",
+          "control_type": "snmp_settings",
+          "default_severity": "high",
+          "description": "SNMP monitoring access must use v3. `snmp-setting/access-setting/version` is a choice node completing to exactly `v2c` and `v3` on 11.1 and 11.2, so the control fires on a device configured for v2c.\n\nTHE TITLE NAMES A STATE PAN-OS CANNOT BE IN. There is no v1 in the schema on either measured release, so \"v1/v2c disabled\" is v2c in practice; the title is the corpus's and is left alone.\n\nAN UNCONFIGURED DEVICE DOES NOT FIRE. controls.json says it outright - \"If SNMP is unused, leave snmp-setting unconfigured entirely\" - so the baseline requires `is_configured` as well as `uses_v2c`, and a device with no SNMP at all is compliant rather than unassessed. That is the state of all three lab devices, which is why this control needed a subject built for it.\n\nAN ACCESS-SETTING WITH NO VERSION CHILD IS READ AS v2c, from Help p.740 (\"Version: V2c (default) or V3\"), and the row records that the version was inferred rather than read - a finding resting on a vendor sentence should say so.\n\nThe preferred value is the same literal, `v3`, with the description adding SHA-256/AES-256, scoped MIB views and dedicated monitoring accounts. That is remediation guidance rather than a second assertion - the same reading PAN-CRT-005 takes of its own preferred state.",
+          "rationale": "SNMP v2c authenticates with a cleartext community string and offers no encryption, so anyone on the path can read the community and then the device's statistics.",
+          "audit": "Device > Setup > Operations > SNMP Setup > Version. Also confirm whether any management surface actually enables the SNMP service - the two are configured apart.",
+          "remediation": "Select V3 and define views and users: `set deviceconfig system snmp-setting access-setting version v3 views {NAME} view {NAME} oid 1.3.6.1 option include`. If SNMP is not used, delete `snmp-setting` entirely instead.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "SNMP is configured and answers v2c.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "uses_v2c",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SnmpSettings"
+        },
+        {
+          "control_id": "PAN-SVC-005",
+          "name": "No Default or Weak SNMP Community Strings (Hygiene)",
+          "control_type": "snmp_settings",
+          "default_severity": "high",
+          "description": "Where v2c is still in use, the community string must not be one of the published defaults. Fires when a configured device's community string is `public` or `private`, compared case-insensitively.\n\n\"GUESSABLE\" IS NOT DECIDABLE and is not asserted. The corpus minimum is \"no default community strings ('public'/'private') and any remaining v2c exposure documented with an expiry date\": the first half is a string comparison, the second is a document. Help p.740 names the same two strings (\"Don't use the default community string public\").\n\nTHE COMMUNITY STRING IS NOT STORED by this project. It is a live credential that grants read access to the device's statistics, and the control answers without its value - the row carries only whether it is set and whether it is a default. It appears in the configuration backup either way, which is the reason the control exists.\n\nEVERY FINDING SAYS WHETHER SNMP IS REACHABLE. `snmp-setting` and the per-surface `disable-snmp` are configured apart, and `disable-snmp` is implicit YES - so a device can hold a default community string that no surface exposes. That is latent rather than live, and it becomes live the moment SNMP is enabled on a surface.",
+          "rationale": "A default community string is a published password, and v2c sends it in cleartext on every poll.",
+          "audit": "Device > Setup > Operations > SNMP Setup > SNMP Community String, on a device using V2c.",
+          "remediation": "Move to v3 (PAN-SVC-004). Where v2c must remain, replace the community string with an unguessable value and restrict which sources may poll it: `delete deviceconfig system snmp-setting access-setting version v2c`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A configured device uses a default community string.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "community_is_default",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SnmpSettings"
+        },
+        {
+          "control_id": "PAN-SVC-007",
+          "name": "Static IP on Management Interface",
+          "control_type": "system_identity",
+          "default_severity": "medium",
+          "description": "The management interface must not take its address from DHCP. `deviceconfig/system/type` is a choice node completing to exactly `static` and `dhcp-client`, and the corpus sets minimum and preferred to the same value: \"DHCP on a management interface has no acceptable production use\".\n\nAN ABSENT `type` NODE IS STATIC, measured 2026-09-14 rather than assumed, and this is the unusual direction: absence is the SAFE state here. fw-core-tpa-b carries no `type` node at all and its compiled interface state reads `'ip-type': static` with `'disable-dhcp': True`, while `show system info` reports `is-dhcp: no`. A reader treating absence as undetermined would report a compliant device. The row records whether static was read or resolved, and the tab shows it.\n\nTHIS IS AN APPLIANCE FACT, NOT A PER-SURFACE ONE. `aux-1` accepts ip-address, netmask, default-gateway and permitted-ip but has NO `type` - completing it returns `code=6 Invalid sequence` - so addressing mode exists only for MGT and does not belong beside the aux and data-plane surfaces.\n\npan-fw-111 is a `dhcp-client` and fires; both PA-5220s pass, one explicitly and one by absence.",
+          "rationale": "A rogue DHCP server on the management segment can reassign the firewall's address, gateway and DNS, which moves management traffic to attacker-controlled infrastructure.",
+          "audit": "Device > Setup > Interfaces > Management > IP Type. Static is the required value; a device with nothing written is already static.",
+          "remediation": "Set a static management address: `set deviceconfig system type static`, with ip-address, netmask and default-gateway.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The management interface is a DHCP client.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "addressing_mode",
+                    "op": "eq",
+                    "value": "dhcp-client"
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SystemIdentity"
+        },
+        {
+          "control_id": "PAN-SVC-009",
+          "name": "Hostname and Timezone Standardized",
+          "control_type": "system_identity",
+          "default_severity": "low",
+          "description": "Two assertions about how a device's logs are read: it is not still on its factory hostname, and its time zone is UTC. Fires on either.\n\nTHE FACTORY HOSTNAME IS THE MODEL, which is what makes that half decidable. Help p.700: \"If you don't enter a value, PAN-OS uses the firewall model (for example, PA-5220_2) as the default.\" So the check compares the stored hostname with the appliance's model rather than pattern-matching a name, and an absent hostname is the same state spelled differently.\n\nUTC IS THE CORPUS PREFERRED VALUE - \"UTC timezone estate-wide so multi-device log correlation needs no offset math\" - and `timezone` is a 566-value enum on both measured platforms. The corpus minimum asks instead for a time zone that is merely CONSISTENT estate-wide, which is not a property of any one device: a row cannot tell whether it agrees with an estate it cannot see. Asserting the preferred value makes the control decidable per device as well as stricter, which is the same direction the 2026-09-14 preferred-value ruling takes everywhere else.\n\nAll three lab devices are US/Eastern and report; none is on its factory hostname.",
+          "rationale": "A device named for its model and set to a local time zone makes multi-device log correlation manual and error-prone, and misattribution during an incident is the cost.",
+          "audit": "Device > Setup > Management > General Settings > Hostname, and Device > Setup > Management > Time Zone.",
+          "remediation": "Give the device a meaningful unique hostname, and set the time zone to UTC: `set deviceconfig system timezone UTC`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The time zone is not UTC, or the hostname is still the factory default.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "timezone_is_utc",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "hostname_is_factory_default",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SystemIdentity"
+        },
+        {
           "control_id": "PAN-VLN-001",
           "name": "Vulnerability Protection Blocks Critical/High/Medium Severity",
           "control_type": "security_profile",

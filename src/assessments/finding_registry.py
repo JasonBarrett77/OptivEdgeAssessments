@@ -83,6 +83,16 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.ADMIN_USER, "administrator"),
     FindingKind(m.ServerProfileFinding, "server_profile",
                 m.Control.ControlType.SERVER_PROFILE, "AAA server profile"),
+    # "NTP" and "SNMP" rather than "NTP settings": the singular rule is a heuristic for catching
+    # a plural where a singular was meant, and these are the vendor's own names for the screens
+    # (Setup > Services > NTP, Setup > Operations > SNMP Setup). Adding them to the plural
+    # allowlist would have been dodging a rule that is right.
+    FindingKind(m.NtpSettingsFinding, "ntp_settings",
+                m.Control.ControlType.NTP_SETTINGS, "NTP"),
+    FindingKind(m.SnmpSettingsFinding, "snmp_settings",
+                m.Control.ControlType.SNMP_SETTINGS, "SNMP"),
+    FindingKind(m.SystemIdentityFinding, "system_identity",
+                m.Control.ControlType.SYSTEM_IDENTITY, "system identity"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

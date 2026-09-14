@@ -121,6 +121,22 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  where="Device > Setup > Management > SSH Management Profiles",
                  findings_url_name="assessment_management_ssh_list",
                  search_model="integrations.ManagementSshSettings"),
+    # NTP shares the Services screen with the update server above, and is a rail item of its own
+    # because it is a different question - where time comes from, not where software does.
+    ConfigObject("ntp", "NTP", "Device", "Setup", "refresh-cw",
+                 where="Device > Setup > Services > NTP",
+                 findings_url_name="assessment_ntp_settings_list",
+                 search_model="integrations.NtpSettings"),
+    # SNMP Setup is reached from Operations rather than Setup > Management, which is why `where`
+    # says so: an assessor following the address needs the vendor's path, not ours.
+    ConfigObject("snmp", "SNMP", "Device", "Setup", "server",
+                 where="Device > Setup > Operations > SNMP Setup",
+                 findings_url_name="assessment_snmp_settings_list",
+                 search_model="integrations.SnmpSettings"),
+    ConfigObject("system-identity", "System Identity", "Device", "Setup", "settings",
+                 where="Device > Setup > Management > General Settings, and Setup > Interfaces",
+                 findings_url_name="assessment_system_identity_list",
+                 search_model="integrations.SystemIdentity"),
     ConfigObject("authentication-settings", "Authentication Settings", "Device", "Setup",
                  "clipboard-check", where="Device > Setup > Management > Authentication Settings",
                  findings_url_name="assessment_authentication_settings_list",

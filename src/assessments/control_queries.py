@@ -27,6 +27,9 @@ PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
 ADMIN_USER_MODEL = "integrations.AdminUser"
 SERVER_PROFILE_MODEL = "integrations.ServerProfile"
+NTP_SETTINGS_MODEL = "integrations.NtpSettings"
+SNMP_SETTINGS_MODEL = "integrations.SnmpSettings"
+SYSTEM_IDENTITY_MODEL = "integrations.SystemIdentity"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -270,4 +273,28 @@ def evaluate_management_ssh_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or MANAGEMENT_SSH_MODEL,
+    )
+
+
+def evaluate_ntp_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or NTP_SETTINGS_MODEL,
+    )
+
+
+def evaluate_snmp_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SNMP_SETTINGS_MODEL,
+    )
+
+
+def evaluate_system_identity_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SYSTEM_IDENTITY_MODEL,
     )

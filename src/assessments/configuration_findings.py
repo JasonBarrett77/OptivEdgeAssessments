@@ -33,13 +33,16 @@ from assessments.management_tls_findings import generate_management_tls_findings
 from assessments.management_ssh_findings import generate_management_ssh_findings
 from assessments.master_key_findings import generate_master_key_findings
 from assessments.models import AssessmentRun, Control
+from assessments.ntp_settings_findings import generate_ntp_settings_findings
 from assessments.password_complexity_findings import generate_password_complexity_findings
 from assessments.password_profile_findings import generate_password_profile_findings
 from assessments.security_profile_findings import generate_security_profile_findings
 from assessments.server_profile_findings import generate_server_profile_findings
+from assessments.snmp_settings_findings import generate_snmp_settings_findings
 from assessments.ssl_tls_service_profile_findings import (
     generate_ssl_tls_service_profile_findings,
 )
+from assessments.system_identity_findings import generate_system_identity_findings
 from assessments.update_server_settings_findings import generate_update_server_settings_findings
 
 T = Control.ControlType
@@ -62,6 +65,11 @@ GENERATORS = (
     ("master key", T.MASTER_KEY, generate_master_key_findings),
     ("update server", T.UPDATE_SERVER, generate_update_server_settings_findings),
     ("logging settings", T.LOGGING_SETTINGS, generate_logging_settings_findings),
+    # Device-wide services, so they sit with the settings above rather than with the objects
+    # below: one row per appliance, and nothing references them.
+    ("NTP", T.NTP_SETTINGS, generate_ntp_settings_findings),
+    ("SNMP", T.SNMP_SETTINGS, generate_snmp_settings_findings),
+    ("system identity", T.SYSTEM_IDENTITY, generate_system_identity_findings),
     ("management interface", T.MANAGEMENT_INTERFACE, generate_management_interface_findings),
     ("interface management profile", T.INTERFACE_MANAGEMENT_PROFILE,
      generate_interface_management_profile_findings),

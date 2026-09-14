@@ -62,6 +62,11 @@ DEVICE_TABS: tuple[DeviceTab, ...] = (
     DeviceTab("assessment_management_tls_list", "Management TLS", "clipboard-check", "Device"),
     DeviceTab("assessment_management_ssh_list", "Management SSH", "shield", "Device"),
     DeviceTab("assessment_master_key_list", "Master Key", "refresh-cw", "Device"),
+    # Device services. All three key on `deviceconfig/system`, so the subtree rule puts them
+    # here without a judgement call. Icons are from the vendored set - there is no clock.
+    DeviceTab("assessment_ntp_settings_list", "NTP", "refresh-cw", "Device"),
+    DeviceTab("assessment_snmp_settings_list", "SNMP", "server", "Device"),
+    DeviceTab("assessment_system_identity_list", "System Identity", "settings", "Device"),
     # Authentication - who can log in, how they are challenged, and against what. Ordered as the
     # question is asked: the accounts, the profile each one resolves through, the device-wide
     # settings behind that, the servers it reaches, and the password policy underneath.

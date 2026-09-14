@@ -21,6 +21,9 @@ from optivedge_integrations.integrations.models import (
     ManagementTlsBinding,
     ManagementSshSettings,
     MasterKey,
+    NtpSettings,
+    SnmpSettings,
+    SystemIdentity,
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
@@ -100,6 +103,9 @@ class Control(models.Model):
         MANAGEMENT_SSH = "management_ssh", "Management SSH"
         ADMIN_USER = "admin_user", "Administrator"
         SERVER_PROFILE = "server_profile", "AAA Server Profile"
+        NTP_SETTINGS = "ntp_settings", "NTP"
+        SNMP_SETTINGS = "snmp_settings", "SNMP"
+        SYSTEM_IDENTITY = "system_identity", "System Identity"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -163,6 +169,9 @@ class Control(models.Model):
         "management_ssh": "integrations.ManagementSshSettings",
         "admin_user": "integrations.AdminUser",
         "server_profile": "integrations.ServerProfile",
+        "ntp_settings": "integrations.NtpSettings",
+        "snmp_settings": "integrations.SnmpSettings",
+        "system_identity": "integrations.SystemIdentity",
         "config": "",
     }
 
@@ -201,6 +210,9 @@ class Control(models.Model):
         "integrations.ManagementSshSettings": "Management SSH",
         "integrations.AdminUser": "Administrator",
         "integrations.ServerProfile": "AAA Server Profile",
+        "integrations.NtpSettings": "NTP",
+        "integrations.SnmpSettings": "SNMP",
+        "integrations.SystemIdentity": "System Identity",
     }
 
     @property
@@ -1449,3 +1461,151 @@ class ServerProfileFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.server_profile_finding_id} <- {self.control_query_id}"
+
+
+class NtpSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's NTP configuration. PAN-SVC-001 and 002.
+
+    One row per appliance: there are two server slots and no third, so the subject is the pair
+    rather than either server. A finding naming one server would have nothing to say about
+    redundancy, which is what PAN-SVC-001 asserts.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ntp_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ntp_settings_findings")
+    ntp_settings = models.ForeignKey(
+        NtpSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="NtpSettingsFindingControlQuery",
+        related_name="ntp_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ntp_settings"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ntp_settings"],
+                name="unique_ntp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on NTP {self.subject_name}"
+
+
+class NtpSettingsFindingControlQuery(FindingControlQueryBase):
+    ntp_settings_finding = models.ForeignKey(
+        NtpSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="ntp_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ntp_settings_finding", "control_query"],
+                name="unique_ntp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ntp_settings_finding_id} <- {self.control_query_id}"
+
+
+class SnmpSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's SNMP configuration. PAN-SVC-004 and 005.
+
+    One row per appliance. `snmp-setting` is a single device-wide node - there is no per-surface
+    SNMP configuration - and whether any surface EXPOSES it is resolved onto that row, so both
+    halves of the answer stay on one finding.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="snmp_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="snmp_settings_findings")
+    snmp_settings = models.ForeignKey(
+        SnmpSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SnmpSettingsFindingControlQuery",
+        related_name="snmp_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["snmp_settings"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "snmp_settings"],
+                name="unique_snmp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on SNMP {self.subject_name}"
+
+
+class SnmpSettingsFindingControlQuery(FindingControlQueryBase):
+    snmp_settings_finding = models.ForeignKey(
+        SnmpSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="snmp_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snmp_settings_finding", "control_query"],
+                name="unique_snmp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.snmp_settings_finding_id} <- {self.control_query_id}"
+
+
+class SystemIdentityFinding(ObjectFindingBase):
+    """A finding against one appliance's name, time zone and management addressing.
+    PAN-SVC-007 and 009.
+
+    One row per appliance, carrying two controls that can fail independently - and they are on
+    one row for the reason the model groups them: a device addressed by DHCP can be NAMED by
+    DHCP, so the two findings can have a single cause and belong in front of one reader.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="system_identity_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="system_identity_findings")
+    system_identity = models.ForeignKey(
+        SystemIdentity, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SystemIdentityFindingControlQuery",
+        related_name="system_identity_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["system_identity"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "system_identity"],
+                name="unique_sysid_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on system identity {self.subject_name}"
+
+
+class SystemIdentityFindingControlQuery(FindingControlQueryBase):
+    system_identity_finding = models.ForeignKey(
+        SystemIdentityFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="system_identity_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["system_identity_finding", "control_query"],
+                name="unique_sysid_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.system_identity_finding_id} <- {self.control_query_id}"

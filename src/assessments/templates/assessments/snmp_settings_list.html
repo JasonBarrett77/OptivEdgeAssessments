@@ -1,0 +1,49 @@
+{% extends "assessments/device_tab_base.html" %}
+{% load lucide %}
+
+{% block description %}
+How SNMP would answer on each appliance, and whether anything can reach it.
+<span class="font-medium">PAN-SVC-004</span> and <span class="font-medium">PAN-SVC-005</span>.
+{% endblock %}
+
+{% block guidance %}
+<div class="border-b border-slate-200 py-1.5 text-[10px] leading-4 text-slate-500">
+    <span class="font-medium text-slate-600">An unconfigured device is the compliant state</span>
+    &mdash; if SNMP is unused, leaving <code>snmp-setting</code> unwritten is what the corpus asks
+    for, and neither control reports it.
+    <span class="font-medium text-slate-600">Configured is not the same as reachable.</span> The
+    version and community live in <code>snmp-setting</code>; whether anything is listening is
+    <code>disable-snmp</code> on each management surface, which is implicit <em>yes</em>. The
+    Exposed column resolves the second question, so a v2c community nothing can reach reads as
+    latent rather than live. PAN-OS 11.1 and 11.2 offer only v2c and v3 &mdash; there is no v1.
+</div>
+{% endblock %}
+
+{% block empty_state %}No SNMP settings have been normalized. This needs a renormalize, which contacts no device.{% endblock %}
+
+{% block rows %}
+{% for row in rows %}
+<tr class="hover:bg-slate-50">
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">{{ row.snmp.appliance }}</td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% if not row.snmp.is_configured %}<span class="text-slate-500">Not configured</span>{% elif row.snmp.uses_v2c %}<div class="text-amber-700">v2c</div>{% if row.snmp.version_implicit %}<div class="text-[10px] leading-3 text-slate-500">not written &mdash; vendor default</div>{% endif %}{% else %}<div class="text-slate-800">v3</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% if row.snmp.community_is_default %}<div class="text-amber-700">default string</div>{% elif row.snmp.community_set %}<div class="text-slate-800">set &mdash; not a default</div>{% else %}<span class="text-slate-400">&mdash;</span>{% endif %}
+        {% if show_provenance and row.community_provenance %}<div class="mt-0.5 truncate text-[10px] leading-3 text-sky-700">{{ row.community_provenance }}</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-800">
+        {% if row.snmp.version == "v3" %}{{ row.snmp.v3_user_count }} / {{ row.snmp.v3_view_count }}{% else %}<span class="text-slate-400">&mdash;</span>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% if row.snmp.is_exposed %}<div class="text-amber-700">{{ row.snmp.exposed_surfaces|join:", " }}</div>{% else %}<div class="text-slate-800">No surface enables SNMP</div>{% endif %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+        {% for finding in row.findings %}<div class="whitespace-nowrap text-amber-800">{{ finding.control.control_id }} <span class="text-slate-400">{{ finding.severity }}</span></div>{% empty %}<span class="text-slate-400">&mdash;</span>{% endfor %}
+    </td>
+    <td class="border-b border-slate-100 px-2 py-1 align-top whitespace-nowrap text-[11px] leading-3.5 text-slate-600">{{ row.snmp.source_snapshot.collected_at|date:"Y-m-d H:i" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No appliance is currently reported by these controls.</td></tr>
+{% endfor %}
+{% endblock %}

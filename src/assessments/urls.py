@@ -30,6 +30,9 @@ from assessments.views import (
     ManagementTlsListView,
     ManagementSshListView,
     MasterKeyListView,
+    NtpSettingsListView,
+    SnmpSettingsListView,
+    SystemIdentityListView,
     AuthenticationProfileListView,
     AuthenticationSequenceListView,
     AuthenticationSettingsListView,
@@ -166,6 +169,21 @@ urlpatterns = [
         "master-key/",
         MasterKeyListView.as_view(),
         name="assessment_master_key_list",
+    ),
+    path(
+        "ntp/",
+        NtpSettingsListView.as_view(),
+        name="assessment_ntp_settings_list",
+    ),
+    path(
+        "snmp/",
+        SnmpSettingsListView.as_view(),
+        name="assessment_snmp_settings_list",
+    ),
+    path(
+        "system-identity/",
+        SystemIdentityListView.as_view(),
+        name="assessment_system_identity_list",
     ),
     path(
         "authentication-profiles/",

@@ -50,6 +50,9 @@ from assessments.models import (
     ManagementTlsFinding,
     ManagementSshFinding,
     MasterKeyFinding,
+    NtpSettingsFinding,
+    SnmpSettingsFinding,
+    SystemIdentityFinding,
     PasswordComplexityFinding,
     UpdateServerSettingsFinding,
     PasswordProfileFinding,
@@ -103,6 +106,9 @@ from optivedge_integrations.integrations.models import (
     ManagementTlsBinding,
     ManagementSshSettings,
     MasterKey,
+    NtpSettings,
+    SnmpSettings,
+    SystemIdentity,
     PasswordComplexityPolicy,
     UpdateServerSettings,
     PasswordProfile,
@@ -135,6 +141,15 @@ MANAGEMENT_SSH_CONTROLS = ("PAN-MCR-001", "PAN-MCR-002", "PAN-MCR-003",
 SSL_TLS_PROFILE_CONTROLS = ("PAN-CRT-005", "PAN-CRT-009")
 CERTIFICATE_PROFILE_CONTROLS = ("PAN-CRT-004",)
 MASTER_KEY_CONTROLS = ("PAN-CRT-007",)
+#: Redundancy and authentication of the time source. They fail independently: a device can have
+#: two servers and authenticate neither, or authenticate the one server it has.
+NTP_CONTROLS = ("PAN-SVC-001", "PAN-SVC-002")
+#: Which SNMP version answers, and whether the community string is a published default. Both are
+#: silent on a device with no SNMP configuration at all, which is the compliant state.
+SNMP_CONTROLS = ("PAN-SVC-004", "PAN-SVC-005")
+#: The management address mode, and the name/time zone the logs are read by. One row, because a
+#: device addressed by DHCP can be NAMED by DHCP - the two findings can have one cause.
+SYSTEM_IDENTITY_CONTROLS = ("PAN-SVC-007", "PAN-SVC-009")
 CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
 #: PAN-AUTH-020 is NOT here. It asks whether a second factor governs an ADMINISTRATOR, which
 #: is a fact about a person reached through a binding - a profile row cannot say which people
@@ -1154,6 +1169,122 @@ class ManagementSshListView(DeviceTabListView):
             "ssh": ssh,
             "cbc": [c for c in ssh.ciphers if c.endswith("-cbc")],
             "binding_provenance": binding_sources.get(ssh.pk, ""),
+            "findings": findings,
+        }
+
+
+class NtpSettingsListView(DeviceTabListView):
+    """Each appliance's time sources. PAN-SVC-001 and 002.
+
+    The Authentication column reads per server rather than per appliance, because the two slots
+    are configured separately and a device can authenticate one and not the other.
+
+    SYNCHRONIZATION IS NOT SHOWN, and the page says so. `show ntp` reports whether each server is
+    reachable and which one the clock is following, but that is an operational reply and this tab
+    renders configuration - a server that is configured and answering nothing looks identical here
+    to one that is keeping the device's time.
+    """
+
+    template_name = "assessments/ntp_settings_list.html"
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Primary"),
+        Column("Secondary"),
+        Column("Authentication"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+    tab_title = "NTP"
+    has_provenance_toggle = True
+    subject_model = NtpSettings
+    subject_order = ("appliance__hostname",)
+    finding_model = NtpSettingsFinding
+    finding_subject_field = "ntp_settings"
+    finding_controls = NTP_CONTROLS
+
+    def row_context(self, subjects):
+        return {"primary_sources": _entry_provenance(subjects, "primary_server")}
+
+    def build_row(self, ntp, findings, primary_sources):
+        return {
+            "ntp": ntp,
+            "primary_provenance": primary_sources.get(ntp.pk, ""),
+            "findings": findings,
+        }
+
+
+class SnmpSettingsListView(DeviceTabListView):
+    """Each appliance's SNMP monitoring access. PAN-SVC-004 and 005.
+
+    The Exposed column is the one worth reading first, and it is DERIVED - it comes from the
+    management surfaces, not from `snmp-setting` - so it is its own column rather than an
+    inference the reader is left to make. A v2c community string on a device where no surface
+    enables SNMP is latent: real, worth fixing, and not reachable today.
+    """
+
+    template_name = "assessments/snmp_settings_list.html"
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Version"),
+        Column("Community"),
+        Column("v3 Users / Views"),
+        Column("Exposed"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+    tab_title = "SNMP"
+    has_provenance_toggle = True
+    subject_model = SnmpSettings
+    subject_order = ("appliance__hostname",)
+    finding_model = SnmpSettingsFinding
+    finding_subject_field = "snmp_settings"
+    finding_controls = SNMP_CONTROLS
+
+    def row_context(self, subjects):
+        return {"community_sources": _entry_provenance(subjects, "community_is_default")}
+
+    def build_row(self, snmp, findings, community_sources):
+        return {
+            "snmp": snmp,
+            "community_provenance": community_sources.get(snmp.pk, ""),
+            "findings": findings,
+        }
+
+
+class SystemIdentityListView(DeviceTabListView):
+    """How each appliance names itself, keeps time, and gets its management address.
+    PAN-SVC-007 and 009.
+
+    The Management Address cell distinguishes a static address that was WRITTEN from one that is
+    static because nothing was written. Both pass PAN-SVC-007 and they are different
+    configurations, and the difference is invisible without saying it: an absent
+    `deviceconfig/system/type` node is static, measured rather than assumed.
+    """
+
+    template_name = "assessments/system_identity_list.html"
+    COLUMNS = (
+        Column("Appliance"),
+        Column("Hostname"),
+        Column("Time Zone"),
+        Column("Management Address"),
+        Column("Findings"),
+        Column("Collected"),
+    )
+    tab_title = "System Identity"
+    has_provenance_toggle = True
+    subject_model = SystemIdentity
+    subject_order = ("appliance__hostname",)
+    finding_model = SystemIdentityFinding
+    finding_subject_field = "system_identity"
+    finding_controls = SYSTEM_IDENTITY_CONTROLS
+
+    def row_context(self, subjects):
+        return {"hostname_sources": _entry_provenance(subjects, "hostname")}
+
+    def build_row(self, identity, findings, hostname_sources):
+        return {
+            "identity": identity,
+            "hostname_provenance": hostname_sources.get(identity.pk, ""),
             "findings": findings,
         }
 

@@ -92,6 +92,21 @@ from assessments.search.management_ssh.compiler import (
     MANAGEMENT_SSH_MODEL,
     compile_management_ssh_search_node,
 )
+from assessments.search.ntp_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as NTP_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    NTP_SETTINGS_MODEL,
+    compile_ntp_settings_search_node,
+)
+from assessments.search.snmp_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as SNMP_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    SNMP_SETTINGS_MODEL,
+    compile_snmp_settings_search_node,
+)
+from assessments.search.system_identity.compiler import (
+    FIELD_OPERATOR_REGISTRY as SYSTEM_IDENTITY_FIELD_OPERATOR_REGISTRY,
+    SYSTEM_IDENTITY_MODEL,
+    compile_system_identity_search_node,
+)
 from assessments.search.login_banner.compiler import (
     FIELD_OPERATOR_REGISTRY as LOGIN_BANNER_FIELD_OPERATOR_REGISTRY,
 )
@@ -146,6 +161,9 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSettings,
     LoggingSettings,
     LoginBanner,
+    NtpSettings,
+    SnmpSettings,
+    SystemIdentity,
     ManagementTlsBinding,
     ManagementSshSettings,
     MasterKey,
@@ -231,6 +249,21 @@ MODEL_REGISTRY = {
         "model_class": ManagementSshSettings,
         "field_operators": MANAGEMENT_SSH_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_management_ssh_search_node,
+    },
+    NTP_SETTINGS_MODEL: {
+        "model_class": NtpSettings,
+        "field_operators": NTP_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ntp_settings_search_node,
+    },
+    SNMP_SETTINGS_MODEL: {
+        "model_class": SnmpSettings,
+        "field_operators": SNMP_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_snmp_settings_search_node,
+    },
+    SYSTEM_IDENTITY_MODEL: {
+        "model_class": SystemIdentity,
+        "field_operators": SYSTEM_IDENTITY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_system_identity_search_node,
     },
     LOGIN_BANNER_MODEL: {
         "model_class": LoginBanner,

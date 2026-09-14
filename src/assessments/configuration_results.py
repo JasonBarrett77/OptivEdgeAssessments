@@ -36,6 +36,9 @@ from optivedge_integrations.integrations.models import (
     ManagementTlsBinding,
     ManagementSshSettings,
     MasterKey,
+    NtpSettings,
+    SnmpSettings,
+    SystemIdentity,
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
@@ -179,6 +182,46 @@ RESULTS = {
              else (", ".join(s.non_preferred_macs) or "no hmac-sha2-512")),
             ("All (RSA + every ECDSA curve)" if s.host_key_type.lower() == "all"
              else f"{s.host_key_type} {s.host_key_bits}"),
+        ),
+    ),
+    "ntp": ResultsSpec(
+        columns=("Appliance", "Primary", "Secondary", "Authentication"),
+        base_queryset=_ordered(NtpSettings, "appliance__hostname"),
+        row=lambda n: (
+            str(n.appliance),
+            n.primary_server or "None",
+            # Spelled out rather than blank: a missing secondary is the finding PAN-SVC-001
+            # makes, and an empty cell reads as missing data.
+            n.secondary_server or "None",
+            ("symmetric key" if n.all_servers_symmetric_key
+             else (", ".join(n.unauthenticated_servers) or "no server configured")),
+        ),
+    ),
+    "snmp": ResultsSpec(
+        columns=("Appliance", "Version", "Community", "Exposed"),
+        base_queryset=_ordered(SnmpSettings, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            ("Not configured" if not s.is_configured
+             else f"{s.version}{' (vendor default)' if s.version_implicit else ''}"),
+            ("default string" if s.community_is_default
+             else ("set" if s.community_set else "-")),
+            # The question the version alone cannot answer: is any of this reachable.
+            (", ".join(s.exposed_surfaces) if s.is_exposed else "no surface enables SNMP"),
+        ),
+    ),
+    "system-identity": ResultsSpec(
+        columns=("Appliance", "Hostname", "Time Zone", "Management Address"),
+        base_queryset=_ordered(SystemIdentity, "appliance__hostname"),
+        row=lambda i: (
+            str(i.appliance),
+            (f"{i.hostname or 'unset'} (factory default)" if i.hostname_is_factory_default
+             else i.hostname),
+            i.timezone or "unset",
+            # "static" and "static because nothing was written" both pass, and they are
+            # different configurations - see the tab for why that distinction is kept.
+            ("DHCP client" if i.addressing_mode == "dhcp-client"
+             else ("Static" if i.addressing_mode_explicit else "Static - by default")),
         ),
     ),
     "authentication-settings": ResultsSpec(
