@@ -870,6 +870,15 @@ and are then deleted, and empty is its normal state.
       and re-bind the replacement first, delete the old object second.
       Whether a *structurally* undeletable leaf exists, and whether walking up helps for that
       case, is still unobserved — do not assume this measurement covers it.
+- [ ] **On a central manager, "pending changes" can mean UNPUSHED, not staged.** A pre-write
+      guard that reads it as "somebody is mid-edit" waits for a state that never arrives.
+      *Measured 2026-09-14: Panorama answers `check pending-changes` with `yes` and
+      `location: device-group` while a commit replies "There are no changes to commit". Its own
+      candidate was clean; what was outstanding was device-group policy committed but not pushed
+      to the firewalls. A day of caution was spent refusing to commit staged work that did not
+      exist.* On a FIREWALL the flag means what everyone assumes. So read `location` — and
+      remember that clearing it means PUSHING, which reaches devices and carries whatever anyone
+      else has committed into those device groups, so it is never the tidy-up it looks like.
 - [ ] **An abandoned experiment can leave the candidate config INVALID, which blocks every
       later commit on that device — including someone else's.** A failed commit does not roll
       the candidate back. Before moving on, delete what you wrote and commit clean, and say so.
