@@ -53,7 +53,7 @@ class DeviceServicesControlTests(TestCase):
         seed_controls(["PAN-SVC-001", "PAN-SVC-002"], control_type=Control.ControlType.NTP_SETTINGS)
         seed_controls(["PAN-SVC-004", "PAN-SVC-005"],
                       control_type=Control.ControlType.SNMP_SETTINGS)
-        seed_controls(["PAN-SVC-007", "PAN-SVC-009"],
+        seed_controls(["PAN-SVC-007", "PAN-SVC-009", "PAN-SVC-010"],
                       control_type=Control.ControlType.SYSTEM_IDENTITY)
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
@@ -80,14 +80,16 @@ class DeviceServicesControlTests(TestCase):
     def test_a_compliant_device_fires_nothing(self):
         self.assertEqual(self._findings(dict(COMPLIANT)), {})
 
-    def test_an_empty_system_node_fires_ntp_and_the_hostname_half(self):
-        """Nothing configured: no NTP at all, and no hostname - which PAN-OS renders as the
-        model. The management address is NOT a finding, because absent `type` is static."""
+    def test_an_empty_system_node_fires_ntp_and_both_identity_controls(self):
+        """Nothing configured: no NTP at all, no hostname - which PAN-OS renders as the model -
+        and no time zone. The management address is NOT a finding, because absent `type` is
+        static. 009 and 010 fire SEPARATELY; before the 2026-09-15 split this was one finding."""
         found = self._findings({})
-        self.assertEqual(set(found), {"PAN-SVC-001", "PAN-SVC-002", "PAN-SVC-009"})
+        self.assertEqual(set(found), {"PAN-SVC-001", "PAN-SVC-002", "PAN-SVC-009", "PAN-SVC-010"})
         self.assertEqual(found["PAN-SVC-001"].severity, "high")
         self.assertEqual(found["PAN-SVC-002"].severity, "medium")
         self.assertEqual(found["PAN-SVC-009"].severity, "low")
+        self.assertEqual(found["PAN-SVC-010"].severity, "low")
         self.assertIn("no NTP server", found["PAN-SVC-001"].summary)
 
     def test_one_ntp_server_fires_001_only(self):
@@ -182,8 +184,18 @@ class DeviceServicesControlTests(TestCase):
         self.assertEqual(set(found), {"PAN-SVC-009"})
         self.assertIn("rather than UTC", found["PAN-SVC-009"].summary)
 
-    def test_a_hostname_matching_the_model_fires_009(self):
+    def test_a_hostname_matching_the_model_fires_010(self):
         """Help p.700: with no hostname written PAN-OS uses the model, "for example, PA-5220_2"."""
         found = self._findings(self._compliant(hostname="PA-5220_2"))
-        self.assertEqual(set(found), {"PAN-SVC-009"})
-        self.assertIn("factory hostname", found["PAN-SVC-009"].summary)
+        self.assertEqual(set(found), {"PAN-SVC-010"})
+        self.assertIn("factory hostname", found["PAN-SVC-010"].summary)
+
+    def test_a_chosen_name_leading_with_the_model_does_not_fire_010(self):
+        """The factory suffix is an INDEX. `PA-5220_EDGE-01` is a naming convention, not a
+        default, and an earlier `startswith(model + "_")` reported every such device as unnamed."""
+        self.assertEqual(self._findings(self._compliant(hostname="PA-5220_EDGE-01")), {})
+
+    def test_the_two_identity_halves_fire_independently(self):
+        """The reason for the split: one defect must not mask or carry the other."""
+        found = self._findings(self._compliant(hostname="PA-5220_2", timezone="US/Eastern"))
+        self.assertEqual(set(found), {"PAN-SVC-009", "PAN-SVC-010"})

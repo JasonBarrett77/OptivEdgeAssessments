@@ -140,7 +140,7 @@ NTP_CONTROLS = ("PAN-SVC-001", "PAN-SVC-002")
 SNMP_CONTROLS = ("PAN-SVC-004", "PAN-SVC-005")
 #: The management address mode, and the name/time zone the logs are read by. One row, because a
 #: device addressed by DHCP can be NAMED by DHCP - the two findings can have one cause.
-SYSTEM_IDENTITY_CONTROLS = ("PAN-SVC-007", "PAN-SVC-009")
+SYSTEM_IDENTITY_CONTROLS = ("PAN-SVC-007", "PAN-SVC-009", "PAN-SVC-010")
 CERTIFICATE_CONTROLS = ("PAN-CRT-002", "PAN-CRT-003")
 #: PAN-AUTH-020 is NOT here. It asks whether a second factor governs an ADMINISTRATOR, which
 #: is a fact about a person reached through a binding - a profile row cannot say which people

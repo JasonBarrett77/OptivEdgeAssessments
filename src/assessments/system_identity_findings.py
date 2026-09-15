@@ -1,6 +1,10 @@
-"""Finding generation for the system identity controls. PAN-SVC-007 and 009.
+"""Finding generation for the system identity controls. PAN-SVC-007, 009 and 010.
 
-Two controls, three settings, one row - and the sentence keeps them together on purpose. A device
+Three controls, three settings, one row - and the sentence keeps them together on purpose.
+009 (time zone) and 010 (factory hostname) were one control until 2026-09-15; they were split
+because firing on either produced one finding for two independent defects with different
+remediations. The SUBJECT sentence still describes the whole row, so a finding for either names
+the device's name and its time zone; what each control ASSERTS is now separate. A device
 that takes its management address from DHCP can also take its NAME from DHCP (Help p.701: the
 server-provided hostname "overwrites any value specified in the Hostname field"), so the two
 findings an engineer sees on this row can have one cause.

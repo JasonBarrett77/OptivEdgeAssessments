@@ -2547,36 +2547,62 @@
         },
         {
           "control_id": "PAN-SVC-009",
-          "name": "Hostname and Timezone Standardized",
+          "name": "Timezone Standardized on UTC",
           "control_type": "system_identity",
           "default_severity": "low",
-          "description": "Two assertions about how a device's logs are read: it is not still on its factory hostname, and its time zone is UTC. Fires on either.\n\nTHE FACTORY HOSTNAME IS THE MODEL, which is what makes that half decidable. Help p.700: \"If you don't enter a value, PAN-OS uses the firewall model (for example, PA-5220_2) as the default.\" So the check compares the stored hostname with the appliance's model rather than pattern-matching a name, and an absent hostname is the same state spelled differently.\n\nUTC IS THE CORPUS PREFERRED VALUE - \"UTC timezone estate-wide so multi-device log correlation needs no offset math\" - and `timezone` is a 566-value enum on both measured platforms. The corpus minimum asks instead for a time zone that is merely CONSISTENT estate-wide, which is not a property of any one device: a row cannot tell whether it agrees with an estate it cannot see. Asserting the preferred value makes the control decidable per device as well as stricter, which is the same direction the 2026-09-14 preferred-value ruling takes everywhere else.\n\nAll three lab devices are US/Eastern and report; none is on its factory hostname.",
-          "rationale": "A device named for its model and set to a local time zone makes multi-device log correlation manual and error-prone, and misattribution during an incident is the cost.",
-          "audit": "Device > Setup > Management > General Settings > Hostname, and Device > Setup > Management > Time Zone.",
-          "remediation": "Give the device a meaningful unique hostname, and set the time zone to UTC: `set deviceconfig system timezone UTC`.",
+          "description": "The device's time zone is UTC, so correlating its logs with another device's needs no offset arithmetic.\n\nUTC IS THE CORPUS PREFERRED VALUE - \"UTC timezone estate-wide so multi-device log correlation needs no offset math\" - and `timezone` is a 566-value enum on both measured platforms. The corpus minimum asks instead for a time zone that is merely CONSISTENT estate-wide, which is not a property of any one device: a row cannot tell whether it agrees with an estate it cannot see. Asserting the preferred value makes the control decidable per device as well as stricter, which is the 2026-09-14 preferred-value ruling applied to a case where the minimum was unusable rather than merely weaker.\n\nSPLIT FROM THE FACTORY-HOSTNAME HALF on 2026-09-15. The corpus bundles both assertions under this id, and firing on either produced ONE finding for two independent defects with different remediations - a device could not clear it by fixing one, and the finding count could not say how many devices had which. The hostname half is now PAN-SVC-010. This id keeps the time zone because the corpus entry's xpath, set command and `preferred_value` (UTC) all describe it.",
+          "rationale": "A device on a local time zone makes multi-device log correlation manual and error-prone, and a mis-ordered timeline during an incident is the cost.",
+          "audit": "Device > Setup > Management > General Settings > Time Zone.",
+          "remediation": "Set the time zone to UTC: `set deviceconfig system timezone UTC`.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The time zone is not UTC, or the hostname is still the factory default.",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
                     "field": "timezone_is_utc",
                     "op": "eq",
                     "value": false
-                  },
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v2",
+          "is_active": true,
+          "target_model": "integrations.SystemIdentity"
+        },
+        {
+          "control_id": "PAN-SVC-010",
+          "name": "Hostname Not Left at Factory Default",
+          "control_type": "system_identity",
+          "default_severity": "low",
+          "description": "The device is not still answering to the name PAN-OS gave it.\n\nTHE FACTORY HOSTNAME IS THE MODEL, which is what makes this decidable. Help p.700: \"If you don't enter a value, PAN-OS uses the firewall model (for example, PA-5220_2) as the default.\" So the check compares the stored hostname with the appliance's model plus an optional NUMERIC suffix, rather than pattern-matching a name, and an absent hostname is the same state spelled differently.\n\nTHE SUFFIX IS MATCHED AS DIGITS. An earlier implementation accepted any suffix, which also matched deliberately chosen names leading with the model - `PA-5220_EDGE-01`, `PA-5220_DC1` - so on an estate using that convention every device reported as unnamed.\n\nORIGIN: split from PAN-SVC-009 on 2026-09-15, which the corpus bundles with the time-zone assertion. Two independent defects with different remediations produced one finding that could not be cleared by fixing either half. See scratch/control-changes.json.",
+          "rationale": "A device named for its model cannot be told apart from its siblings in a log line, and misattribution during incident response is the cost.",
+          "audit": "Device > Setup > Management > General Settings > Hostname.",
+          "remediation": "Give the device a meaningful unique hostname: `set deviceconfig system hostname <name>`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
                   {
                     "field": "hostname_is_factory_default",
                     "op": "eq",
                     "value": true
                   }
                 ]
-              },
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
+              }
             }
           ],
           "implementation_version": "v1",
