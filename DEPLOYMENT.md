@@ -5,8 +5,8 @@ authority for standing up a deployment: creating an engagement project from `dep
 the offline wheel bundle, and configuring `INSTALLED_APPS` / `TEMPLATES` / root urls for the whole stack. Read
 it first. This file covers only what is specific to *this* package.
 
-OptivEdgeAssessments is a reusable Django domain package — assessment controls, control queries, findings and
-report exports. It is not deployable on its own: it has no `manage.py` and no host settings, and it requires
+OptivEdgeAssessments is a reusable Django domain package — assessment controls, control queries and findings.
+It is not deployable on its own: it has no `manage.py` and no host settings, and it requires
 both **OptivEdge** (the shared app shell) and **OptivEdgeIntegrations** (the normalized firewall models it
 assesses) installed alongside it. A downstream host project owns `manage.py`, root settings, root URLs, and the
 database.
@@ -39,9 +39,6 @@ Declared in `pyproject.toml`:
 dependencies = [
     "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
     "optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main",
-    "python-docx",
-    "docxtpl",
-    "XlsxWriter",
 ]
 ```
 
@@ -70,7 +67,7 @@ is:
 python -m pip install -e ~/PythonProjects/OptivEdge
 python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations --no-deps
 python -m pip install -e ~/PythonProjects/OptivEdgeAssessments --no-deps
-python -m pip install requests xmltodict python-docx docxtpl XlsxWriter
+python -m pip install requests xmltodict
 ```
 
 ## Local development settings and CLI
@@ -97,12 +94,11 @@ Runtime package data must stay under `src/assessments/` and be declared in `pypr
 assessments = [
     "controls_catalog/catalogs/*.json",
     "docs/*.md",
-    "reporting/docx/*.docx",
     "templates/**/*.html",
 ]
 ```
 
-That covers templates, the bundled control catalog JSON, the report document templates, and the package-local
+That covers templates, the bundled control catalog JSON, and the package-local
 workflow docs. Do not rely on root-level `templates/` or project-relative file paths — they will not survive
 being installed as a wheel.
 
@@ -112,7 +108,7 @@ being installed as a wheel.
 DJANGO_SETTINGS_MODULE=assessments.settings.default python -m django test assessments
 ```
 
-Full Django behavior against real collected data — migrations, report exports, the rendered shell — can only
+Full Django behavior against real collected data — migrations, the rendered shell — can only
 be validated from a host project:
 
 ```bash

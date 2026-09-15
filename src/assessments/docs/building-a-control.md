@@ -635,12 +635,12 @@ and are then deleted, and empty is its normal state.
       `finding_registry.FINDING_KINDS`. *Five generators were 111 of 122 lines identical, and
       seven finding models carried the same thirty lines each - copying is also what let five
       of them drift out of the report unnoticed.*
-- [ ] **A new finding model is invisible to the Findings pages and the client report.**
-      Both enumerate two of the seven finding models by name. Do not wire yours in — both
-      surfaces are pending replacement — but add it to the list in `AGENTS.md` under *Surfaces
-      pending replacement* so the gap stays counted. *Five finding models drifted out of both
-      surfaces without one test failing, taking the whole certificates domain out of the client
-      deliverable.*
+- [ ] **A new finding model is invisible to the Findings pages.** That page enumerates one
+      finding model by name — `RuleFinding` — out of the twenty-three in
+      `finding_registry.FINDING_KINDS`. Do not wire yours in; the surface is
+      pending replacement. Add it to the list in `AGENTS.md` under *Surfaces pending replacement*
+      so the gap stays counted. *Five finding models drifted out without one test failing, taking
+      the whole certificates domain out of the client deliverable that then had to be deleted.*
 - [ ] **Empty-state text must name the right action.** *Both tabs said "run a sync"; both
       needed only a renormalize, which contacts no device.*
 

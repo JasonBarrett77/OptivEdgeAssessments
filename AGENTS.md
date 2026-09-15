@@ -37,8 +37,8 @@ OptivEdge owns the shared shell:
 * the `app_registry` plugin convention (`URL_MOUNT` / `SIDEBAR_SECTION`) and the root URL namespace
 * the `lucide` template tag and its icon SVGs
 * shared UI primitives (`optivedge.views.RightOverlayMixin`, the input-class constants in `optivedge.forms`)
-* `ApplicationEnvironment` — client/engagement metadata, consumed here by `environment.py`, `models.py`,
-  `views.py` and `reporting/workbook_data.py`
+* `ApplicationEnvironment` — client/engagement metadata, consumed here by `environment.py`, `models.py`
+  and `views.py`
 
 OptivEdgeIntegrations owns firewall-domain concerns:
 
@@ -55,7 +55,6 @@ OptivEdgeAssessments owns assessment concerns:
 * rule findings
 * management-plane findings
 * assessment views
-* reporting exports
 * control catalog import/export workflows
 * assessment-specific templates
 
@@ -97,7 +96,7 @@ conflict with local editables and pip raises `ResolutionImpossible`. Stage it (s
 python -m pip install -e ~/PythonProjects/OptivEdge
 python -m pip install -e ~/PythonProjects/OptivEdgeIntegrations --no-deps
 python -m pip install -e ~/PythonProjects/OptivEdgeAssessments --no-deps
-python -m pip install requests xmltodict python-docx docxtpl XlsxWriter
+python -m pip install requests xmltodict
 ```
 
 Run package-level validation here:
@@ -126,8 +125,8 @@ project that installs this package.
 ## Core Behavior Rules
 
 * Consume normalized OptivEdgeIntegrations data models such as security rules, management-plane profiles, address objects, and enforcement scopes.
-* Do not add vendor-specific API calls to assessment views, reporting modules, catalog modules, or control-query evaluation code.
-* Keep views thin; put reusable logic in focused modules such as `controls_catalog`, `search`, `reporting`, `findings.py`, and `management_findings.py`.
+* Do not add vendor-specific API calls to assessment views, catalog modules, or control-query evaluation code.
+* Keep views thin; put reusable logic in focused modules such as `controls_catalog`, `search`, `findings.py`, and `management_findings.py`.
 * Preserve canonical query model labels such as `integrations.SecurityRule`; do not replace them with Python import paths.
 
 ## UI Rules
@@ -167,7 +166,7 @@ or topology.
   rejects, so it signals a collection fault rather than a tie to break.
 
 * **`ApplianceGroup` is an HA/multi-appliance relationship, not a Panorama marker.** Views
-  and reporting here `select_related` through `enforcement_point__appliance_group` and
+  here `select_related` through `enforcement_point__appliance_group` and
   render its name. Do not infer Panorama-management from it — Integrations used to, which
   was a latent bug, and now reads `ManagementStation.station_type` (`is_panorama_managed()`).
   That is the explicit discriminant; use it here too.
@@ -285,37 +284,38 @@ headers keep hand-written `<thead>`s; `tables.py` records the measurement behind
 
 ## Surfaces pending replacement
 
-Two surfaces are known-incomplete and are NOT to be extended or "fixed" opportunistically.
+One surface is known-incomplete and is NOT to be extended or "fixed" opportunistically.
 
-**The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) and
-**the client report** (`reporting/context.py`, `reporting/workbook_data.py`) both enumerate
-exactly one finding model — `RuleFinding`. **Twenty exist.** The other nineteen are invisible
-in both, including every certificate finding, every authentication finding, every administrator
-finding and every device-wide setting.
+**The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) enumerate
+exactly one finding model — `RuleFinding`. **Twenty-three exist** (`finding_registry.FINDING_KINDS`,
+which is the count, not this sentence). The other twenty-two are invisible there, including every
+certificate finding, every authentication finding, every administrator finding and every
+device-wide setting.
 
-**Until 2026-09-11 they enumerated a second, `DeviceConfigurationFinding`.**
+**The client report was the second such surface until 2026-09-14, when it was deleted outright.**
+Jason called for artifact generation to be purged entirely rather than repaired, so `reporting/`,
+both downloads and the .docx template are gone, and the replacement is being designed from a
+separate prototype session. Do not reconstruct the old one from git history as a starting point —
+it enumerated the same single model, and `build_report_context()` raised rather than reporting on
+what existed, so both downloads returned 500 on an estate with no rule findings. The lab, with 72
+findings and none of that kind, was exactly such an estate.
+
+**Until 2026-09-11 the Findings pages enumerated a second model, `DeviceConfigurationFinding`.**
 `DeviceConfigurationProfile` was split into seven models, one per control cluster, and then
 deleted with its finding model. The 24 controls that wrote `DeviceConfigurationFinding` -
 password complexity, authentication settings, login banner, master key, update server, logging,
-management TLS - now write seven finding models neither surface enumerates, so the
-device-configuration findings the client deliverable used to include are gone from it. That
-follows this section's rule rather than breaking it, and is recorded here so the loss is counted
-rather than discovered.
-
-It is worse than an omission on the report side: `build_report_context()` raises
-`ValueError("No assessment run with rule findings exists.")` when there are no `RuleFinding`
-rows, so both downloads return **500** rather than a report. The lab has 72 findings and zero
-of them are rule findings, so the client deliverable currently crashes on an estate that has
-plenty to report. Pre-existing, and left alone with the rest of this surface.
+management TLS - now write seven finding models the page does not enumerate. That follows this
+section's rule rather than breaking it, and is recorded here so the loss is counted rather than
+discovered.
 
 Leave it that way for now. Jason, 2026-09-03: the enumeration is expected to change as the
 remaining domains land, and the Findings menu item "is not anchored to anything permanent right
-now" — so wiring five models into surfaces that are being replaced is work done twice.
+now" — so wiring five models into a surface that is being replaced is work done twice.
 
-What is expected to replace them: per-object browsing moves to the object tabs, which already
-do it better; "everything wrong on one appliance, across every object type" becomes a
+What is expected to replace it: per-object browsing moves to the object tabs, which already
+do it better, and "everything wrong on one appliance, across every object type" becomes a
 per-appliance rollup, which no object tab can answer because each tab is one model by
-construction; and the report is rebuilt against whatever finding-model set exists by then.
+construction.
 
 **When adding a new finding model, do not wire it into either surface.** Add it to this list
 instead, so the gap stays counted rather than forgotten. That is how five models drifted out of

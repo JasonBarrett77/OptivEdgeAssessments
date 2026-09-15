@@ -25,7 +25,6 @@ OptivEdgeIntegrations provides the firewall domain layer:
 * security-rule findings
 * management-plane findings
 * assessment views
-* report exports
 * control catalog import/export workflows
 
 ## Repository Structure
@@ -48,7 +47,6 @@ OptivEdgeAssessments/
         ├── settings/
         ├── controls_catalog/
         ├── search/
-        ├── reporting/
         └── plain_language/
 ```
 
@@ -154,7 +152,6 @@ This repository owns assessment concerns:
 * control-query evaluation
 * security-rule findings
 * management-plane findings
-* report rendering
 * control catalog workflows
 * assessment-specific views and templates
 
@@ -239,20 +236,6 @@ python -m pip wheel --no-deps . -w /tmp/optivedge-assessments-wheel
 ```
 
 Run Django checks, migrations, and browser smoke tests from a downstream host project that installs this package.
-
-## Reporting
-
-The assessment app includes report export support for Word and Excel outputs.
-
-Reporting dependencies are declared in `pyproject.toml`, including:
-
-```text
-python-docx
-docxtpl
-xlsxwriter
-```
-
-Report templates and generated report artifacts may contain client-sensitive data. Do not commit generated client reports unless explicitly intended.
 
 ## Documentation
 
