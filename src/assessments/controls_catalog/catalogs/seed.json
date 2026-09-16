@@ -2308,6 +2308,50 @@
           "target_model": "integrations.InterfaceManagementProfile"
         },
         {
+          "control_id": "PAN-POL-004",
+          "name": "Application-Default Service Preferred",
+          "control_type": "security_rule",
+          "default_severity": "high",
+          "description": "Every allow rule binds its applications to their default ports.\n\nTHE CHECK IS \"not application-default\", NOT \"service any\". `any` allows every permitted application on every port and is the obvious failure; a rule pinned to explicit ports is the other one, and it is reported rather than excused. The corpus names application-default as both the minimum and the preferred value, and the vendor agrees - Help p.131: application-default \"is recommended for allow policies because it prevents applications from running on unusual ports and protocols\". An assessor holding the documentation for a nonstandard port can clear such a finding; the configuration records only the port, never that it was intended.\n\nMEASURED 2026-09-16 on fw-core-tpa-a, and the query rests on both:\n- `service` is REQUIRED. A rule without it is accepted at the write and refused at the commit - \"svc-probe-absent is missing 'service'\" - so every committed rule carries a service list. A rule with no service is therefore a predefined default rule or a collection gap, never a rule whose author left the field alone.\n- `application-default` is EXCLUSIVE. Writing it beside another member is refused outright: code=12, \"'application-default' should not be used with another service\". So \"has an application-default member\" and \"is application-default\" are the same question, and one clause answers it.\n\nSCOPE. Allow rules only: the vendor's recommendation is for allow policies, and a deny restricted to a port is a narrower deny rather than a weaker one. The two predefined rules are excluded - `intrazone-default` allows, exists in no rulebase, carries no service, and has none to set.",
+          "rationale": "A permitted application allowed on any port can be run over an unusual one - SSH over 443 - and the traffic is indistinguishable from what the rule was written to allow. application-default is what turns that evasion back into a policy violation.",
+          "audit": "Policies > Security > <rule> > Service/URL Category. The Service column should read application-default on every allow rule.",
+          "remediation": "Set the rule's service to application-default: `set rulebase security rules <name> service application-default`, or `set device-group <dg> pre-rulebase security rules <name> service application-default` on Panorama. A `set` MERGES into a member list and application-default may not share one, so remove the existing members rather than adding to them. Where a nonstandard port is deliberate, keep the explicit service object and record why.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "service",
+                    "op": "eq",
+                    "value": "application-default",
+                    "negated": true
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
           "control_id": "PAN-SPY-001",
           "name": "Anti-Spyware Profile Blocks Critical/High/Medium Severity",
           "control_type": "security_profile",
