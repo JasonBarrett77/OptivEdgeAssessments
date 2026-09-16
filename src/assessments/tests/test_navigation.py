@@ -29,7 +29,6 @@ NON_PAGE_URL_NAMES = {
     "assessment_catalog_create_from_current",
     "assessment_catalog_refresh_seed",
     "assessment_control_run_findings",
-    "assessment_control_run_configuration_findings",
     "assessment_control_create",
     "assessment_control_update",
     "assessment_control_delete",

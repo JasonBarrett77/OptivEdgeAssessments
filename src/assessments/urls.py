@@ -19,7 +19,6 @@ from assessments.views import (
     ControlQueryDeleteView,
     ControlQueryUpdateView,
     ControlRunFindingsView,
-    ControlRunConfigurationFindingsView,
     ControlUpdateView,
     ConfigurationObjectView,
     ConfigurationIndexView,
@@ -93,11 +92,6 @@ urlpatterns = [
         "controls/run-findings/",
         ControlRunFindingsView.as_view(),
         name="assessment_control_run_findings",
-    ),
-    path(
-        "controls/run-configuration-findings/",
-        ControlRunConfigurationFindingsView.as_view(),
-        name="assessment_control_run_configuration_findings",
     ),
     # Moved off "findings/" so the good name is free for whatever replaces this.
     path(

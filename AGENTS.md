@@ -242,19 +242,33 @@ comparison. Write `eq 0` separately at the severity the meaning deserves.
 
 ## Shared machinery for findings
 
-Do not copy a neighbouring module when adding an object type. Three pieces carry the shape:
+Do not copy a neighbouring module when adding an object type. Four pieces carry the shape:
 
 * **`models.FindingBase` / `ObjectFindingBase`** — status, severity, title, summary,
-  timestamps, ordering and the three shared indexes. A concrete finding declares only its own
-  foreign keys, its `through`, its one index and its constraint. `assessment_run` and `control`
-  stay concrete on purpose: on an abstract base they need `related_name="%(class)ss"`, which
-  would turn `run.certificate_profile_findings` into `run.certificateprofilefindings`.
-  Subclass Meta must inherit (`class Meta(ObjectFindingBase.Meta)`) and **concatenate**
-  `indexes` — Django replaces rather than merges them.
+  timestamps, the reference number, ordering, the three shared indexes and the reference
+  constraint. A concrete finding declares only its own foreign keys, its `through`, its one index
+  and its constraint. `assessment_run` and `control` stay concrete on purpose: on an abstract base
+  they need `related_name="%(class)ss"`, which would turn `run.certificate_profile_findings` into
+  `run.certificateprofilefindings`. Subclass Meta must inherit
+  (`class Meta(ObjectFindingBase.Meta)`) and **concatenate** both `indexes` and `constraints` —
+  Django replaces rather than merges them, and `test_finding_reference` fails for a model that
+  loses the reference constraint.
 * **`object_findings.generate_object_findings`** — the generator machinery, driven by an
   `ObjectFindingSpec`. Each object module supplies its subject sentence and nothing else.
 * **`finding_registry.FINDING_KINDS`** — every finding model. Consumers iterate this instead of
   naming models. A concrete `FindingBase` subclass missing from it fails `test_finding_registry`.
+* **`finding_run.GENERATORS`** — every generator, filling ONE run. There is one "Run Findings"
+  action for policy and device findings alike; Jason, 2026-09-16: "The split between policy and
+  device findings shouldn't exist." A kind missing from the tuple fails `test_finding_run`.
+
+**A finding's identifier is `finding.reference` — `F-0001` — and nothing else.** Jason, 2026-09-16:
+"A consistent, human readable, unique identifier used at presentation layers in the app and all
+related artifacts. Re-runs should reset the identifier." It is unique within a run across every
+finding model and starts again at 1 in each run. Never show a finding's database id: each model
+numbers its own rows, so ids collide across models, and every run recreates findings. The numbers
+come from one allocator per run (`AssessmentRun.next_reference_number`), in `GENERATORS` order and
+then by subject. No constraint can span 23 tables, so the cross-model half of the guarantee is
+`test_finding_reference`, not the database.
 
 ## Device tab views
 

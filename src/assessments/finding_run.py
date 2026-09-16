@@ -1,14 +1,15 @@
-"""Every non-policy control, in one run.
+"""Every active control, in one run.
 
-The UI offers two actions: policy, and everything else. That split is the one a user
-recognises - "are my rules bad" versus "is my device configured badly" - whereas the
-target-model split behind it is an implementation detail. A user pressing one button
-expects one assessment run, so the per-type generators fill a run they are handed rather
-than each creating their own.
+Until 2026-09-16 the UI offered two actions - policy findings and "everything else" - each
+creating its own run, on the theory that a user asks "are my rules bad" separately from "is my
+device configured badly". Jason, 2026-09-16: "The split between policy and device findings
+shouldn't exist." A run is now the whole assessment, which is also what lets a finding's
+reference number be unique across every finding model at once (see `FindingBase`).
 
-Adding a control type means adding one line to GENERATORS - and a test fails until you do. It should not mean adding a
-button, because the number of buttons is a question about what a user is asking, not about
-how many models back the answer.
+The per-type generators fill a run they are handed rather than each creating their own. Adding
+a control type means adding one line to GENERATORS - and a test fails until you do. It should
+not mean adding a button, because the number of buttons is a question about what a user is
+asking, not about how many models back the answer.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from assessments.admin_user_findings import generate_admin_user_findings
 from assessments.authentication_profile_findings import generate_authentication_profile_findings
 from assessments.authentication_sequence_findings import generate_authentication_sequence_findings
 from assessments.authentication_settings_findings import generate_authentication_settings_findings
+from assessments.findings import generate_rule_findings
 from assessments.certificate_findings import generate_certificate_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.interface_management_profile_findings import (
@@ -54,8 +56,11 @@ T = Control.ControlType
 #: tuple fell behind the registry twice without anything failing: the administrator and AAA
 #: server generators were never added, and when `DeviceConfigurationProfile` was split into
 #: seven models on 2026-09-10, none of the seven was either - so for a day the one button
-#: produced no findings at all for 24 controls. `test_configuration_findings_run` now checks the
-#: two agree.
+#: produced no findings at all for 24 controls. `test_finding_run` now checks the two agree -
+#: for EVERY registered kind, security rules included.
+#:
+#: The order is also the order reference numbers are allocated in, so F-0001 is the first
+#: password-complexity finding and policy findings come last.
 GENERATORS = (
     ("password complexity", T.PASSWORD_COMPLEXITY, generate_password_complexity_findings),
     ("authentication settings", T.AUTHENTICATION_SETTINGS, generate_authentication_settings_findings),
@@ -82,11 +87,13 @@ GENERATORS = (
     ("security profile", T.SECURITY_PROFILE, generate_security_profile_findings),
     ("administrator", T.ADMIN_USER, generate_admin_user_findings),
     ("aaa server profile", T.SERVER_PROFILE, generate_server_profile_findings),
+    # Policy last: the device's own configuration reads before the rules it enforces.
+    ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )
 
 
 @dataclass
-class ConfigurationFindingRunResult:
+class FindingRunResult:
     assessment_run: AssessmentRun
     controls_evaluated: int
     findings_created: int
@@ -96,9 +103,9 @@ class ConfigurationFindingRunResult:
     by_kind: dict
 
 
-def regenerate_configuration_findings() -> ConfigurationFindingRunResult:
+def regenerate_findings() -> FindingRunResult:
     assessment_run = AssessmentRun.objects.create(
-        name=f"Configuration Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        name=f"Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
         status=AssessmentRun.Status.RUNNING,
         started_at=timezone.now(),
     )
@@ -118,7 +125,7 @@ def regenerate_configuration_findings() -> ConfigurationFindingRunResult:
 
     assessment_run.mark_completed()
     assessment_run.save(update_fields=["status", "completed_at"])
-    return ConfigurationFindingRunResult(
+    return FindingRunResult(
         assessment_run=assessment_run,
         controls_evaluated=totals[0], findings_created=totals[1],
         query_links_created=totals[2], skipped_queries=totals[3], by_kind=by_kind)

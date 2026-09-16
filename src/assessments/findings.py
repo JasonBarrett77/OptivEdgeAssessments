@@ -1,24 +1,18 @@
-"""Finding generation for assessment controls."""
+"""Finding generation for security-rule controls.
+
+Fills a run it is handed, like every other generator in `finding_run.GENERATORS`. Until
+2026-09-16 this created a run of its own behind a separate "Run Policy Findings" button, so policy
+and device findings never shared a run. Jason, 2026-09-16: "The split between policy and device
+findings shouldn't exist."
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from django.db import transaction
-from django.utils import timezone
 
 from assessments.control_queries import evaluate_control_queries
-from assessments.models import AssessmentRun, Control, RuleFinding, RuleFindingControlQuery
+from assessments.models import Control, RuleFinding, RuleFindingControlQuery
 from optivedge_integrations.integrations.models import SecurityRule
-
-
-@dataclass
-class RuleFindingRunResult:
-    assessment_run: AssessmentRun
-    controls_evaluated: int
-    findings_created: int
-    query_links_created: int
-    skipped_queries: int
 
 
 def build_rule_finding_summary(matched_queries) -> str:
@@ -30,12 +24,8 @@ def build_rule_finding_summary(matched_queries) -> str:
     return f"Matched control queries: {', '.join(query_names)}."
 
 
-def regenerate_rule_findings() -> RuleFindingRunResult:
-    assessment_run = AssessmentRun.objects.create(
-        name=f"Rule Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        status=AssessmentRun.Status.RUNNING,
-        started_at=timezone.now(),
-    )
+def generate_rule_findings(assessment_run) -> tuple[int, int, int, int]:
+    """Fill an EXISTING run. Returns (controls, findings, links, skipped)."""
     controls = list(
         Control.objects.filter(
             control_type=Control.ControlType.SECURITY_RULE,
@@ -47,48 +37,37 @@ def regenerate_rule_findings() -> RuleFindingRunResult:
     query_links_created = 0
     skipped_queries = 0
 
-    try:
-        with transaction.atomic():
-            RuleFinding.objects.all().delete()
+    with transaction.atomic():
+        RuleFinding.objects.all().delete()
 
-            for control in controls:
-                _matched_queryset, _active_queries, control_skipped_queries, matched_by_rule, severity_by_rule_id = (
-                    evaluate_control_queries(base_queryset, control)
+        for control in controls:
+            _matched_queryset, _active_queries, control_skipped_queries, matched_by_rule, severity_by_rule_id = (
+                evaluate_control_queries(base_queryset, control)
+            )
+            skipped_queries += control_skipped_queries
+
+            # Sorted, so the run's reference numbers follow the rules in a stable order.
+            for rule_id in sorted(matched_by_rule):
+                matched_queries = matched_by_rule[rule_id]
+                finding = RuleFinding.objects.create(
+                    assessment_run=assessment_run,
+                    control=control,
+                    security_rule_id=rule_id,
+                    severity=severity_by_rule_id[rule_id],
+                    title=control.name,
+                    summary=build_rule_finding_summary(matched_queries),
+                    matched_query_names=[query.name for query in matched_queries],
                 )
-                skipped_queries += control_skipped_queries
+                findings_created += 1
 
-                for rule_id, matched_queries in matched_by_rule.items():
-                    finding = RuleFinding.objects.create(
-                        assessment_run=assessment_run,
-                        control=control,
-                        security_rule_id=rule_id,
-                        severity=severity_by_rule_id[rule_id],
-                        title=control.name,
-                        summary=build_rule_finding_summary(matched_queries),
-                        matched_query_names=[query.name for query in matched_queries],
+                links = [
+                    RuleFindingControlQuery(
+                        rule_finding=finding,
+                        control_query=control_query,
                     )
-                    findings_created += 1
+                    for control_query in matched_queries
+                ]
+                RuleFindingControlQuery.objects.bulk_create(links)
+                query_links_created += len(links)
 
-                    links = [
-                        RuleFindingControlQuery(
-                            rule_finding=finding,
-                            control_query=control_query,
-                        )
-                        for control_query in matched_queries
-                    ]
-                    RuleFindingControlQuery.objects.bulk_create(links)
-                    query_links_created += len(links)
-    except Exception:
-        assessment_run.mark_failed()
-        assessment_run.save(update_fields=["status", "completed_at"])
-        raise
-
-    assessment_run.mark_completed()
-    assessment_run.save(update_fields=["status", "completed_at"])
-    return RuleFindingRunResult(
-        assessment_run=assessment_run,
-        controls_evaluated=len(controls),
-        findings_created=findings_created,
-        query_links_created=query_links_created,
-        skipped_queries=skipped_queries,
-    )
+    return len(controls), findings_created, query_links_created, skipped_queries

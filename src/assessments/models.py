@@ -261,6 +261,30 @@ class AssessmentRun(models.Model):
         self.status = self.Status.FAILED
         self.completed_at = timezone.now()
 
+    def next_reference_number(self) -> int:
+        """The next free finding reference number in this run, across EVERY finding model.
+
+        The counter lives on this instance, seeded once from the highest number already stored
+        in the run, so a generator filling a run allocates without querying 23 tables per
+        finding. Every generator in `finding_run.GENERATORS` is handed the same instance, which
+        is what makes the numbers unique across models. The database cannot enforce that - no
+        constraint spans tables - so `test_finding_reference` does.
+        """
+        if getattr(self, "_next_reference_number", None) is None:
+            from django.db.models import Max
+
+            from assessments.finding_registry import FINDING_MODELS
+
+            highest = 0
+            for model in FINDING_MODELS:
+                stored = (model.objects.filter(assessment_run=self)
+                          .aggregate(highest=Max("reference_number"))["highest"])
+                highest = max(highest, stored or 0)
+            self._next_reference_number = highest + 1
+        number = self._next_reference_number
+        self._next_reference_number += 1
+        return number
+
 
 class ControlQuery(models.Model):
     control = models.ForeignKey(
@@ -335,6 +359,17 @@ class FindingBase(models.Model):
     The indexes here name those concrete fields. That is legal - an abstract Meta is validated
     against the concrete model, which does declare them - but it means a subclass that forgets
     `assessment_run` or `control` fails at check time rather than silently.
+
+    `reference_number` is the finding's human-readable identifier - rendered F-0001 by
+    `reference` - used by every presentation of a finding, in the app and in artifacts alike.
+    Jason, 2026-09-16: "A consistent, human readable, unique identifier used at presentation layers
+    in the app and all related artifacts. Re-runs should reset the identifier." So it is unique
+    within a RUN, across every finding model, and a new run starts again at 1. The database id is
+    none of those things: each model numbers its own rows, so ids collide across models, and every
+    run deletes and recreates findings, so they never repeat.
+
+    Subclass Meta must CONCATENATE `constraints` as well as `indexes` - Django replaces both rather
+    than merging them, and `test_finding_reference` fails for a model that loses the constraint.
     """
 
     class Status(models.TextChoices):
@@ -347,6 +382,8 @@ class FindingBase(models.Model):
     title = models.CharField(max_length=255)
     summary = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    #: Allocated from the run on first save; see the class docstring and `reference`.
+    reference_number = models.PositiveIntegerField(editable=False)
 
     class Meta:
         abstract = True
@@ -356,6 +393,22 @@ class FindingBase(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["severity"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assessment_run", "reference_number"],
+                name="%(app_label)s_%(class)s_unique_reference_per_run",
+            ),
+        ]
+
+    @property
+    def reference(self) -> str:
+        """F-0001. Widens past four digits rather than wrapping."""
+        return f"F-{self.reference_number:04d}"
+
+    def save(self, *args, **kwargs):
+        if self.reference_number is None:
+            self.reference_number = self.assessment_run.next_reference_number()
+        super().save(*args, **kwargs)
 
 
 class ObjectFindingBase(FindingBase):
@@ -416,7 +469,7 @@ class RuleFinding(FindingBase):
         indexes = FindingBase.Meta.indexes + [
             models.Index(fields=["security_rule"]),
         ]
-        constraints = [
+        constraints = FindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "security_rule"],
                 name="unique_rule_finding_per_run_control_rule",
@@ -554,7 +607,7 @@ class ManagementInterfaceFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["management_interface"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "management_interface"],
                 name="unique_management_interface_finding_per_run_control_surface"),
@@ -614,7 +667,7 @@ class InterfaceManagementProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["interface_management_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "interface_management_profile"],
                 name="unique_imp_finding_per_run_control_profile"),
@@ -669,7 +722,7 @@ class SslTlsServiceProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["ssl_tls_service_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "ssl_tls_service_profile"],
                 name="unique_stsp_finding_per_run_control_object"),
@@ -723,7 +776,7 @@ class CertificateProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["certificate_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "certificate_profile"],
                 name="unique_cp_finding_per_run_control_object"),
@@ -773,7 +826,7 @@ class CertificateFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["certificate"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "certificate"],
                 name="unique_cert_finding_per_run_control_object"),
@@ -823,7 +876,7 @@ class AuthenticationProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["authentication_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "authentication_profile"],
                 name="unique_ap_finding_per_run_control_object"),
@@ -874,7 +927,7 @@ class AuthenticationSequenceFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["authentication_sequence"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "authentication_sequence"],
                 name="unique_aseq_finding_per_run_control_object"),
@@ -923,7 +976,7 @@ class ManagementSshFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["management_ssh_settings"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "management_ssh_settings"],
                 name="unique_mssh_finding_per_run_control_object"),
@@ -970,7 +1023,7 @@ class ManagementTlsFinding(ObjectFindingBase):
     class Meta(ObjectFindingBase.Meta):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["management_tls_binding"])]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "management_tls_binding"],
                 name="unique_mt_finding_per_run_control_object"),
@@ -1012,7 +1065,7 @@ class MasterKeyFinding(ObjectFindingBase):
 
     class Meta(ObjectFindingBase.Meta):
         indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["master_key"])]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "master_key"],
                 name="unique_mk_finding_per_run_control_object"),
@@ -1054,7 +1107,7 @@ class UpdateServerSettingsFinding(ObjectFindingBase):
 
     class Meta(ObjectFindingBase.Meta):
         indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["update_server_settings"])]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "update_server_settings"],
                 name="unique_uss_finding_per_run_control_object"),
@@ -1096,7 +1149,7 @@ class LoggingSettingsFinding(ObjectFindingBase):
 
     class Meta(ObjectFindingBase.Meta):
         indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["logging_settings"])]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "logging_settings"],
                 name="unique_ls_finding_per_run_control_object"),
@@ -1138,7 +1191,7 @@ class LoginBannerFinding(ObjectFindingBase):
 
     class Meta(ObjectFindingBase.Meta):
         indexes = ObjectFindingBase.Meta.indexes + [models.Index(fields=["login_banner"])]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "login_banner"],
                 name="unique_lb_finding_per_run_control_object"),
@@ -1186,7 +1239,7 @@ class AuthenticationSettingsFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["authentication_settings"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "authentication_settings"],
                 name="unique_as_finding_per_run_control_object"),
@@ -1238,7 +1291,7 @@ class PasswordComplexityFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["password_complexity_policy"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "password_complexity_policy"],
                 name="unique_pc_finding_per_run_control_object"),
@@ -1287,7 +1340,7 @@ class PasswordProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["password_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "password_profile"],
                 name="unique_pp_finding_per_run_control_object"),
@@ -1336,7 +1389,7 @@ class SecurityProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["security_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "security_profile"],
                 name="unique_secprof_finding_per_run_control_object"),
@@ -1384,7 +1437,7 @@ class AdminUserFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["admin_user"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "admin_user"],
                 name="unique_au_finding_per_run_control_object"),
@@ -1436,7 +1489,7 @@ class ServerProfileFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["server_profile"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "server_profile"],
                 name="unique_sp_finding_per_run_control_object"),
@@ -1485,7 +1538,7 @@ class NtpSettingsFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["ntp_settings"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "ntp_settings"],
                 name="unique_ntp_finding_per_run_control_object"),
@@ -1534,7 +1587,7 @@ class SnmpSettingsFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["snmp_settings"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "snmp_settings"],
                 name="unique_snmp_finding_per_run_control_object"),
@@ -1584,7 +1637,7 @@ class SystemIdentityFinding(ObjectFindingBase):
         indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["system_identity"]),
         ]
-        constraints = [
+        constraints = ObjectFindingBase.Meta.constraints + [
             models.UniqueConstraint(
                 fields=["assessment_run", "control", "system_identity"],
                 name="unique_sysid_finding_per_run_control_object"),

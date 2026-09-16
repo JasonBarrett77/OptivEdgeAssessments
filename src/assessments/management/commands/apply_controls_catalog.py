@@ -148,8 +148,8 @@ class Command(BaseCommand):
                 "recorded as current."))
 
         if options["regenerate_findings"]:
-            from assessments.configuration_findings import regenerate_configuration_findings
-            findings = regenerate_configuration_findings()
+            from assessments.finding_run import regenerate_findings
+            findings = regenerate_findings()
             self.stdout.write(self.style.SUCCESS(
                 f"Regenerated findings: {findings.controls_evaluated} controls evaluated, "
                 f"{findings.findings_created} findings, {findings.skipped_queries} skipped."))

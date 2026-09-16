@@ -15,8 +15,7 @@ from assessments.control_queries import (
     evaluate_control_queries,
     severity_label,
 )
-from assessments.findings import regenerate_rule_findings
-from assessments.configuration_findings import regenerate_configuration_findings
+from assessments.finding_run import regenerate_findings
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
 from assessments.tables import Column
@@ -1431,29 +1430,14 @@ def report_finding_run(request, message: str, *, skipped_queries: int) -> None:
 
 
 class ControlRunFindingsView(View):
+    """Every active control, policy and device alike, in one run - see assessments.finding_run."""
+
     def post(self, request, *args, **kwargs):
-        result = regenerate_rule_findings()
+        result = regenerate_findings()
         report_finding_run(
             request,
             (
-                f"Rule findings regenerated. Controls: {result.controls_evaluated}. "
-                f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
-                f"Skipped queries: {result.skipped_queries}."
-            ),
-            skipped_queries=result.skipped_queries,
-        )
-        return HttpResponseRedirect(reverse("assessment_control_list"))
-
-
-class ControlRunConfigurationFindingsView(View):
-    """Everything that is not policy, in one run - see assessments.configuration_findings."""
-
-    def post(self, request, *args, **kwargs):
-        result = regenerate_configuration_findings()
-        report_finding_run(
-            request,
-            (
-                f"Configuration findings regenerated. Controls: {result.controls_evaluated}. "
+                f"Findings regenerated. Controls: {result.controls_evaluated}. "
                 f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
                 f"Skipped queries: {result.skipped_queries}."
             ),

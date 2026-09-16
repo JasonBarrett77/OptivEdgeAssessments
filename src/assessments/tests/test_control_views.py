@@ -106,8 +106,10 @@ class ControlViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.control.control_id)
-        self.assertContains(response, "Run Policy Findings")
-        self.assertContains(response, "Run Configuration Findings")
+        # One run for every finding kind: the policy/device split is gone (2026-09-16).
+        self.assertContains(response, "Run Findings")
+        self.assertNotContains(response, "Run Policy Findings")
+        self.assertNotContains(response, "Run Configuration Findings")
         self.assertContains(response, "View Findings")
 
     def test_finding_list_view_renders_empty_state(self):
@@ -547,7 +549,7 @@ class ControlViewTests(TestCase):
         self.assertEqual(finding.assessment_run.status, AssessmentRun.Status.COMPLETED)
         self.assertEqual(finding.control_queries.count(), 1)
         self.assertEqual(finding.control_queries.first(), baseline_query)
-        self.assertContains(response, "Rule findings regenerated.")
+        self.assertContains(response, "Findings regenerated.")
 
         # The matched query names are snapshotted onto the finding at generation time and
         # stay frozen even if the control query is renamed afterwards.

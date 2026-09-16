@@ -92,7 +92,16 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
             skipped_queries += control_skipped_queries
 
             objects = {obj.pk: obj for obj in base_queryset.filter(pk__in=matched_by_object)}
-            for object_id, matched_queries in matched_by_object.items():
+
+            # Findings are created - and so numbered - in a stable order: by subject, as a reader
+            # of any presentation sorted by control then object would expect.
+            def by_subject(object_id):
+                obj = objects[object_id]
+                scope = spec.subject_scope(obj) if spec.subject_scope is not None else ""
+                return (spec.subject_name(obj), scope, object_id)
+
+            for object_id in sorted(matched_by_object, key=by_subject):
+                matched_queries = matched_by_object[object_id]
                 obj = objects[object_id]
                 fields = {
                     "assessment_run": assessment_run,
