@@ -437,7 +437,21 @@ class FindingControlQueryBase(models.Model):
         ordering = ["created_at", "id"]
 
 
-class RuleFinding(FindingBase):
+class RuleFinding(ObjectFindingBase):
+    """A finding against one security rule.
+
+    An OBJECT finding, like every other named subject. It was built on `FindingBase` until
+    2026-09-16, so it carried no `subject_name` and its summary could not say which rule it was
+    about - a policy finding read "Matched control query: Baseline." and nothing more. The
+    subject was deferred until a control fired; splitting PAN-SVC-009 and starting on the
+    security-policy domain is what made it due.
+
+    `subject_scope` is required here for the reason the base class gives: a rule name is unique
+    only per enforcement point (`integrations_unique_security_rule_name_per_point`), so the same
+    name legitimately exists in several vsys. The scope also carries the rulebase, since a local
+    rule and a Panorama pre-rule are different objects a reader must tell apart.
+    """
+
     assessment_run = models.ForeignKey(
         AssessmentRun,
         on_delete=models.CASCADE,
@@ -453,11 +467,8 @@ class RuleFinding(FindingBase):
         on_delete=models.CASCADE,
         related_name="rule_findings",
     )
-    # Point-in-time snapshot of the names of the control queries that matched this rule,
-    # frozen at generation time. Kept separate from the live control_queries M2M (whose
-    # names/links follow later catalog edits and deletes) so a finding stays a faithful
-    # record of its assessment run.
-    matched_query_names = models.JSONField(default=list, blank=True)
+    #: "<config_source>:<vsys>" - e.g. "local:vsys1", "pushed_pre:vsys3".
+    subject_scope = models.CharField(max_length=128, blank=True)
     control_queries = models.ManyToManyField(
         ControlQuery,
         through="RuleFindingControlQuery",
@@ -465,8 +476,8 @@ class RuleFinding(FindingBase):
         blank=True,
     )
 
-    class Meta(FindingBase.Meta):
-        indexes = FindingBase.Meta.indexes + [
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
             models.Index(fields=["security_rule"]),
         ]
         constraints = FindingBase.Meta.constraints + [

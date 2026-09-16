@@ -64,3 +64,35 @@ class FindingRegistryTests(TestCase):
     def test_counts_cover_every_kind(self):
         from assessments.finding_registry import open_finding_counts
         self.assertEqual(set(open_finding_counts()), {k.label for k in FINDING_KINDS})
+
+
+class FindingPathConvergenceTests(TestCase):
+    """One path for every finding kind, policy included.
+
+    `RuleFinding` sat on `FindingBase` while the other 22 kinds moved to `ObjectFindingBase`,
+    and the divergence was invisible: nothing failed, the policy findings just could not say
+    which rule they were about. Asserted over the REGISTRY so a new model cannot reintroduce it.
+    """
+
+    #: Kinds that legitimately have no named subject, each with the reason. Empty today: every
+    #: finding in the corpus is about something with a name. A device-wide setting finding would
+    #: belong here - and adding to this set should be a deliberate argument, not a shortcut.
+    NO_NAMED_SUBJECT: set[str] = set()
+
+    def test_every_finding_model_is_an_object_finding(self):
+        from assessments.models import ObjectFindingBase
+        divergent = sorted(
+            kind.name for kind in FINDING_KINDS
+            if kind.name not in self.NO_NAMED_SUBJECT
+            and not issubclass(kind.model, ObjectFindingBase))
+        self.assertEqual(divergent, [],
+                         f"finding models not on the shared object path: {divergent}. "
+                         "Extend ObjectFindingBase and generate with an ObjectFindingSpec, or "
+                         "add the model to NO_NAMED_SUBJECT with a reason.")
+
+    def test_every_finding_model_freezes_a_subject_name(self):
+        for kind in FINDING_KINDS:
+            if kind.name in self.NO_NAMED_SUBJECT:
+                continue
+            with self.subTest(kind.name):
+                kind.model._meta.get_field("subject_name")
