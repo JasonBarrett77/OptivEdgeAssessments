@@ -574,3 +574,112 @@ class SecurityRulePageTests(TestCase):
             self._rule(f"rule-{index:03d}", order=index + 1, services=("any",))
         html = self.client.get(f"{self.url}?control={control.pk}").content.decode()
         self.assertIn(f"control={control.pk}&amp;page=2", html)
+
+
+class ConfigurationDashboardTests(TestCase):
+    """`/assessments/configuration/` - what the explorer holds.
+
+    Every number on it is a comparison an object page cannot make, and each is derived from the
+    same places the pages themselves are: the rail, the results specs, and the destination
+    resolver. A control counted against an object here is a control whose "view query results"
+    link lands there - two implementations of that would disagree eventually, invisibly.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.dash")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-dash",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        self.url = reverse("assessment_configuration_index")
+
+    def _profile_control(self):
+        control = Control.objects.create(
+            control_id="PAN-DASH-001", name="Profiles should be bound",
+            control_type=Control.ControlType.INTERFACE_MANAGEMENT_PROFILE,
+            description="Prototype.", default_severity=Control.Severity.MEDIUM)
+        ControlQuery.objects.create(
+            control=control, name="Baseline", is_baseline=True, is_active=True,
+            canonical_query={"model": "integrations.InterfaceManagementProfile",
+                             "operator": "and", "clauses": [
+                                 {"field": "binding_count", "op": "eq", "value": 0}]})
+        return control
+
+    def test_it_renders_every_object_in_the_rail(self):
+        html = self.client.get(self.url).content.decode()
+        for obj in config_nav.CONFIG_OBJECTS:
+            self.assertIn(obj.label, html, obj.slug)
+
+    def test_a_control_is_counted_against_the_object_its_link_would_open(self):
+        control = self._profile_control()
+        response = self.client.get(self.url)
+        summaries = {s.config_object.slug: s
+                     for entry in response.context["categories_detail"]
+                     for s in entry["objects"]}
+        self.assertEqual([c.control_id for c in summaries["interface-mgmt"].controls],
+                         ["PAN-DASH-001"])
+        self.assertEqual(summaries["interface-mgmt"].query_count, 1)
+        self.assertEqual(summaries["certificates"].controls, [])
+        # and the link goes to that control's PREVIEW, which is the question being asked here
+        self.assertIn(f"?control={control.pk}", response.content.decode())
+
+    def test_rows_are_counted_after_the_pages_own_scope(self):
+        """Anti-spyware and vulnerability protection share a model and split it with a scope
+        query. Counting the model would report the same total on both rows."""
+        make_profile(self.station, self.group, "fw-dash", "p1", 0)
+        summaries = {s.config_object.slug: s
+                     for entry in self.client.get(self.url).context["categories_detail"]
+                     for s in entry["objects"]}
+        self.assertEqual(summaries["interface-mgmt"].row_count, 1)
+        self.assertEqual(summaries["anti-spyware"].row_count, 0)
+
+    def test_an_object_no_control_reads_is_named(self):
+        """The standing rule is that such an object comes out of the view until a control
+        defines it, so the page showing the rail should show when that is not holding."""
+        self._profile_control()
+        response = self.client.get(self.url)
+        listed = {s.config_object.slug for s in response.context["objects_without_controls"]}
+        self.assertNotIn("interface-mgmt", listed)
+        self.assertIn("certificates", listed)
+
+    def test_a_control_with_nowhere_to_be_previewed_is_called_out(self):
+        control = Control.objects.create(
+            control_id="PAN-DASH-002", name="Zones",
+            control_type=Control.ControlType.CONFIG,
+            description="Prototype.", default_severity=Control.Severity.LOW)
+        response = self.client.get(self.url)
+        self.assertIn(control, list(response.context["unplaced_controls"]))
+        self.assertIn("cannot be previewed anywhere", response.content.decode())
+
+    def test_an_inactive_control_is_not_counted(self):
+        control = self._profile_control()
+        control.is_active = False
+        control.save()
+        summaries = {s.config_object.slug: s
+                     for entry in self.client.get(self.url).context["categories_detail"]
+                     for s in entry["objects"]}
+        self.assertEqual(summaries["interface-mgmt"].controls, [])
+
+    def test_a_built_query_can_be_found_again_from_here(self):
+        """The token is the whole point of a parked query and also the whole problem: it existed
+        in one address bar. These rows already exist; listing them costs nothing."""
+        state = ConfigurationSearchState.objects.create(
+            model_label="integrations.InterfaceManagementProfile",
+            query_text="unbound profiles",
+            canonical_query={"model": "integrations.InterfaceManagementProfile",
+                             "operator": "and", "clauses": [
+                                 {"field": "binding_count", "op": "eq", "value": 0}]})
+        html = self.client.get(self.url).content.decode()
+        self.assertIn("unbound profiles", html)
+        self.assertIn(f"search_state={state.token}", html)
+
+    def test_the_totals_add_up_to_what_the_table_shows(self):
+        self._profile_control()
+        make_profile(self.station, self.group, "fw-dash", "p1", 0)
+        response = self.client.get(self.url)
+        totals = dict(response.context["totals"])
+        summaries = [s for entry in response.context["categories_detail"] for s in entry["objects"]]
+        self.assertEqual(totals["Objects"], len(summaries))
+        self.assertEqual(totals["Controls"], sum(s.control_count for s in summaries))
+        self.assertEqual(totals["Active queries"], sum(s.query_count for s in summaries))
+        self.assertEqual(totals["Rows normalized"], sum(s.row_count for s in summaries))

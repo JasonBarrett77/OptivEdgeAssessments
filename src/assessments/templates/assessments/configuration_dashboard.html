@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% comment %}
+What the explorer holds, above the categories rather than inside one. Every number here is a
+comparison an object page cannot make, because each of those sees one object.
+
+No findings anywhere on this page, deliberately, for the reason `configuration_results` gives:
+these pages answer "which objects look like this" and "what would this control report", and a
+finding count would invite the reader to treat the surface as the findings tabs.
+{% endcomment %}
+
+{% block title %} | Configuration{% endblock %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0">
+    <div class="flex h-full min-h-0 w-full flex-col">
+
+        {% include "assessments/partials/configuration_nav.html" %}
+
+        <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
+
+            <div class="flex flex-col gap-1 pb-3">
+                <h1 class="text-[15px] font-semibold leading-5 text-slate-950">Configuration</h1>
+                <div class="text-[11px] text-slate-500">
+                    The objects this app can query, the controls that read them, and the queries built over them.
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-px border border-slate-200 bg-slate-200 sm:grid-cols-4">
+                {% for label, value in totals %}
+                <div class="flex flex-col gap-0.5 bg-white px-3 py-2">
+                    <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ label }}</div>
+                    <div class="text-[18px] font-semibold leading-6 text-slate-900">{{ value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if unplaced_controls %}
+            <div class="mt-3 border border-amber-300 bg-amber-50 px-3 py-2">
+                <div class="text-[11px] font-semibold text-amber-900">
+                    {{ unplaced_controls|length }} active control{{ unplaced_controls|pluralize }} cannot be previewed anywhere
+                </div>
+                <div class="mt-0.5 text-[11px] text-amber-800">
+                    No rail item presents the object each of these assesses, so "view query results" has nowhere to go.
+                </div>
+                <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {% for control in unplaced_controls %}
+                    <a href="/assessments/controls/{{ control.pk }}/" class="font-mono text-[11px] text-amber-900 underline">{{ control.control_id }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if objects_without_controls %}
+            <div class="mt-3 border border-slate-300 bg-slate-50 px-3 py-2">
+                <div class="text-[11px] font-semibold text-slate-800">
+                    {{ objects_without_controls|length }} rail item{{ objects_without_controls|pluralize }} no control reads yet
+                </div>
+                <div class="mt-0.5 text-[11px] text-slate-600">
+                    An object can be wired for querying before a control exists. The standing rule is that one
+                    no completed control relates to comes out of the view until a control defines it.
+                </div>
+                <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {% for summary in objects_without_controls %}
+                    <a href="{{ summary.href }}" class="text-[11px] text-slate-700 underline">{{ summary.config_object.label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% for category in categories_detail %}
+            <div class="mt-4">
+                <h2 class="pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{{ category.name }}</h2>
+                <table class="analytical-table w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Object</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Where PAN-OS keeps it</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Rows</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Controls</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Queries</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Controls reading it</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for summary in category.objects %}
+                        <tr>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] text-slate-800">
+                                <a href="{{ summary.href }}" class="text-slate-900 underline">{{ summary.config_object.label }}</a>
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] text-slate-500">{{ summary.config_object.where|default:"-" }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-right text-[11px] text-slate-800">{{ summary.row_count }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-right text-[11px] text-slate-800">{{ summary.control_count }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-right text-[11px] text-slate-800">{{ summary.query_count }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] text-slate-800">
+                                {% for control in summary.controls %}
+                                {% comment %}
+                                Each control links to its PREVIEW on this object's page, not to
+                                the control's own detail page: from here the question is what it
+                                would report, and the detail page is one click further on.
+                                {% endcomment %}
+                                <a href="{{ summary.href }}?control={{ control.pk }}"
+                                   class="font-mono text-[11px] text-slate-700 underline"
+                                   title="{{ control.name }}">{{ control.control_id }}</a>{% if not forloop.last %}<span class="text-slate-300"> · </span>{% endif %}
+                                {% empty %}
+                                <span class="text-slate-400">none yet</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+
+            <div class="mt-4 pb-4">
+                <h2 class="pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">Queries built here</h2>
+                {% if recent_queries %}
+                <table class="analytical-table w-full border-collapse">
+                    <tbody>
+                        {% for query in recent_queries %}
+                        <tr>
+                            <td class="border-b border-slate-100 px-2 py-1 text-[11px] text-slate-800">{{ query.label }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 text-[11px] text-slate-600">{{ query.text|default:"(built in the query builder)" }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 text-[11px] text-slate-500">{{ query.created_at }}</td>
+                            <td class="border-b border-slate-100 px-2 py-1 text-right text-[11px]">
+                                {% if query.href %}<a href="{{ query.href }}" class="text-slate-700 underline">Open</a>{% else %}<span class="text-slate-400">object not in the rail</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="border border-slate-200 bg-slate-50 px-3 py-3 text-[11px] text-slate-500">
+                    None yet. A query built on any object page is parked server-side and listed here, so a token
+                    that only ever existed in one address bar can be found again.
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</section>
+{% endblock %}

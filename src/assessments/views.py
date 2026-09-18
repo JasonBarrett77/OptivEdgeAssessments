@@ -21,6 +21,7 @@ from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
 from assessments.tables import Column
 from assessments import configuration_navigation as config_nav
+from assessments import configuration_dashboard
 from assessments import configuration_results as config_results
 from django.contrib.contenttypes.models import ContentType
 
@@ -2786,15 +2787,40 @@ def configuration_nav_context(active):
     }
 
 
-class ConfigurationIndexView(View):
-    """`/assessments/configuration/` - redirect to the landing object rather than render.
+class ConfigurationIndexView(TemplateView):
+    """`/assessments/configuration/` - what the explorer holds, rather than a redirect into it.
 
-    A category index page would be a fourth thing to design and would be passed through without
-    being read. The explorer's first screen should be an object.
+    This used to redirect to the landing object, on the reasoning that a category index would be
+    "a fourth thing to design and would be passed through without being read". That holds for a
+    category index - a page repeating the four links already in the bar above it. It does not
+    hold for this page, which answers what no object page can: every object page sees one
+    object, and all of these are comparisons - how much is normalized behind each object, which
+    controls read it, which rail items no control reads yet, and which controls have nowhere to
+    be previewed.
+
+    The aggregation lives in `configuration_dashboard`; this view supplies the URL builder, so
+    that module never reverses a URL or decides where an object lives.
     """
 
-    def get(self, request, *args, **kwargs):
-        obj = config_nav.landing()
-        return HttpResponseRedirect(reverse(
-            "assessment_configuration_object",
-            args=[config_nav.category_slug(obj.category), obj.slug]))
+    template_name = "assessments/configuration_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        def href(obj):
+            return reverse("assessment_configuration_object",
+                           args=[config_nav.category_slug(obj.category), obj.slug])
+
+        context.update(configuration_dashboard.build(href))
+        # The category bar, with nothing active: the dashboard sits above the categories rather
+        # than inside one, and marking a category active here would claim otherwise.
+        context["categories"] = [
+            {
+                "name": name,
+                "count": len(config_nav.objects_in(name)),
+                "href": href(config_nav.first_object(name)) if config_nav.first_object(name) else "",
+                "is_active": False,
+            }
+            for name in config_nav.CATEGORIES
+        ]
+        return context

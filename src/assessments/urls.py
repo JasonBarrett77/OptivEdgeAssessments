@@ -206,8 +206,8 @@ urlpatterns = [
     ),
     # The configuration explorer. Two segments, both the vendor's own vocabulary - the PAN-OS
     # top-level tab, then the object as its left rail names it - so a URL reads as the place an
-    # engineer would click to. `configuration/` alone lands on Device's first object; see
-    # configuration_navigation.LANDING_CATEGORY for why that is named rather than derived.
+    # engineer would click to. `configuration/` alone is the dashboard: what the explorer holds,
+    # which controls read each object, and the queries built over them.
     path(
         "configuration/",
         ConfigurationIndexView.as_view(),

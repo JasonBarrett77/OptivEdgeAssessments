@@ -174,10 +174,13 @@ class ConfigurationExplorerTests(TestCase):
         self.assertEqual(self.client.get("/assessments/configuration/nope/management/").status_code, 404)
         self.assertEqual(self.client.get("/assessments/configuration/device/nope/").status_code, 404)
 
-    def test_the_index_lands_on_the_named_category(self):
-        obj = config_nav.first_object(config_nav.LANDING_CATEGORY)
+    def test_the_index_is_a_page_rather_than_a_redirect_into_the_rail(self):
+        """It redirected to Device's first object until 2026-09-18. A dashboard about the
+        objects, their controls and their queries answers what no object page can, because each
+        of those sees one object and all of these are comparisons."""
         response = self.client.get("/assessments/configuration/")
-        self.assertRedirects(response, self._url(obj))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configuration")
 
     def test_the_rail_holds_exactly_the_open_objects_category(self):
         """The point of the frame: what is on screen is one category's rail, not every object."""

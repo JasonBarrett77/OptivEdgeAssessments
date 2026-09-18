@@ -252,17 +252,9 @@ def first_object(category: str) -> ConfigObject | None:
     return found[0] if found else None
 
 
-#: Where `/assessments/configuration/` lands. Named rather than derived: "the first category
-#: that has anything in it" put the entry point on Network > Interface Mgmt back when Policies
-#: and Objects were empty, because Network sorts ahead of Device in the PRODUCT's order. Category
-#: order is the vendor's and must not be bent to make a default fall out of it. Still Device,
-#: which is where most of the built controls are; moving it to Policies is a decision about what
-#: an assessor opens first, not a consequence of Policies now holding something.
-LANDING_CATEGORY = "Device"
-
-
-def landing() -> ConfigObject:
-    obj = first_object(LANDING_CATEGORY)
-    if obj is None:
-        raise RuntimeError(f"landing category {LANDING_CATEGORY!r} holds no objects")
-    return obj
+# There is no landing object any more. `/assessments/configuration/` was a redirect into the
+# rail until 2026-09-18 and is now a page of its own, so `LANDING_CATEGORY` and `landing()` were
+# deleted rather than left with no caller. What they encoded is worth keeping in words: category
+# order here is the PRODUCT's, and a default must never be derived by taking "the first category
+# that has anything in it" - that put the entry point on Network while Policies and Objects were
+# empty, which is the rail describing our build order rather than the vendor's organisation.
