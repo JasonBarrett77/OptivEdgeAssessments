@@ -683,3 +683,56 @@ class ConfigurationDashboardTests(TestCase):
         self.assertEqual(totals["Controls"], sum(s.control_count for s in summaries))
         self.assertEqual(totals["Active queries"], sum(s.query_count for s in summaries))
         self.assertEqual(totals["Rows normalized"], sum(s.row_count for s in summaries))
+
+
+class DashboardChipTests(TestCase):
+    """The Dashboard chip in the category bar.
+
+    Rendered by the shared nav partial rather than added to `CATEGORIES`, because it is not a
+    category: no objects, no rail, and every derivation over categories treats one as a set of
+    objects. The tests are here rather than in `test_navigation` because what they guard is the
+    bar's behaviour on these pages - that the chip is reachable from every object page, and that
+    exactly one thing in the bar reads as active at a time.
+    """
+
+    ACTIVE = 'bg-slate-800 text-white'
+
+    def _bar(self, url):
+        html = self.client.get(url).content.decode()
+        bar = re.search(r'<div class="flex shrink-0 items-center gap-1 border-b(.*?)</div>',
+                        html, re.S)
+        self.assertIsNotNone(bar, url)
+        return bar.group(1)
+
+    def test_the_chip_leads_the_bar_on_the_dashboard_itself(self):
+        """PAN-OS runs Dashboard, ACC, Monitor, Policies, Objects, Network, Device - Dashboard
+        is leftmost there too, so the order is the vendor's rather than ours."""
+        bar = self._bar(reverse("assessment_configuration_index"))
+        self.assertLess(bar.index("Dashboard"), bar.index("Policies"))
+
+    def test_it_is_reachable_from_every_object_page(self):
+        index = reverse("assessment_configuration_index")
+        for obj in config_nav.CONFIG_OBJECTS:
+            url = reverse("assessment_configuration_object",
+                          args=[config_nav.category_slug(obj.category), obj.slug])
+            with self.subTest(obj.slug):
+                self.assertIn(f'href="{index}"', self._bar(url))
+
+    def test_exactly_one_chip_reads_as_active_on_each_page(self):
+        """Two solid chips would claim the reader is in two places; none would claim nowhere."""
+        bar = self._bar(reverse("assessment_configuration_index"))
+        self.assertEqual(bar.count(self.ACTIVE), 1)
+        self.assertLess(bar.index(self.ACTIVE), bar.index("Policies"))
+
+        obj = config_nav.CONFIG_OBJECTS[0]
+        bar = self._bar(reverse("assessment_configuration_object",
+                                args=[config_nav.category_slug(obj.category), obj.slug]))
+        self.assertEqual(bar.count(self.ACTIVE), 1)
+        self.assertGreater(bar.index(self.ACTIVE), bar.index("Dashboard"))
+
+    def test_the_chip_carries_no_count(self):
+        """Every category chip shows how many objects it holds. Dashboard holds none, and `0`
+        there would read as an empty category rather than as a page."""
+        bar = self._bar(reverse("assessment_configuration_index"))
+        dashboard_chip = bar[bar.index("Dashboard"):bar.index("Policies")]
+        self.assertNotIn("text-[10px] font-normal", dashboard_chip)

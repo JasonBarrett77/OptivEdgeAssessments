@@ -3,8 +3,21 @@
 The two-level configuration nav: the product's top-level categories across the top, and the
 category's own left-hand rail down the side - the same shape as the PAN-OS web interface, so an
 engineer who knows where an object lives there knows where it is here.
+
+Dashboard leads the bar, which is also where PAN-OS puts it - its tabs run Dashboard, ACC,
+Monitor, Policies, Objects, Network, Device. It is rendered here rather than added to
+`CATEGORIES` because it is not a category: it holds no objects, has no rail, and would break
+every derivation that treats a category as a set of objects. The chip carries no count for the
+same reason - a count of nothing is not zero, it is not applicable.
 {% endcomment %}
 <div class="flex shrink-0 items-center gap-1 border-b border-slate-200 px-1 pt-0.5 pb-1.5">
+    <a
+        href="{% url 'assessment_configuration_index' %}"
+        class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[12px] font-semibold whitespace-nowrap transition-colors {% if dashboard_is_active %}bg-slate-800 text-white{% else %}text-slate-500 hover:bg-slate-100 hover:text-slate-700{% endif %}"
+    >
+        Dashboard
+    </a>
+    <span class="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
     {% for category in categories %}
     {% if category.href %}
     <a

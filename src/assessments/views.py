@@ -2751,6 +2751,7 @@ def configuration_nav_context(active):
                        args=[config_nav.category_slug(obj.category), obj.slug])
 
     return {
+        "dashboard_is_active": False,
         "categories": [
             {
                 "name": name,
@@ -2812,6 +2813,7 @@ class ConfigurationIndexView(TemplateView):
                            args=[config_nav.category_slug(obj.category), obj.slug])
 
         context.update(configuration_dashboard.build(href))
+        context["dashboard_is_active"] = True
         # The category bar, with nothing active: the dashboard sits above the categories rather
         # than inside one, and marking a category active here would claim otherwise.
         context["categories"] = [
