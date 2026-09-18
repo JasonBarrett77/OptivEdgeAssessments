@@ -339,8 +339,27 @@ def get_control_list_queryset():
 
 
 def build_control_detail_context(control):
+    """The control's queries, each carrying WHERE its results can be read.
+
+    The destination is derived from the query's own model. It used to be hard-coded to the
+    security rules page for every control, so opening the results of a certificate or NTP query
+    landed on a builder that refused it - "This query targets integrations.NtpSettings and
+    cannot be applied to security rules" - which reads as the query being broken rather than the
+    link being wrong. Annotated onto the instances rather than resolved in the template, because
+    the choice needs `scope` (see `configuration_results.object_for_canonical_query`).
+    """
+    control_queries = list(control.queries.order_by("-is_baseline", "name", "pk"))
+    for control_query in control_queries:
+        control_query.results_url = config_results.query_results_url(
+            control_query.canonical_query, control_query_pk=control_query.pk)
     return {
-        "control_queries": control.queries.order_by("-is_baseline", "name", "pk"),
+        "control_queries": control_queries,
+        #: The control-level button, same rule: it applies the WHOLE control, which only the
+        #: security rules page can do today. `configuration_object` gains it next, and this
+        #: becomes `query_results_url(..., control_pk=...)` over the baseline query's model.
+        "control_results_url": (
+            f"{reverse('assessment_security_rule_list')}?control={control.pk}"
+            if control.supports_security_rule_ui else ""),
     }
 
 

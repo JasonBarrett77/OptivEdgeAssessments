@@ -96,9 +96,9 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <h2 class="min-w-0 text-sm font-semibold text-slate-950">Related Queries</h2>
                         <div class="flex shrink-0 items-center gap-3">
-                            {% if control.supports_security_rule_ui %}
+                            {% if control_results_url %}
                                 <a
-                                    href="/assessments/security-rules/?control={{ control.pk }}"
+                                    href="{{ control_results_url }}"
                                     class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
                                 >
                                     View Query Results
@@ -144,14 +144,29 @@
                                 </td>
                                 <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
                                     <div class="flex items-center gap-1.5">
+                                        {% if control_query.results_url %}
                                         <a
-                                            href="/assessments/security-rules/?control_query={{ control_query.pk }}"
+                                            href="{{ control_query.results_url }}"
                                             class="inline-flex h-7 w-7 items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
                                             aria-label="View query results"
                                             title="View query results"
                                         >
                                             {% lucide "eye" class="h-3.5 w-3.5" %}
                                         </a>
+                                        {% else %}
+                                        {% comment %}
+                                        No page presents this query's object yet. Shown greyed
+                                        and titled rather than omitted: a missing icon in one row
+                                        of a column of icons reads as a rendering fault.
+                                        {% endcomment %}
+                                        <span
+                                            class="inline-flex h-7 w-7 items-center justify-center border border-slate-100 bg-slate-50 text-slate-300"
+                                            aria-label="No query view for this object yet"
+                                            title="No query view for this object yet"
+                                        >
+                                            {% lucide "eye" class="h-3.5 w-3.5" %}
+                                        </span>
+                                        {% endif %}
                                         <a
                                             href="/assessments/controls/{{ control.pk }}/queries/{{ control_query.pk }}/edit/"
                                             class="inline-flex h-7 w-7 items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"

@@ -22,6 +22,10 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
+from django.urls import reverse
+
+from assessments import configuration_navigation as config_nav
+
 from optivedge_integrations.integrations.models import (
     AdminUser,
     AuthenticationProfile,
@@ -432,3 +436,74 @@ RESULTS = {
         ),
     ),
 }
+
+
+#: Models whose object has no rail item yet, and the page that presents it in the meantime.
+#: Every entry here is a promise to delete: when `Policies > Security` lands, the security rules
+#: page becomes the second surface over an object the explorer holds, and this map empties.
+LEGACY_SURFACE = {
+    "integrations.SecurityRule": "assessment_security_rule_list",
+}
+
+
+def _clause_key(clause):
+    """A clause's IDENTITY for containment, ignoring the defaults the validator fills in.
+
+    `case_sensitive` and `include_any` are normalization, not meaning: a scope written without
+    them and a control query that has been through `validate_search_payload` describe the same
+    clause and must compare equal.
+    """
+    return (clause.get("field"), clause.get("op"),
+            clause.get("value"), bool(clause.get("negated", False)))
+
+
+def object_for_canonical_query(canonical_query):
+    """The rail item whose page ANSWERS this query, or None when no page does.
+
+    One model usually means one page. Where it means two - anti-spyware and vulnerability
+    protection over `SecurityProfile` - the page is the one whose `scope` the query already
+    carries: a scope is applied to the rows before the query is, so sending an anti-spyware
+    query to the vulnerability page returns nothing and reads as "no profile is like this"
+    rather than as "wrong page".
+
+    Returns None rather than guessing when the model has several pages and the query names
+    neither scope. A link that goes somewhere plausible and wrong is worse than no link, and
+    `test_configuration_links` asserts that no control in the shipped catalog lands here.
+    """
+    if not isinstance(canonical_query, dict):
+        return None
+    candidates = config_nav.objects_for_model(canonical_query.get("model") or "")
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        return None
+
+    clauses = {_clause_key(c) for c in canonical_query.get("clauses", []) if "field" in c}
+    matched = [
+        obj for obj in candidates
+        if (scope := RESULTS[obj.slug].scope)
+        and {_clause_key(c) for c in scope.get("clauses", [])} <= clauses
+    ]
+    return matched[0] if len(matched) == 1 else None
+
+
+def query_results_url(canonical_query, *, control_query_pk=None, control_pk=None) -> str:
+    """Where "view query results" goes for a query over ANY model. "" when nowhere does.
+
+    The destination follows the query's own model, which is the whole point: this used to be
+    hard-coded to the security rules page on the control detail page, so every control that was
+    not about rules opened a builder that then refused its own query.
+    """
+    obj = object_for_canonical_query(canonical_query)
+    if obj is not None:
+        url = reverse("assessment_configuration_object",
+                      args=[config_nav.category_slug(obj.category), obj.slug])
+    elif isinstance(canonical_query, dict) and canonical_query.get("model") in LEGACY_SURFACE:
+        url = reverse(LEGACY_SURFACE[canonical_query["model"]])
+    else:
+        return ""
+    if control_query_pk is not None:
+        return f"{url}?control_query={control_query_pk}"
+    if control_pk is not None:
+        return f"{url}?control={control_pk}"
+    return url

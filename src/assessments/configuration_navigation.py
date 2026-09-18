@@ -214,6 +214,18 @@ def objects_in(category: str) -> tuple[ConfigObject, ...]:
     return tuple(o for o in CONFIG_OBJECTS if o.category == category)
 
 
+def objects_for_model(model_label: str) -> tuple[ConfigObject, ...]:
+    """Every rail item that queries this model. USUALLY one, never guaranteed to be.
+
+    Anti-spyware and vulnerability protection are two rail items over `SecurityProfile`, because
+    that is how PAN-OS lists them, so "the page for this model" is a question with two answers
+    and the caller has to choose. `configuration_results.object_for_canonical_query` does the
+    choosing, using the `scope` query that splits them - which lives there, not here, because
+    this module must not reach a model.
+    """
+    return tuple(o for o in CONFIG_OBJECTS if o.search_model == model_label)
+
+
 def groups_in(category: str) -> list[tuple[str, list[ConfigObject]]]:
     """The rail for one category: (heading, objects), headings in first-appearance order.
 
