@@ -113,7 +113,13 @@ the fields and their operators are typed into the template a second time.
                 {% for row in rows %}
                 <tr>
                     {% for cell in row %}
-                    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800">{{ cell }}</td>
+                    {% comment %}
+                    `linebreaksbr` is what makes a multi-value cell - a rule's zones, addresses,
+                    applications - render one per line the way the security rules page does. The
+                    value is still escaped: the split is on newlines the row builder put there,
+                    not on markup it emitted.
+                    {% endcomment %}
+                    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800">{{ cell|linebreaksbr }}</td>
                     {% endfor %}
                 </tr>
                 {% endfor %}

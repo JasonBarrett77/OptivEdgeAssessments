@@ -21,7 +21,8 @@ from assessments.search.exceptions import SearchSyntaxError
 from assessments.search.registry import MODEL_REGISTRY
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, EnforcementPoint, InterfaceManagementProfile, ManagementStation,
-    SecurityRule, SecurityRuleService, Snapshot)
+    SecurityRule, SecurityRuleApplication, SecurityRuleFromZone, SecurityRuleService,
+    SecurityRuleSourceAddressRef, SecurityRuleToZone, Snapshot)
 
 MODEL = "integrations.InterfaceManagementProfile"
 
@@ -478,22 +479,66 @@ class SecurityRulePageTests(TestCase):
                 security_rule=rule, value=value, prov="test", position=position)
         return rule
 
-    def test_the_page_renders_a_rule_with_the_columns_a_policy_query_is_about(self):
-        self._rule("allow-any-any", order=1, services=("any",))
+    #: The security rules page's own column order, from its second header row. `vsys` and the
+    #: two address pairs are grouped there under a first header row; this frame has one header
+    #: row, so the grouping moves into the labels and the ORDER is what has to match.
+    RULES_PAGE_COLUMNS = (
+        "Station", "Appliance", "vsys id", "vsys name", "Order", "Config Source", "Device Group",
+        "Rule", "Source Zone", "Source Address", "Destination Zone", "Destination Address",
+        "Application", "Service", "Action", "Log Start", "Log End", "Log Profile", "Profiles")
+
+    def test_the_columns_are_the_security_rules_pages_columns(self):
+        """Jason, 2026-09-18: this page "needs to look like /assessments/security-rules/ in
+        terms of columns and values". Two tables over one object that disagree about what a rule
+        looks like make a reader check which page they are on before reading a row."""
+        self.assertEqual(config_results.RESULTS["security"].columns, self.RULES_PAGE_COLUMNS)
+
+    def test_every_value_the_rules_page_shows_for_a_rule_this_page_shows_too(self):
+        """The column names matching is half of it; the cells have to agree as well."""
+        rule = self._rule("allow-any-any", order=1, services=("tcp-8443", "tcp-9443"))
+        SecurityRuleFromZone.objects.create(
+            security_rule=rule, value="untrust", prov="test", position=1)
+        SecurityRuleToZone.objects.create(
+            security_rule=rule, value="dmz", prov="test", position=1)
+        SecurityRuleApplication.objects.create(
+            security_rule=rule, value="web-browsing", prov="test", position=1)
+        rule.log_setting = "default-forwarding"
+        rule.save()
+
+        here = self.client.get(self.url).content.decode()
+        for value in ("allow-any-any", "untrust", "dmz", "web-browsing", "tcp-8443", "tcp-9443",
+                      "default-forwarding", "vsys1", "allow"):
+            self.assertIn(value, here, value)
+
+    def test_a_multi_value_cell_renders_one_value_per_line(self):
+        """Joined with commas, four zones and five addresses wrap into a paragraph. The rules
+        page gives each member its own line and so does this one."""
+        rule = self._rule("multi", order=1, services=("tcp-80", "tcp-443"))
         html = self.client.get(self.url).content.decode()
-        for expected in ("allow-any-any", "any", "Local", "enabled", "vsys1"):
-            self.assertIn(expected, html)
+        self.assertIn("tcp-80<br>tcp-443", html)
 
-    def test_a_disabled_rule_says_so_rather_than_leaving_the_cell_blank(self):
-        self._rule("staged", order=1, services=("any",), disabled=True)
-        self.assertIn("disabled", self.client.get(self.url).content.decode())
-
-    def test_a_rule_with_no_service_rows_reads_as_none_not_as_an_empty_cell(self):
+    def test_an_empty_cell_reads_as_a_dash_the_way_the_rules_page_writes_it(self):
         """The two predefined defaults carry no service, and a blank cell there is
         indistinguishable from a column that failed to render."""
         self._rule("intrazone-default", order=9, services=(),
                    config_source=SecurityRule.SOURCE_DEFAULT)
-        self.assertIn("none", self.client.get(self.url).content.decode())
+        body = re.search(r"<tbody>(.*?)</tbody>",
+                         self.client.get(self.url).content.decode(), re.S).group(1)
+        self.assertIn(">-</td>", body.replace("\n", "").replace(" ", ""))
+
+    def test_a_negated_address_list_says_so_rather_than_listing_what_it_excludes(self):
+        """`negate-source` inverts the whole list - the rule matches everything EXCEPT these -
+        so a cell showing the addresses without the marker states the opposite of the rule."""
+        rule = self._rule("negated", order=1, services=("any",))
+        rule.negate_source = True
+        rule.save()
+        # REGION is the one ref shape the model's check constraint lets stand alone - every
+        # other kind, `any` included, requires its resolved object row. What this test is about
+        # is the marker, not what the rule excludes.
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule, raw_value="us-east", position=1,
+            ref_type=SecurityRuleSourceAddressRef.RefType.REGION)
+        self.assertIn("NOT", self.client.get(self.url).content.decode())
 
     def test_applying_pan_pol_004_shows_what_it_would_report_here(self):
         """The capability that made the move worth making: the standalone rules page could apply

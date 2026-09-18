@@ -25,10 +25,16 @@ from typing import Callable, NamedTuple
 from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
+from assessments.security_rule_queries import build_security_rule_display_queryset
+from optivedge_integrations.integrations.presentation import (
+    entry_device_group_name,
+    listed_address_ref_values,
+    listed_member_values,
+    security_rule_config_source_label,
+)
 
 from optivedge_integrations.integrations.models import (
     AdminUser,
-    SecurityRule,
     AuthenticationProfile,
     AuthenticationSequence,
     Certificate,
@@ -128,43 +134,86 @@ def _security_profile_row(p):
     )
 
 
-def _members(rule, attribute):
-    """A rule's member list as the vendor writes it. Prefetched - a page is 100 rows."""
-    values = [member.value for member in getattr(rule, attribute).all()]
-    return ", ".join(values) if values else "none"
+def _lines(values):
+    """A multi-value cell: one value per line, `-` when there are none.
+
+    The security rules page renders each member in its own `<div>`, and these cells hold four
+    or five zones and addresses routinely - joined with commas they wrap into a paragraph. The
+    template runs every cell through `linebreaksbr`, so the split happens here as text rather
+    than as markup, and device-supplied values stay escaped.
+    """
+    return "\n".join(values) if values else "-"
 
 
-def _security_rules():
-    return (
-        SecurityRule.objects
-        .select_related("enforcement_point__appliance_group", "enforcement_point__appliance")
-        .prefetch_related("securityruleservices", "securityruleapplications")
-        # Evaluation order is pushed-pre, local, pushed-post, and `effective_order` already
-        # encodes it, so ordering by it puts the rules in the order the DATAPLANE reads them
-        # rather than the order they were collected.
-        .order_by("enforcement_point__vsys_name", "effective_order", "id")
-    )
+def _addresses(rule, related_name, negated):
+    """Addresses, with the negation marker the rules page puts in front of them.
+
+    `negate-source` inverts the whole list - the rule matches everything EXCEPT these - so a
+    cell that shows the addresses without saying so states the opposite of what the rule does.
+    """
+    values = listed_address_ref_values(rule, related_name)
+    return _lines((["NOT"] if negated else []) + values)
+
+
+def _logged(value):
+    """`-` for absent, which is not the same as No: PAN-OS stores only what was written, and
+    the log-start/log-end implicit values are recorded as unmeasured in the vendor guide."""
+    return "-" if value is None else ("Yes" if value else "No")
+
+
+def _rule_appliance(rule):
+    point = rule.enforcement_point
+    appliance = point.appliance or (
+        point.appliance_group.active_appliance if point.appliance_group_id else None)
+    return str(appliance) if appliance else "-"
+
+
+def _rule_profiles(rule):
+    groups = [value.value for value in rule.securityruleprofilegroups.all()]
+    individual = [f"{profile.profile_type}: {profile.value}"
+                  for profile in rule.securityruleprofiles.all()]
+    return _lines(groups + individual)
 
 
 RESULTS = {
     # --- Policies > Security ---------------------------------------------------------------
-    # The columns PAN-POL-004 made necessary: a rule's action and its service are the pair the
-    # control is about, and `disabled` is the difference between a rule that is failing and one
-    # that is one click from failing. The rulebase is here because a name is unique only per
-    # enforcement point - `allow-any-any` in vsys1 and in vsys3 are two rules.
+    # The same columns and the same values as /assessments/security-rules/, deliberately. Two
+    # tables over one object that disagree about what a rule looks like make the reader check
+    # which page they are on before reading a row, and the older page is the one people know.
+    #
+    # Flattened in one respect: that page groups `vsys` over id/name and `Source`/`Destination`
+    # over zone/address with a two-row header. This frame has one header row, so the grouping
+    # is carried in the labels instead - the columns and their order are unchanged.
+    #
+    # It takes the rules page's own queryset, so the prefetches stay in step: a row here reads
+    # zones, addresses, applications, services, profile groups and profiles, and building that
+    # list again separately is how the workbook export once drifted two relations behind.
     "security": ResultsSpec(
-        columns=("Enforcement Point", "Rule", "Rulebase", "#", "Action", "Application",
-                 "Service", "Status"),
-        base_queryset=_security_rules,
+        columns=("Station", "Appliance", "vsys id", "vsys name", "Order", "Config Source",
+                 "Device Group", "Rule", "Source Zone", "Source Address", "Destination Zone",
+                 "Destination Address", "Application", "Service", "Action", "Log Start",
+                 "Log End", "Log Profile", "Profiles"),
+        base_queryset=build_security_rule_display_queryset,
         row=lambda r: (
-            str(r.enforcement_point),
-            r.name,
-            r.get_config_source_display(),
+            str(r.management_station),
+            _rule_appliance(r),
+            r.enforcement_point.vsys_name,
+            r.enforcement_point.vsys_display_name or "-",
             r.effective_order,
-            r.action or "none",
-            _members(r, "securityruleapplications"),
-            _members(r, "securityruleservices"),
-            "disabled" if r.disabled else "enabled",
+            security_rule_config_source_label(r.config_source),
+            entry_device_group_name(r) or "-",
+            r.name,
+            _lines(listed_member_values(r, "securityrulefromzones")),
+            _addresses(r, "source_address_refs", r.negate_source),
+            _lines(listed_member_values(r, "securityruletozones")),
+            _addresses(r, "destination_address_refs", r.negate_destination),
+            _lines(listed_member_values(r, "securityruleapplications")),
+            _lines(listed_member_values(r, "securityruleservices")),
+            r.action or "-",
+            _logged(r.log_start),
+            _logged(r.log_end),
+            r.log_setting or "-",
+            _rule_profiles(r),
         ),
     ),
     # --- Device > Setup. Six pages over ONE model, split the way the CONTROLS are: 13 password
