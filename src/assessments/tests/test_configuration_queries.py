@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from assessments import configuration_navigation as config_nav
 from assessments import configuration_results as config_results
-from assessments.models import ConfigurationSearchState
+from assessments.models import ConfigurationSearchState, Control, ControlQuery
 from assessments.search.exceptions import SearchSyntaxError
 from assessments.search.registry import MODEL_REGISTRY
 from optivedge_integrations.integrations.models import (
@@ -314,3 +314,120 @@ class ManagementTlsJoinTests(TestCase):
             self._match({"operator": "and", "clauses": [
                 {"field": "min_version", "op": "eq", "value": "tls1-2"}]}),
             ["fw-good"])
+
+
+class ControlPreviewTests(TestCase):
+    """Applying a whole CONTROL to an object page: what it would report, and at what severity.
+
+    The page answered "which objects look like this" and stopped there, which is half of what it
+    is for. A finding is the union of a control's active queries at the severity the worst
+    matching one sets, so a single-query preview cannot show it - a control graded by a
+    calibration query previews at the wrong severity, or at none - and the only page that could
+    apply a whole control was the security rules one.
+
+    Evaluated through `evaluate_queryset_control_queries`, the same function finding generation
+    uses. A second implementation of worst-wins here would be a second thing to be wrong.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.preview")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-preview",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        for hostname, name, bound in (("fw-a", "orphan", 0), ("fw-a", "lonely", 1),
+                                      ("fw-a", "busy", 4)):
+            make_profile(self.station, self.group, hostname, name, bound)
+        self.url = reverse("assessment_configuration_object", args=["network", "interface-mgmt"])
+        self.control = Control.objects.create(
+            control_id="PAN-TEST-001", name="Profiles should be bound",
+            control_type=Control.ControlType.INTERFACE_MANAGEMENT_PROFILE,
+            description="Prototype.", default_severity=Control.Severity.MEDIUM)
+        ControlQuery.objects.create(
+            control=self.control, name="Baseline", is_baseline=True, is_active=True,
+            canonical_query={"model": MODEL, "operator": "and", "clauses": [
+                {"field": "binding_count", "op": "lt", "value": 2}]})
+
+    def _preview(self, control=None):
+        return self.client.get(f"{self.url}?control={(control or self.control).pk}")
+
+    def _body_rows(self, response):
+        body = re.search(r"<tbody>(.*?)</tbody>", response.content.decode(), re.S)
+        return [re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+                for row in re.findall(r"<tr>(.*?)</tr>", body.group(1), re.S)] if body else []
+
+    def test_it_shows_the_rows_the_control_would_report_and_no_others(self):
+        rows = self._body_rows(self._preview())
+        self.assertEqual({cells[1].strip() for cells in rows}, {"orphan", "lonely"})
+
+    def test_the_table_stays_square_when_the_preview_adds_columns(self):
+        """The body grows two cells; the header has to grow the same two. A table that gains a
+        column in one of them shifts every value after it, silently."""
+        response = self._preview()
+        html = response.content.decode()
+        headers = re.findall(r"<th[^>]*>(.*?)</th>", re.search(r"<thead>(.*?)</thead>", html, re.S).group(1), re.S)
+        self.assertEqual(headers[-2:], ["Severity", "Matched query"])
+        for cells in self._body_rows(response):
+            self.assertEqual(len(cells), len(headers))
+
+    def test_the_worst_matching_query_sets_the_severity(self):
+        """The whole reason a control preview is not a query preview."""
+        ControlQuery.objects.create(
+            control=self.control, name="Unbound entirely", is_baseline=False, is_active=True,
+            adjusted_severity=Control.Severity.CRITICAL,
+            canonical_query={"model": MODEL, "operator": "and", "clauses": [
+                {"field": "binding_count", "op": "eq", "value": 0}]})
+        by_name = {cells[1].strip(): cells for cells in self._body_rows(self._preview())}
+        self.assertEqual(by_name["orphan"][-2].strip(), "Critical")
+        self.assertEqual(by_name["lonely"][-2].strip(), "Medium")
+        self.assertIn("Unbound entirely", by_name["orphan"][-1])
+        self.assertIn("Baseline", by_name["lonely"][-1])
+
+    def test_it_names_the_control_rather_than_describing_a_query(self):
+        html = self._preview().content.decode()
+        self.assertIn("PAN-TEST-001", html)
+        self.assertIn("what this control would report here", html)
+
+    def test_a_control_for_another_object_is_refused_rather_than_answered_emptily(self):
+        """Applied to the wrong page it would match nothing, and "nothing" reads as the control
+        finding no problem - the most misleading answer available."""
+        other = Control.objects.create(
+            control_id="PAN-TEST-002", name="Elsewhere",
+            control_type=Control.ControlType.NTP_SETTINGS,
+            description="Prototype.", default_severity=Control.Severity.LOW)
+        html = self._preview(other).content.decode()
+        self.assertIn("cannot be applied to", html)
+        self.assertIn("PAN-TEST-002", html)
+
+    def test_a_control_with_no_declared_target_says_so(self):
+        self.control.control_type = Control.ControlType.CONFIG
+        self.control.save()
+        self.assertIn("declares no assessment target", self._preview().content.decode())
+
+    def test_queries_that_could_not_be_applied_are_counted_out_loud(self):
+        """Silence here would under-report and look like a clean result.
+
+        Written with `update()` because `ControlQuery.clean()` refuses a wrong-model query at
+        creation - which is right, and is also why this state only ever arrives as STORED DRIFT:
+        a control whose type was changed after its queries were written, or a seed that moved.
+        `apply_controls_catalog` exists for the same class of staleness. The evaluator skips
+        such a query silently, so the page has to not.
+        """
+        stale = ControlQuery.objects.create(
+            control=self.control, name="Stale", is_baseline=False, is_active=True,
+            adjusted_severity=Control.Severity.HIGH,
+            canonical_query={"model": MODEL, "operator": "and", "clauses": [
+                {"field": "binding_count", "op": "eq", "value": 0}]})
+        ControlQuery.objects.filter(pk=stale.pk).update(
+            canonical_query={"model": "integrations.NtpSettings", "operator": "and", "clauses": [
+                {"field": "server_count", "op": "eq", "value": 0}]})
+        html = self._preview().content.decode()
+        self.assertIn("could not be applied", html)
+        self.assertIn("1 of 2 active queries", html)
+
+    def test_a_control_that_reports_nothing_says_which_control_and_over_how_many_rows(self):
+        self.control.queries.update(canonical_query={
+            "model": MODEL, "operator": "and",
+            "clauses": [{"field": "name", "op": "eq", "value": "no-such-profile"}]})
+        html = self._preview().content.decode()
+        self.assertIn("PAN-TEST-001 reports nothing against 3", html)

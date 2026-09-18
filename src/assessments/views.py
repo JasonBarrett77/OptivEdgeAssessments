@@ -13,6 +13,7 @@ from assessments.control_queries import (
     SECURITY_RULE_QUERY_MODEL,
     default_security_rule_search_query,
     evaluate_control_queries,
+    evaluate_queryset_control_queries,
     severity_label,
 )
 from assessments.finding_run import regenerate_findings
@@ -352,14 +353,17 @@ def build_control_detail_context(control):
     for control_query in control_queries:
         control_query.results_url = config_results.query_results_url(
             control_query.canonical_query, control_query_pk=control_query.pk)
+    #: The control-level button applies the WHOLE control - the union of its active queries at
+    #: worst-wins severity, which is what a finding is and what a single query cannot show. It
+    #: goes to the same place the per-query links do, chosen from the BASELINE query because
+    #: that is the one guaranteed to name the control's own object.
+    baseline = next((q for q in control_queries if q.is_baseline), None)
     return {
         "control_queries": control_queries,
-        #: The control-level button, same rule: it applies the WHOLE control, which only the
-        #: security rules page can do today. `configuration_object` gains it next, and this
-        #: becomes `query_results_url(..., control_pk=...)` over the baseline query's model.
-        "control_results_url": (
-            f"{reverse('assessment_security_rule_list')}?control={control.pk}"
-            if control.supports_security_rule_ui else ""),
+        "control_results_url": config_results.control_results_url(
+            control.target_model,
+            baseline.canonical_query if baseline else None,
+            control_pk=control.pk),
     }
 
 
@@ -2622,7 +2626,18 @@ class ConfigurationObjectView(TemplateView):
             except SearchSyntaxError as exc:
                 error, node = str(exc), None
 
-        return {
+        # A whole CONTROL, which is a different question from a query and the one an assessor
+        # actually asks: a finding is the union of a control's active queries, at the severity
+        # the worst matching one sets. Previewing a single query cannot answer it - a control
+        # whose severity comes from a calibration query previews at the wrong severity, or at
+        # none - so this path evaluates the control the way finding generation does, through the
+        # same function, rather than reimplementing worst-wins here.
+        control_preview = {}
+        control_id = self.request.GET.get("control")
+        if control_id and not error:
+            control_preview, error = self.control_preview(obj, spec, rows, control_id, error)
+
+        context = {
             "search_model": obj.search_model,
             "search_state_token": token,
             # The builder's field list comes from the COMPILER's registry, so a field the
@@ -2647,8 +2662,68 @@ class ConfigurationObjectView(TemplateView):
             "edit_search_open": self.request.GET.get("edit_search") == "1",
             "edit_search_close_url": build_query_string_without(self.request, "edit_search"),
             "clear_search_url": build_query_string_without(
-                self.request, "search_state", "control_query", "edit_search"),
+                self.request, "search_state", "control_query", "control", "edit_search"),
         }
+        context.update(control_preview)
+        return context
+
+    def control_preview(self, obj, spec, rows, control_id, error):
+        """What this control WOULD report against the rows on this page.
+
+        Returns the context overrides and an error string; the rows come back carrying two extra
+        cells, so the header gains the same two - a table that grows a column in the body only
+        is the defect `test_device_tab_tables_are_square` exists for on the other surface.
+        """
+        try:
+            control = Control.objects.prefetch_related("queries").get(pk=int(control_id))
+        except (Control.DoesNotExist, ValueError, TypeError):
+            return {}, "Control could not be found."
+
+        baseline = next((q for q in control.queries.all() if q.is_baseline), None)
+        destination = config_results.object_for_canonical_query(
+            baseline.canonical_query if baseline else None)
+        if not control.target_model:
+            # Every query would be skipped and the page would report nothing, which reads as
+            # "this control finds no problem here" rather than "this control assesses nothing".
+            return {}, (f"{control.control_id} declares no assessment target, so it generates no "
+                        f"findings and there is nothing to preview.")
+        if control.target_model != obj.search_model:
+            return {}, (f"{control.control_id} targets {control.target_model} and cannot be "
+                        f"applied to {obj.label}.")
+        if destination is not None and destination.slug != obj.slug:
+            # Same model, different page - the anti-spyware / vulnerability split. Scoped rows
+            # would return nothing and read as "this control finds no problem here", which is
+            # the most misleading answer available.
+            return {}, (f"{control.control_id} is about {destination.label} and cannot be "
+                        f"applied to {obj.label}.")
+
+        matched, active_queries, skipped, matched_by_object, severity_by_id = (
+            evaluate_queryset_control_queries(rows, control, model_name=obj.search_model))
+        preview_rows = [
+            tuple(spec.row(item)) + (
+                severity_label(severity_by_id[item.pk]),
+                ", ".join(q.name for q in matched_by_object[item.pk]),
+            )
+            for item in matched
+        ]
+        note = ""
+        if skipped:
+            # Silence here would under-report and look like a clean result.
+            note = (f"{skipped} of {len(active_queries)} active queries could not be applied to "
+                    f"{obj.label} and were not counted.")
+        return {
+            "columns": spec.columns + ("Severity", "Matched query"),
+            "rows": preview_rows,
+            "shown_count": len(preview_rows),
+            "control_preview": {
+                "control_id": control.control_id,
+                "name": control.name,
+                "href": f"/assessments/controls/{control.pk}/",
+                "query_count": len(active_queries),
+                "note": note,
+            },
+            "search_summary": f"{control.control_id} - what this control would report here",
+        }, error
 
 
 def configuration_nav_context(active):

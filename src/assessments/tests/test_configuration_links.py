@@ -125,17 +125,29 @@ class ControlDetailLinkTests(TestCase):
         query = control.queries.get()
         self.assertIn(f'href="/assessments/security-rules/?control_query={query.pk}"', html)
 
-    def test_the_control_level_button_only_appears_where_a_whole_control_can_be_applied(self):
-        """Today that is the rules page alone; the explorer takes one query at a time. The
-        button is gated on the URL rather than on the control type so that widening it is a
-        change in one place."""
+    def test_the_control_level_button_goes_to_the_controls_own_object(self):
+        """It applies the WHOLE control - the union of its queries at worst-wins severity - which
+        every object page can now do, not the rules page alone."""
         rule_control = self._control("PAN-POL-004")
         html = self.client.get(f"/assessments/controls/{rule_control.pk}/").content.decode()
         self.assertIn(f"/assessments/security-rules/?control={rule_control.pk}", html)
 
         other = self._control("PAN-SVC-010")
         html = self.client.get(f"/assessments/controls/{other.pk}/").content.decode()
-        self.assertNotIn(f"?control={other.pk}", html)
+        expected = reverse("assessment_configuration_object", args=["device", "system-identity"])
+        self.assertIn(f'href="{expected}?control={other.pk}"', html)
+
+    def test_a_control_that_declares_no_target_offers_no_preview(self):
+        """It generates no findings - findings are made per control TYPE - so "what would this
+        report" has no answer. Keyed on the declared target, not on the query's model, which is
+        the one place those two must not be treated as the same thing."""
+        control = self._control("PAN-SVC-010")
+        control.control_type = Control.ControlType.CONFIG
+        control.save()
+        html = self.client.get(f"/assessments/controls/{control.pk}/").content.decode()
+        self.assertNotIn(f"?control={control.pk}", html)
+        # The per-query link still works: a query is previewable wherever it can run.
+        self.assertIn(f"?control_query={control.queries.get().pk}", html)
 
     def test_a_query_with_no_destination_renders_a_disabled_marker_not_a_gap(self):
         control = self._control("PAN-SVC-010")

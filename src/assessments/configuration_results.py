@@ -487,6 +487,26 @@ def object_for_canonical_query(canonical_query):
     return matched[0] if len(matched) == 1 else None
 
 
+def control_results_url(target_model, baseline_query, *, control_pk) -> str:
+    """Where "what would this CONTROL report" goes. "" when nothing can answer it.
+
+    Keyed on the control's DECLARED target rather than on its query's model, and the difference
+    is not pedantic: findings are generated per control TYPE, so a control declaring no target
+    produces no findings at all, and offering to preview what it would report is offering an
+    answer that cannot exist. A query carrying a model it can run against is a different
+    question - `query_results_url` answers that one, and a query is previewable wherever it runs.
+
+    The baseline query still comes in, for the one thing the target model cannot settle on its
+    own: which of two pages over a shared model (anti-spyware, vulnerability protection) the
+    control belongs to.
+    """
+    if not target_model:
+        return ""
+    if not isinstance(baseline_query, dict) or baseline_query.get("model") != target_model:
+        baseline_query = {"model": target_model, "clauses": []}
+    return query_results_url(baseline_query, control_pk=control_pk)
+
+
 def query_results_url(canonical_query, *, control_query_pk=None, control_pk=None) -> str:
     """Where "view query results" goes for a query over ANY model. "" when nowhere does.
 

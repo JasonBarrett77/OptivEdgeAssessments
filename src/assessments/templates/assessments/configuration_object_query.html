@@ -14,16 +14,32 @@ the fields and their operators are typed into the template a second time.
 <div class="flex h-full min-h-0 flex-col">
 
     <div class="flex shrink-0 items-center gap-2 py-2">
+        {% if control_preview %}
+        {% comment %}
+        A control is not a query and must not look like one: what is on screen is every row this
+        control would report, at the severity it would report them, which is a claim the query
+        bar cannot make. Named, linked, and counted - a reader who cannot see how many queries
+        stand behind the answer has no way to tell a one-query control from a graded one.
+        {% endcomment %}
+        <a href="{{ control_preview.href }}"
+           class="min-w-0 flex-1 truncate border border-blue-300 bg-blue-50 px-2 py-1.5 text-[11px] text-blue-900 hover:bg-blue-100"
+           title="{{ control_preview.control_id }} - {{ control_preview.name }}">
+            <span class="font-semibold">{{ control_preview.control_id }}</span>
+            &middot; what this control would report here
+            &middot; {{ control_preview.query_count }} active quer{{ control_preview.query_count|pluralize:"y,ies" }}
+        </a>
+        {% else %}
         <div class="min-w-0 flex-1 truncate border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700"
              title="{{ search_summary }}">
             {% if search_query %}{{ search_summary }}{% else %}<span class="text-slate-400">No query applied</span>{% endif %}
         </div>
+        {% endif %}
         <a href="?{% if search_state_token %}search_state={{ search_state_token }}&amp;{% endif %}edit_search=1"
            class="inline-flex h-8 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
             {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
             {% if search_query %}Edit query{% else %}Build a query{% endif %}
         </a>
-        {% if search_query %}
+        {% if search_query or control_preview %}
         <a href="{{ clear_search_url }}"
            class="inline-flex h-8 shrink-0 items-center border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
             Clear
@@ -33,6 +49,12 @@ the fields and their operators are typed into the template a second time.
             {{ shown_count }} of {{ total_count }}
         </div>
     </div>
+
+    {% if control_preview.note %}
+    <div class="mb-2 shrink-0 border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+        {{ control_preview.note }}
+    </div>
+    {% endif %}
 
     {% if search_error %}
     <div class="mb-2 shrink-0 border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
@@ -46,7 +68,11 @@ the fields and their operators are typed into the template a second time.
     </div>
     {% elif not rows %}
     <div class="px-4 py-8 text-center text-sm text-slate-500">
+        {% if control_preview %}
+        {{ control_preview.control_id }} reports nothing against {{ total_count }} {{ config_object.label }} row{{ total_count|pluralize }} here.
+        {% else %}
         No {{ config_object.label }} matches this query.
+        {% endif %}
     </div>
     {% else %}
     <div class="min-h-0 flex-1 overflow-auto">
