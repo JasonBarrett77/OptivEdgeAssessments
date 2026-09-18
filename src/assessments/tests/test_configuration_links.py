@@ -78,12 +78,17 @@ class QueryDestinationTests(TestCase):
         self.assertEqual(query_results_url(
             {"model": "integrations.Zone", "operator": "and", "clauses": []}), "")
 
-    def test_security_rule_queries_reach_the_rules_page_until_policies_lands(self):
-        """The one documented fallback. It goes away with `Policies > Security`."""
+    def test_security_rule_queries_reach_the_policies_page(self):
+        """They went to the standalone rules page through a documented fallback until
+        `Policies > Security` landed on 2026-09-18. The fallback map is empty now, and this is
+        the test that says so - an entry left in it would route an object PAST its own page."""
+        from assessments.configuration_results import LEGACY_SURFACE
+        self.assertEqual(LEGACY_SURFACE, {})
         query = {"model": "integrations.SecurityRule", "operator": "and",
                  "clauses": [{"field": "action", "op": "eq", "value": "allow"}]}
+        expected = reverse("assessment_configuration_object", args=["policies", "security"])
         self.assertEqual(query_results_url(query, control_query_pk=7),
-                         f"{reverse('assessment_security_rule_list')}?control_query=7")
+                         f"{expected}?control_query=7")
 
     def test_a_scoped_page_is_only_chosen_when_the_scope_matches_exactly(self):
         """`negated` is part of a clause's identity: "kind is spyware" and "kind is NOT spyware"
@@ -119,18 +124,20 @@ class ControlDetailLinkTests(TestCase):
         self.assertIn(f'href="{expected}?control_query={query.pk}"', html)
         self.assertNotIn("/assessments/security-rules/?control_query=", html)
 
-    def test_a_rule_control_still_links_to_the_rules_page(self):
+    def test_a_rule_control_links_to_its_object_page_like_every_other(self):
         control = self._control("PAN-POL-004")
         html = self.client.get(f"/assessments/controls/{control.pk}/").content.decode()
         query = control.queries.get()
-        self.assertIn(f'href="/assessments/security-rules/?control_query={query.pk}"', html)
+        expected = reverse("assessment_configuration_object", args=["policies", "security"])
+        self.assertIn(f'href="{expected}?control_query={query.pk}"', html)
 
     def test_the_control_level_button_goes_to_the_controls_own_object(self):
         """It applies the WHOLE control - the union of its queries at worst-wins severity - which
         every object page can now do, not the rules page alone."""
         rule_control = self._control("PAN-POL-004")
         html = self.client.get(f"/assessments/controls/{rule_control.pk}/").content.decode()
-        self.assertIn(f"/assessments/security-rules/?control={rule_control.pk}", html)
+        policies = reverse("assessment_configuration_object", args=["policies", "security"])
+        self.assertIn(f'href="{policies}?control={rule_control.pk}"', html)
 
         other = self._control("PAN-SVC-010")
         html = self.client.get(f"/assessments/controls/{other.pk}/").content.decode()

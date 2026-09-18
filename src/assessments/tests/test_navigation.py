@@ -195,15 +195,25 @@ class ConfigurationExplorerTests(TestCase):
             html = self.client.get(self._url(obj)).content.decode()
             self.assertEqual(active.findall(html), [self._url(obj)], obj.slug)
 
-    def test_an_empty_category_renders_but_links_nowhere(self):
-        """Policies and Objects are empty until their views migrate. They still show, so a
-        reader can see what is missing - and a chip that linked to nothing would 404."""
-        empty = [c for c in config_nav.CATEGORIES if not config_nav.objects_in(c)]
-        self.assertTrue(empty, "this test is meaningless once every category is populated")
+    def test_every_category_now_holds_something_and_links_to_it(self):
+        """This replaced `test_an_empty_category_renders_but_links_nowhere` on 2026-09-18, when
+        `Policies > Security` filled the last empty category. That test asserted the greyed,
+        unlinked rendering of an empty chip and said in its own docstring that it stops meaning
+        anything once every category is populated.
+
+        The view still renders an empty category that way - `configuration_nav_context` gives a
+        chip with no href - and nothing exercises that branch now. It is kept for the next
+        category to be added before its objects are, which is how Policies itself began.
+        """
+        for category in config_nav.CATEGORIES:
+            self.assertTrue(config_nav.objects_in(category), category)
         html = self.client.get("/assessments/configuration/", follow=True).content.decode()
-        for category in empty:
+        for category in config_nav.CATEGORIES:
             self.assertIn(category, html)
-            self.assertNotIn(f'href="/assessments/configuration/{category.lower()}/', html)
+            first = config_nav.first_object(category)
+            self.assertIn(
+                f'href="/assessments/configuration/{config_nav.category_slug(category)}/{first.slug}/"',
+                html, category)
 
     def test_every_named_findings_tab_resolves(self):
         """`findings_url_name` crosses to the other surface over the same object. A typo there

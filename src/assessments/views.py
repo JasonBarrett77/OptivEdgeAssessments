@@ -2633,9 +2633,20 @@ class ConfigurationObjectView(TemplateView):
         # none - so this path evaluates the control the way finding generation does, through the
         # same function, rather than reimplementing worst-wins here.
         control_preview = {}
+        extra_cells = None
         control_id = self.request.GET.get("control")
         if control_id and not error:
-            control_preview, error = self.control_preview(obj, spec, rows, control_id, error)
+            rows, extra_cells, control_preview, error = self.control_preview(obj, rows, control_id)
+
+        # ONE pagination path for both modes. A page that renders every row is fine over forty
+        # certificates and not over the lab's 878 security rules, and two paginators - one per
+        # mode - is how the two drift apart.
+        paginator = Paginator(rows, PAGE_SIZE)
+        page_obj = paginator.get_page(self.request.GET.get("page"))
+        page_rows = [
+            tuple(spec.row(item)) + (extra_cells(item) if extra_cells else ())
+            for item in page_obj.object_list
+        ]
 
         context = {
             "search_model": obj.search_model,
@@ -2651,10 +2662,13 @@ class ConfigurationObjectView(TemplateView):
                 # Empty means the page IS the model and offers everything.
                 if not spec.fields or name in spec.fields
             },
-            "columns": spec.columns,
-            "rows": [spec.row(item) for item in rows],
+            "columns": spec.columns + (("Severity", "Matched query") if extra_cells else ()),
+            "rows": page_rows,
             "total_count": total,
-            "shown_count": rows.count() if node is not None else total,
+            "shown_count": paginator.count,
+            "page_obj": page_obj,
+            "page_range": pagination_range(page_obj),
+            "pager_query": build_query_string_without(self.request, "page"),
             "search_query": node,
             "search_summary": describe_search_node(node),
             "search_payload": json.dumps(node) if node else "",
@@ -2667,17 +2681,20 @@ class ConfigurationObjectView(TemplateView):
         context.update(control_preview)
         return context
 
-    def control_preview(self, obj, spec, rows, control_id, error):
+    def control_preview(self, obj, rows, control_id):
         """What this control WOULD report against the rows on this page.
 
-        Returns the context overrides and an error string; the rows come back carrying two extra
-        cells, so the header gains the same two - a table that grows a column in the body only
-        is the defect `test_device_tab_tables_are_square` exists for on the other surface.
+        Returns (rows, extra_cells, context, error). `extra_cells` appends the two preview cells
+        to each row the caller renders, so the body and the header grow together - a table that
+        gains a column in one of them shifts every value after it, silently.
         """
+        def unchanged(message=""):
+            return rows, None, {}, message
+
         try:
             control = Control.objects.prefetch_related("queries").get(pk=int(control_id))
         except (Control.DoesNotExist, ValueError, TypeError):
-            return {}, "Control could not be found."
+            return unchanged("Control could not be found.")
 
         baseline = next((q for q in control.queries.all() if q.is_baseline), None)
         destination = config_results.object_for_canonical_query(
@@ -2685,36 +2702,31 @@ class ConfigurationObjectView(TemplateView):
         if not control.target_model:
             # Every query would be skipped and the page would report nothing, which reads as
             # "this control finds no problem here" rather than "this control assesses nothing".
-            return {}, (f"{control.control_id} declares no assessment target, so it generates no "
-                        f"findings and there is nothing to preview.")
+            return unchanged(f"{control.control_id} declares no assessment target, so it "
+                             f"generates no findings and there is nothing to preview.")
         if control.target_model != obj.search_model:
-            return {}, (f"{control.control_id} targets {control.target_model} and cannot be "
-                        f"applied to {obj.label}.")
+            return unchanged(f"{control.control_id} targets {control.target_model} and cannot "
+                             f"be applied to {obj.label}.")
         if destination is not None and destination.slug != obj.slug:
             # Same model, different page - the anti-spyware / vulnerability split. Scoped rows
             # would return nothing and read as "this control finds no problem here", which is
             # the most misleading answer available.
-            return {}, (f"{control.control_id} is about {destination.label} and cannot be "
-                        f"applied to {obj.label}.")
+            return unchanged(f"{control.control_id} is about {destination.label} and cannot be "
+                             f"applied to {obj.label}.")
 
         matched, active_queries, skipped, matched_by_object, severity_by_id = (
             evaluate_queryset_control_queries(rows, control, model_name=obj.search_model))
-        preview_rows = [
-            tuple(spec.row(item)) + (
-                severity_label(severity_by_id[item.pk]),
-                ", ".join(q.name for q in matched_by_object[item.pk]),
-            )
-            for item in matched
-        ]
+
+        def extra_cells(item):
+            return (severity_label(severity_by_id[item.pk]),
+                    ", ".join(q.name for q in matched_by_object[item.pk]))
+
         note = ""
         if skipped:
             # Silence here would under-report and look like a clean result.
             note = (f"{skipped} of {len(active_queries)} active queries could not be applied to "
                     f"{obj.label} and were not counted.")
-        return {
-            "columns": spec.columns + ("Severity", "Matched query"),
-            "rows": preview_rows,
-            "shown_count": len(preview_rows),
+        return matched, extra_cells, {
             "control_preview": {
                 "control_id": control.control_id,
                 "name": control.name,
@@ -2723,7 +2735,7 @@ class ConfigurationObjectView(TemplateView):
                 "note": note,
             },
             "search_summary": f"{control.control_id} - what this control would report here",
-        }, error
+        }, ""
 
 
 def configuration_nav_context(active):

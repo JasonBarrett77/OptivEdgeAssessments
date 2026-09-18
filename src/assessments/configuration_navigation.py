@@ -77,12 +77,19 @@ CATEGORIES: tuple[str, ...] = ("Policies", "Objects", "Network", "Device")
 
 #: Top to bottom within a category, in the product's own rail order.
 #:
-#: Policies is EMPTY on purpose. Security rules already have a query builder and a results
-#: list of their own and are not being moved yet; listing them here before they move would give
-#: the rail a link that goes somewhere else, which is worse than an empty category saying what
-#: will land in it. Objects holds only what a completed control reads - security profiles, from
-#: 2026-09-11.
+#: Policies was empty until 2026-09-18, deliberately: security rules had a query builder and a
+#: results list of their own, and a rail item pointing at a different page would have been worse
+#: than an empty category. Security is here now because the explorer gained what that page had
+#: and it did not - applying a whole CONTROL and showing what it would report, at what severity.
+#: The standalone page stays for what it still does better: plain-language search, and a row
+#: detail no result table carries. Objects holds only what a completed control reads - security
+#: profiles, from 2026-09-11.
 CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
+    # Policies > Security. PAN-OS's first category and its first rail item, which is why this
+    # sits at the top: the order here is the product's, not the order things were built in.
+    ConfigObject("security", "Security", "Policies", "", "shield",
+                 where="Policies > Security",
+                 search_model="integrations.SecurityRule"),
     # Objects > Security Profiles - the first Objects items, 2026-09-11. PAN-OS lists each profile
     # type as its own rail child, and so does this: two items over one model, split by kind in
     # configuration_results, each backed by a completed control.
@@ -246,9 +253,11 @@ def first_object(category: str) -> ConfigObject | None:
 
 
 #: Where `/assessments/configuration/` lands. Named rather than derived: "the first category
-#: that has anything in it" put the entry point on Network > Interface Mgmt, because Policies
-#: and Objects are empty and Network sorts ahead of Device in the PRODUCT's order. Category
-#: order is the vendor's and must not be bent to make a default fall out of it.
+#: that has anything in it" put the entry point on Network > Interface Mgmt back when Policies
+#: and Objects were empty, because Network sorts ahead of Device in the PRODUCT's order. Category
+#: order is the vendor's and must not be bent to make a default fall out of it. Still Device,
+#: which is where most of the built controls are; moving it to Policies is a decision about what
+#: an assessor opens first, not a consequence of Policies now holding something.
 LANDING_CATEGORY = "Device"
 
 

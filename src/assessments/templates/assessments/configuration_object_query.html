@@ -46,8 +46,33 @@ the fields and their operators are typed into the template a second time.
         </a>
         {% endif %}
         <div class="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
-            {{ shown_count }} of {{ total_count }}
+            {% if page_obj.paginator.num_pages > 1 %}{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ shown_count }}{% else %}{{ shown_count }} of {{ total_count }}{% endif %}
         </div>
+        {% if page_obj.paginator.num_pages > 1 %}
+        {% comment %}
+        The pager carries the current query with it - `pager_query` is this URL minus `page` -
+        because a page link that drops the query silently returns the reader to the unfiltered
+        listing while still saying page 3.
+        {% endcomment %}
+        <div class="flex shrink-0 items-center gap-1">
+            {% if page_obj.has_previous %}
+            <a href="{{ pager_query }}{% if "?" in pager_query %}&amp;{% else %}?{% endif %}page={{ page_obj.previous_page_number }}"
+               class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Prev</a>
+            {% endif %}
+            {% for page_number in page_range %}
+            {% if page_number == page_obj.number %}
+            <span class="inline-flex h-8 items-center border border-slate-400 bg-slate-100 px-2 text-[12px] font-medium text-slate-900">{{ page_number }}</span>
+            {% else %}
+            <a href="{{ pager_query }}{% if "?" in pager_query %}&amp;{% else %}?{% endif %}page={{ page_number }}"
+               class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+            {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <a href="{{ pager_query }}{% if "?" in pager_query %}&amp;{% else %}?{% endif %}page={{ page_obj.next_page_number }}"
+               class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 
     {% if control_preview.note %}

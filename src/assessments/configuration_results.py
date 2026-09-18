@@ -28,6 +28,7 @@ from assessments import configuration_navigation as config_nav
 
 from optivedge_integrations.integrations.models import (
     AdminUser,
+    SecurityRule,
     AuthenticationProfile,
     AuthenticationSequence,
     Certificate,
@@ -127,7 +128,45 @@ def _security_profile_row(p):
     )
 
 
+def _members(rule, attribute):
+    """A rule's member list as the vendor writes it. Prefetched - a page is 100 rows."""
+    values = [member.value for member in getattr(rule, attribute).all()]
+    return ", ".join(values) if values else "none"
+
+
+def _security_rules():
+    return (
+        SecurityRule.objects
+        .select_related("enforcement_point__appliance_group", "enforcement_point__appliance")
+        .prefetch_related("securityruleservices", "securityruleapplications")
+        # Evaluation order is pushed-pre, local, pushed-post, and `effective_order` already
+        # encodes it, so ordering by it puts the rules in the order the DATAPLANE reads them
+        # rather than the order they were collected.
+        .order_by("enforcement_point__vsys_name", "effective_order", "id")
+    )
+
+
 RESULTS = {
+    # --- Policies > Security ---------------------------------------------------------------
+    # The columns PAN-POL-004 made necessary: a rule's action and its service are the pair the
+    # control is about, and `disabled` is the difference between a rule that is failing and one
+    # that is one click from failing. The rulebase is here because a name is unique only per
+    # enforcement point - `allow-any-any` in vsys1 and in vsys3 are two rules.
+    "security": ResultsSpec(
+        columns=("Enforcement Point", "Rule", "Rulebase", "#", "Action", "Application",
+                 "Service", "Status"),
+        base_queryset=_security_rules,
+        row=lambda r: (
+            str(r.enforcement_point),
+            r.name,
+            r.get_config_source_display(),
+            r.effective_order,
+            r.action or "none",
+            _members(r, "securityruleapplications"),
+            _members(r, "securityruleservices"),
+            "disabled" if r.disabled else "enabled",
+        ),
+    ),
     # --- Device > Setup. Six pages over ONE model, split the way the CONTROLS are: 13 password
     # controls, 4 authentication-settings, 2 login banner, 2 management TLS, 1 master key, and
     # PAN-MGT-009/011 left on Management itself. Jason, 2026-09-10: an object with no control
@@ -439,11 +478,11 @@ RESULTS = {
 
 
 #: Models whose object has no rail item yet, and the page that presents it in the meantime.
-#: Every entry here is a promise to delete: when `Policies > Security` lands, the security rules
-#: page becomes the second surface over an object the explorer holds, and this map empties.
-LEGACY_SURFACE = {
-    "integrations.SecurityRule": "assessment_security_rule_list",
-}
+#: EMPTY since 2026-09-18, when `Policies > Security` landed and security rules - the only entry
+#: this ever held - got a rail item like every other object. Kept rather than deleted because
+#: the next object to be presented before it is placed will need it, and because an empty map
+#: states that nothing is currently in that position.
+LEGACY_SURFACE: dict[str, str] = {}
 
 
 def _clause_key(clause):

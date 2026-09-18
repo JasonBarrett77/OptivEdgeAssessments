@@ -128,9 +128,11 @@ class ControlViewTests(TestCase):
         self.assertContains(response, self.control.name)
         self.assertContains(response, "Security Rule")
         self.assertContains(response, "Baseline permissiveness")
+        # Policies > Security, 2026-09-18. Security rules are an object in the explorer like
+        # every other, so the control's results open there rather than on the standalone page.
         self.assertContains(
             response,
-            f"/assessments/security-rules/?control={self.control.pk}",
+            f"/assessments/configuration/policies/security/?control={self.control.pk}",
         )
         self.assertContains(
             response,
@@ -141,7 +143,7 @@ class ControlViewTests(TestCase):
         )
         self.assertContains(
             response,
-            f"/assessments/security-rules/?control_query={self.control.queries.first().pk}",
+            f"/assessments/configuration/policies/security/?control_query={self.control.queries.first().pk}",
         )
         self.assertContains(
             response,

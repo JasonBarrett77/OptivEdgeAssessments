@@ -20,7 +20,8 @@ from assessments.models import ConfigurationSearchState, Control, ControlQuery
 from assessments.search.exceptions import SearchSyntaxError
 from assessments.search.registry import MODEL_REGISTRY
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, InterfaceManagementProfile, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, EnforcementPoint, InterfaceManagementProfile, ManagementStation,
+    SecurityRule, SecurityRuleService, Snapshot)
 
 MODEL = "integrations.InterfaceManagementProfile"
 
@@ -182,20 +183,29 @@ class ResultsSpecTests(TestCase):
             self.assertContains(response, obj.label)
 
     def test_a_query_the_builder_could_emit_applies_on_every_wired_object(self):
-        """Every one of these models is searchable by `hostname`, so one query shape exercises
-        all ten compilers through the view - which is what the builder actually posts."""
+        """Every compiler, through the view, the way the builder actually posts.
+
+        It used to send `hostname contains fw` to all of them, on the observation that every
+        wired model had that field. Security rules do not: a rule is scoped by vsys, and its
+        appliance is a column on the enforcement point rather than on the rule. So the clause is
+        built from what each model OFFERS - the first `contains` field its own registry lists -
+        which is also closer to what the builder does, since the builder renders that registry.
+        """
         for obj in config_nav.CONFIG_OBJECTS:
             if not obj.search_model:
                 continue
-            self.assertIn("hostname", MODEL_REGISTRY[obj.search_model]["field_operators"],
-                          obj.slug)
+            operators = MODEL_REGISTRY[obj.search_model]["field_operators"]
+            field = next((name for name in sorted(operators) if "contains" in operators[name]),
+                         None)
+            self.assertIsNotNone(field, f"{obj.slug} offers no `contains` field to query")
             url = reverse("assessment_configuration_object",
                           args=[config_nav.category_slug(obj.category), obj.slug])
             response = self.client.post(url, {"search": json.dumps({
                 "model": obj.search_model, "operator": "and", "clauses": [
-                    {"field": "hostname", "op": "contains", "value": "fw",
+                    {"field": field, "op": "contains", "value": "fw",
                      "negated": False}]})})
-            self.assertEqual(response.status_code, 302, f"{obj.slug}: {response.content[:300]}")
+            self.assertEqual(response.status_code, 302,
+                             f"{obj.slug} / {field}: {response.content[:300]}")
 
     def test_no_field_is_offered_by_two_pages(self):
         """`fields` slices a SHARED model between pages, so a field in two slices is offered
@@ -431,3 +441,91 @@ class ControlPreviewTests(TestCase):
             "clauses": [{"field": "name", "op": "eq", "value": "no-such-profile"}]})
         html = self._preview().content.decode()
         self.assertIn("PAN-TEST-001 reports nothing against 3", html)
+
+
+class SecurityRulePageTests(TestCase):
+    """Policies > Security - the last empty category filled, 2026-09-18.
+
+    Rules are the first object here whose row count is a different order of magnitude: the lab
+    holds 878 of them against a few dozen of anything else, which is why the page pages.
+    """
+
+    URL_ARGS = ["policies", "security"]
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.rules")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-rules",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        self.point = EnforcementPoint.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            vsys_name="vsys1", vsys_display_name="vsys1")
+        self.snapshot = Snapshot.objects.create(
+            management_station=self.station, enforcement_point=self.point,
+            source_type="test", collected_at=timezone.now())
+        self.url = reverse("assessment_configuration_object", args=self.URL_ARGS)
+
+    def _rule(self, name, *, order, services=("application-default",), action="allow",
+              disabled=False, config_source=SecurityRule.SOURCE_LOCAL):
+        rule = SecurityRule.objects.create(
+            management_station=self.station, enforcement_point=self.point,
+            source_snapshot=self.snapshot, config_source=config_source,
+            effective_order=order, rule_position=order, name=name, action=action,
+            disabled=disabled, rule_type="universal")
+        for position, value in enumerate(services, start=1):
+            SecurityRuleService.objects.create(
+                security_rule=rule, value=value, prov="test", position=position)
+        return rule
+
+    def test_the_page_renders_a_rule_with_the_columns_a_policy_query_is_about(self):
+        self._rule("allow-any-any", order=1, services=("any",))
+        html = self.client.get(self.url).content.decode()
+        for expected in ("allow-any-any", "any", "Local", "enabled", "vsys1"):
+            self.assertIn(expected, html)
+
+    def test_a_disabled_rule_says_so_rather_than_leaving_the_cell_blank(self):
+        self._rule("staged", order=1, services=("any",), disabled=True)
+        self.assertIn("disabled", self.client.get(self.url).content.decode())
+
+    def test_a_rule_with_no_service_rows_reads_as_none_not_as_an_empty_cell(self):
+        """The two predefined defaults carry no service, and a blank cell there is
+        indistinguishable from a column that failed to render."""
+        self._rule("intrazone-default", order=9, services=(),
+                   config_source=SecurityRule.SOURCE_DEFAULT)
+        self.assertIn("none", self.client.get(self.url).content.decode())
+
+    def test_applying_pan_pol_004_shows_what_it_would_report_here(self):
+        """The capability that made the move worth making: the standalone rules page could apply
+        a whole control and the explorer could not, so moving rules in before that would have
+        lost the one thing rules had."""
+        from assessments.tests._seed import seed_control, seed_specs
+        control = seed_control(seed_specs()["PAN-POL-004"])
+        self._rule("allow-any-any", order=1, services=("any",))
+        self._rule("tight", order=2, services=("application-default",))
+        html = self.client.get(f"{self.url}?control={control.pk}").content.decode()
+        body = re.search(r"<tbody>(.*?)</tbody>", html, re.S).group(1)
+        self.assertIn("allow-any-any", body)
+        self.assertNotIn("tight", body)
+        self.assertIn("High", body)
+        self.assertIn("PAN-POL-004", html)
+
+    def test_the_page_pages_rather_than_rendering_every_rule(self):
+        for index in range(105):
+            self._rule(f"rule-{index:03d}", order=index + 1, services=("any",))
+        first = self.client.get(self.url)
+        self.assertEqual(first.context["page_obj"].paginator.count, 105)
+        self.assertEqual(len(first.context["rows"]), 100)
+        second = self.client.get(f"{self.url}?page=2")
+        self.assertEqual(len(second.context["rows"]), 5)
+        self.assertIn("rule-104", second.content.decode())
+
+    def test_the_pager_carries_the_applied_control_with_it(self):
+        """A page link that drops the query returns the reader to the unfiltered listing while
+        still saying page 2."""
+        from assessments.tests._seed import seed_control, seed_specs
+        control = seed_control(seed_specs()["PAN-POL-004"])
+        for index in range(105):
+            self._rule(f"rule-{index:03d}", order=index + 1, services=("any",))
+        html = self.client.get(f"{self.url}?control={control.pk}").content.decode()
+        self.assertIn(f"control={control.pk}&amp;page=2", html)
