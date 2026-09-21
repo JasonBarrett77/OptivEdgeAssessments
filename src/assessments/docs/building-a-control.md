@@ -295,6 +295,32 @@ and are then deleted, and empty is its normal state.
       mechanism.** Read it with the helpers in `normalization/common.py`. *A bespoke
       `provenance = CharField` was built and removed a day later: it could not hold the type,
       could not be queried, and could not tell a PAN-OS default from a local value.*
+- [ ] **Storing a value for an ABSENT key is a claim about the vendor, so say which kind it
+      is.** `parse_yes_no_field`, `parse_integer_field` and `parse_text_field` take an
+      `Implicit`, and it is not optional: `Implicit.measured(value, citation)` where someone
+      established what PAN-OS does, `Implicit.assumed(value, why)` where nobody has, and
+      `Implicit.not_assumed(why)` where the right answer is to store nothing and leave the field
+      null. The citation has to be checkable or it is not a citation — a payload contract node
+      and field, a guide and its sentence, a dated measurement; `measured()` refuses a string
+      too short to chase and the constructor refuses one carrying neither.
+      *An audit of all 33 sites that defaulted a value found three kinds mixed together under
+      one bare `default_effective=False`: defaults measured on hardware, defaults a guide
+      documents, and defaults nobody had ever checked — including `log-start` and `log-end`,
+      which `read-a-security-rule.md` says outright must be measured rather than assumed, and
+      which PAN-POL-009 turns on. 14 of the 33 are still assumptions; the inventory test in
+      OptivEdgeIntegrations names each one, so adding another is a deliberate act and the list
+      doubles as the queue of what to measure next.*
+- [ ] **A column normalization COMPUTED goes in the model's `DERIVED_FIELDS`.** A verdict, a
+      count, a filtered subset, a value resolved through another object: none of them has a
+      payload key, so none can have a provenance row, and undeclared they are indistinguishable
+      from a field nobody tracks. The test is whether the payload carries the value in ANY
+      form — a member list the device wrote is not derived, however unprovenanced it is.
+      *It was a `derived_fields` tuple kept per SHEET in the artifact prototype, a repository
+      away from the fields it described; 103 columns across 21 models are declared now. The
+      invariant is that a declared field must never have a stored row, and running it against
+      the normalized lab found the one real mistake: `community_is_default` IS computed, and its
+      row is written on purpose, because the community string's value is never stored and that
+      row is the only record of who set the credential.*
 - [ ] **Adding fields to an already-provenanced model does NOT inherit its provenance.**
       Every new field must be appended to that normalizer's `field_provenance_data` too, or it
       silently stores values with no source. *Sixteen password-complexity fields went onto
@@ -303,9 +329,13 @@ and are then deleted, and empty is its normal state.
       the findings were right, and the gap only surfaced while building the tab. The model
       being provenanced is what makes this easy to miss.*
 - [ ] **Search for an existing helper before writing one.** *`common.py` already had
-      `scalar_value`, `parse_yes_no_field`, `entry_provenance`, `classify_prov_type` and
-      `ABSENT`; a private `_provenance()` was written beside them, checking the wrong key
-      set.*
+      `scalar_value`, `parse_yes_no_field`, `parse_integer_field`, `parse_text_field`,
+      `entry_provenance`, `classify_prov_type`, `was_absent`, `Implicit` and `ABSENT`; a private
+      `_provenance()` was written beside them, checking the wrong key set.*
+      **`was_absent` is the one to reach for**, not `raw_key is ABSENT`, which stopped being the
+      whole question on 2026-09-21: an absent key arrives as the `Implicit` declaration now. Two
+      lines in the security rule normalizer asked the old question and would have silently
+      turned both log flags from null into False, with the whole suite passing.
 - [ ] **Never skip a payload you cannot parse.** Emit a `NormalizationIssue`. *A list that
       looks complete and is not is worse than an error.*
 - [ ] **Report an unknown shape rather than dropping it.** Keep the row, warn, say what was
@@ -390,6 +420,15 @@ and are then deleted, and empty is its normal state.
       requirement.*
 
 
+- [ ] **Check what the control's field does when the key is ABSENT, before trusting the
+      finding count.** Three different absences reach a column as a stored value:
+      `pan_os_default` (the vendor's, measured), `assumed_default` (ours), and `not_configured`
+      (null, because guessing would be worse). A control resting on the second is resting on
+      something nobody checked; one resting on the third has to handle a null.
+      *PAN-POL-009 asserts `log-end`, whose default the corpus records as unmeasured. The rule
+      normalizer stores NULL for it rather than False — and a change that turned that null into
+      False passed the entire suite, because nothing covered it. Read `provenance_for(field)` on
+      a real subject and see which of the three you are standing on.*
 - [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
       `scratch/control-changes.json` with what now covers any dropped ground.
 - [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
