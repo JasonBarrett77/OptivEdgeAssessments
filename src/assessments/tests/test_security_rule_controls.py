@@ -25,12 +25,17 @@ from assessments.findings import generate_rule_findings
 from assessments.models import AssessmentRun, Control, RuleFinding
 from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
+    Appliance,
     ApplianceGroup,
     EnforcementPoint,
     ManagementStation,
     SecurityRule,
     SecurityRuleService,
     Snapshot,
+)
+from optivedge_integrations.integrations.platforms.pan_os.normalization import (
+    normalize_enforcement_point_addresses,
+    normalize_enforcement_point_security_rules,
 )
 
 
@@ -122,3 +127,170 @@ class ApplicationDefaultServiceTests(TestCase):
         self.assertEqual(finding.subject_scope, "local:vsys1")
         self.assertEqual(finding.severity, Control.Severity.HIGH)
         self.assertIn("Rule allow-any-service", finding.summary)
+
+
+class MatchTupleBreadthTests(TestCase):
+    """PAN-POL-001 - no allow rule leaves more than one of source, destination and application
+    unbounded, and PAN-POL-005 - every allow rule names its applications.
+
+    Both read the corpus's PREFERRED value rather than its minimum. 001's floor is all THREE
+    being `any`, which is 4 rules on the lab against 52 for the preferred; 005's minimum applies
+    only to rules "crossing an untrust boundary", which no configuration states.
+
+    Built through the REAL normalizers rather than by hand. An address clause resolves through a
+    normalized `AddressObject` and its resolved entries, so a hand-made ref matches nothing - and
+    a test that built one would pass while asserting the control cannot work.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.breadth")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-breadth",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        self.appliance = Appliance.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            serial_number="S-BREADTH", hostname="fw-breadth")
+        self.point = EnforcementPoint.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            vsys_name="vsys1", vsys_display_name="vsys1")
+        self.controls = {c.control_id: c for c in seed_controls(
+            ["PAN-POL-001", "PAN-POL-005"], control_type=Control.ControlType.SECURITY_RULE)}
+
+    @staticmethod
+    def _entry(name, *, source, destination, application, action="allow"):
+        return {
+            "@name": name,
+            "from": {"member": "trust"}, "to": {"member": "untrust"},
+            "source": {"member": source}, "destination": {"member": destination},
+            "source-user": {"member": "any"}, "application": {"member": application},
+            "service": {"member": "application-default"}, "action": action,
+        }
+
+    def _normalize(self, *entries, defaults=()):
+        """One merged-config snapshot, through address and rule normalization."""
+        Snapshot.objects.create(
+            management_station=self.station, appliance=self.appliance,
+            enforcement_point=self.point, source_type="show_merged_config",
+            collected_at=timezone.now(),
+            payload={"config": {"devices": {"entry": {"vsys": {"entry": {
+                "@name": "vsys1",
+                "address": {"entry": [
+                    {"@name": "net-10", "ip-netmask": "10.0.0.0/8"},
+                    {"@name": "net-10-1", "ip-netmask": "10.1.0.0/16"},
+                    # An object that covers the whole address space without saying `any`.
+                    {"@name": "everything", "ip-netmask": "0.0.0.0/0"},
+                ]},
+                "rulebase": {"security": {"rules": {"entry": list(entries)}}},
+            }}}}}})
+        # Panorama-managed points require BOTH pushed reads to exist before normalization will
+        # run: the group-wide shared policy and the per-vsys one. Empty, but present.
+        Snapshot.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            source_type="show_pushed_shared_policy", collected_at=timezone.now(),
+            payload={"policy": {"panorama": {
+                "pre-rulebase": {"security": {"rules": {"entry": []}}},
+                "post-rulebase": {"security": {"rules": {"entry": []}}},
+            }}})
+        Snapshot.objects.create(
+            management_station=self.station, enforcement_point=self.point,
+            source_type="show_pushed_shared_policy_vsys", collected_at=timezone.now(),
+            payload={"policy": {"panorama": {
+                "pre-rulebase": {"security": {"rules": {"entry": []}}},
+                "post-rulebase": {
+                    "security": {"rules": {"entry": []}},
+                    "default-security-rules": {"rules": {"entry": []}},
+                },
+            }}})
+        normalize_enforcement_point_addresses(self.point)
+        normalize_enforcement_point_security_rules(self.point)
+        for name in defaults:
+            SecurityRule.objects.filter(name=name).update(
+                config_source=SecurityRule.SOURCE_DEFAULT)
+
+    def _fired(self, control_id):
+        run = AssessmentRun.objects.create(
+            name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
+        generate_rule_findings(run)
+        return {f.security_rule.name for f in
+                RuleFinding.objects.select_related("security_rule", "control")
+                .filter(control__control_id=control_id)}
+
+    def test_one_any_is_ordinary_and_does_not_fire(self):
+        """A rule allowing a named application from a named source to anywhere is a decision
+        somebody made, not an unbounded grant."""
+        self._normalize(
+            self._entry("dst-only", source="net-10", destination="any", application="ssl"),
+            self._entry("src-only", source="any", destination="net-10-1", application="ssl"),
+            self._entry("app-only", source="net-10", destination="net-10-1", application="any"))
+        self.assertEqual(self._fired("PAN-POL-001"), set())
+
+    def test_two_of_the_three_fires(self):
+        self._normalize(
+            self._entry("src-and-dst", source="any", destination="any", application="ssl"),
+            self._entry("src-and-app", source="any", destination="net-10-1", application="any"),
+            self._entry("dst-and-app", source="net-10", destination="any", application="any"))
+        self.assertEqual(self._fired("PAN-POL-001"),
+                         {"src-and-dst", "src-and-app", "dst-and-app"})
+
+    def test_all_three_fires_at_the_corpus_severity(self):
+        self._normalize(
+            self._entry("wide-open", source="any", destination="any", application="any"))
+        self._fired("PAN-POL-001")
+        finding = RuleFinding.objects.get(control__control_id="PAN-POL-001")
+        self.assertEqual(finding.severity, Control.Severity.CRITICAL)
+
+    def test_an_address_object_covering_everything_counts_as_any(self):
+        """Read semantically rather than by name. The corpus note describes testing member
+        lists for the literal `any`, which misses a rule whose source is 0.0.0.0/0."""
+        self._normalize(
+            self._entry("all-of-v4", source="everything", destination="net-10-1",
+                        application="any"))
+        self.assertEqual(self._fired("PAN-POL-001"), {"all-of-v4"})
+
+    def test_a_deny_rule_is_not_a_trust_grant(self):
+        self._normalize(
+            self._entry("deny-any-any", source="any", destination="any", application="any",
+                        action="deny"))
+        self.assertEqual(self._fired("PAN-POL-001"), set())
+
+    def test_the_predefined_defaults_are_excluded(self):
+        self._normalize(
+            self._entry("intrazone-default", source="any", destination="any", application="any"),
+            defaults=("intrazone-default",))
+        self.assertEqual(self._fired("PAN-POL-001"), set())
+
+    def test_port_only_rules_fire_on_their_own(self):
+        """PAN-POL-005 asserts something different about the same rule: that it identifies
+        nothing. A narrow rule with `application any` fires here and not on 001."""
+        self._normalize(
+            self._entry("narrow-but-port-only", source="net-10", destination="net-10-1",
+                        application="any"))
+        self.assertEqual(self._fired("PAN-POL-005"), {"narrow-but-port-only"})
+        self.assertEqual(self._fired("PAN-POL-001"), set())
+
+    def test_a_rule_that_is_both_fires_both(self):
+        self._normalize(
+            self._entry("wide-and-port-only", source="any", destination="net-10-1",
+                        application="any"))
+        self.assertEqual(self._fired("PAN-POL-005"), {"wide-and-port-only"})
+        self.assertEqual(self._fired("PAN-POL-001"), {"wide-and-port-only"})
+
+    def test_the_include_any_flag_is_what_makes_the_address_clauses_work(self):
+        """The semantic address compiler EXCLUDES `any` members unless a clause asks for them.
+        Written without the flag, 001's query matches nothing and reports a clean estate - a
+        control failing in the direction of its own answer. This holds the flag in the seed."""
+        from assessments.controls_catalog.registry import load_seed_payload
+        spec = next(c for cat in load_seed_payload()["catalogs"] for c in cat["controls"]
+                    if c["control_id"] == "PAN-POL-001")
+        address_clauses = [
+            clause
+            for group in spec["queries"][0]["canonical_query"]["clauses"]
+            if "clauses" in group
+            for pair in group["clauses"]
+            for clause in pair["clauses"]
+            if clause.get("field", "").endswith("address")
+        ]
+        self.assertTrue(address_clauses)
+        for clause in address_clauses:
+            self.assertTrue(clause.get("include_any"), clause)

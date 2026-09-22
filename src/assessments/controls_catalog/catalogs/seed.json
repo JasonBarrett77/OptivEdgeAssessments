@@ -2308,6 +2308,98 @@
           "target_model": "integrations.InterfaceManagementProfile"
         },
         {
+          "control_id": "PAN-POL-001",
+          "name": "No Any/Any Allow Rules",
+          "control_type": "security_rule",
+          "default_severity": "critical",
+          "description": "No allow rule leaves more than one of source, destination and application unbounded.\n\nTHE PREFERRED READING, NOT THE MINIMUM. controls.json sets the floor at all THREE being any - 4 rules on the lab - and the preferred at no rule carrying `any` in more than one of them, which is 52. The checklist's rule is to assert the stricter of the two and let the assessor relax it with context we do not have.\n\nWHY TWO IS THE LINE. One `any` is ordinary: a rule that allows a named application from a named source to anywhere is a decision somebody made. Two is a trust grant with only one side specified, and three is the rule that nullifies the rulebase beneath it.\n\nADDRESSES ARE READ SEMANTICALLY, not by name. The clause matches a member whose address range is the whole space, so a rule whose source is an object covering 0.0.0.0/0 fires like one that says `any` - the corpus's own note describes testing for the literal, which would miss it. `include_any` is set because the semantic compiler excludes `any` members unless a clause asks for them; without that flag this query matches nothing and reports a clean estate.\n\nWHAT THIS DOES NOT ASSERT. The preferred value also says \"zones always explicit\". That is a different defect with a different remediation, and firing `critical` on a rule whose addresses and application are all named but whose zone is `any` would overstate it - 10 rules on the lab. Nothing else covers it today; see scratch/control-changes.json.\n\nThe two predefined default rules are excluded: `intrazone-default` is an allow rule whose match tuple cannot be edited.",
+          "rationale": "A rule with two sides unspecified grants more than anyone can have reasoned about, and it sits above every narrower rule beneath it in the same rulebase.",
+          "audit": "Policies > Security. For each allow rule, read Source Address, Destination Address and Application together; more than one reading `any` is the finding.",
+          "remediation": "Narrow whichever of the three is broadest - usually the application, since App-ID is what the rule was meant to express. Where a rule genuinely serves every source, name the destination and the application.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "operator": "and",
+                        "clauses": [
+                          {
+                            "field": "source_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "include_any": true
+                          },
+                          {
+                            "field": "destination_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "include_any": true
+                          }
+                        ]
+                      },
+                      {
+                        "operator": "and",
+                        "clauses": [
+                          {
+                            "field": "source_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "include_any": true
+                          },
+                          {
+                            "field": "application",
+                            "op": "eq",
+                            "value": "any"
+                          }
+                        ]
+                      },
+                      {
+                        "operator": "and",
+                        "clauses": [
+                          {
+                            "field": "destination_address",
+                            "op": "exactly",
+                            "value": "any",
+                            "include_any": true
+                          },
+                          {
+                            "field": "application",
+                            "op": "eq",
+                            "value": "any"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
           "control_id": "PAN-POL-004",
           "name": "Application-Default Service Preferred",
           "control_type": "security_rule",
@@ -2342,6 +2434,49 @@
                     "op": "eq",
                     "value": "default",
                     "negated": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-005",
+          "name": "No Port-Only Rules (App-ID Required)",
+          "control_type": "security_rule",
+          "default_severity": "high",
+          "description": "Every allow rule names the applications it permits.\n\nA rule with `application any` forgoes App-ID entirely: whatever is tunnelled over the ports it opens passes, and the rule's own name is the only record of what it was for.\n\nTHE UNTRUST QUALIFIER IS DROPPED, DELIBERATELY. controls.json sets the minimum at \"no allow rule CROSSING AN UNTRUST BOUNDARY has application any\", and no configuration says which zone is untrusted - the same wall PAN-MGT-006 hit over \"untrusted interfaces\". The preferred value has no such qualifier (\"all allow rules application-based\"), it is the stricter reading, and it is decidable, so it is what this asserts.\n\nOVERLAPS PAN-POL-001 ON PURPOSE. A rule with `application any` AND an unbounded address fires both, because they are two different statements about it: this one says the rule identifies nothing, and 001 says its match tuple is unbounded. Fixing the application clears this one and may leave that one standing.",
+          "rationale": "Port-only rules are how an allowed port becomes an allowed tunnel. App-ID is the control the platform exists to provide, and a rule that declines to use it is trusting a number.",
+          "audit": "Policies > Security > Application. Any allow rule whose Application column reads `any` is the finding; Policy Optimizer lists the applications each one actually carried.",
+          "remediation": "Replace `any` with the applications the rule is for - Policy Optimizer proposes them from observed traffic. Where a custom or unidentified application is involved, name it with a custom App-ID rather than leaving the rule open.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "application",
+                    "op": "eq",
+                    "value": "any"
                   }
                 ]
               }
