@@ -2312,10 +2312,10 @@
           "name": "No Any/Any Allow Rules",
           "control_type": "security_rule",
           "default_severity": "critical",
-          "description": "No allow rule leaves more than one of source, destination and application unbounded.\n\nTHE PREFERRED READING, NOT THE MINIMUM. controls.json sets the floor at all THREE being any - 4 rules on the lab - and the preferred at no rule carrying `any` in more than one of them, which is 52. The checklist's rule is to assert the stricter of the two and let the assessor relax it with context we do not have.\n\nWHY TWO IS THE LINE. One `any` is ordinary: a rule that allows a named application from a named source to anywhere is a decision somebody made. Two is a trust grant with only one side specified, and three is the rule that nullifies the rulebase beneath it.\n\nADDRESSES ARE READ SEMANTICALLY, not by name. The clause matches a member whose address range is the whole space, so a rule whose source is an object covering 0.0.0.0/0 fires like one that says `any` - the corpus's own note describes testing for the literal, which would miss it. `include_any` is set because the semantic compiler excludes `any` members unless a clause asks for them; without that flag this query matches nothing and reports a clean estate.\n\nWHAT THIS DOES NOT ASSERT. The preferred value also says \"zones always explicit\". That is a different defect with a different remediation, and firing `critical` on a rule whose addresses and application are all named but whose zone is `any` would overstate it - 10 rules on the lab. Nothing else covers it today; see scratch/control-changes.json.\n\nThe two predefined default rules are excluded: `intrazone-default` is an allow rule whose match tuple cannot be edited.",
-          "rationale": "A rule with two sides unspecified grants more than anyone can have reasoned about, and it sits above every narrower rule beneath it in the same rulebase.",
-          "audit": "Policies > Security. For each allow rule, read Source Address, Destination Address and Application together; more than one reading `any` is the finding.",
-          "remediation": "Narrow whichever of the three is broadest - usually the application, since App-ID is what the rule was meant to express. Where a rule genuinely serves every source, name the destination and the application.",
+          "description": "No allow rule leaves BOTH its source and its destination unbounded.\n\nONE ASSERTION, NOT A COUNT. Until 2026-09-22 this fired when `any` appeared in more than one of source, destination and application - 52 rules on the lab against 44 now. That threshold was a counting heuristic no standard states, and it reached into two axes other controls already own: the application belongs to PAN-POL-005 and the service to PAN-POL-004. Twelve of its findings were rules that also fired 005, reported twice for one decision.\n\nWHAT THE NAME ALWAYS MEANT. An any/any rule is one whose source and destination are both unspecified - a trust grant with neither side named. That is the assertion, and it stands on its own without counting anything.\n\nNO CIS BACKING, STATED PLAINLY. CIS Palo Alto Firewall 11 v1.2.0 has no address-breadth recommendation, and its own 7.1 remediation shows a rule with `Address` set to `Any` as compliant so long as the application and service are specific. The corpus cites CIS 6.1 here, which is an antivirus decoder setting. This control rests on the corpus and on PANW-AG-000029, not on CIS - see scratch/control-changes.json.\n\nADDRESSES ARE READ SEMANTICALLY, not by name: a member whose range is the whole space counts, so a rule sourced from an object covering 0.0.0.0/0 fires like one that says `any`. `include_any` is set because the semantic compiler excludes `any` members unless a clause asks for them - without it this query matches nothing and reports a clean estate.\n\nThe two predefined default rules are excluded: `intrazone-default` allows any to any and its match tuple cannot be edited.",
+          "rationale": "A rule that names neither end grants more than anyone can have reasoned about, and it sits above every narrower rule beneath it in the same rulebase. Narrowing one end is usually a five-minute change; deciding which traffic the rule was ever for is not.",
+          "audit": "Policies > Security. Read Source Address and Destination Address together; both reading `any` is the finding. An address object covering 0.0.0.0/0 counts as `any`.",
+          "remediation": "Name one end. Which end is usually obvious from the rule's purpose - a rule serving a server names its destination, a rule serving a user population names its source. Where a rule genuinely serves everything in both directions, it is a default-deny bypass and should be replaced rather than narrowed.",
           "queries": [
             {
               "name": "Baseline",
@@ -2338,64 +2338,22 @@
                     "negated": true
                   },
                   {
-                    "operator": "or",
-                    "clauses": [
-                      {
-                        "operator": "and",
-                        "clauses": [
-                          {
-                            "field": "source_address",
-                            "op": "exactly",
-                            "value": "any",
-                            "include_any": true
-                          },
-                          {
-                            "field": "destination_address",
-                            "op": "exactly",
-                            "value": "any",
-                            "include_any": true
-                          }
-                        ]
-                      },
-                      {
-                        "operator": "and",
-                        "clauses": [
-                          {
-                            "field": "source_address",
-                            "op": "exactly",
-                            "value": "any",
-                            "include_any": true
-                          },
-                          {
-                            "field": "application",
-                            "op": "eq",
-                            "value": "any"
-                          }
-                        ]
-                      },
-                      {
-                        "operator": "and",
-                        "clauses": [
-                          {
-                            "field": "destination_address",
-                            "op": "exactly",
-                            "value": "any",
-                            "include_any": true
-                          },
-                          {
-                            "field": "application",
-                            "op": "eq",
-                            "value": "any"
-                          }
-                        ]
-                      }
-                    ]
+                    "field": "source_address",
+                    "op": "exactly",
+                    "value": "any",
+                    "include_any": true
+                  },
+                  {
+                    "field": "destination_address",
+                    "op": "exactly",
+                    "value": "any",
+                    "include_any": true
                   }
                 ]
               }
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.SecurityRule"
         },

@@ -225,13 +225,17 @@ class MatchTupleBreadthTests(TestCase):
             self._entry("app-only", source="net-10", destination="net-10-1", application="any"))
         self.assertEqual(self._fired("PAN-POL-001"), set())
 
-    def test_two_of_the_three_fires(self):
+    def test_only_both_addresses_fires_not_any_other_pair(self):
+        """v2, 2026-09-22. This used to fire on any TWO of source, destination and application -
+        a counting heuristic that reached into the axis PAN-POL-005 owns and reported twelve
+        lab rules twice. The application pairs still fire 005; they no longer fire this."""
         self._normalize(
             self._entry("src-and-dst", source="any", destination="any", application="ssl"),
             self._entry("src-and-app", source="any", destination="net-10-1", application="any"),
             self._entry("dst-and-app", source="net-10", destination="any", application="any"))
-        self.assertEqual(self._fired("PAN-POL-001"),
-                         {"src-and-dst", "src-and-app", "dst-and-app"})
+        self.assertEqual(self._fired("PAN-POL-001"), {"src-and-dst"})
+        self.assertEqual(self._fired("PAN-POL-005"), {"src-and-app", "dst-and-app"},
+                         "the application axis is not lost, it belongs to 005")
 
     def test_all_three_fires_at_the_corpus_severity(self):
         self._normalize(
@@ -244,8 +248,7 @@ class MatchTupleBreadthTests(TestCase):
         """Read semantically rather than by name. The corpus note describes testing member
         lists for the literal `any`, which misses a rule whose source is 0.0.0.0/0."""
         self._normalize(
-            self._entry("all-of-v4", source="everything", destination="net-10-1",
-                        application="any"))
+            self._entry("all-of-v4", source="everything", destination="any", application="ssl"))
         self.assertEqual(self._fired("PAN-POL-001"), {"all-of-v4"})
 
     def test_a_deny_rule_is_not_a_trust_grant(self):
@@ -270,8 +273,10 @@ class MatchTupleBreadthTests(TestCase):
         self.assertEqual(self._fired("PAN-POL-001"), set())
 
     def test_a_rule_that_is_both_fires_both(self):
+        """Still possible, and still two different statements: unbounded on both ends AND
+        identifying nothing. Fixing the application clears 005 and leaves 001 standing."""
         self._normalize(
-            self._entry("wide-and-port-only", source="any", destination="net-10-1",
+            self._entry("wide-and-port-only", source="any", destination="any",
                         application="any"))
         self.assertEqual(self._fired("PAN-POL-005"), {"wide-and-port-only"})
         self.assertEqual(self._fired("PAN-POL-001"), {"wide-and-port-only"})
@@ -284,11 +289,7 @@ class MatchTupleBreadthTests(TestCase):
         spec = next(c for cat in load_seed_payload()["catalogs"] for c in cat["controls"]
                     if c["control_id"] == "PAN-POL-001")
         address_clauses = [
-            clause
-            for group in spec["queries"][0]["canonical_query"]["clauses"]
-            if "clauses" in group
-            for pair in group["clauses"]
-            for clause in pair["clauses"]
+            clause for clause in spec["queries"][0]["canonical_query"]["clauses"]
             if clause.get("field", "").endswith("address")
         ]
         self.assertTrue(address_clauses)
