@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     # so its table has to go before the integrations migration that deletes the profile table.
     # Integrations is a library and cannot depend on this app, so the ordering is declared here.
     run_before = [
-        ("integrations", "0053_remove_deviceconfigurationprofile_integration_managem_2ecbec_idx_and_more"),
+        ("integrations", "0053_delete_deviceconfigurationprofile"),
     ]
 
     operations = [

@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('assessments', '0025_alter_control_control_type_securityprofilefinding_and_more'),
-        ('integrations', '0059_alter_managementsshsettings_ciphers_below_preferred_and_more'),
+        ('integrations', '0059_ssh_below_preferred_fields'),
     ]
 
     operations = [
