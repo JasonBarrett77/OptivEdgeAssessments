@@ -296,6 +296,44 @@ Cells stay hand-written - a cell is usually a value plus a provenance line plus 
 decision, and a spec for that would be harder to read than the markup. Two pages with grouped
 headers keep hand-written `<thead>`s; `tables.py` records the measurement behind that.
 
+## The engineer-detail workbook (`assessments/artifacts/`)
+
+`build_workbook()` returns the .xlsx as BYTES and the line each sheet reports about itself.
+Nothing in it knows about the filesystem: the caller decides whether that is a download, a
+stored artifact or a test. `python manage.py build_assessment_workbook <path>` is the way to
+run it without a browser.
+
+Prototyped in `OptivEdgeProbe/scratch/xlsx_prototype/` from 2026-09-15 and moved here on
+2026-09-24 once the layout settled. The move was not a copy - three things were harmless in a
+script that builds one workbook and exits, and are not harmless in a long-running process:
+
+* **`ANCHORS` was a module dict.** It maps `(kind, pk)` to a fixed cell range so one sheet can
+  link into another's rows. Nothing cleared it, so a second workbook inherited the first's row
+  numbers and linked to the WRONG ROW, silently. It lives on `WorkbookBuild` now.
+* **The format caches were keyed by `id(workbook)`.** CPython reuses an address once an object
+  is freed, so a later workbook could be handed a `Format` belonging to a closed one.
+* **Guards raised `SystemExit`.** It derives from `BaseException`, so a caller's
+  `except Exception` never sees it and a web worker dies instead of returning an error. They
+  raise `ArtifactBuildError` now, and `test_artifacts` fails on the word reappearing.
+
+**Every layout helper takes the `build`, not the workbook.** A sheet writer is
+`write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
+the state's lifetime equal to the file's.
+
+**The guards are the reason this is worth trusting as a deliverable** and are kept exactly as
+they were: a workbook that silently omits a finding is worse than no workbook. The one behaviour
+change was a bug the move exposed - the tab's category came from the controls that LOADED, so a
+control type whose controls were all inactive raised `IndexError` instead of drawing an empty
+tab. It reads the spec's own control type now.
+
+**`utc()` converts rather than formatting as it stands.** Every timestamp column is headed
+"(UTC)", which was true only by accident of `USE_TZ`. A naive value is read AS UTC, because
+that is where these come from - a `collected_at` Django stored in UTC - and not machine-local,
+which is what `astimezone` would assume.
+
+Verified by building the same snapshot with the prototype and with this package: **95 of 97 zip
+members byte-identical**, the two that differ being the build timestamp.
+
 ## Surfaces pending replacement
 
 One surface is known-incomplete and is NOT to be extended or "fixed" opportunistically.

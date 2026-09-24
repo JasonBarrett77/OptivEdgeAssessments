@@ -11,6 +11,9 @@ requires-python = ">=3.12"
 dependencies = [
     "optivedge @ git+https://github.com/JasonBarrett77/OptivEdge.git@main",
     "optivedge-integrations @ git+https://github.com/JasonBarrett77/OptivEdgeIntegrations.git@main",
+    # The engineer-detail workbook. Writes to a file-like object, so a build never needs a
+    # path on disk - see assessments/artifacts/workbook.py.
+    "XlsxWriter>=3.1",
 ]
 
 [project.scripts]
