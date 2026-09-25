@@ -14,10 +14,11 @@ grouping here looks wrong, the question to ask is what PAN-OS does, not what wou
 - and "" for the rail items PAN-OS shows with no heading at all. Groups render in the order
 their first object appears, so ordering is one list rather than a list plus an index.
 
-`findings_url_name` names this object's tab under Device Configuration. That tab is a SIBLING,
-not a predecessor: it presents findings, and these pages are for building a query and reading
-its results - the pair `/assessments/security-rules/` already has. Both surfaces stay. The link
-is on the page so a reader can cross to the other view of the same object.
+Each object links to its FINDINGS page, which is a SIBLING and not a predecessor: that page
+reports what the controls found, and these pages ask the configuration a question and show
+what matches. Both surfaces stay. The link is DERIVED from `search_model` - see
+`artifacts.domains.domain_for_model` - rather than named here, so a rail item cannot point at
+a page that no longer exists and a new domain is linked the day it exists.
 
 `search_model` decides whether an object gets the query view or the placeholder. Six rail items
 once shared `DeviceConfigurationProfile`, each offering its own section's fields, which is why
@@ -59,9 +60,6 @@ class ConfigObject(NamedTuple):
     #: Must exist in OptivEdge's vendored icon set - templates/components/icons/. Not lucide's
     #: full catalogue; a name that is not there renders a 500.
     icon: str = "list-checks"
-    #: This object's FINDINGS tab, if it has one. A different surface over the same object,
-    #: not the thing this page replaces. "" means no tab presents it yet.
-    findings_url_name: str = ""
     #: The search registry's label for this object's model. Set means the page is a real query
     #: view; "" means it is still the placeholder. Objects are turned on one at a time, and the
     #: gate is deliberate: a label here with no results spec behind it renders a table with no
@@ -95,12 +93,10 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     # configuration_results, each backed by a completed control.
     ConfigObject("anti-spyware", "Anti-Spyware", "Objects", "Security Profiles", "shield",
                  where="Objects > Security Profiles > Anti-Spyware",
-                 findings_url_name="assessment_security_profile_list",
                  search_model="integrations.SecurityProfile"),
     ConfigObject("vulnerability-protection", "Vulnerability Protection", "Objects",
                  "Security Profiles", "shield",
                  where="Objects > Security Profiles > Vulnerability Protection",
-                 findings_url_name="assessment_security_profile_list",
                  search_model="integrations.SecurityProfile"),
     # Device > Setup. Six of our tabs are all one PAN-OS screen with sub-tabs; they sit under
     # Setup as rail children rather than being flattened, so the address stays the vendor's.
@@ -114,39 +110,31 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  search_model="integrations.UpdateServerSettings"),
     ConfigObject("interfaces", "Interfaces", "Device", "Setup", "shield",
                  where="Device > Setup > Interfaces",
-                 findings_url_name="assessment_management_interface_list",
                  search_model="integrations.ManagementInterface"),
     ConfigObject("login-banner", "Login Banner", "Device", "Setup", "book-marked",
                  where="Device > Setup > Management > General Settings",
-                 findings_url_name="assessment_login_banner_list",
                  search_model="integrations.LoginBanner"),
     ConfigObject("management-tls", "Management TLS", "Device", "Setup", "clipboard-check",
                  where="Device > Setup > Management > SSL/TLS Service Profile",
-                 findings_url_name="assessment_management_tls_list",
                  search_model="integrations.ManagementTlsBinding"),
     ConfigObject("management-ssh", "SSH Management Profiles", "Device", "Setup", "shield",
                  where="Device > Setup > Management > SSH Management Profiles",
-                 findings_url_name="assessment_management_ssh_list",
                  search_model="integrations.ManagementSshSettings"),
     # NTP shares the Services screen with the update server above, and is a rail item of its own
     # because it is a different question - where time comes from, not where software does.
     ConfigObject("ntp", "NTP", "Device", "Setup", "refresh-cw",
                  where="Device > Setup > Services > NTP",
-                 findings_url_name="assessment_ntp_settings_list",
                  search_model="integrations.NtpSettings"),
     # SNMP Setup is reached from Operations rather than Setup > Management, which is why `where`
     # says so: an assessor following the address needs the vendor's path, not ours.
     ConfigObject("snmp", "SNMP", "Device", "Setup", "server",
                  where="Device > Setup > Operations > SNMP Setup",
-                 findings_url_name="assessment_snmp_settings_list",
                  search_model="integrations.SnmpSettings"),
     ConfigObject("system-identity", "System Identity", "Device", "Setup", "settings",
                  where="Device > Setup > Management > General Settings, and Setup > Interfaces",
-                 findings_url_name="assessment_system_identity_list",
                  search_model="integrations.SystemIdentity"),
     ConfigObject("authentication-settings", "Authentication Settings", "Device", "Setup",
                  "clipboard-check", where="Device > Setup > Management > Authentication Settings",
-                 findings_url_name="assessment_authentication_settings_list",
                  search_model="integrations.AuthenticationSettings"),
     ConfigObject("logging-and-reporting", "Logging and Reporting", "Device", "Setup",
                  "clipboard-check",
@@ -154,56 +142,45 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  search_model="integrations.LoggingSettings"),
     ConfigObject("password-complexity", "Minimum Password Complexity", "Device", "Setup", "eye",
                  where="Device > Setup > Management > Minimum Password Complexity",
-                 findings_url_name="assessment_password_complexity_list",
                  search_model="integrations.PasswordComplexityPolicy"),
     # Device, top-level rail items - no heading in the product either.
     ConfigObject("password-profiles", "Password Profiles", "Device", "", "book-marked",
                  where="Device > Password Profiles",
-                 findings_url_name="assessment_password_profile_list",
                  search_model="integrations.PasswordProfile"),
     ConfigObject("administrators", "Administrators", "Device", "", "shield",
                  where="Device > Administrators",
-                 findings_url_name="assessment_admin_user_list",
                  search_model="integrations.AdminUser"),
     ConfigObject("authentication-profile", "Authentication Profile", "Device", "", "shield",
                  where="Device > Authentication Profile",
-                 findings_url_name="assessment_authentication_profile_list",
                  search_model="integrations.AuthenticationProfile"),
     ConfigObject("authentication-sequence", "Authentication Sequence", "Device", "",
                  "list-checks", where="Device > Authentication Sequence",
-                 findings_url_name="assessment_authentication_sequence_list",
                  search_model="integrations.AuthenticationSequence"),
     # Device > Certificate Management.
     ConfigObject("certificates", "Certificates", "Device", "Certificate Management",
                  "clipboard-check", where="Device > Certificate Management > Certificates",
-                 findings_url_name="assessment_certificate_list",
                  search_model="integrations.Certificate"),
     ConfigObject("certificate-profile", "Certificate Profile", "Device",
                  "Certificate Management", "server",
                  where="Device > Certificate Management > Certificate Profile",
-                 findings_url_name="assessment_certificate_profile_list",
                  search_model="integrations.CertificateProfile"),
     ConfigObject("ssl-tls-service-profile", "SSL/TLS Service Profile", "Device",
                  "Certificate Management", "settings",
                  where="Device > Certificate Management > SSL/TLS Service Profile",
-                 findings_url_name="assessment_ssl_tls_service_profile_list",
                  search_model="integrations.SslTlsServiceProfile"),
     # Device > Server Profiles. PAN-OS lists one rail child per protocol; we hold all the
     # authentication kinds on one object today, so it is one child until that splits.
     ConfigObject("aaa-server-profiles", "AAA Server Profiles", "Device", "Server Profiles",
                  "server", where="Device > Server Profiles > LDAP / RADIUS / TACACS+ / "
                                  "Kerberos / SAML / Multi Factor Authentication",
-                 findings_url_name="assessment_server_profile_list",
                  search_model="integrations.ServerProfile"),
     # Device > Master Key and Diagnostics.
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",
-                 findings_url_name="assessment_master_key_list",
                  search_model="integrations.MasterKey"),
     # Network > Network Profiles.
     ConfigObject("interface-mgmt", "Interface Mgmt", "Network", "Network Profiles",
                  "list-checks", where="Network > Network Profiles > Interface Mgmt",
-                 findings_url_name="assessment_interface_management_profile_list",
                  search_model="integrations.InterfaceManagementProfile"),
 )
 

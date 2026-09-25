@@ -111,15 +111,6 @@ class SecurityProfilePageTests(TestCase):
 
     _profile = SecurityProfileControlTests._profile
 
-    def test_the_tab_hides_unused_predefined_profiles(self):
-        self._profile("custom-spy", high=False)
-        self._profile("used-default", kind=VLN, predefined=True, used=True, critical=False)
-        self._profile("unused-default", predefined=True, used=False, critical=False)
-        response = self.client.get(reverse("assessment_security_profile_list"))
-        self.assertContains(response, "custom-spy")
-        self.assertContains(response, "used-default")
-        self.assertNotContains(response, "unused-default")
-
     def test_each_explorer_page_lists_only_its_own_kind(self):
         self._profile("only-spyware")
         self._profile("only-vulnerability", kind=VLN)

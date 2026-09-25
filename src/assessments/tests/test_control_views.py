@@ -112,13 +112,6 @@ class ControlViewTests(TestCase):
         self.assertNotContains(response, "Run Configuration Findings")
         self.assertContains(response, "View Findings")
 
-    def test_finding_list_view_renders_empty_state(self):
-        response = self.client.get(reverse("assessment_legacy_finding_list"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Security Rule Findings")
-        self.assertContains(response, "No rule findings available.")
-
     def test_control_detail_view_renders(self):
         response = self.client.get(
             reverse("assessment_control_detail", kwargs={"pk": self.control.pk})
@@ -561,41 +554,6 @@ class ControlViewTests(TestCase):
         finding.refresh_from_db()
         self.assertEqual(finding.matched_query_names, ["Trust baseline"])
 
-    def test_finding_list_view_renders_persisted_findings(self):
-        security_rule = self.create_security_rule()
-        assessment_run = AssessmentRun.objects.create(
-            name="Rule Findings Run",
-            status=AssessmentRun.Status.COMPLETED,
-            started_at=timezone.now(),
-            completed_at=timezone.now(),
-        )
-        finding = RuleFinding.objects.create(
-            assessment_run=assessment_run,
-            control=self.control,
-            security_rule=security_rule,
-            status=RuleFinding.Status.OPEN,
-            severity=Control.Severity.HIGH,
-            title=self.control.name,
-            summary="Matched control query: Baseline permissiveness.",
-        )
-        RuleFindingControlQuery.objects.create(
-            rule_finding=finding,
-            control_query=self.control.queries.first(),
-        )
-
-        response = self.client.get(reverse("assessment_legacy_finding_list"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.control.control_id)
-        self.assertContains(response, security_rule.name)
-        self.assertContains(response, "High")
-        self.assertContains(response, "Open")
-        # Rows render as the Security-Rules-style analytical table (grouped headers).
-        self.assertContains(response, ">Source<")
-        self.assertContains(response, ">Destination<")
-        self.assertContains(response, ">Appliance<")
-        self.assertContains(response, "analytical-table")
-
     def _seed_findings_for_grouping(self):
         """Two rules and two controls with a spread of severities, for the grouped
         findings views. Returns (run, control_b, rule_a, rule_b, findings-by-key)."""
@@ -626,106 +584,6 @@ class ControlViewTests(TestCase):
             status=RuleFinding.Status.SUPPRESSED, severity=Control.Severity.MEDIUM, title=self.control.name,
         )
         return run, control_b, rule_a, rule_b, f
-
-    def test_finding_list_groups_by_control_by_default(self):
-        self._seed_findings_for_grouping()
-
-        response = self.client.get(reverse("assessment_legacy_finding_list"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["security_group_by"], "control")
-        groups = response.context["finding_groups"]
-        # self.control has HIGH and MEDIUM findings -> two separate control+severity
-        # sections; control_b contributes one LOW section. Sorted worst-first.
-        self.assertEqual(len(groups), 3)
-        self.assertEqual(groups[0]["header"]["primary"], self.control.control_id)
-        self.assertEqual(groups[0]["worst_label"], "High")
-        self.assertEqual(groups[0]["count"], 1)
-        sections = [(g["header"]["primary"], g["worst_label"]) for g in groups]
-        self.assertEqual(
-            sections,
-            [
-                (self.control.control_id, "High"),
-                (self.control.control_id, "Medium"),
-                ("FW-RULE-LOGGING-002", "Low"),
-            ],
-        )
-
-    def test_finding_list_group_by_rule(self):
-        _, _, rule_a, rule_b, _ = self._seed_findings_for_grouping()
-
-        response = self.client.get(reverse("assessment_legacy_finding_list") + "?group=rule")
-
-        self.assertEqual(response.context["security_group_by"], "rule")
-        primaries = {g["header"]["primary"] for g in response.context["finding_groups"]}
-        self.assertEqual(primaries, {rule_a.name, rule_b.name})
-
-    def test_finding_list_filters_by_severity(self):
-        self._seed_findings_for_grouping()
-
-        response = self.client.get(reverse("assessment_legacy_finding_list") + "?severity=low")
-
-        groups = response.context["finding_groups"]
-        self.assertEqual([g["header"]["primary"] for g in groups], ["FW-RULE-LOGGING-002"])
-        self.assertEqual(response.context["total_findings"], 1)
-
-    def test_finding_list_hides_suppressed(self):
-        self._seed_findings_for_grouping()
-
-        response = self.client.get(reverse("assessment_legacy_finding_list") + "?hide_suppressed=1")
-
-        # The only suppressed finding (b_med) is excluded; 2 open findings remain.
-        self.assertEqual(response.context["total_findings"], 2)
-        self.assertTrue(response.context["hide_suppressed"])
-
-    def test_finding_list_detail_overlay_shows_control_and_rule(self):
-        _, _, rule_a, _, f = self._seed_findings_for_grouping()
-
-        response = self.client.get(
-            reverse("assessment_legacy_finding_list") + f"?finding={f['a_high'].pk}"
-        )
-
-        self.assertTrue(response.context["overlay_is_open"])
-        selected = response.context["selected_finding"]
-        self.assertEqual(selected["control_id"], self.control.control_id)
-        self.assertEqual(selected["rule_row"]["security_rule"], rule_a)
-        self.assertContains(response, "Remediation")
-        self.assertContains(response, self.control.remediation)
-
-    def test_finding_list_rows_include_rule_config(self):
-        self._seed_findings_for_grouping()
-
-        # Grouped by control, each row is an affected rule carrying its full
-        # build_security_rule_rows() row, rendered as a rulebase-style table.
-        response = self.client.get(reverse("assessment_legacy_finding_list"))
-        item = response.context["finding_groups"][0]["findings"][0]
-        self.assertIsNotNone(item["rule_row"])
-        self.assertIn("source_addresses", item["rule_row"])
-        self.assertContains(response, ">Source<")
-
-        # Grouped by rule, the group itself carries the single rule's config strip.
-        response = self.client.get(reverse("assessment_legacy_finding_list") + "?group=rule")
-        group = response.context["finding_groups"][0]
-        self.assertIsNotNone(group["rule_config"])
-        self.assertIn("source_addresses", group["rule_config"])
-
-    def test_finding_list_sections_collapse_by_default_and_open_selected(self):
-        _, _, rule_a, _, f = self._seed_findings_for_grouping()
-
-        # Default load: every section is collapsed.
-        response = self.client.get(reverse("assessment_legacy_finding_list"))
-        self.assertFalse(any(g["has_selected"] for g in response.context["finding_groups"]))
-        self.assertNotContains(response, "<details open")
-
-        # With a selected finding, exactly its section renders expanded.
-        response = self.client.get(
-            reverse("assessment_legacy_finding_list") + f"?finding={f['a_high'].pk}"
-        )
-        opened = [g for g in response.context["finding_groups"] if g["has_selected"]]
-        self.assertEqual(len(opened), 1)
-        self.assertIn(f["a_high"].pk, [item["id"] for item in opened[0]["findings"]])
-        self.assertContains(response, "<details open")
-
 
 class ControlQueryFormModelValidationTests(TestCase):
     def setUp(self):

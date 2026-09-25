@@ -81,6 +81,40 @@ DOMAINS = (
 DOMAIN_BY_SLUG = {domain.slug: domain for domain in DOMAINS}
 
 
+def domain_for_model(model_label: str) -> FindingsDomain | None:
+    """The domain whose findings are about this model, or None where nothing reports on it.
+
+    DERIVED from the specs rather than listed beside the configuration rail, so a new domain
+    is linked from its object's page the day it exists. Two rail items can share one domain -
+    anti-spyware and vulnerability protection are both security profiles, and management TLS
+    and SSH are both management crypto - which a list would have to remember and this cannot
+    get wrong.
+    """
+    return _DOMAIN_BY_MODEL.get(model_label)
+
+
+def _build_model_index():
+    index = {}
+    for domain in DOMAINS:
+        spec = domain.spec
+        for control_type in spec.control_types:
+            model = spec.subject_model(spec.kind_for(control_type))
+            index.setdefault(model._meta.label, domain)
+    return index
+
+
+class _LazyModelIndex(dict):
+    """Built on first use: this module is imported while the app registry is still loading."""
+
+    def get(self, key, default=None):
+        if not self:
+            self.update(_build_model_index())
+        return super().get(key, default)
+
+
+_DOMAIN_BY_MODEL = _LazyModelIndex()
+
+
 def severity_counts() -> dict[str, dict[str, int]]:
     """{slug: {severity: count}} for every domain, in one query per finding model.
 

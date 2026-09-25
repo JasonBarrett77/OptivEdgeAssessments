@@ -24,27 +24,6 @@ from assessments.views import (
     ControlUpdateView,
     ConfigurationObjectView,
     ConfigurationIndexView,
-    InterfaceManagementProfileListView,
-    LoginBannerListView,
-    CertificateListView,
-    CertificateProfileListView,
-    ManagementTlsListView,
-    ManagementSshListView,
-    MasterKeyListView,
-    NtpSettingsListView,
-    SnmpSettingsListView,
-    SystemIdentityListView,
-    AuthenticationProfileListView,
-    AuthenticationSequenceListView,
-    AuthenticationSettingsListView,
-    PasswordComplexityListView,
-    AdminUserListView,
-    ServerProfileListView,
-    PasswordProfileListView,
-    SecurityProfileListView,
-    SslTlsServiceProfileListView,
-    ManagementInterfaceListView,
-    LegacyFindingListView,
 )
 
 
@@ -104,116 +83,10 @@ urlpatterns = [
         ControlRunFindingsView.as_view(),
         name="assessment_control_run_findings",
     ),
-    # Moved off "findings/" so the good name is free for whatever replaces this.
-    path(
-        "findings-legacy/",
-        LegacyFindingListView.as_view(),
-        name="assessment_legacy_finding_list",
-    ),
     path(
         "system/",
         SystemView.as_view(),
         name="assessment_system",
-    ),
-    path(
-        "management-interfaces/",
-        ManagementInterfaceListView.as_view(),
-        name="assessment_management_interface_list",
-    ),
-    path(
-        "interface-management-profiles/",
-        InterfaceManagementProfileListView.as_view(),
-        name="assessment_interface_management_profile_list",
-    ),
-    path(
-        "login-banner/",
-        LoginBannerListView.as_view(),
-        name="assessment_login_banner_list",
-    ),
-    path(
-        "management-tls/",
-        ManagementTlsListView.as_view(),
-        name="assessment_management_tls_list",
-    ),
-    path(
-        "management-ssh/",
-        ManagementSshListView.as_view(),
-        name="assessment_management_ssh_list",
-    ),
-    path(
-        "ssl-tls-profiles/",
-        SslTlsServiceProfileListView.as_view(),
-        name="assessment_ssl_tls_service_profile_list",
-    ),
-    path(
-        "certificates/",
-        CertificateListView.as_view(),
-        name="assessment_certificate_list",
-    ),
-    path(
-        "certificate-profiles/",
-        CertificateProfileListView.as_view(),
-        name="assessment_certificate_profile_list",
-    ),
-    path(
-        "master-key/",
-        MasterKeyListView.as_view(),
-        name="assessment_master_key_list",
-    ),
-    path(
-        "ntp/",
-        NtpSettingsListView.as_view(),
-        name="assessment_ntp_settings_list",
-    ),
-    path(
-        "snmp/",
-        SnmpSettingsListView.as_view(),
-        name="assessment_snmp_settings_list",
-    ),
-    path(
-        "system-identity/",
-        SystemIdentityListView.as_view(),
-        name="assessment_system_identity_list",
-    ),
-    path(
-        "authentication-profiles/",
-        AuthenticationProfileListView.as_view(),
-        name="assessment_authentication_profile_list",
-    ),
-    path(
-        "authentication-sequences/",
-        AuthenticationSequenceListView.as_view(),
-        name="assessment_authentication_sequence_list",
-    ),
-    path(
-        "authentication-settings/",
-        AuthenticationSettingsListView.as_view(),
-        name="assessment_authentication_settings_list",
-    ),
-    path(
-        "aaa-server-profiles/",
-        ServerProfileListView.as_view(),
-        name="assessment_server_profile_list",
-    ),
-    path(
-        "administrators/",
-        AdminUserListView.as_view(),
-        name="assessment_admin_user_list",
-    ),
-    path(
-        "password-profiles/",
-        PasswordProfileListView.as_view(),
-        name="assessment_password_profile_list",
-    ),
-    path(
-        "security-profiles/",
-        SecurityProfileListView.as_view(),
-        name="assessment_security_profile_list",
-    ),
-    path(
-        "password-complexity/",
-        PasswordComplexityListView.as_view(),
-        name="assessment_password_complexity_list",
     ),
     # The configuration explorer. Two segments, both the vendor's own vocabulary - the PAN-OS
     # top-level tab, then the object as its left rail names it - so a URL reads as the place an

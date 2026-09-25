@@ -39,6 +39,19 @@ the fields and their operators are typed into the template a second time.
             {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
             {% if search_query %}Edit query{% else %}Build a query{% endif %}
         </a>
+        {% if config_object.findings_href %}
+        {% comment %}
+        The other view of the same object: this page asks the configuration a question, that
+        one reports what the controls found. Siblings, not a sequence - and a reader who wants
+        the other one should not have to go and find it in the sidebar.
+        {% endcomment %}
+        <a href="{{ config_object.findings_href }}"
+           class="inline-flex h-8 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
+           title="What the controls found on this object">
+            {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
+            Findings
+        </a>
+        {% endif %}
         {% if search_query %}
         <form method="post" action="{% url 'assessment_control_query_create' %}" class="shrink-0">
             {% csrf_token %}

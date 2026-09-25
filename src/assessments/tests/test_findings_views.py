@@ -154,3 +154,68 @@ class DomainOrderTests(TestCase):
         self.assertEqual(len(slugs), len(set(slugs)))
         for slug in slugs:
             self.assertRegex(slug, r"^[a-z0-9-]+$")
+
+
+class ImplicatedValueTests(TestCase):
+    """The marked cell follows the FINDING, never a rule re-derived at render time.
+
+    Ported from the password-complexity device tab, which this surface replaced. PAN-AUTH-010
+    is the case that would break a "higher is worse" shortcut: never-expires and
+    expires-too-rarely are both findings, and sixty days is not, so a page that marked cells by
+    comparing values would get one of the three wrong.
+    """
+
+    FIELD = "expiration_period"
+
+    def setUp(self):
+        from assessments.models import AssessmentRun, Control, ControlQuery
+        from optivedge_integrations.integrations.models import PasswordComplexityPolicy
+
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.mark")
+        self.run = AssessmentRun.objects.create(
+            name="run", status=AssessmentRun.Status.COMPLETED,
+            started_at=timezone.now(), completed_at=timezone.now())
+        self.control = Control.objects.create(
+            control_id="PAN-AUTH-010", name="Password expiry",
+            control_type=Control.ControlType.PASSWORD_COMPLEXITY,
+            description="x", default_severity=Control.Severity.MEDIUM,
+            target_model="integrations.PasswordComplexityPolicy")
+        ControlQuery.objects.create(
+            control=self.control, name="Baseline", is_baseline=True, is_active=True,
+            canonical_query={
+                "model": "integrations.PasswordComplexityPolicy", "operator": "or",
+                "clauses": [{"field": self.FIELD, "op": "eq", "value": 0}]})
+        self.policy_model = PasswordComplexityPolicy
+
+    def _policy(self, hostname, period):
+        appliance = Appliance.objects.create(
+            management_station=self.station, serial_number=f"S-{hostname}", hostname=hostname)
+        snapshot = Snapshot.objects.create(
+            management_station=self.station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        return self.policy_model.objects.create(
+            management_station=self.station, appliance=appliance, source_snapshot=snapshot,
+            expiration_period=period)
+
+    def _fire(self, policy):
+        from assessments.models import PasswordComplexityFinding
+
+        return PasswordComplexityFinding.objects.create(
+            assessment_run=self.run, control=self.control, password_complexity_policy=policy,
+            severity=self.control.default_severity, title="x", subject_name=policy.appliance.hostname)
+
+    def test_only_the_row_whose_control_fired_is_marked(self):
+        never = self._policy("fw-never", 0)
+        self._policy("fw-fine", 60)
+        self._fire(never)
+
+        url = reverse("assessment_findings_domain", kwargs={"slug": "password-complexity"})
+        response = self.client.get(url)
+        headers = response.context["table"].headers
+
+        # One row: the clean appliance is not a finding, so this surface never shows it.
+        self.assertEqual(len(response.context["rows"]), 1)
+        marked = {headers[i] for i, cell in enumerate(response.context["rows"][0])
+                  if cell["implicated"]}
+        self.assertIn(self.FIELD, {h.lower().replace(" ", "_") for h in marked})

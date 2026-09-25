@@ -270,32 +270,6 @@ come from one allocator per run (`AssessmentRun.next_reference_number`), in `GEN
 then by subject. No constraint can span 23 tables, so the cross-model half of the guarantee is
 `test_finding_reference`, not the database.
 
-## Device tab views
-
-A list view subclasses `views.DeviceTabListView` and declares `subject_model`,
-`finding_model`, `finding_subject_field`, its orderings, and a `build_row`. The base reads the
-two query parameters, groups findings by subject in one query, filters to rows with findings
-and sets the counts.
-
-`finding_controls = ()` means **every** control of that finding model. That is right for a tab
-owning an object type outright, and silently wrong for tabs that share a finding model - omit it
-there and each tab shows the others' findings. No two tabs have shared one since
-`DeviceConfigurationProfile` was split and deleted on 2026-09-11, but `test_device_tab_tables`
-still fails when a tab sharing a finding model does not name its controls, or when two tabs
-claim the same one.
-
-## Device tab templates
-
-A list page extends `assessments/device_tab_base.html` and supplies three things: a
-`{% block description %}`, a `COLUMNS` tuple on its view, and a `{% block rows %}`. The nav,
-the provenance/findings toggles, the count, the empty state and the `<thead>` come from the
-base. `{% block toolbar %}` and `{% block table %}` are overridable for pages with their own
-filter box or table shell.
-
-Cells stay hand-written - a cell is usually a value plus a provenance line plus a weak/normal
-decision, and a spec for that would be harder to read than the markup. Two pages with grouped
-headers keep hand-written `<thead>`s; `tables.py` records the measurement behind that.
-
 ## The engineer-detail workbook (`assessments/artifacts/`)
 
 `build_workbook()` returns the .xlsx as BYTES and the line each sheet reports about itself.
@@ -418,15 +392,25 @@ query built on one can be aimed at a control of another type. `ControlQueryCreat
 the control's default and says which model the query targets, rather than storing one that can
 never match - `test_configuration_queries.SaveQueryOntoAControlTests` pins that.
 
-## Surfaces pending replacement
+## The surfaces that were pending replacement, and what replaced them
 
-One surface is known-incomplete and is NOT to be extended or "fixed" opportunistically.
+Nothing is pending here any more. Kept as a record of what was lost and what took its place,
+because both were deleted on 2026-09-25 and a deletion with no account of it reads as an
+accident.
 
-**The Findings pages** (`FindingListView`, `templates/assessments/finding_list.html`) enumerate
-exactly one finding model — `RuleFinding`. **Twenty-three exist** (`finding_registry.FINDING_KINDS`,
-which is the count, not this sentence). The other twenty-two are invisible there, including every
-certificate finding, every authentication finding, every administrator finding and every
-device-wide setting.
+**The Findings pages** enumerated exactly one finding model of twenty-three - `RuleFinding` -
+so every certificate, authentication, administrator and device-wide finding was invisible
+there. `/assessments/findings/` replaced them: it renders the workbook's own tables, and its
+domain list comes from `artifacts/domains.py` rather than from models named in a view, which
+is the self-extending pattern that would have prevented the drift in the first place.
+
+**The twenty device tabs** went with them. They were object-centric - one row per object with
+its findings counted, plus a provenance toggle - and the findings pages are finding-centric.
+Jason, 2026-09-25: "The query builder views show everything, the findings views show the full
+state of control outcomes." So the case those tabs answered, *every object of a type including
+the clean ones*, is the configuration explorer's, which does it with a query and provenance of
+its own. What did NOT survive: the per-object provenance toggle as a table mode, and the tab
+that listed unassessed fields beside assessed ones. Both are answerable on the explorer.
 
 **The client report was the second such surface until 2026-09-14, when it was deleted outright.**
 Jason called for artifact generation to be purged entirely rather than repaired, so `reporting/`,
@@ -444,21 +428,11 @@ management TLS - now write seven finding models the page does not enumerate. Tha
 section's rule rather than breaking it, and is recorded here so the loss is counted rather than
 discovered.
 
-Leave it that way for now. Jason, 2026-09-03: the enumeration is expected to change as the
-remaining domains land, and the Findings menu item "is not anchored to anything permanent right
-now" — so wiring five models into a surface that is being replaced is work done twice.
+Those seven models were never wired into the old page, which was correct at the time and is
+moot now: the replacement has a page per domain and the domain list is derived.
 
-What is expected to replace it: per-object browsing moves to the object tabs, which already
-do it better, and "everything wrong on one appliance, across every object type" becomes a
-per-appliance rollup, which no object tab can answer because each tab is one model by
-construction.
-
-**When adding a new finding model, do not wire it into either surface.** Add it to this list
-instead, so the gap stays counted rather than forgotten. That is how five models drifted out of
-view without a single test failing.
-
-Whatever replaces them must DERIVE its finding-model set from the registry rather than naming
-models — the same self-extending pattern the enforcement guards use.
+**When adding a finding model, add its domain to `artifacts/domains.py`.** That one list gives
+it a workbook tab and an app page, in the same position in both.
 
 ## Known Pitfalls
 

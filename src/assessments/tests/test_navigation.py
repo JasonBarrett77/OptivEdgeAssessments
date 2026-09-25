@@ -14,8 +14,6 @@ from django.test import TestCase
 from django.urls import reverse
 
 from assessments import app_meta
-from assessments.navigation import (
-    DEVICE_TABS, DEVICE_TAB_URL_NAMES, SECTIONS, SECTION_BY_URL_NAME, tabs_in)
 from assessments import configuration_navigation as config_nav
 
 #: Endpoints that render no page of their own, so no sidebar item can be "active" for them.
@@ -63,27 +61,26 @@ class NavigationCoverageTests(TestCase):
         stale = _all_active_names() - _declared_url_names()
         self.assertEqual(stale, set(), f"sidebar names dead URLs: {sorted(stale)}")
 
-    def test_the_device_configuration_item_covers_exactly_the_tabs(self):
-        """Derived, not restated - so a new tab cannot be added without the sidebar following."""
+    def test_the_findings_item_covers_both_of_its_routes(self):
+        """Two routes, not one per domain: the domain pages route on a slug, so this list
+        cannot fall behind the way the Device Configuration item's did - it was written out by
+        hand and drifted six tabs behind before it was derived."""
         item = next(i for s in app_meta.SIDEBAR_SECTION for i in s.get("items") or ()
-                    if i["label"] == "Device Configuration")
-        self.assertEqual(set(item["active_names"]), set(DEVICE_TAB_URL_NAMES))
+                    if i["label"] == "Findings")
 
-    def test_every_tab_resolves_and_names_an_icon_that_exists(self):
-        """A tab naming an icon that is not vendored renders a 500, not a missing glyph."""
-        icons = Path(app_meta.__file__).resolve().parents[2] / "optivedge"
-        for tab in DEVICE_TABS:
-            reverse(tab.url_name)
-            self.assertTrue(tab.icon and " " not in tab.icon, tab)
+        self.assertEqual(set(item["active_names"]),
+                         {"assessment_findings_summary", "assessment_findings_domain"})
 
-    def test_findings_is_the_replacement_and_the_legacy_page_is_not(self):
-        """The good name was kept free while the old page was pending replacement. It is
-        taken now, by the surface that renders the workbook's own tables - and the legacy
-        page stays in Experimental until it goes."""
+    def test_findings_is_the_replacement_and_nothing_else_is_left(self):
+        """The good name was kept free while the old page was pending replacement. It is taken
+        now, by the surface that renders the workbook's own tables, and both things it replaced
+        - the legacy findings page and the twenty device tabs - are gone."""
         by_section = {s["label"]: [i["label"] for i in s.get("items") or ()]
                       for s in app_meta.SIDEBAR_SECTION}
+
         self.assertIn("Findings", by_section["Assessments"])
-        self.assertIn("Findings (Legacy)", by_section["Experimental"])
+        self.assertNotIn("Device Configuration", by_section["Assessments"])
+        self.assertNotIn("Findings (Legacy)", by_section.get("Experimental", []))
 
     def test_the_findings_item_opens_the_summary(self):
         by_label = {i["label"]: i for s in app_meta.SIDEBAR_SECTION
@@ -91,59 +88,6 @@ class NavigationCoverageTests(TestCase):
 
         self.assertEqual(by_label["Findings"]["href"], reverse("assessment_findings_summary"))
 
-    def test_the_legacy_page_keeps_its_own_name(self):
-        self.assertTrue(reverse("assessment_legacy_finding_list").endswith("findings-legacy/"))
-
-
-class DeviceSectionTests(TestCase):
-    """The section strip. A flat bar was already wrapping at ten tabs, with 30 of 235 controls
-    done - and object tabs track config subtrees, of which the corpus has 43."""
-
-    def test_every_tab_names_a_section_that_exists(self):
-        unknown = {t.section for t in DEVICE_TABS} - set(SECTIONS)
-        self.assertEqual(unknown, set(), f"tabs in undeclared sections: {sorted(unknown)}")
-
-    def test_every_section_holds_at_least_one_tab(self):
-        """An empty section renders a link to nothing - the tag indexes [0] to find its href."""
-        for name in SECTIONS:
-            self.assertTrue(tabs_in(name), f"section {name!r} has no tabs")
-
-    def test_sections_partition_the_tabs(self):
-        self.assertEqual(sum(len(tabs_in(s)) for s in SECTIONS), len(DEVICE_TABS))
-
-    def test_the_active_section_follows_the_open_page(self):
-        """A page cannot be open in one section while another is highlighted."""
-        for tab in DEVICE_TABS:
-            response = self.client.get(reverse(tab.url_name))
-            self.assertEqual(response.status_code, 200, tab.url_name)
-            html = response.content.decode()
-            expected = SECTION_BY_URL_NAME[tab.url_name]
-            # the active section carries the solid chip
-            active = re.findall(r'bg-slate-800 text-white"\s*>\s*([^<]+)', html)
-            self.assertEqual([a.strip() for a in active], [expected], tab.url_name)
-
-    def test_only_the_active_sections_tabs_are_rendered(self):
-        """The point of the strip: what is on screen is one section, not the whole corpus.
-
-        Asserted on HREFS, not labels. The label sits on its own line after the icon, and
-        "Certificates" is both a tab label and a section name - a substring check passes for
-        the wrong reason.
-        """
-        tab_anchor = re.compile(
-            r'<a\s+href="([^"]+)"\s+class="inline-flex h-9 items-center gap-1\.5 border-b-2')
-        for tab in DEVICE_TABS:
-            html = self.client.get(reverse(tab.url_name)).content.decode()
-            section = SECTION_BY_URL_NAME[tab.url_name]
-            self.assertEqual(
-                set(tab_anchor.findall(html)),
-                {reverse(t.url_name) for t in tabs_in(section)},
-                f"wrong tab set rendered on {tab.label}")
-
-    def test_the_sidebar_still_covers_every_section(self):
-        """Sections are a display grouping; the sidebar item still owns all of them."""
-        item = next(i for s in app_meta.SIDEBAR_SECTION for i in s.get("items") or ()
-                    if i["label"] == "Device Configuration")
-        self.assertEqual(set(item["active_names"]), set(DEVICE_TAB_URL_NAMES))
 
 
 class ConfigurationExplorerTests(TestCase):
@@ -226,12 +170,18 @@ class ConfigurationExplorerTests(TestCase):
                 f'href="/assessments/configuration/{config_nav.category_slug(category)}/{first.slug}/"',
                 html, category)
 
-    def test_every_named_findings_tab_resolves(self):
-        """`findings_url_name` crosses to the other surface over the same object. A typo there
-        is invisible until someone opens the one page that carries the link."""
+    def test_every_object_crosses_to_the_page_that_reports_on_it(self):
+        """The link to the other surface over the same object. It used to be a URL NAME written
+        beside each rail item, where a typo was invisible until someone opened that one page;
+        it is derived from the object's model now, so this checks the derivation covers the
+        rail rather than checking twenty-one strings."""
+        from assessments.views import findings_href_for
+
         for obj in config_nav.CONFIG_OBJECTS:
-            if obj.findings_url_name:
-                reverse(obj.findings_url_name)
+            if not obj.search_model:
+                continue
+            with self.subTest(obj.slug):
+                self.assertTrue(findings_href_for(obj), obj.slug)
 
     def test_the_sidebar_highlights_the_explorer(self):
         names = set()
@@ -267,3 +217,36 @@ class TemplateCommentTests(TestCase):
                     line = text[: match.start()].count("\n") + 1
                     offenders.append(f"{path.relative_to(root)}:{line}")
         self.assertEqual(offenders, [], f"use {{% comment %}} instead: {offenders}")
+
+
+class CrossLinkTests(TestCase):
+    """The two surfaces over one object point at each other.
+
+    The link lived only on the PLACEHOLDER template - the page an object gets before it has a
+    query view - so once every object had one, nothing rendered it. The promise in
+    `configuration_navigation`'s docstring was true of a page nobody could reach.
+    """
+
+    def test_a_query_page_links_to_the_findings_page_for_the_same_object(self):
+        from assessments.artifacts import domains as artifact_domains
+
+        response = self.client.get(
+            reverse("assessment_configuration_object", args=["device", "login-banner"]))
+
+        expected = reverse("assessment_findings_domain",
+                           kwargs={"slug": artifact_domains.domain_for_model(
+                               "integrations.LoginBanner").slug})
+        self.assertContains(response, f'href="{expected}"')
+
+    def test_every_rail_item_offers_the_link(self):
+        from assessments import configuration_navigation as config_nav
+        from assessments.views import findings_href_for
+
+        for obj in config_nav.CONFIG_OBJECTS:
+            if not obj.search_model:
+                continue
+            with self.subTest(obj.slug):
+                response = self.client.get(reverse(
+                    "assessment_configuration_object",
+                    args=[config_nav.category_slug(obj.category), obj.slug]))
+                self.assertContains(response, f'href="{findings_href_for(obj)}"')
