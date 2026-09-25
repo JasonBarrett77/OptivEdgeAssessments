@@ -43,7 +43,6 @@ from assessments.views import (
     SslTlsServiceProfileListView,
     ManagementInterfaceListView,
     LegacyFindingListView,
-    SecurityRuleListView,
 )
 
 
@@ -247,11 +246,6 @@ urlpatterns = [
         "controls/<int:pk>/delete/",
         ControlDeleteView.as_view(),
         name="assessment_control_delete",
-    ),
-    path(
-        "security-rules/",
-        SecurityRuleListView.as_view(),
-        name="assessment_security_rule_list",
     ),
     path(
         "security-rules/plain-language/",

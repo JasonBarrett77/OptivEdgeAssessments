@@ -336,16 +336,30 @@ members byte-identical**, the two that differ being the build timestamp.
 
 ## Building a query, and keeping it
 
-Two surfaces build queries, and they are not duplicates. `/assessments/security-rules/` is the
-original; the configuration explorer (`/assessments/configuration/<category>/<object>/`) is the
-general one, and every one of its objects has a real query view rather than a placeholder.
+**One surface builds queries**: the configuration explorer,
+`/assessments/configuration/<category>/<object>/`, and every one of its objects has a real
+query view rather than a placeholder.
+
+`/assessments/security-rules/` was the original and was RETIRED on 2026-09-25, once the
+explorer matched it item for item: the same 23 fields (hard-coded in that page's template,
+derived from the compiler registry here, so they can no longer drift), the same columns and
+values, the same `control` / `control_query` / `search_state` / `edit_search` parameters, and
+pagination it never had - it rendered all 889 of the lab's rules in one page. Two sidebar
+doors into one room is worth removing while it is still a route and a nav entry.
+
+Two things moved with it. The plain-language translator now writes a `ConfigurationSearchState`
+and sends its result to `Policies > Security`; `SecurityRuleSearchState`, which only that page
+read, is deleted (migration 0029). And "Edit Prompt" is now offered by the explorer whenever
+the applied state carries a `query_text` - keyed on the state rather than on the object, so
+nothing there needs to know which pages have a plain-language front end.
 
 **Discovery is only half of it.** A query that answered something has to become a control's
 query, which is the `load_from_search` POST into `ControlQueryCreateView`: it parses the
 payload, checks it against the selected control's `target_model`, and opens the control-query
 form on it. That view was always generic. Until 2026-09-25 the BUTTON existed in one template -
-`security_rule_list.html` - so an operator could discover on any of the explorer's objects and
-could only keep the result if the object happened to be a security rule.
+the retired page's - so an operator could discover on any of the explorer's objects and could
+only keep the result if the object happened to be a security rule. That asymmetry is why the
+old page could not simply be deleted first.
 
 **The explorer offers it in two places**: beside Apply Query in the builder, and on the results
 bar once a query is applied, so an applied query can be saved without reopening the builder to

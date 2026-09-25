@@ -876,7 +876,15 @@ class ControlQueryTargetModelValidationTests(TestCase):
         self.assertIn("canonical_query", ctx.exception.message_dict)
 
 
-class SecurityRuleListViewGuardTests(TestCase):
+#: The retired `/assessments/security-rules/` page moved here on 2026-09-25.
+SECURITY_PAGE = "/assessments/configuration/policies/security/"
+
+
+class SecurityRuleQueryPageGuardTests(TestCase):
+    """A parameter aimed at the wrong model, or malformed, must say so rather than 500 or
+    quietly answer a question it was not asked. Written against the security rules page; kept
+    against the explorer page that replaced it."""
+
     def setUp(self):
         self.sr_control = Control.objects.create(
             control_id="SR-GUARD-001", name="SR", control_type=Control.ControlType.SECURITY_RULE,
@@ -894,39 +902,30 @@ class SecurityRuleListViewGuardTests(TestCase):
         )
 
     def test_another_models_control_rejected(self):
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control": self.mp_control.pk},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control": self.mp_control.pk})
+
         self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertIsNone(ctx["selected_control"])
-        self.assertTrue(ctx["search_error"])
-        self.assertIn("integrations.LoginBanner", ctx["search_error"])
+        # No preview context at all: the page refused the control rather than previewing it
+        # against rows it does not describe.
+        self.assertNotIn("control_preview", response.context)
+        self.assertIn("integrations.LoginBanner", response.context["search_error"])
 
     def test_another_models_query_rejected(self):
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control_query": self.mp_query.pk},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control_query": self.mp_query.pk})
+
         self.assertEqual(response.status_code, 200)
-        ctx = response.context
-        self.assertIsNone(ctx["selected_control_query"])
-        self.assertTrue(ctx["search_error"])
+        self.assertIsNone(response.context["search_query"])
+        self.assertTrue(response.context["search_error"])
 
     def test_malformed_control_param_does_not_500(self):
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control": "abc"},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control": "abc"})
+
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["search_error"])
 
     def test_malformed_control_query_param_does_not_500(self):
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control_query": "abc"},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control_query": "abc"})
+
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["search_error"])
 
@@ -991,18 +990,25 @@ class SecurityRuleListDeviceGroupTests(TestCase):
             provenance_type=FieldProvenance.ProvenanceType.LOCAL,
         )
 
-    def test_security_rule_list_shows_device_group_name(self):
-        response = self.client.get(reverse("assessment_security_rule_list"))
+    def _rows_by_rule(self, response):
+        columns = list(response.context["columns"])
+        return {row[columns.index("Rule")]: dict(zip(columns, row))
+                for row in response.context["rows"]}
+
+    def test_security_rule_page_shows_device_group_name(self):
+        response = self.client.get(SECURITY_PAGE)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "branch-office-dg")
 
-    def test_security_rule_list_shows_dash_for_local_rule(self):
-        response = self.client.get(reverse("assessment_security_rule_list"))
+    def test_a_local_rule_names_no_device_group(self):
+        """A pushed rule names the group that pushed it; a local one has none to name and
+        renders the empty marker the page uses everywhere a multi-value cell holds nothing."""
+        rows = self._rows_by_rule(self.client.get(SECURITY_PAGE))
 
-        rows = {row["security_rule"].pk: row for row in response.context["security_rule_rows"]}
-        self.assertEqual(rows[self.rule_with_device_group.pk]["device_group_name"], "branch-office-dg")
-        self.assertEqual(rows[self.rule_local.pk]["device_group_name"], "")
+        self.assertEqual(rows[self.rule_with_device_group.name]["Device Group"],
+                         "branch-office-dg")
+        self.assertEqual(rows[self.rule_local.name]["Device Group"], "-")
 
 
 class ControlListViewNoEnvironmentTests(TestCase):

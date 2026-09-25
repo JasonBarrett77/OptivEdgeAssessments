@@ -23,7 +23,6 @@ SIDEBAR_SECTION = [
             "assessment_catalog_download",
             "assessment_catalog_seed_download",
             "assessment_system",
-            "assessment_security_rule_list",
             "assessment_catalog_refresh_seed",
             "assessment_control_run_findings",
             *DEVICE_TAB_URL_NAMES,
@@ -58,14 +57,6 @@ SIDEBAR_SECTION = [
                     "assessment_control_query_create",
                     "assessment_control_query_update",
                     "assessment_control_query_delete",
-                },
-            },
-            {
-                "label": "Security Rules",
-                "href": "/assessments/security-rules/",
-                "icon": "shield",
-                "active_names": {
-                    "assessment_security_rule_list",
                 },
             },
             {

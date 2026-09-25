@@ -6,9 +6,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from assessments.models import (
+    ConfigurationSearchState,
     Control,
     ControlQuery,
-    SecurityRuleSearchState,
 )
 from assessments.search.compiler import apply_search
 from assessments.search.exceptions import SearchSyntaxError
@@ -29,6 +29,17 @@ from optivedge_integrations.integrations.models import (
     SecurityRuleToZone,
     Snapshot,
 )
+
+#: The retired `/assessments/security-rules/` page moved here on 2026-09-25: the same query
+#: over the same model, inside the explorer that has one for every object.
+SECURITY_PAGE = "/assessments/configuration/policies/security/"
+
+
+def rule_names(response):
+    """The Rule column of every row the page rendered."""
+    rule_column = list(response.context["columns"]).index("Rule")
+    return [row[rule_column] for row in response.context["rows"]]
+
 
 
 class SecurityRuleSearchTests(TestCase):
@@ -941,16 +952,11 @@ class SecurityRuleSearchTests(TestCase):
             '{"field":"from_zone","op":"eq","value":"trust"}'
             ']}'
         )
-        response = self.client.post(
-            reverse("assessment_security_rule_list"),
-            {
-                "q": payload,
-                "search": payload,
-            },
-        )
+        response = self.client.post(SECURITY_PAGE, {"search": payload})
 
         self.assertEqual(response.status_code, 302)
-        search_state = SecurityRuleSearchState.objects.get()
+        search_state = ConfigurationSearchState.objects.get()
+        self.assertEqual(search_state.model_label, self.model_name)
         self.assertIn(f"search_state={search_state.token}", response["Location"])
         self.assertEqual(
             search_state.canonical_query,
@@ -971,7 +977,8 @@ class SecurityRuleSearchTests(TestCase):
         )
 
     def test_get_with_search_state_filters_results(self):
-        search_state = SecurityRuleSearchState.objects.create(
+        search_state = ConfigurationSearchState.objects.create(
+            model_label=self.model_name,
             query_text='{"model":"integrations.SecurityRule","operator":"and","clauses":[{"field":"from_zone","op":"eq","value":"trust"}]}',
             canonical_query={
                 "model": self.model_name,
@@ -988,14 +995,10 @@ class SecurityRuleSearchTests(TestCase):
             },
         )
 
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"search_state": str(search_state.token)},
-        )
+        response = self.client.get(SECURITY_PAGE, {"search_state": str(search_state.token)})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.context["security_rule_rows"]), 1)
-        self.assertEqual(response.context["security_rule_rows"][0]["security_rule"], self.rule_one)
+        self.assertEqual(rule_names(response), [self.rule_one.name])
 
     def test_edit_search_can_preload_saved_control_query(self):
         control_query = ControlQuery.objects.create(
@@ -1017,18 +1020,11 @@ class SecurityRuleSearchTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {
-                "edit_search": "1",
-                "control_query": control_query.pk,
-            },
-        )
+            SECURITY_PAGE, {"edit_search": "1", "control_query": control_query.pk})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            json.loads(response.context["search_editor_query"]),
-            control_query.canonical_query,
-        )
+            json.loads(response.context["search_payload"]), control_query.canonical_query)
 
     def test_get_with_control_query_applies_saved_query(self):
         control_query = ControlQuery.objects.create(
@@ -1051,15 +1047,11 @@ class SecurityRuleSearchTests(TestCase):
             is_baseline=True,
         )
 
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control_query": control_query.pk},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control_query": control_query.pk})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["search_query"], control_query.canonical_query)
-        self.assertEqual(len(response.context["security_rule_rows"]), 1)
-        self.assertEqual(response.context["security_rule_rows"][0]["security_rule"], self.rule_one)
+        self.assertEqual(rule_names(response), [self.rule_one.name])
 
     def test_get_with_control_applies_active_queries(self):
         baseline_query = ControlQuery.objects.create(
@@ -1098,23 +1090,17 @@ class SecurityRuleSearchTests(TestCase):
             adjusted_severity=Control.Severity.HIGH,
         )
 
-        response = self.client.get(
-            reverse("assessment_security_rule_list"),
-            {"control": self.control.pk},
-        )
+        response = self.client.get(SECURITY_PAGE, {"control": self.control.pk})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["selected_control"], self.control)
-        self.assertEqual(response.context["selected_control_query_count"], 2)
-        self.assertEqual(response.context["selected_control_skipped_queries"], 0)
-        self.assertTrue(response.context["show_control_severity"])
-        self.assertEqual(
-            response.context["search_summary"],
-            f"Control candidates: {self.control.control_id} (2 queries)",
-        )
-        self.assertEqual(len(response.context["security_rule_rows"]), 2)
-        self.assertEqual(response.context["security_rule_rows"][0]["security_rule"], self.rule_one)
-        self.assertEqual(response.context["security_rule_rows"][1]["security_rule"], self.rule_two)
-        self.assertEqual(response.context["security_rule_rows"][0]["control_severity"], "Medium")
-        self.assertEqual(response.context["security_rule_rows"][1]["control_severity"], "High")
-        self.assertContains(response, ">Severity<")
+        preview = response.context["control_preview"]
+        self.assertEqual(preview["control_id"], self.control.control_id)
+        self.assertEqual(preview["query_count"], 2)
+        self.assertEqual(preview["note"], "")
+        # The two preview cells the whole-control view adds: the severity each rule would
+        # report, and which query said so.
+        self.assertEqual(response.context["columns"][-2:], ("Severity", "Matched query"))
+        severities = {row[columns.index("Rule")]: row[-2] for row in response.context["rows"]
+                      for columns in (list(response.context["columns"]),)}
+        self.assertEqual(severities[self.rule_one.name], "Medium")
+        self.assertEqual(severities[self.rule_two.name], "High")

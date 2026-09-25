@@ -4,7 +4,10 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
-from assessments.models import SecurityRuleSearchState
+from assessments.models import ConfigurationSearchState
+
+#: Where a translated prompt now lands: the explorer page for the model it queries.
+SECURITY_PAGE = "/assessments/configuration/policies/security/"
 from assessments.plain_language.security_rules.client import StructuredResponseResult
 from assessments.plain_language.security_rules.concepts import (
     detect_request_concepts,
@@ -523,10 +526,10 @@ class PlainLanguageSecurityRuleQueryViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         location = response["Location"]
         self.assertTrue(
-            location.startswith(f"{reverse('assessment_security_rule_list')}?edit_search=1&search_state=")
-        )
+            location.startswith(f"{SECURITY_PAGE}?edit_search=1&search_state="),
+            location)
 
-        search_state = SecurityRuleSearchState.objects.get()
+        search_state = ConfigurationSearchState.objects.get()
         self.assertEqual(search_state.query_text, "Show rules whose source matches 10.0.0.0/8, including any.")
         self.assertEqual(search_state.canonical_query, canonical_query)
 
@@ -547,10 +550,11 @@ class PlainLanguageSecurityRuleQueryViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "translation failed")
-        self.assertEqual(SecurityRuleSearchState.objects.count(), 0)
+        self.assertEqual(ConfigurationSearchState.objects.count(), 0)
 
     def test_get_with_search_state_prefills_existing_plain_language_prompt(self):
-        search_state = SecurityRuleSearchState.objects.create(
+        search_state = ConfigurationSearchState.objects.create(
+            model_label="integrations.SecurityRule",
             query_text="Show rules from transit to internet.",
             canonical_query={
                 "model": "integrations.SecurityRule",
@@ -572,12 +576,13 @@ class PlainLanguageSecurityRuleQueryViewTests(TestCase):
         self.assertContains(response, "Show rules from transit to internet.")
         self.assertContains(
             response,
-            f'{reverse("assessment_security_rule_list")}?edit_search=1&amp;search_state={search_state.token}',
+            f'{SECURITY_PAGE}?edit_search=1&amp;search_state={search_state.token}',
             html=False,
         )
 
     def test_security_rule_builder_shows_edit_prompt_link_when_query_text_exists(self):
-        search_state = SecurityRuleSearchState.objects.create(
+        search_state = ConfigurationSearchState.objects.create(
+            model_label="integrations.SecurityRule",
             query_text="Show rules whose source matches 10.0.0.0/8.",
             canonical_query={
                 "model": "integrations.SecurityRule",
@@ -596,7 +601,7 @@ class PlainLanguageSecurityRuleQueryViewTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("assessment_security_rule_list"),
+            SECURITY_PAGE,
             {
                 "edit_search": "1",
                 "search_state": str(search_state.token),

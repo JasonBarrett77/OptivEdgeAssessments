@@ -37,28 +37,16 @@ from optivedge_integrations.integrations.models import (
 )
 
 
-class SecurityRuleSearchState(models.Model):
-    """Server-side state for structured security-rule searches."""
-
-    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
-    query_text = models.TextField(blank=True)
-    canonical_query = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self) -> str:
-        return str(self.token)
-
-
 class ConfigurationSearchState(models.Model):
     """A built query, parked server-side so the URL can carry a token instead of the JSON.
 
-    `SecurityRuleSearchState` does the same job for one model. This one carries `model_label`
-    because the configuration explorer has a page per object and a token that arrived from
-    another object's page must not be applied here - the fields would not compile, and a query
-    that silently matched nothing would look like an answer.
+    It carries `model_label` because the configuration explorer has a page per object and a
+    token that arrived from another object's page must not be applied here - the fields would
+    not compile, and a query that silently matched nothing would look like an answer.
+
+    There was a second one, `SecurityRuleSearchState`, for the retired security rules page. It
+    went with that page on 2026-09-25; the plain-language translator writes these instead, and
+    `query_text` is what carries the prompt back for editing.
 
     Rows are cheap and disposable: one per query a person builds, never edited, and the token
     is the whole point - a built query survives a reload, a bookmark and a paste to a colleague

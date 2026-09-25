@@ -236,6 +236,18 @@ person who has learned one should not have to learn this one.
                         >
                             Show JSON
                         </button>
+                        {% if plain_language_edit_url %}
+                        {% comment %}
+                        This query was written as a sentence somewhere else. Without a way back
+                        to those words, refining the prompt means retyping it from memory.
+                        {% endcomment %}
+                        <a
+                            href="{{ plain_language_edit_url }}"
+                            class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        >
+                            Edit Prompt
+                        </a>
+                        {% endif %}
                         <a
                             href="{{ edit_search_close_url }}"
                             class="inline-flex h-8 items-center justify-center border border-slate-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20"

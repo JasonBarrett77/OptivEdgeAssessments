@@ -59,7 +59,6 @@ from assessments.models import (
     InterfaceManagementProfileFinding,
     ManagementInterfaceFinding,
     RuleFinding,
-    SecurityRuleSearchState,
     SslTlsServiceProfileFinding,
 )
 from assessments.search.compiler import (
@@ -1673,206 +1672,6 @@ class ControlQueryDeleteView(RightOverlayMixin, ControlDetailBackgroundMixin, De
         return reverse("assessment_control_detail", kwargs={"pk": self.object.control.pk})
 
 
-class SecurityRuleListView(TemplateView):
-    template_name = "assessments/security_rule_list.html"
-
-    def post(self, request, *args, **kwargs):
-        query_text = request.POST.get("q", "")
-        search_payload = request.POST.get("search", "").strip() or query_text.strip()
-        if not search_payload:
-            return HttpResponseRedirect(reverse("assessment_security_rule_list"))
-
-        try:
-            _queryset, canonical_query = apply_search(
-                SecurityRule.objects.none(),
-                search_payload,
-            )
-        except SearchSyntaxError:
-            context = self.get_context_data(**kwargs)
-            context["search_error"] = "Search payload must be valid canonical search JSON."
-            context["query_text"] = query_text
-            context["search_payload"] = search_payload
-            context["search_editor_query"] = search_payload
-            context["overlay_is_open"] = True
-            context["overlay_close_url"] = build_query_string_without(request, "edit_search")
-            return self.render_to_response(context)
-
-        search_state = SecurityRuleSearchState.objects.create(
-            query_text=query_text,
-            canonical_query=canonical_query,
-        )
-        return HttpResponseRedirect(
-            f"{reverse('assessment_security_rule_list')}?search_state={search_state.token}"
-        )
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        selected_control_query = None
-        selected_control = None
-        security_rules = build_security_rule_display_queryset()
-        context["query_text"] = ""
-        context["search_payload"] = ""
-        context["search_error"] = ""
-        context["search_query"] = None
-        context["search_summary"] = "No search applied"
-        context["search_state_token"] = self.request.GET.get("search_state", "")
-        context["show_control_severity"] = False
-        severity_by_rule_id = {}
-        control_query_id = self.request.GET.get("control_query")
-        control_id = self.request.GET.get("control")
-        context["edit_search_open"] = self.request.GET.get("edit_search") == "1"
-        context["applied_control_close_url"] = build_query_string_without(
-            self.request,
-            "control",
-        )
-        context["edit_search_close_url"] = build_query_string_without(
-            self.request,
-            "edit_search",
-            "control_query",
-            "control",
-        )
-        context["plain_language_edit_url"] = ""
-
-        if control_query_id:
-            try:
-                selected_control_query = ControlQuery.objects.select_related("control").get(
-                    pk=int(control_query_id)
-                )
-                q_model = (
-                    selected_control_query.canonical_query.get("model")
-                    if isinstance(selected_control_query.canonical_query, dict)
-                    else None
-                )
-                if q_model and q_model != SECURITY_RULE_QUERY_MODEL:
-                    context["search_error"] = (
-                        f"This query targets {q_model} and cannot be applied to security rules."
-                    )
-                    selected_control_query = None
-                    context["edit_search_open"] = True
-            except (ControlQuery.DoesNotExist, ValueError, TypeError):
-                context["search_error"] = "Saved query could not be found."
-                context["edit_search_open"] = True
-
-        if control_id:
-            try:
-                selected_control = Control.objects.get(pk=int(control_id))
-                if selected_control.target_model and selected_control.target_model != SECURITY_RULE_QUERY_MODEL:
-                    context["search_error"] = (
-                        f"Control {selected_control.control_id} targets "
-                        f"{selected_control.target_model} and cannot be applied to security rules."
-                    )
-                    selected_control = None
-            except (Control.DoesNotExist, ValueError, TypeError):
-                context["search_error"] = "Control could not be found."
-
-        if context["search_state_token"]:
-            try:
-                search_state = SecurityRuleSearchState.objects.get(
-                    token=context["search_state_token"]
-                )
-                canonical_query = search_state.canonical_query
-                if (
-                    isinstance(canonical_query, dict)
-                    and "operator" in canonical_query
-                    and "model" not in canonical_query
-                ):
-                    canonical_query = {
-                        "model": SECURITY_RULE_QUERY_MODEL,
-                        **canonical_query,
-                    }
-                security_rules = apply_search_node(
-                    security_rules,
-                    canonical_query,
-                )
-                context["search_query"] = canonical_query
-                context["search_summary"] = describe_search_node(canonical_query)
-                context["query_text"] = search_state.query_text
-                context["search_payload"] = json.dumps(canonical_query)
-                if search_state.query_text:
-                    context["plain_language_edit_url"] = (
-                        f"{reverse('assessment_security_rule_plain_language')}?search_state={search_state.token}"
-                    )
-            except (SecurityRuleSearchState.DoesNotExist, SearchSyntaxError) as exc:
-                context["search_error"] = str(exc) or "Stored search state is invalid."
-                context["edit_search_open"] = True
-        elif selected_control:
-            (
-                security_rules,
-                active_queries,
-                skipped_queries,
-                _matched_by_rule,
-                severity_by_rule_id,
-            ) = evaluate_control_queries(security_rules, selected_control)
-            severity_by_rule_id = {
-                rule_id: severity_label(severity_value)
-                for rule_id, severity_value in severity_by_rule_id.items()
-            }
-            context["selected_control"] = selected_control
-            context["selected_control_query_count"] = len(active_queries)
-            context["selected_control_skipped_queries"] = skipped_queries
-            context["show_control_severity"] = True
-            context["search_summary"] = (
-                f"Control candidates: {selected_control.control_id} ({len(active_queries)} quer"
-                f"{'y' if len(active_queries) == 1 else 'ies'})"
-            )
-        elif selected_control_query and isinstance(selected_control_query.canonical_query, dict):
-            try:
-                canonical_query = selected_control_query.canonical_query
-                security_rules = apply_search_node(
-                    security_rules,
-                    canonical_query,
-                )
-                context["search_query"] = canonical_query
-                context["search_summary"] = describe_search_node(canonical_query)
-                context["search_payload"] = json.dumps(canonical_query)
-            except SearchSyntaxError as exc:
-                context["search_error"] = str(exc) or "Saved query is invalid."
-                context["edit_search_open"] = True
-
-        editor_query = context["search_query"] or default_security_rule_search_query()
-        if selected_control_query and isinstance(selected_control_query.canonical_query, dict):
-            editor_query = selected_control_query.canonical_query
-
-        context["search_editor_query"] = json.dumps(
-            editor_query,
-            indent=2,
-        )
-        context["selected_control_query"] = selected_control_query
-        context.setdefault("selected_control", selected_control)
-
-        filter_applied = bool(
-            context["search_state_token"] or selected_control or selected_control_query
-        )
-        if filter_applied:
-            paginator = Paginator(security_rules, PAGE_SIZE)
-            page_obj = paginator.get_page(self.request.GET.get("page"))
-            page_rules = page_obj.object_list
-            total_row_count = paginator.count
-        else:
-            # No search/control filter active - serve the unfiltered listing from the
-            # cached pk order instead of re-running the full ordering query on every
-            # request. Paginator accepts plain sequences (count falls back to len()),
-            # so page_obj's interface is identical either way.
-            pks = get_cached_security_rule_pks()
-            paginator = Paginator(pks, PAGE_SIZE)
-            page_obj = paginator.get_page(self.request.GET.get("page"))
-            page_pks = list(page_obj.object_list)
-            # build_security_rule_display_queryset()'s own order_by is the same
-            # deterministic total order the pks were cached with, so filtering to just
-            # this page's pks reproduces the correct order without re-sorting in Python.
-            page_rules = list(build_security_rule_display_queryset().filter(pk__in=page_pks))
-            total_row_count = paginator.count
-
-        context["security_rule_rows"] = build_security_rule_rows(
-            page_rules,
-            severity_by_rule_id=severity_by_rule_id,
-        )
-        context["page_obj"] = page_obj
-        context["page_range"] = pagination_range(page_obj)
-        context["total_row_count"] = total_row_count
-        return context
-
-
 PASSWORD_COMPLEXITY_CONTROLS = tuple(f"PAN-AUTH-{n:03d}" for n in range(1, 14))
 AUTHENTICATION_SETTINGS_CONTROLS = ("PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-016",
                                     "PAN-AUTH-017")
@@ -2590,6 +2389,7 @@ class ConfigurationObjectView(TemplateView):
         total = rows.count()
         node = None
         error = ""
+        prompt_text = ""
 
         token = self.request.GET.get("search_state", "")
         if token:
@@ -2606,6 +2406,11 @@ class ConfigurationObjectView(TemplateView):
                              f"{obj.label}.")
                 else:
                     node = state.canonical_query
+                    # A state that carries the WORDS that produced it came from the
+                    # plain-language page, and the way back to them is this link. Keyed on the
+                    # state rather than on the object, so nothing here needs to know which
+                    # pages have a plain-language front end.
+                    prompt_text = state.query_text
 
         control_query_id = self.request.GET.get("control_query")
         if control_query_id and not error:
@@ -2676,6 +2481,9 @@ class ConfigurationObjectView(TemplateView):
             # Filled in below from the previewed control, when there is one and no query of
             # the reader's own.
             "search_error": error,
+            "plain_language_edit_url": (
+                f"{reverse('assessment_security_rule_plain_language')}?search_state={token}"
+                if prompt_text else ""),
             "edit_search_open": self.request.GET.get("edit_search") == "1",
             "edit_search_close_url": build_query_string_without(self.request, "edit_search"),
             "clear_search_url": build_query_string_without(
