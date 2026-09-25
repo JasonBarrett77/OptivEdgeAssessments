@@ -233,15 +233,22 @@ def tested_fields(subject_model, control, readers=()) -> list[tuple[str, bool]]:
     return fields
 
 
-def tested_cells(spec, finding, subject, shown, provenance):
-    """The Setting / Observed value / Fires when / Provenance cells this sheet carries, in the
-    order `columns_for` lays them out."""
+def tested_cells(spec, finding, subject, shown, provenance, tested=None):
+    """The Fires when / Provenance cells this table carries, in the order `columns_for` lays
+    them out.
+
+    `tested` overrides the spec, because which of these a SURFACE shows is the surface's
+    decision: the workbook drops them where its own columns already say the same thing, and
+    the live pages carry provenance everywhere (Jason, 2026-09-25: "can we add the provenance
+    data, even if both presentation surfaces don't use it?"). The row is computed either way.
+    """
+    carried = spec.tested_columns if tested is None else tested
     by_header = {
         "Fires when (failing condition)": lambda: fires_when(finding.control),
         "Provenance": lambda: provenance,
     }
     return [make() for header, _w, _wrap in TESTED_COLUMNS
-            if header in spec.tested_columns for make in (by_header[header],)]
+            if header in carried for make in (by_header[header],)]
 
 
 #: The value at fault: bold on a light amber fill. Not one of the severity fills - those are the
@@ -430,26 +437,27 @@ def setting_columns(spec, controls):
     return columns
 
 
-def columns_for(spec, settings):
+def columns_for(spec, settings, tested=None):
     """One layout for every findings tab (Jason, 2026-09-18): which finding and which control,
     its status, WHERE it occurs and where the values came from, then the SETTINGS themselves, and
     metadata last. The policy tab set the order; the rest follow it."""
+    carried = spec.tested_columns if tested is None else tested
     return (HEAD_COLUMNS
             + [c[:3] for c in map(as_column, spec.subject_columns)]
-            + [c for c in TESTED_COLUMNS if c[0] in spec.tested_columns]
+            + [c for c in TESTED_COLUMNS if c[0] in carried]
             + [c[:3] for c in map(as_column, spec.source_columns)]
             + [c[:3] for c in settings]
             + TAIL_COLUMNS)
 
 
-def build_rows(spec, findings, controls, settings):
+def build_rows(spec, findings, controls, settings, tested=None):
     subject_by_finding = {f: spec.kind_for(f.control.control_type).subject_of(f) for f in findings}
     provenance = provenance_index(set(subject_by_finding.values()))
     fields_by_control = {
         c.pk: tested_fields(spec.subject_model(spec.kind_for(c.control_type)), c,
                             spec.value_readers)
         for c in controls}
-    columns = columns_for(spec, settings)
+    columns = columns_for(spec, settings, tested)
     #: (row index, column index) of every cell holding a value the row's control tests.
     implicated = []
 
@@ -489,7 +497,7 @@ def build_rows(spec, findings, controls, settings):
                          for _h, _w, _wrap, read, _f in map(as_column, spec.subject_columns)]
         setting_cells = [read(policy, provenance_of) for _h, _w, _wrap, read, _f in settings]
 
-        tested_cell_values = tested_cells(spec, finding, policy, shown, prov)
+        tested_cell_values = tested_cells(spec, finding, policy, shown, prov, tested)
         source_cells = [read(policy, provenance_of, shown)
                         for _h, _w, _wrap, read, _f in map(as_column, spec.source_columns)]
 
@@ -579,26 +587,90 @@ def check_every_tested_field_is_presented(spec, controls, settings):
                     f"the column that does.")
 
 
-def write_sheet(build, spec) -> SheetInfo:
-    workbook = build.workbook
+#: Every tested column there is. A surface passes this when it wants the provenance and the
+#: firing condition regardless of what the spec's own tab carries.
+ALL_TESTED_COLUMNS = tuple(header for header, _w, _wrap in TESTED_COLUMNS)
+
+
+@dataclass(frozen=True)
+class FindingsTable:
+    """One domain's findings as columns and rows, before anything decides how to draw them.
+
+    The workbook and the live findings pages are the same table in two media, and the only
+    way they stay that way is by being ONE table: xlsxwriter formatting lives in `write_sheet`,
+    HTML lives in the view, and everything that decides WHAT a row says is here.
+    """
+
+    spec: DeviceSettingSheet
+    title: str
+    description: str
+    category: str
+    columns: list
+    rows: list
+    #: (row index, column index) of every cell holding a value the row's control tests.
+    implicated: list
+    findings: list
+    controls: list
+    by_severity: dict
+    runs: set
+
+    @property
+    def headers(self):
+        return [header for header, _width, _wrap in self.columns]
+
+
+def build_findings_table(spec, *, tested=None) -> FindingsTable:
+    """Load a domain's findings and lay them out. No workbook, no request, no template.
+
+    `tested` is how a surface asks for more than the spec's tab carries - see `tested_cells`.
+    """
     controls, findings = load(spec)
     settings = setting_columns(spec, controls)
     check_every_tested_field_is_presented(spec, controls, settings)
-    rows, implicated = build_rows(spec, findings, controls, settings)
-    title = spec.sheet_title
-    sheet = workbook.add_worksheet(title[:31])
+    rows, implicated = build_rows(spec, findings, controls, settings, tested)
 
-    appliances = Appliance.objects.count()
     by_severity = defaultdict(int)
     for finding in findings:
         by_severity[finding.severity] += 1
-    rationales = {c.rationale for c in controls if c.rationale}
 
-    # From the SPEC's control type rather than from the controls that were loaded: a type
-    # whose controls are all inactive loads none, and indexing the empty result raised
-    # IndexError instead of drawing an empty tab. Deactivating one control was enough.
-    category = category_of(spec.subject_model(spec.kind_for(spec.control_types[0])))
-    columns = columns_for(spec, settings)
+    # The reference document presents every finding OF THE CONTROLS THIS TABLE CARRIES. That no
+    # control falls off every tab is checked once, for the workbook, in `build_workbook`.
+    expected = sum(kind.model.objects.filter(control__in=controls).count()
+                   for kind in spec.kinds_for(controls))
+    if len(rows) != expected:
+        raise ArtifactBuildError(
+            f"{spec.sheet_title}: built {len(rows)} rows but {expected} findings exist for its "
+            f"controls")
+
+    return FindingsTable(
+        spec=spec,
+        title=spec.sheet_title,
+        description=spec.description,
+        # From the SPEC's control type rather than from the controls that were loaded: a type
+        # whose controls are all inactive loads none, and indexing the empty result raised
+        # IndexError instead of drawing an empty tab. Deactivating one control was enough.
+        category=category_of(spec.subject_model(spec.kind_for(spec.control_types[0]))),
+        columns=columns_for(spec, settings, tested),
+        rows=rows,
+        implicated=implicated,
+        findings=findings,
+        controls=controls,
+        by_severity=dict(by_severity),
+        runs={f.assessment_run_id for f in findings},
+    )
+
+
+def write_sheet(build, spec) -> SheetInfo:
+    workbook = build.workbook
+    table = build_findings_table(spec)
+    controls, findings = table.controls, table.findings
+    rows, implicated = table.rows, table.implicated
+    columns, title, category = table.columns, table.title, table.category
+    by_severity = table.by_severity
+    sheet = workbook.add_worksheet(title[:31])
+
+    appliances = Appliance.objects.count()
+    rationales = {c.rationale for c in controls if c.rationale}
     top = write_header_block(build, sheet, title=title, last_col=len(columns) - 1,
         tab_colour=TAB_COLOURS[category],
         count_groups=[
@@ -646,20 +718,14 @@ def write_sheet(build, spec) -> SheetInfo:
             "type": "cell", "criteria": "==", "value": f'"{text}"',
             "format": workbook.add_format(fmt)})
 
-    # The reference document presents every finding OF THE CONTROLS THIS TAB CARRIES. That no
-    # control falls off every tab is checked once, for the workbook, in `build_workbook`.
-    expected = sum(kind.model.objects.filter(control__in=controls).count()
-                   for kind in spec.kinds_for(controls))
-    if len(rows) != expected:
-        raise ArtifactBuildError(f"{title}: wrote {len(rows)} rows but {expected} findings exist for its "
-                         f"controls")
-    runs = {f.assessment_run_id for f in findings}
+    runs = table.runs
     return SheetInfo(
         title=title,
         description=spec.description,
         count=f"{len(rows)} {plural(len(rows), 'finding')}",
-        report=f"{title}: {len(rows)} of {expected} findings, {len(controls)} controls, "
-               f"run {sorted(runs)}",
+        # "N of N" until 2026-09-25, when the count guard moved into `build_findings_table`
+        # and made the two numbers the same by construction rather than by luck.
+        report=f"{title}: {len(rows)} findings, {len(controls)} controls, run {sorted(runs)}",
         by_severity=dict(by_severity),
         category=category,
         runs=runs)

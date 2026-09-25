@@ -11,6 +11,13 @@ The docx report will sit beside this, sharing the run and the engagement metadat
 from __future__ import annotations
 
 from .errors import ArtifactBuildError
+from .sheets.findings import ALL_TESTED_COLUMNS, FindingsTable, build_findings_table
 from .workbook import build_workbook
 
-__all__ = ["ArtifactBuildError", "build_workbook"]
+__all__ = [
+    "ALL_TESTED_COLUMNS",
+    "ArtifactBuildError",
+    "FindingsTable",
+    "build_findings_table",
+    "build_workbook",
+]

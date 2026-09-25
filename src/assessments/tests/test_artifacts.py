@@ -220,3 +220,84 @@ class TimestampTests(TestCase):
 
     def test_nothing_is_an_em_dash(self):
         self.assertEqual(layout.utc(None), layout.NONE)
+
+
+class FindingsTableTests(TestCase):
+    """The table both surfaces render.
+
+    The workbook and the live findings pages are meant to match. The only way they stay
+    matched is by being one table: everything that decides WHAT a row says lives in
+    `build_findings_table`, and each surface only decides how to draw it.
+    """
+
+    def _table(self, spec=None, **kwargs):
+        from assessments.artifacts import build_findings_table
+        from assessments.artifacts.sheets import objects
+        from assessments.models import Control
+
+        return build_findings_table(
+            spec or objects.SPEC_BY_TYPE[Control.ControlType.LOGIN_BANNER], **kwargs)
+
+    def test_every_row_is_as_wide_as_the_columns(self):
+        table = self._table()
+
+        for row in table.rows:
+            self.assertEqual(len(row), len(table.columns))
+
+    def test_it_opens_with_the_finding_and_the_control(self):
+        """One layout for every domain: which finding, which control, how bad, and why."""
+        table = self._table()
+
+        self.assertEqual(table.headers[:6], [
+            "Finding #", "Control ID", "Control", "Severity", "Severity basis", "Status"])
+
+    def test_a_surface_can_ask_for_provenance_the_workbook_tab_omits(self):
+        """Jason, 2026-09-25: "can we add the provenance data, even if both presentation
+        surfaces don't use it?"
+
+        The policy tab passes `tested_columns=()` because its own columns already show every
+        field its controls test. That is a decision about one TAB, not about the data, so a
+        surface can ask for the provenance and the firing condition anyway.
+        """
+        from assessments.artifacts import ALL_TESTED_COLUMNS
+        from assessments.artifacts.sheets import security_rules
+
+        default = self._table(security_rules.SPEC)
+        asked = self._table(security_rules.SPEC, tested=ALL_TESTED_COLUMNS)
+
+        self.assertNotIn("Provenance", default.headers)
+        self.assertIn("Provenance", asked.headers)
+        self.assertIn("Fires when (failing condition)", asked.headers)
+
+    def test_it_reports_the_domain_its_category_and_its_severities(self):
+        table = self._table()
+
+        self.assertEqual(table.title, "Login Banner")
+        self.assertEqual(table.category, "Device")
+        self.assertTrue(table.description)
+        self.assertEqual(table.by_severity, {})
+
+    def test_a_finding_becomes_exactly_one_row(self):
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.table")
+        group = ApplianceGroup.objects.create(
+            management_station=station, name="g-table",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        appliance = Appliance.objects.create(
+            management_station=station, appliance_group=group,
+            serial_number="S-table", hostname="fw-table")
+        snapshot = Snapshot.objects.create(
+            management_station=station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        LoginBanner.objects.create(
+            management_station=station, appliance=appliance, source_snapshot=snapshot,
+            text="", acknowledgement_required=False)
+        seed_controls(["PAN-MGT-007"])
+        regenerate_findings()
+
+        table = self._table()
+        finding = LoginBannerFinding.objects.get()
+
+        self.assertEqual(len(table.rows), 1)
+        self.assertEqual(table.rows[0][0], finding.reference)
+        self.assertEqual(table.by_severity, {finding.severity: 1})

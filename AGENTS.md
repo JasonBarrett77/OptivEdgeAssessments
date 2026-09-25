@@ -316,6 +316,18 @@ script that builds one workbook and exits, and are not harmless in a long-runnin
   `except Exception` never sees it and a web worker dies instead of returning an error. They
   raise `ArtifactBuildError` now, and `test_artifacts` fails on the word reappearing.
 
+**One table, two surfaces.** `build_findings_table(spec, tested=...)` loads a domain's
+findings and lays them out - columns, rows, the implicated cells, the severity counts - with no
+workbook, no request and no template in sight. `write_sheet` draws it with xlsxwriter; the live
+findings pages draw the same table as HTML. They match because they ARE the same table, not
+because someone kept two layouts in step.
+
+`tested` is how a surface asks for more than its tab carries. The policy tab passes
+`tested_columns=()` because its own columns already show every field its controls test - a
+decision about that TAB, not about the data - so a surface passing `ALL_TESTED_COLUMNS` gets
+the provenance and the firing condition anyway (Jason, 2026-09-25: "can we add the provenance
+data, even if both presentation surfaces don't use it?").
+
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
 the state's lifetime equal to the file's.
