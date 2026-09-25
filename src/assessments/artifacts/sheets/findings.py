@@ -177,9 +177,42 @@ class DeviceSettingSheet:
     def table_name(self) -> str:
         return re.sub(r"[^A-Za-z0-9]", "", self.sheet_title) + "Findings"
 
-OPERATORS = {"eq": "=", "lt": "<", "lte": "≤", "gt": ">", "gte": "≥"}
+#: Every operator a control query can carry, in the words the condition reads best in. The
+#: address-set five take their phrasing from the LOCKED MEANINGS in
+#: `docs/security-rule-search-spec.md` rather than from what the name suggests - `equals` is
+#: whole-set equality and `exactly` is exact membership, which are different questions.
+OPERATORS = {
+    "eq": "=",
+    "lt": "<",
+    "lte": "≤",
+    "gt": ">",
+    "gte": "≥",
+    "contains": "contains",
+    # Traffic-match semantics: would traffic using this value match the rule.
+    "matches": "matches",
+    # Effective-member semantics, resolved through groups rather than literal tokens.
+    "includes": "includes",
+    # Present as an exact effective member.
+    "exactly": "includes exactly",
+    # The rule's effective address space overlaps the value.
+    "intersects": "overlaps",
+    # The rule's FULL effective address set equals the value.
+    "equals": "is exactly",
+}
 #: Negating a comparison, rather than writing "not (x = y)".
-NEGATED_OPERATORS = {"eq": "≠", "lt": "≥", "lte": ">", "gt": "≤", "gte": "<"}
+NEGATED_OPERATORS = {
+    "eq": "≠",
+    "lt": "≥",
+    "lte": ">",
+    "gt": "≤",
+    "gte": "<",
+    "contains": "does not contain",
+    "matches": "does not match",
+    "includes": "does not include",
+    "exactly": "does not include exactly",
+    "intersects": "does not overlap",
+    "equals": "is not exactly",
+}
 #: Operators whose value is not printed - the operator IS the condition.
 UNARY_OPERATORS = {"is_empty": "is empty", "is_not_empty": "is not empty"}
 
@@ -304,8 +337,12 @@ def render_node(control, node, top=False) -> str:
     table = NEGATED_OPERATORS if negated else OPERATORS
     op = table.get(node["op"])
     if op is None:
-        raise ValueError(f"{control.control_id}: operator {node['op']!r}"
-                         f"{' negated' if negated else ''} is not rendered yet")
+        # An operator with no phrasing yet. Printed as it stands rather than raised: this
+        # renders into a findings PAGE as well as a workbook cell, and refusing the whole
+        # table because one condition reads awkwardly is the wrong trade. The gap is caught
+        # by `test_artifacts`, which checks the phrasings against the search registry - a test
+        # fires when the operator is ADDED, rather than when someone opens the right page.
+        op = f"{'not ' if negated else ''}{node['op']}"
     return f"{node['field']} {op} {display_value(node['value'])}"
 
 

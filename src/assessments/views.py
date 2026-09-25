@@ -8,6 +8,16 @@ import datetime as _dt
 import json
 from urllib.parse import urlencode
 
+from collections import defaultdict
+
+from assessments.artifacts import (
+    ALL_TESTED_COLUMNS,
+    ArtifactBuildError,
+    build_findings_table,
+)
+from assessments.artifacts import domains as artifact_domains
+from assessments.artifacts.layout import category_of as artifact_category_of
+from assessments.environment import get_application_environment
 from assessments.forms import ControlForm, ControlQueryForm
 from assessments.control_queries import (
     SECURITY_RULE_QUERY_MODEL,
@@ -33,6 +43,7 @@ from assessments.search.management_interface.fields.exposure import (
     exposure_by_interface,
 )
 from assessments.models import (
+    AssessmentRun,
     AuthenticationProfileFinding,
     AuthenticationSequenceFinding,
     AdminUserFinding,
@@ -2302,6 +2313,134 @@ class ServerProfileListView(DeviceTabListView):
             "provenance": sources.get(profile.pk, ""),
             "findings": findings,
         }
+
+
+# --------------------------------------------------------------------------------------------
+# Findings: the same tables the workbook ships, on screen
+# --------------------------------------------------------------------------------------------
+
+class FindingsSummaryView(TemplateView):
+    """What the workbook opens on: how much, how bad, and where to look.
+
+    Counted rather than built - `severity_counts` is one query per finding model, where
+    building all twenty-two tables to total them would do the whole job of every page to draw
+    one page.
+    """
+
+    template_name = "assessments/findings/summary.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        counts = artifact_domains.severity_counts()
+
+        categories = []
+        for category in config_nav.CATEGORIES:
+            domains = []
+            for domain in artifact_domains.DOMAINS:
+                if findings_domain_category(domain) != category:
+                    continue
+                by_severity = counts[domain.slug]
+                domains.append({
+                    "slug": domain.slug,
+                    "title": domain.title,
+                    "description": domain.description,
+                    "total": sum(by_severity.values()),
+                    "severities": severity_breakdown(by_severity),
+                })
+            if domains:
+                categories.append({
+                    "label": category,
+                    "domains": domains,
+                    "total": sum(d["total"] for d in domains),
+                })
+
+        totals = defaultdict(int)
+        for by_severity in counts.values():
+            for severity, count in by_severity.items():
+                totals[severity] += count
+
+        context["environment"] = get_application_environment()
+        context["categories"] = categories
+        context["total"] = sum(totals.values())
+        context["severities"] = severity_breakdown(totals)
+        context["run"] = AssessmentRun.objects.order_by("-pk").first()
+        return context
+
+
+class FindingsDomainView(TemplateView):
+    """One domain's findings, as the workbook lays them out.
+
+    The columns and the rows come from `build_findings_table`, which is the same table
+    `write_sheet` draws - so this page and that tab agree by construction. It asks for every
+    tested column, because a surface with room for provenance should show it even where the
+    workbook's own tab has no space (Jason, 2026-09-25).
+    """
+
+    template_name = "assessments/findings/domain.html"
+
+    def get_domain(self):
+        domain = artifact_domains.DOMAIN_BY_SLUG.get(self.kwargs.get("slug", ""))
+        if domain is None:
+            raise Http404(f"no such findings domain: {self.kwargs.get('slug')!r}")
+        return domain
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        domain = self.get_domain()
+        context["domain"] = domain
+        context["domains"] = artifact_domains.DOMAINS
+
+        try:
+            table = build_findings_table(domain.spec, tested=ALL_TESTED_COLUMNS)
+        except ArtifactBuildError as exc:
+            # A guard refused - a control testing a field no column presents, or a row count
+            # that does not match the findings. Saying so beats a 500 and beats a page that
+            # quietly omits findings, which is the failure this whole surface exists to avoid.
+            context["build_error"] = str(exc)
+            return context
+
+        control_column = table.headers.index("Control ID")
+        severity_column = table.headers.index("Severity")
+        controls_by_id = {c.control_id: c for c in table.controls}
+        implicated = set(table.implicated)
+
+        rows = []
+        for index, (row, finding) in enumerate(zip(table.rows, table.findings)):
+            cells = []
+            for column, value in enumerate(row):
+                control = controls_by_id.get(value) if column == control_column else None
+                cells.append({
+                    "value": value,
+                    "implicated": (index, column) in implicated,
+                    "control_url": (reverse("assessment_control_detail",
+                                            kwargs={"pk": control.pk}) if control else ""),
+                    "severity_classes": (_SEVERITY_BADGE_CLASSES.get(finding.severity, "")
+                                         if column == severity_column else ""),
+                })
+            rows.append(cells)
+
+        context["table"] = table
+        context["rows"] = rows
+        context["severities"] = severity_breakdown(table.by_severity)
+        return context
+
+
+def findings_domain_category(domain) -> str:
+    """The PAN-OS category a domain belongs to - the same answer the workbook's tab colour uses."""
+    spec = domain.spec
+    return artifact_category_of(spec.subject_model(spec.kind_for(spec.control_types[0])))
+
+
+def severity_breakdown(by_severity):
+    """Counts worst-first, so a reader sees the worst thing before the tally."""
+    return [{
+        "value": value,
+        "label": _SEVERITY_LABELS.get(value, value),
+        "count": by_severity.get(value, 0),
+        "classes": _SEVERITY_BADGE_CLASSES.get(value, ""),
+        "swatch": _SEVERITY_SWATCH_CLASSES.get(value, ""),
+    } for value in _SEVERITY_ORDER if by_severity.get(value)]
+
 
 
 class ConfigurationObjectView(TemplateView):

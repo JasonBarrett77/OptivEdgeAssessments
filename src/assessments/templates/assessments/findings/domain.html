@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | {{ domain.title }}{% endblock %}
+
+{% comment %}
+One domain's findings tab, on screen. The columns and the rows are the table `write_sheet`
+draws into the workbook - see `artifacts.sheets.findings.build_findings_table` - so this page
+and that tab agree by construction rather than by resemblance.
+
+Cells hold newline-separated values on purpose (the workbook clips such a cell rather than
+wrapping it), so every cell runs through `linebreaksbr` and device-supplied text stays escaped.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            <div class="flex shrink-0 items-center gap-3 bg-white px-4 py-2">
+                <a href="{% url 'assessment_findings_summary' %}"
+                   class="inline-flex h-7 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+                    {% lucide "flag" class="h-3.5 w-3.5 shrink-0" %}
+                    Findings
+                </a>
+                <h1 class="truncate text-sm font-semibold text-slate-900">{{ domain.title }}</h1>
+                <div class="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+                    {% for severity in severities %}
+                    <span class="inline-flex items-center border px-2 py-0.5 text-[11px] font-medium {{ severity.classes }}">
+                        {{ severity.count }} {{ severity.label }}
+                    </span>
+                    {% endfor %}
+                    <span class="text-[10px] uppercase tracking-wide text-slate-500">
+                        {{ rows|length }} finding{{ rows|length|pluralize }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] text-slate-600">
+                {{ domain.description }}
+            </div>
+
+            {% if build_error %}
+            <div class="m-4 border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
+                {% comment %}
+                A guard refused to build the table. Saying so beats a page that quietly omits
+                findings, which is the failure this surface exists to avoid.
+                {% endcomment %}
+                {{ build_error }}
+            </div>
+            {% else %}
+
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="analytical-table w-full border-collapse">
+                    <thead>
+                        <tr>
+                            {% for header in table.headers %}
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">
+                                {{ header }}
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cells in rows %}
+                        <tr>
+                            {% for cell in cells %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 {% if cell.implicated %}bg-amber-50 font-semibold text-slate-900{% else %}text-slate-800{% endif %}">
+                                {% if cell.control_url %}
+                                <a href="{{ cell.control_url }}" class="text-blue-700 hover:underline">{{ cell.value }}</a>
+                                {% elif cell.severity_classes %}
+                                <span class="inline-flex items-center border px-1.5 py-0.5 text-[10px] font-medium {{ cell.severity_classes }}">{{ cell.value }}</span>
+                                {% else %}
+                                {{ cell.value|linebreaksbr }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ table.headers|length }}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                No findings.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}

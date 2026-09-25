@@ -15,6 +15,8 @@ from assessments.views import (
     ControlDeleteView,
     ControlDetailView,
     ControlListView,
+    FindingsDomainView,
+    FindingsSummaryView,
     ControlQueryCreateView,
     ControlQueryDeleteView,
     ControlQueryUpdateView,
@@ -47,6 +49,16 @@ from assessments.views import (
 
 
 urlpatterns = [
+    path(
+        "findings/",
+        FindingsSummaryView.as_view(),
+        name="assessment_findings_summary",
+    ),
+    path(
+        "findings/<slug:slug>/",
+        FindingsDomainView.as_view(),
+        name="assessment_findings_domain",
+    ),
     path(
         "catalogs/",
         CatalogListView.as_view(),

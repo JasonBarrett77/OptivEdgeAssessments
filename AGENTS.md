@@ -316,6 +316,33 @@ script that builds one workbook and exits, and are not harmless in a long-runnin
   `except Exception` never sees it and a web worker dies instead of returning an error. They
   raise `ArtifactBuildError` now, and `test_artifacts` fails on the word reappearing.
 
+**The findings pages ARE the workbook's tabs.** `/assessments/findings/` mirrors the Summary -
+engagement, totals, then the domains grouped by PAN-OS category with their severity counts -
+and `/assessments/findings/<slug>/` renders one domain's table. Jason, 2026-09-25: "The live
+findings views and page should closely match the xlsx artifact."
+
+`artifacts/domains.py` is the one ordered list of domains. The workbook builds its findings
+tabs from it and the views route on it, so a domain added there appears in both places, in the
+same place. Slugs are explicit rather than derived from the title, for the reason
+`configuration_navigation` gives: a title is the vendor's word and can be renamed; a slug is a
+URL somebody bookmarked.
+
+**The Summary counts rather than builds.** `severity_counts()` is one query per finding model;
+building all twenty-two tables to total them would do the whole job of every page to draw one.
+
+**The findings pages ask for every tested column.** The workbook's policy tab passes
+`tested_columns=()` because its own columns already show what its controls test - a decision
+about that tab - so the pages pass `ALL_TESTED_COLUMNS` and carry provenance everywhere.
+
+**"Fires when" no longer raises on an operator it cannot phrase.** It did, and nothing noticed:
+the only tabs carrying that column used five of the twelve operators, so `exactly` and
+`contains` were 500s waiting for a page that asked. All twelve are phrased now - the
+address-set five from the LOCKED MEANINGS in `docs/security-rule-search-spec.md`, because
+`equals` is whole-set equality and `exactly` is exact membership and the names do not say which
+is which - and an unphrased one prints as it stands. The gap is caught by a TEST against the
+search registry, which fires when an operator is added rather than when someone opens the page
+that uses it.
+
 **One table, two surfaces.** `build_findings_table(spec, tested=...)` loads a domain's
 findings and lays them out - columns, rows, the implicated cells, the severity counts - with no
 workbook, no request and no template in sight. `write_sheet` draws it with xlsxwriter; the live

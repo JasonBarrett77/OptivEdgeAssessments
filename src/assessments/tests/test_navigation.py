@@ -76,14 +76,22 @@ class NavigationCoverageTests(TestCase):
             reverse(tab.url_name)
             self.assertTrue(tab.icon and " " not in tab.icon, tab)
 
-    def test_the_legacy_findings_page_left_the_assessments_section(self):
-        """It is pending replacement; it should not sit among the permanent items."""
+    def test_findings_is_the_replacement_and_the_legacy_page_is_not(self):
+        """The good name was kept free while the old page was pending replacement. It is
+        taken now, by the surface that renders the workbook's own tables - and the legacy
+        page stays in Experimental until it goes."""
         by_section = {s["label"]: [i["label"] for i in s.get("items") or ()]
                       for s in app_meta.SIDEBAR_SECTION}
-        self.assertNotIn("Findings", by_section["Assessments"])
+        self.assertIn("Findings", by_section["Assessments"])
         self.assertIn("Findings (Legacy)", by_section["Experimental"])
 
-    def test_the_findings_page_moved_off_the_good_name(self):
+    def test_the_findings_item_opens_the_summary(self):
+        by_label = {i["label"]: i for s in app_meta.SIDEBAR_SECTION
+                    for i in s.get("items") or ()}
+
+        self.assertEqual(by_label["Findings"]["href"], reverse("assessment_findings_summary"))
+
+    def test_the_legacy_page_keeps_its_own_name(self):
         self.assertTrue(reverse("assessment_legacy_finding_list").endswith("findings-legacy/"))
 
 

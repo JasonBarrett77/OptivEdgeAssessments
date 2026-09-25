@@ -8,6 +8,7 @@ client deliverable lands - a `FileField`, a download response, a test's temporar
 from __future__ import annotations
 
 import io
+from functools import partial
 
 import xlsxwriter
 
@@ -22,9 +23,9 @@ from .sheets import summary as summary_sheet
 from .layout import SUMMARY_TITLE
 from .sheets import enforcement_points as enforcement_points_sheet
 from .sheets import password_complexity as password_complexity_sheet
+from .sheets import findings as findings_sheet
 from .sheets import objects as object_sheets
 from .sheets import rules_by_device_group as rules_by_device_group_sheet
-from .sheets import security_rules as security_rules_sheet
 from .errors import ArtifactBuildError
 
 #: Worksheet order after the Summary, which is always first: the reference tabs, then the findings
@@ -36,41 +37,34 @@ from .errors import ArtifactBuildError
 #: policy - last to be generated, first to be read - carries the highest numbers on the first
 #: findings tab. They still ascend DOWN each tab, which is where a reader follows them.
 T = object_sheets.T
+
+
+def findings_sheets():
+    """One writer per domain, from `domains.DOMAINS`, plus the grouped policy view.
+
+    Derived rather than listed, so the tab strip and the app's findings pages cannot fall out
+    of order with each other: both read that one list.
+    """
+    from .domains import DOMAINS  # local: domains imports the sheets this module imports
+
+    sheets = []
+    for domain in DOMAINS:
+        spec = domain.spec
+        sheets.append(partial(findings_sheet.write_sheet, spec=spec))
+        if domain.slug == "security-rules":
+            # The same findings folded to one row per fix. A second view of ONE domain rather
+            # than a domain of its own, which is why it is not in DOMAINS.
+            sheets.append(rules_by_device_group_sheet.write_sheet)
+    return tuple(sheets)
+
+
 SHEETS = (
     management_stations_sheet,
     appliances_sheet,
     enforcement_points_sheet,
     # Before the findings tabs: they link into its rows.
     controls_sheet,
-
-    # Policies
-    security_rules_sheet,
-    rules_by_device_group_sheet,
-    # Objects
-    object_sheets.writer(T.SECURITY_PROFILE),
-    # Network
-    object_sheets.writer(T.INTERFACE_MANAGEMENT_PROFILE),
-    # Device
-    password_complexity_sheet,
-    authentication_settings_sheet,
-    object_sheets.writer(T.LOGIN_BANNER),
-    management_crypto_sheet,
-    object_sheets.writer(T.MASTER_KEY),
-    object_sheets.writer(T.UPDATE_SERVER),
-    object_sheets.writer(T.LOGGING_SETTINGS),
-    object_sheets.writer(T.NTP_SETTINGS),
-    object_sheets.writer(T.SNMP_SETTINGS),
-    object_sheets.writer(T.SYSTEM_IDENTITY),
-    object_sheets.writer(T.MANAGEMENT_INTERFACE),
-    object_sheets.writer(T.SSL_TLS_SERVICE_PROFILE),
-    object_sheets.writer(T.CERTIFICATE_PROFILE),
-    object_sheets.writer(T.CERTIFICATE),
-    object_sheets.writer(T.AUTHENTICATION_PROFILE),
-    object_sheets.writer(T.AUTHENTICATION_SEQUENCE),
-    object_sheets.writer(T.PASSWORD_PROFILE),
-    object_sheets.writer(T.ADMIN_USER),
-    object_sheets.writer(T.SERVER_PROFILE),
-)
+) + findings_sheets()
 
 
 def check_every_finding_reached_a_tab(infos):

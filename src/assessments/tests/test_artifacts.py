@@ -301,3 +301,51 @@ class FindingsTableTests(TestCase):
         self.assertEqual(len(table.rows), 1)
         self.assertEqual(table.rows[0][0], finding.reference)
         self.assertEqual(table.by_severity, {finding.severity: 1})
+
+
+class FiringConditionTests(TestCase):
+    """"Fires when" is prose over a control's baseline query, and it is read by a client.
+
+    It used to RAISE on an operator it had no phrasing for, which nothing noticed because the
+    only tabs carrying that column used five of the twelve operators. Asking for it on every
+    findings page surfaced two - `exactly` and `contains` - as 500s.
+    """
+
+    def test_every_operator_a_control_can_use_has_a_phrasing(self):
+        """A test rather than a runtime check: this fires when an operator is ADDED, not when
+        someone opens the page that happens to use it."""
+        from assessments.artifacts.sheets.findings import (
+            NEGATED_OPERATORS, OPERATORS, UNARY_OPERATORS)
+        from assessments.search.registry import MODEL_REGISTRY
+
+        available = {op
+                     for entry in MODEL_REGISTRY.values()
+                     for operators in entry["field_operators"].values()
+                     for op in operators}
+        phrased = set(OPERATORS) | set(UNARY_OPERATORS)
+
+        self.assertEqual(sorted(available - phrased), [])
+        # Negation is offered on every comparison, so a phrasing missing there reads as the
+        # opposite of what the control asserts.
+        self.assertEqual(sorted(set(OPERATORS) - set(NEGATED_OPERATORS)), [])
+
+    def test_the_address_set_operators_say_what_the_spec_locked(self):
+        """`equals` is whole-set equality and `exactly` is exact membership - different
+        questions, and the names do not say which is which. The phrasings come from the locked
+        meanings in docs/security-rule-search-spec.md."""
+        from assessments.artifacts.sheets.findings import OPERATORS
+
+        self.assertEqual(OPERATORS["equals"], "is exactly")
+        self.assertEqual(OPERATORS["exactly"], "includes exactly")
+        self.assertEqual(OPERATORS["intersects"], "overlaps")
+
+    def test_an_unphrased_operator_prints_rather_than_raising(self):
+        """A findings page must not vanish because one condition reads awkwardly."""
+        from assessments.artifacts.sheets.findings import render_node
+        from assessments.models import Control
+
+        control = Control(control_id="PAN-TEST-009")
+        rendered = render_node(
+            control, {"field": "name", "op": "sounds_like", "value": "x"})
+
+        self.assertEqual(rendered, "name sounds_like x")

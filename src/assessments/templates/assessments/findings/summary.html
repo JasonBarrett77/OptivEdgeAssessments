@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Findings{% endblock %}
+
+{% comment %}
+The workbook's Summary tab, on screen. Same question in the same order: who this is for, how
+much there is, how bad it is, and which page answers it - grouped by the product's own
+categories rather than by anything invented here.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
+                <h1 class="text-sm font-semibold text-slate-900">Findings</h1>
+                <div class="flex items-center gap-3 text-[11px] text-slate-500">
+                    {% if environment %}
+                    <span class="font-medium text-slate-700">{{ environment.client_name }}</span>
+                    <span>{{ environment.opportunity_number }}</span>
+                    {% endif %}
+                    {% if run %}
+                    <span>Run {{ run.pk }}{% if run.completed_at %} · {{ run.completed_at|date:"Y-m-d H:i" }} UTC{% endif %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-auto bg-white px-4 py-4">
+                <div class="max-w-5xl">
+
+                    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-4">
+                        <span class="text-2xl font-semibold text-slate-900">{{ total }}</span>
+                        <span class="text-sm text-slate-600">finding{{ total|pluralize }} in total</span>
+                        <span class="ml-2 flex flex-wrap items-center gap-1.5">
+                            {% for severity in severities %}
+                            <span class="inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium {{ severity.classes }}">
+                                {{ severity.count }} {{ severity.label }}
+                            </span>
+                            {% endfor %}
+                        </span>
+                    </div>
+
+                    {% for category in categories %}
+                    <div class="pt-5">
+                        <div class="flex items-baseline gap-2">
+                            <h2 class="text-sm font-semibold text-slate-900">{{ category.label }}</h2>
+                            <span class="text-[11px] text-slate-500">{{ category.total }} finding{{ category.total|pluralize }}</span>
+                        </div>
+                        <table class="mt-2 w-full border-collapse">
+                            <tbody>
+                                {% for domain in category.domains %}
+                                <tr class="transition-colors hover:bg-blue-50/60">
+                                    <td class="w-64 border-b border-slate-100 py-1.5 pr-3 align-top">
+                                        <a href="{% url 'assessment_findings_domain' slug=domain.slug %}"
+                                           class="text-[13px] font-medium text-blue-700 hover:underline">
+                                            {{ domain.title }}
+                                        </a>
+                                    </td>
+                                    <td class="border-b border-slate-100 py-1.5 pr-3 align-top text-[11px] leading-4 text-slate-600">
+                                        {{ domain.description }}
+                                    </td>
+                                    <td class="w-64 border-b border-slate-100 py-1.5 align-top text-right">
+                                        {% if domain.total %}
+                                        <span class="inline-flex flex-wrap items-center justify-end gap-1">
+                                            {% for severity in domain.severities %}
+                                            <span class="inline-flex items-center border px-1.5 py-0.5 text-[10px] font-medium {{ severity.classes }}"
+                                                  title="{{ severity.label }}">
+                                                {{ severity.count }} {{ severity.label }}
+                                            </span>
+                                            {% endfor %}
+                                        </span>
+                                        {% else %}
+                                        {% comment %}
+                                        "No findings" rather than 0: this is the reference
+                                        surface, and a bare zero reads as a column that was not
+                                        filled in.
+                                        {% endcomment %}
+                                        <span class="text-[11px] text-slate-400">No findings</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endfor %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

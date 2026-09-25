@@ -17,6 +17,8 @@ SIDEBAR_SECTION = [
     {
         "label": "Assessments",
         "active_names": {
+            "assessment_findings_summary",
+            "assessment_findings_domain",
             "assessment_catalog_list",
             "assessment_catalog_apply",
             "assessment_catalog_create_from_current",
@@ -69,6 +71,19 @@ SIDEBAR_SECTION = [
                 #: Derived - every tab in navigation.DEVICE_TABS, so a new tab cannot be
                 #: added without the sidebar following it.
                 "active_names": set(DEVICE_TAB_URL_NAMES),
+            },
+            {
+                #: What the controls found, laid out exactly as the engineer-detail workbook
+                #: lays it out - the same table, from `artifacts.build_findings_table`. The
+                #: Configuration item below asks the configuration a question; this one
+                #: reports the answers the controls already gave.
+                "label": "Findings",
+                "href": "/assessments/findings/",
+                "icon": "flag",
+                "active_names": {
+                    "assessment_findings_summary",
+                    "assessment_findings_domain",
+                },
             },
             {
                 #: Querying the configuration, organised the way the PAN-OS web interface
