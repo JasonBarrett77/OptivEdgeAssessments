@@ -334,6 +334,37 @@ which is what `astimezone` would assume.
 Verified by building the same snapshot with the prototype and with this package: **95 of 97 zip
 members byte-identical**, the two that differ being the build timestamp.
 
+## Building a query, and keeping it
+
+Two surfaces build queries, and they are not duplicates. `/assessments/security-rules/` is the
+original; the configuration explorer (`/assessments/configuration/<category>/<object>/`) is the
+general one, and every one of its objects has a real query view rather than a placeholder.
+
+**Discovery is only half of it.** A query that answered something has to become a control's
+query, which is the `load_from_search` POST into `ControlQueryCreateView`: it parses the
+payload, checks it against the selected control's `target_model`, and opens the control-query
+form on it. That view was always generic. Until 2026-09-25 the BUTTON existed in one template -
+`security_rule_list.html` - so an operator could discover on any of the explorer's objects and
+could only keep the result if the object happened to be a security rule.
+
+**The explorer offers it in two places**: beside Apply Query in the builder, and on the results
+bar once a query is applied, so an applied query can be saved without reopening the builder to
+press a button. An unqueried page offers neither - a button that saves an empty query is a trap.
+
+**Previewing a control seeds the builder with its baseline.** Calibration means adjusting what
+the control already asks against real data; opening the builder empty meant rebuilding that
+query by hand first. A query of the reader's own always wins over the seed - what is on screen
+is what saves - and the save action CREATES a query rather than editing the baseline, so what
+comes out of this loop is the calibration query sitting next to the one it started from.
+
+**The previewed control travels with the query.** `control_preview.pk` goes into the form, so
+saving from a preview lands on that control instead of asking the operator to find it in a list.
+
+The risk this added is worth naming: the action now exists on twenty-four object pages, so a
+query built on one can be aimed at a control of another type. `ControlQueryCreateView` restores
+the control's default and says which model the query targets, rather than storing one that can
+never match - `test_configuration_queries.SaveQueryOntoAControlTests` pins that.
+
 ## Surfaces pending replacement
 
 One surface is known-incomplete and is NOT to be extended or "fixed" opportunistically.

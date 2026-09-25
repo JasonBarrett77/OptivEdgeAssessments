@@ -736,3 +736,141 @@ class DashboardChipTests(TestCase):
         bar = self._bar(reverse("assessment_configuration_index"))
         dashboard_chip = bar[bar.index("Dashboard"):bar.index("Policies")]
         self.assertNotIn("text-[10px] font-normal", dashboard_chip)
+
+
+class SaveQueryOntoAControlTests(TestCase):
+    """The other half of discovery: a query that answered something here becomes a control's.
+
+    Until 2026-09-25 this existed on ONE page. `load_from_search` - the POST that carries a
+    built query into the control-query form - was offered only by
+    `templates/assessments/security_rule_list.html`, so an operator could discover on any of
+    the explorer's objects and could only keep the result if the object happened to be a
+    security rule. The receiving view was always generic; nothing but a button was missing.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.save")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-save",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        for hostname, name, bound in (("fw-a", "orphan", 0), ("fw-a", "busy", 4)):
+            make_profile(self.station, self.group, hostname, name, bound)
+        self.url = reverse("assessment_configuration_object", args=["network", "interface-mgmt"])
+        self.query = {"model": MODEL, "operator": "and", "clauses": [
+            {"field": "binding_count", "op": "eq", "value": 0}]}
+        self.control = Control.objects.create(
+            control_id="PAN-TEST-002", name="Profiles should be bound",
+            control_type=Control.ControlType.INTERFACE_MANAGEMENT_PROFILE,
+            description="Prototype.", default_severity=Control.Severity.MEDIUM,
+            target_model=MODEL)
+        ControlQuery.objects.create(
+            control=self.control, name="Baseline", is_baseline=True, is_active=True,
+            canonical_query=self.query)
+
+    def _applied(self):
+        """The page with a query applied, which is where the action appears."""
+        return self.client.post(self.url, {"search": json.dumps(self.query)}, follow=True)
+
+    def test_the_action_is_offered_once_a_query_is_applied(self):
+        html = self._applied().content.decode()
+
+        self.assertIn(reverse("assessment_control_query_create"), html)
+        self.assertIn("load_from_search", html)
+
+    def test_an_unqueried_page_does_not_offer_it(self):
+        """There is nothing to save, and a button that saves an empty query is a trap."""
+        html = self.client.get(self.url).content.decode()
+
+        self.assertNotIn("load_from_search", html)
+
+    def test_the_builder_offers_it_too(self):
+        """A query being edited can be saved without applying it first."""
+        html = self.client.get(f"{self.url}?edit_search=1").content.decode()
+
+        self.assertIn("load_from_search", html)
+
+    def test_saving_carries_the_query_into_the_control_query_form(self):
+        response = self.client.post(
+            reverse("assessment_control_query_create"),
+            {"search": json.dumps(self.query), "load_from_search": "1"})
+
+        self.assertEqual(response.status_code, 200)
+        loaded = response.context["form"].initial["canonical_query"]
+        # Compared field by field: parsing fills each clause's defaults - `negated`,
+        # `case_sensitive`, `include_any` - so what arrives is the same query, spelled in full.
+        self.assertEqual(loaded["model"], MODEL)
+        self.assertEqual(
+            [(c["field"], c["op"], c["value"]) for c in loaded["clauses"]],
+            [("binding_count", "eq", 0)])
+
+    def test_previewing_a_control_carries_that_control_into_the_builder(self):
+        """The calibration case: open a control on its object's page, adjust its query against
+        real data, save it back onto the SAME control rather than picking it out of a list."""
+        html = self.client.get(
+            f"{self.url}?control={self.control.pk}&edit_search=1").content.decode()
+
+        self.assertIn(f'name="control" value="{self.control.pk}"', html)
+
+    def test_a_query_for_another_object_is_refused_rather_than_saved(self):
+        """The risk the button adds: this action now exists on twenty-four object pages, so a
+        query built on one of them can be aimed at a control of another type. The form restores
+        the control's default and says why, rather than storing a query that can never match."""
+        banner = Control.objects.create(
+            control_id="PAN-TEST-003", name="Banner configured",
+            control_type=Control.ControlType.LOGIN_BANNER, description="Prototype.",
+            default_severity=Control.Severity.LOW, target_model="integrations.LoginBanner")
+
+        response = self.client.post(
+            reverse("assessment_control_query_create"),
+            {"search": json.dumps(self.query), "load_from_search": "1", "control": banner.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("targets integrations.InterfaceManagementProfile",
+                      response.context["load_search_error"])
+        self.assertNotEqual(response.context["form"].initial["canonical_query"], self.query)
+
+    def test_the_saved_query_lands_on_the_control(self):
+        """End to end: the form the action opens saves, and the operator arrives at the
+        control that now carries the query."""
+        response = self.client.post(reverse("assessment_control_query_create"), {
+            "control": self.control.pk,
+            "name": "Unbound entirely",
+            "canonical_query": json.dumps(self.query),
+            "adjusted_severity": Control.Severity.CRITICAL,
+            "is_active": "on",
+        })
+
+        self.assertRedirects(
+            response, reverse("assessment_control_detail", kwargs={"pk": self.control.pk}))
+        saved = ControlQuery.objects.get(control=self.control, name="Unbound entirely")
+        self.assertEqual(saved.canonical_query, self.query)
+
+    def test_the_builder_opens_on_the_previewed_controls_baseline(self):
+        """Calibration starts from what the control already asks, not from a blank builder.
+
+        Opening it empty meant rebuilding the control's query by hand before any adjustment
+        could be made, which is the opposite of what previewing the control here is for.
+        """
+        response = self.client.get(f"{self.url}?control={self.control.pk}&edit_search=1")
+
+        payload = json.loads(response.context["search_payload"])
+        self.assertEqual(payload["model"], MODEL)
+        self.assertEqual(
+            [(c["field"], c["op"], c["value"]) for c in payload["clauses"]],
+            [("binding_count", "eq", 0)])
+
+    def test_a_query_of_the_readers_own_wins_over_the_baseline(self):
+        """Seeding is a starting point, never an override: what is on screen is what saves."""
+        mine = {"model": MODEL, "operator": "and", "clauses": [
+            {"field": "binding_count", "op": "gt", "value": 2}]}
+        applied = self.client.post(self.url, {"search": json.dumps(mine)}, follow=True)
+        token = applied.context["search_state_token"]
+
+        response = self.client.get(
+            f"{self.url}?search_state={token}&control={self.control.pk}&edit_search=1")
+
+        payload = json.loads(response.context["search_payload"])
+        self.assertEqual(
+            [(c["field"], c["op"], c["value"]) for c in payload["clauses"]],
+            [("binding_count", "gt", 2)])

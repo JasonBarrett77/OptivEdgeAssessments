@@ -2673,6 +2673,8 @@ class ConfigurationObjectView(TemplateView):
             "search_query": node,
             "search_summary": describe_search_node(node),
             "search_payload": json.dumps(node) if node else "",
+            # Filled in below from the previewed control, when there is one and no query of
+            # the reader's own.
             "search_error": error,
             "edit_search_open": self.request.GET.get("edit_search") == "1",
             "edit_search_close_url": build_query_string_without(self.request, "edit_search"),
@@ -2680,6 +2682,8 @@ class ConfigurationObjectView(TemplateView):
                 self.request, "search_state", "control_query", "control", "edit_search"),
         }
         context.update(control_preview)
+        if not context["search_payload"] and context.get("preview_baseline_payload"):
+            context["search_payload"] = context["preview_baseline_payload"]
         return context
 
     def control_preview(self, obj, rows, control_id):
@@ -2729,12 +2733,23 @@ class ConfigurationObjectView(TemplateView):
                     f"{obj.label} and were not counted.")
         return matched, extra_cells, {
             "control_preview": {
+                # `pk` so "Save Query" can carry the control being previewed back to the
+                # control-query form. That is the calibration path: open a control here, adjust
+                # its query against real data, save it onto the same control.
+                "pk": control.pk,
                 "control_id": control.control_id,
                 "name": control.name,
                 "href": f"/assessments/controls/{control.pk}/",
                 "query_count": len(active_queries),
                 "note": note,
             },
+            # What the builder opens on when this control is being previewed. Starting EMPTY
+            # made calibration mean "rebuild the control's query from scratch before you can
+            # adjust it", which is the opposite of what previewing it here is for. The save
+            # action creates a NEW query rather than editing this one, so what an operator
+            # writes from here is the calibration query, next to the baseline it started from.
+            "preview_baseline_payload": (
+                json.dumps(baseline.canonical_query) if baseline else ""),
             "search_summary": f"{control.control_id} - what this control would report here",
         }, ""
 
