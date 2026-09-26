@@ -392,6 +392,42 @@ query built on one can be aimed at a control of another type. `ControlQueryCreat
 the control's default and says which model the query targets, rather than storing one that can
 never match - `test_configuration_queries.SaveQueryOntoAControlTests` pins that.
 
+## Building a query from the rows you ticked
+
+`configuration_selection.py`. Tick rows on a query page, press the button, and the builder
+opens on a query those rows satisfy. Jason, 2026-09-26: "this is a convenience feature, not
+particularly intelligent... But having it all filled in is the time saver."
+
+**Only the columns on screen seed it.** `ResultsSpec.query_fields` maps a column heading to the
+one queryable field it presents; a composite column - "Character Classes", "Protocol Range",
+"Referenced By" - has no entry and contributes nothing, because there is no single value a
+clause could carry. A page with no mapping shows no checkboxes rather than a button that builds
+nothing. Eleven of twenty-four pages are mapped as of 2026-09-26.
+
+**Build by reader, verify by compiler.** Reading a field off an object is a second copy of what
+the compiler knows about that field, and if the two drift the button produces a query that does
+not select the rows it came from - silently, which is the worst way for this to fail. So every
+clause is compiled and checked against the selection, and one that would exclude a selected row
+is DROPPED. Drift shows up as a missing clause instead of a wrong answer.
+
+That is not hypothetical: `binding_count` and `configured_hostname` are query names whose model
+attributes are `bound_interface_count` and `hostname`. Both were mapped, both were unreadable,
+and both produced no clause at all - which looks exactly like a field the rows disagreed on. A
+test now asserts every mapped field is both queryable and readable.
+
+**Each press is its own group, ANDed with what was there.** Refining stacks rather than merges;
+flattening two `eq` clauses on one field into one group would ask for a row that is two things
+at once. Only the root carries `model` (`search.syntax`), so an existing root is nested as a
+plain group.
+
+**Names, not addresses, by default.** A rule's address members are read as the names the rule
+references, which take `eq` on `source_address_name`. `includes` belongs to the SEMANTIC field
+`source_address` - membership of a name and membership of an address space are different
+questions - and the "also match resolved addresses" checkbox is what asks the second one.
+
+**Selection is per page.** No hidden state between pages; refining first makes a cross-page
+sweep largely unnecessary.
+
 ## The surfaces that were pending replacement, and what replaced them
 
 Nothing is pending here any more. Kept as a record of what was lost and what took its place,
