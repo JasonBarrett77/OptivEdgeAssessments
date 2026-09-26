@@ -33,6 +33,7 @@ from assessments.tables import Column
 from assessments import configuration_navigation as config_nav
 from assessments import configuration_dashboard
 from assessments import configuration_results as config_results
+from assessments import configuration_selection as selection_module
 from django.contrib.contenttypes.models import ContentType
 
 from assessments.search.management_interface.fields.services import (
@@ -965,6 +966,10 @@ class ConfigurationObjectView(TemplateView):
             raise Http404("this object has no query view")
         here = reverse("assessment_configuration_object",
                        args=[config_nav.category_slug(obj.category), obj.slug])
+
+        if "build_from_selection" in request.POST:
+            return self.build_from_selection(request, obj, here)
+
         payload = (request.POST.get("search") or "").strip()
         if not payload:
             return HttpResponseRedirect(here)
@@ -985,6 +990,43 @@ class ConfigurationObjectView(TemplateView):
             canonical_query=node,
         )
         return HttpResponseRedirect(f"{here}?search_state={state.token}")
+
+    def build_from_selection(self, request, obj, here):
+        """Turn the ticked rows into a query and open the builder on it.
+
+        Refining ANDs a new group onto the query already applied, which is why the first press
+        produces a group too: each press is one thought, and they stack rather than merge.
+        """
+        spec = config_results.RESULTS[obj.slug]
+        pks = [pk for pk in request.POST.getlist("selected") if pk.isdigit()]
+        applied = self.request.POST.get("search") or ""
+        back = f"{here}?search_state={request.POST['search_state']}" \
+            if request.POST.get("search_state") else here
+        if not pks:
+            return HttpResponseRedirect(back)
+
+        objects = list(spec.base_queryset().filter(pk__in=pks))
+        fields = [spec.query_fields[c] for c in spec.columns if c in spec.query_fields]
+        group = selection_module.selection_group(
+            obj.search_model, objects, fields,
+            resolved_addresses=bool(request.POST.get("resolved_addresses")))
+        if group is None:
+            # Nothing the selected rows agree on survived the compiler. Saying so beats
+            # opening an empty builder, which reads as the button having done nothing.
+            context = self.get_context_data()
+            context["search_error"] = (
+                "Those rows have no column values in common, so there is nothing to build a "
+                "query from. Try a narrower selection.")
+            return self.render_to_response(context)
+
+        try:
+            existing = parse_search_payload(applied) if applied else None
+        except SearchSyntaxError:
+            existing = None
+        node = selection_module.combine(obj.search_model, existing, group)
+        state = ConfigurationSearchState.objects.create(
+            model_label=obj.search_model, canonical_query=node)
+        return HttpResponseRedirect(f"{here}?search_state={state.token}&edit_search=1")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1068,6 +1110,11 @@ class ConfigurationObjectView(TemplateView):
             tuple(spec.row(item)) + (extra_cells(item) if extra_cells else ())
             for item in page_obj.object_list
         ]
+        # The pk beside the cells, so a row can be ticked and sent back. Kept ALONGSIDE `rows`
+        # rather than folded into it: `rows` is a tuple of cells and several tests read it by
+        # column index, which is the right shape for "what does this table say".
+        selectable_rows = [{"pk": item.pk, "cells": cells}
+                           for item, cells in zip(page_obj.object_list, page_rows)]
 
         context = {
             "search_model": obj.search_model,
@@ -1085,6 +1132,14 @@ class ConfigurationObjectView(TemplateView):
             },
             "columns": spec.columns + (("Severity", "Matched query") if extra_cells else ()),
             "rows": page_rows,
+            "selectable_rows": selectable_rows,
+            #: Which columns can seed a query from a ticked row. Empty disables the button
+            #: rather than offering one that would build nothing.
+            "selection_fields": [spec.query_fields[c] for c in spec.columns
+                                 if c in spec.query_fields],
+            "selection_addresses": any(
+                spec.query_fields.get(c) in selection_module.RESOLVED_ADDRESS_FIELDS
+                for c in spec.columns),
             "total_count": total,
             "shown_count": paginator.count,
             "page_obj": page_obj,

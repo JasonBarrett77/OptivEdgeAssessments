@@ -128,32 +128,78 @@ the fields and their operators are typed into the template a second time.
         {% endif %}
     </div>
     {% else %}
-    <div class="min-h-0 flex-1 overflow-auto">
-        <table class="analytical-table w-full border-collapse">
-            <thead>
-                <tr>
-                    {% for column in columns %}
-                    <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">{{ column }}</th>
+    {% comment %}
+    The rows are a FORM: tick some, and the button builds a query they all satisfy. Selection
+    is per page and submitted as it stands (Jason, 2026-09-26) - no hidden state carried
+    between pages, and refining makes a cross-page sweep largely unnecessary anyway.
+    {% endcomment %}
+    <form method="post" class="flex min-h-0 flex-1 flex-col">
+        {% csrf_token %}
+        <input type="hidden" name="search" value="{{ search_payload }}">
+        <input type="hidden" name="search_state" value="{{ search_state_token }}">
+        <div class="min-h-0 flex-1 overflow-auto">
+            <table class="analytical-table w-full border-collapse">
+                <thead>
+                    <tr>
+                        {% if selection_fields %}
+                        <th class="sticky top-0 z-10 w-8 border-b border-slate-300 bg-slate-50 px-2 py-1">
+                            <span class="sr-only">Select</span>
+                        </th>
+                        {% endif %}
+                        {% for column in columns %}
+                        <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in selectable_rows %}
+                    <tr>
+                        {% if selection_fields %}
+                        <td class="border-b border-slate-100 px-2 py-1 align-top">
+                            <input type="checkbox" name="selected" value="{{ row.pk }}"
+                                   class="h-3.5 w-3.5 align-middle accent-blue-600"
+                                   aria-label="Select this row for the query builder">
+                        </td>
+                        {% endif %}
+                        {% for cell in row.cells %}
+                        {% comment %}
+                        `linebreaksbr` is what makes a multi-value cell - a rule's zones, addresses,
+                        applications - render one per line the way the security rules page does. The
+                        value is still escaped: the split is on newlines the row builder put there,
+                        not on markup it emitted.
+                        {% endcomment %}
+                        <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800">{{ cell|linebreaksbr }}</td>
+                        {% endfor %}
+                    </tr>
                     {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr>
-                    {% for cell in row %}
-                    {% comment %}
-                    `linebreaksbr` is what makes a multi-value cell - a rule's zones, addresses,
-                    applications - render one per line the way the security rules page does. The
-                    value is still escaped: the split is on newlines the row builder put there,
-                    not on markup it emitted.
-                    {% endcomment %}
-                    <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-3.5 text-slate-800">{{ cell|linebreaksbr }}</td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+                </tbody>
+            </table>
+        </div>
+        {% if selection_fields %}
+        <div class="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-slate-50 px-3 py-1.5">
+            <button type="submit" name="build_from_selection" value="1"
+                    class="inline-flex h-7 items-center gap-1.5 border border-blue-300 bg-blue-50 px-2.5 text-[12px] font-medium text-blue-700 hover:bg-blue-100">
+                {% lucide "list-checks" class="h-3.5 w-3.5 shrink-0" %}
+                {% if search_query %}Refine from selected rows{% else %}Build a query from selected rows{% endif %}
+            </button>
+            {% if selection_addresses %}
+            <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+                <input type="checkbox" name="resolved_addresses" value="1"
+                       class="h-3.5 w-3.5 accent-blue-600">
+                {% comment %}
+                Off by default: the names are what the rule references and what an engineer
+                searches the configuration for. On, the query also asks the address SPACE,
+                which finds rules reaching the same networks under another object's name.
+                {% endcomment %}
+                also match resolved addresses
+            </label>
+            {% endif %}
+            <span class="text-[11px] text-slate-500">
+                {% if search_query %}Adds a group, ANDed with the query already applied.{% else %}Fills the builder with what the ticked rows have in common.{% endif %}
+            </span>
+        </div>
+        {% endif %}
+    </form>
     {% endif %}
 </div>
 

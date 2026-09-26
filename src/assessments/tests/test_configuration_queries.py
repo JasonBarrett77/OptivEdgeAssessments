@@ -27,6 +27,26 @@ from optivedge_integrations.integrations.models import (
 MODEL = "integrations.InterfaceManagementProfile"
 
 
+def data_headers(html):
+    """The header cells, matching `data_cells`: the selection column is not data either."""
+    head = re.search(r"<thead>(.*?)</thead>", html, re.S).group(1)
+    headers = re.findall(r"<th[^>]*>(.*?)</th>", head, re.S)
+    return [h for h in headers if "sr-only" not in h]
+
+
+def data_cells(row_html):
+    """A row's cells, without the selection checkbox the first column carries.
+
+    The checkbox is a real column on the page - it is how a row gets ticked for the query
+    builder - and it is not data, so every test that reads a row by position drops it here
+    rather than each of them counting from one.
+    """
+    cells = re.findall(r"<td[^>]*>(.*?)</td>", row_html, re.S)
+    return cells[1:] if 'name="selected"' in row_html else cells
+
+
+
+
 def make_profile(station, group, hostname, name, bound):
     """The model is appliance-scoped and carries its station, group and source snapshot. Every
     one of those is NOT NULL, so a two-field create fails at the database rather than in a way
@@ -62,7 +82,7 @@ class InterfaceManagementProfileQueryTests(TestCase):
         body = re.search(r"<tbody>(.*?)</tbody>", response.content.decode(), re.S)
         if body is None:
             return []
-        return [re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)[1].strip()
+        return [data_cells(row)[1].strip()
                 for row in re.findall(r"<tr>(.*?)</tr>", body.group(1), re.S)]
 
     def _apply(self, node):
@@ -364,7 +384,7 @@ class ControlPreviewTests(TestCase):
 
     def _body_rows(self, response):
         body = re.search(r"<tbody>(.*?)</tbody>", response.content.decode(), re.S)
-        return [re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+        return [data_cells(row)
                 for row in re.findall(r"<tr>(.*?)</tr>", body.group(1), re.S)] if body else []
 
     def test_it_shows_the_rows_the_control_would_report_and_no_others(self):
@@ -376,7 +396,7 @@ class ControlPreviewTests(TestCase):
         column in one of them shifts every value after it, silently."""
         response = self._preview()
         html = response.content.decode()
-        headers = re.findall(r"<th[^>]*>(.*?)</th>", re.search(r"<thead>(.*?)</thead>", html, re.S).group(1), re.S)
+        headers = data_headers(html)
         self.assertEqual(headers[-2:], ["Severity", "Matched query"])
         for cells in self._body_rows(response):
             self.assertEqual(len(cells), len(headers))
@@ -874,3 +894,150 @@ class SaveQueryOntoAControlTests(TestCase):
         self.assertEqual(
             [(c["field"], c["op"], c["value"]) for c in payload["clauses"]],
             [("binding_count", "gt", 2)])
+
+
+class BuildQueryFromSelectionTests(TestCase):
+    """Tick rows, press the button, get a query those rows satisfy.
+
+    Jason, 2026-09-26: "this is a convenience feature, not particularly intelligent... But
+    having it all filled in is the time saver." So what is worth pinning is that the query it
+    fills in is TRUE of the rows it came from, and that refining stacks rather than merges.
+    """
+
+    def setUp(self):
+        self.station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.sel")
+        self.group = ApplianceGroup.objects.create(
+            management_station=self.station, name="g-sel",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        self.bound = make_profile(self.station, self.group, "fw-a", "bound", 2)
+        self.orphan_a = make_profile(self.station, self.group, "fw-a", "orphan", 0)
+        self.orphan_b = make_profile(self.station, self.group, "fw-b", "orphan", 0)
+        self.url = reverse("assessment_configuration_object", args=["network", "interface-mgmt"])
+
+    def _build(self, objects, **extra):
+        data = {"build_from_selection": "1", "selected": [str(o.pk) for o in objects]}
+        data.update(extra)
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, 302, response.content[:300])
+        applied = self.client.get(response.headers["Location"])
+        return applied, applied.context["search_query"]
+
+    def test_one_row_fills_the_builder_with_that_row(self):
+        _applied, node = self._build([self.orphan_a])
+
+        clauses = node["clauses"][0]["clauses"] if "clauses" in node["clauses"][0] else node["clauses"]
+        by_field = {c["field"]: c["value"] for c in clauses}
+        self.assertEqual(by_field["name"], "orphan")
+        self.assertEqual(by_field["binding_count"], 0)
+        self.assertEqual(by_field["hostname"], "fw-a")
+
+    def test_the_query_selects_the_rows_it_came_from(self):
+        """The whole point, and the thing a reader/compiler disagreement would break."""
+        applied, _node = self._build([self.orphan_a, self.orphan_b])
+        shown = {row[1].strip() for row in
+                 [data_cells(r) for r in re.findall(
+                     r"<tr>(.*?)</tr>",
+                     re.search(r"<tbody>(.*?)</tbody>", applied.content.decode(), re.S).group(1),
+                     re.S)]}
+
+        self.assertEqual(shown, {"orphan"})
+
+    def test_only_what_the_rows_agree_on_is_asked(self):
+        """Two orphans on different appliances: the name and the count are shared, the
+        hostname is not, so the hostname is left out rather than turned into an OR."""
+        _applied, node = self._build([self.orphan_a, self.orphan_b])
+        fields = {c["field"] for c in node["clauses"]}
+
+        self.assertEqual(fields, {"name", "binding_count"})
+
+    def test_refining_adds_a_group_rather_than_merging(self):
+        """Each press is one thought. Groups stack with AND; flattening them would ask for a
+        row that is two things at once."""
+        first = {"model": MODEL, "operator": "and",
+                 "clauses": [{"field": "binding_count", "op": "eq", "value": 0}]}
+        response = self.client.post(self.url, {
+            "build_from_selection": "1",
+            "selected": [str(self.orphan_a.pk)],
+            "search": json.dumps(first),
+        })
+        node = self.client.get(response.headers["Location"]).context["search_query"]
+
+        self.assertEqual(node["operator"], "and")
+        self.assertEqual(len(node["clauses"]), 2)
+        for group in node["clauses"]:
+            self.assertIn("clauses", group, "each press is its own group")
+            self.assertNotIn("model", group, "only the root carries the model")
+
+    def test_a_selection_with_nothing_in_common_says_so(self):
+        response = self.client.post(self.url, {
+            "build_from_selection": "1",
+            "selected": [str(self.bound.pk), str(self.orphan_b.pk)]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no column values in common", response.context["search_error"])
+
+    def test_ticking_nothing_changes_nothing(self):
+        response = self.client.post(self.url, {"build_from_selection": "1"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], self.url)
+
+    def test_the_page_offers_the_checkbox_and_the_button(self):
+        html = self.client.get(self.url).content.decode()
+
+        self.assertIn('name="selected"', html)
+        self.assertIn('name="build_from_selection"', html)
+
+    def test_a_clause_the_compiler_disagrees_with_is_dropped(self):
+        """Build by reader, verify by compiler. A field whose value cannot be expressed as a
+        query it satisfies is left out rather than shipped, because a query that excludes the
+        row it was read from is the one failure nobody would notice."""
+        from assessments.configuration_selection import keep_clauses_that_hold
+
+        good = {"field": "name", "op": "eq", "value": "orphan"}
+        wrong = {"field": "name", "op": "eq", "value": "something-else"}
+
+        kept = keep_clauses_that_hold(MODEL, [good, wrong], [self.orphan_a])
+
+        self.assertEqual(kept, [good])
+
+
+class SelectionFieldMappingTests(TestCase):
+    """`query_fields` maps a column to a field, and both halves can be wrong quietly.
+
+    A field that is not QUERYABLE would raise when the built query compiled. A field that is
+    not READABLE produces no clause at all, which looks exactly like a field the selected rows
+    disagreed on - that is how `binding_count` and `configured_hostname` were both mapped to
+    names the model does not carry and nothing said so.
+    """
+
+    def test_every_mapped_column_exists_on_its_page(self):
+        for slug, spec in config_results.RESULTS.items():
+            for column in spec.query_fields:
+                with self.subTest(f"{slug}.{column}"):
+                    self.assertIn(column, spec.columns)
+
+    def test_every_mapped_field_is_queryable(self):
+        for slug, spec in config_results.RESULTS.items():
+            if not spec.query_fields:
+                continue
+            label = spec.base_queryset().model._meta.label
+            available = set(MODEL_REGISTRY[label]["field_operators"])
+            for column, field in spec.query_fields.items():
+                with self.subTest(f"{slug}.{column}"):
+                    self.assertIn(field, available)
+
+    def test_every_mapped_field_can_be_read_off_an_object(self):
+        from assessments.configuration_selection import FIELD_PATHS, MEMBER_RELATIONS
+
+        for slug, spec in config_results.RESULTS.items():
+            if not spec.query_fields:
+                continue
+            attributes = {f.name for f in spec.base_queryset().model._meta.get_fields()}
+            for column, field in spec.query_fields.items():
+                with self.subTest(f"{slug}.{column}"):
+                    self.assertTrue(
+                        field in attributes or field in FIELD_PATHS or field in MEMBER_RELATIONS,
+                        f"{field} is queryable but nothing knows how to read it; add it to "
+                        f"FIELD_PATHS or MEMBER_RELATIONS in configuration_selection")

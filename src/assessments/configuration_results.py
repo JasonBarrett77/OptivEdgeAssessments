@@ -76,6 +76,13 @@ class ResultsSpec(NamedTuple):
     #: compiles - a saved control query applied here is not something to refuse on presentation
     #: grounds.
     fields: tuple[str, ...] = ()
+    #: {column heading: queryable field}, for the columns that present ONE field. The "build a
+    #: query from the selected rows" button reads these and nothing else, which is why a
+    #: composite column - "Character Classes", "Protocol Range", "Referenced By" - simply has
+    #: no entry: it presents a verdict or several fields at once, and there is no single value
+    #: a clause could carry. Checked against the search registry by test, and every clause it
+    #: produces is verified by the compiler before it reaches the builder.
+    query_fields: dict = {}
     #: A fixed canonical query every row on this page must also match - how two pages split ONE
     #: model the way the vendor's UI splits it (anti-spyware and vulnerability profiles). Applied
     #: by the search service like any other query, never as a queryset filter here: filtering an
@@ -189,6 +196,13 @@ RESULTS = {
     # zones, addresses, applications, services, profile groups and profiles, and building that
     # list again separately is how the workbook export once drifted two relations behind.
     "security": ResultsSpec(
+        query_fields={
+            "Station": "management_station", "vsys id": "vsys_name",
+            "vsys name": "vsys_display_name", "Config Source": "config_source",
+            "Rule": "name", "Source Zone": "from_zone", "Source Address": "source_address_name",
+            "Destination Zone": "to_zone", "Destination Address": "destination_address_name",
+            "Application": "application", "Service": "service", "Action": "action",
+            "Log Start": "log_start", "Log End": "log_end", "Log Profile": "log_setting"},
         columns=("Station", "Appliance", "vsys id", "vsys name", "Order", "Config Source",
                  "Device Group", "Rule", "Source Zone", "Source Address", "Destination Zone",
                  "Destination Address", "Application", "Service", "Action", "Log Start",
@@ -227,6 +241,8 @@ RESULTS = {
     # All six were cut out of `DeviceConfigurationProfile` on 2026-09-10, one control cluster
     # at a time, and none of these pages reads it any more.
     "login-banner": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Banner": "text",
+                      "Acknowledgement Required": "acknowledgement_required"},
         columns=("Appliance", "Banner", "Acknowledgement Required"),
         base_queryset=_ordered(LoginBanner, "appliance__hostname"),
         row=lambda p: (
@@ -277,6 +293,9 @@ RESULTS = {
         ),
     ),
     "ntp": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Primary": "primary_server",
+                      "Secondary": "secondary_server",
+                      "Authentication": "all_servers_symmetric_key"},
         columns=("Appliance", "Primary", "Secondary", "Authentication"),
         base_queryset=_ordered(NtpSettings, "appliance__hostname"),
         row=lambda n: (
@@ -290,6 +309,8 @@ RESULTS = {
         ),
     ),
     "snmp": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Version": "version",
+                      "Exposed": "is_exposed"},
         columns=("Appliance", "Version", "Community", "Exposed"),
         base_queryset=_ordered(SnmpSettings, "appliance__hostname"),
         row=lambda s: (
@@ -303,6 +324,8 @@ RESULTS = {
         ),
     ),
     "system-identity": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Hostname": "configured_hostname",
+                      "Time Zone": "timezone", "Management Address": "addressing_mode"},
         columns=("Appliance", "Hostname", "Time Zone", "Management Address"),
         base_queryset=_ordered(SystemIdentity, "appliance__hostname"),
         row=lambda i: (
@@ -317,6 +340,10 @@ RESULTS = {
         ),
     ),
     "authentication-settings": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Idle Timeout": "idle_timeout_minutes",
+            "Lockout After": "lockout_failed_attempts", "Lockout Time": "lockout_time_minutes",
+            "API Key Lifetime": "api_key_lifetime_minutes"},
         columns=("Appliance", "Idle Timeout", "Lockout After", "Lockout Time",
                  "API Key Lifetime"),
         base_queryset=_ordered(AuthenticationSettings, "appliance__hostname"),
@@ -334,6 +361,9 @@ RESULTS = {
         ),
     ),
     "password-complexity": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Complexity": "enabled",
+                      "Min Length": "minimum_length", "Expires": "expiration_period",
+                      "History": "history_count"},
         columns=("Appliance", "Complexity", "Min Length", "Character Classes", "Expires",
                  "History"),
         base_queryset=_ordered(PasswordComplexityPolicy, "appliance__hostname"),
@@ -351,6 +381,8 @@ RESULTS = {
         ),
     ),
     "master-key": ResultsSpec(
+        query_fields={"Appliance": "hostname", "State": "state",
+                      "On HSM": "on_hsm"},
         columns=("Appliance", "State", "Expires", "On HSM"),
         base_queryset=_ordered(MasterKey, "appliance__hostname"),
         row=lambda p: (
@@ -363,11 +395,15 @@ RESULTS = {
         ),
     ),
     "services": ResultsSpec(
+        query_fields={"Appliance": "hostname",
+                      "Verify Update Server Identity": "verify_identity"},
         columns=("Appliance", "Verify Update Server Identity"),
         base_queryset=_ordered(UpdateServerSettings, "appliance__hostname"),
         row=lambda p: (str(p.appliance), _yes_no(p.verify_identity)),
     ),
     "logging-and-reporting": ResultsSpec(
+        query_fields={"Appliance": "hostname",
+                      "Log on High DP Load": "log_on_high_dp_load"},
         columns=("Appliance", "Log on High DP Load"),
         base_queryset=_ordered(LoggingSettings, "appliance__hostname"),
         row=lambda p: (str(p.appliance), _yes_no(p.log_on_high_dp_load)),
@@ -515,6 +551,8 @@ RESULTS = {
     ),
     # --- Network > Network Profiles -------------------------------------------------------
     "interface-mgmt": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Profile": "name",
+                      "Bound To": "binding_count"},
         columns=("Appliance", "Profile", "Bound To"),
         base_queryset=_ordered(InterfaceManagementProfile, "appliance__hostname", "name"),
         row=lambda p: (
