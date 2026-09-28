@@ -8,14 +8,20 @@ that table and that the order really is the workbook's.
 
 from __future__ import annotations
 
+from datetime import date
+from unittest import mock
+
 from django.test import TestCase
-from django.urls import reverse
+from django.urls import resolve, reverse
 from django.utils import timezone
 
+from assessments import views
+from assessments.artifacts import ArtifactBuildError, workbook_filename
 from assessments.artifacts import domains as artifact_domains
 from assessments.finding_run import regenerate_findings
 from assessments.models import LoginBannerFinding
 from assessments.tests._seed import seed_controls
+from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, LoginBanner, ManagementStation, Snapshot)
 
@@ -219,3 +225,99 @@ class ImplicatedValueTests(TestCase):
         marked = {headers[i] for i, cell in enumerate(response.context["rows"][0])
                   if cell["implicated"]}
         self.assertIn(self.FIELD, {h.lower().replace(" ", "_") for h in marked})
+
+
+class WorkbookDownloadTests(TestCase):
+    """The workbook, from the page that is its Summary tab.
+
+    Synchronous on purpose for now - Jason, 2026-09-28: "synchronously is fine for now" - so
+    there is no job, no stored artifact and nothing to poll. What IS worth pinning is the
+    guard path: `ArtifactBuildError` is catchable precisely so a refused build reaches the
+    reader as a sentence instead of a 500 or, worse, a wrong file.
+    """
+
+    def setUp(self):
+        build_estate()
+        seed_controls(["PAN-MGT-007"])
+        regenerate_findings()
+        self.url = reverse("assessment_findings_workbook")
+
+    def test_it_returns_a_workbook(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], views.XLSX_CONTENT_TYPE)
+        self.assertTrue(response["Content-Disposition"].startswith("attachment;"))
+        # An .xlsx is a zip. Checking the magic beats checking the length, which a stub would
+        # also satisfy.
+        self.assertEqual(bytes(response.content[:2]), b"PK")
+
+    def test_the_summary_page_offers_it(self):
+        response = self.client.get(reverse("assessment_findings_summary"))
+
+        self.assertContains(response, self.url)
+        self.assertContains(response, "Download Workbook")
+
+    def test_a_refused_build_says_which_guard_and_why(self):
+        """The whole reason `ArtifactBuildError` stopped being a `SystemExit`. A worker that
+        dies on a guard, or a page that swallows it, both end with somebody shipping a
+        workbook nobody checked."""
+        with mock.patch("assessments.views.build_workbook",
+                        side_effect=ArtifactBuildError("PAN-MGT-007 reached no tab")):
+            response = self.client.get(self.url, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "PAN-MGT-007 reached no tab")
+        self.assertEqual(response.request["PATH_INFO"], reverse("assessment_findings_summary"))
+
+    def test_the_url_is_not_read_as_a_domain_slug(self):
+        """`findings/<slug>/` would happily match "workbook" and 404, which is the kind of
+        routing bug that only shows up once somebody clicks the button."""
+        self.assertNotIn("workbook", {domain.slug for domain in artifact_domains.DOMAINS})
+        self.assertEqual(resolve(self.url).func.view_class, views.FindingsWorkbookView)
+
+
+class WorkbookFilenameTests(TestCase):
+    """What the browser is told to call it. Three parts in the order a consultant sorting a
+    directory wants: who, which engagement, when."""
+
+    def test_it_names_the_client_the_opportunity_and_the_build_date(self):
+        environment = ApplicationEnvironment.objects.create(
+            client_name="Acme Corporation", client_short_name="Acme",
+            opportunity_number="OP-1234567")
+
+        self.assertEqual(
+            workbook_filename(environment, today=date(2026, 9, 28)),
+            "acme-op-1234567-assessment-2026-09-28.xlsx")
+
+    def test_an_unconfigured_deployment_still_gets_a_file(self):
+        """A deployment with no `ApplicationEnvironment` is a real state - the lab spends its
+        first minutes in it - and not worth refusing a download over."""
+        self.assertEqual(workbook_filename(None, today=date(2026, 9, 28)),
+                         "assessment-2026-09-28.xlsx")
+
+    def test_a_client_name_cannot_break_out_of_the_header(self):
+        """Client names are free text on their way into a `Content-Disposition` header, where
+        a quote or a newline would be a header-splitting bug rather than a cosmetic one."""
+        environment = ApplicationEnvironment(
+            client_name='Acme" ; drop\nthings', client_short_name="",
+            opportunity_number="OP-7654321")
+
+        filename = workbook_filename(environment, today=date(2026, 9, 28))
+
+        self.assertNotIn('"', filename)
+        self.assertNotIn("\n", filename)
+        self.assertNotIn(";", filename)
+        self.assertTrue(filename.endswith("-assessment-2026-09-28.xlsx"))
+
+    def test_the_download_uses_it(self):
+        ApplicationEnvironment.objects.create(
+            client_name="Acme Corporation", client_short_name="Acme",
+            opportunity_number="OP-1234567")
+        build_estate()
+        seed_controls(["PAN-MGT-007"])
+        regenerate_findings()
+
+        response = self.client.get(reverse("assessment_findings_workbook"))
+
+        self.assertIn("acme-op-1234567-assessment-", response["Content-Disposition"])

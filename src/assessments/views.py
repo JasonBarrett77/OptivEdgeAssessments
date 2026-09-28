@@ -14,6 +14,8 @@ from assessments.artifacts import (
     ALL_TESTED_COLUMNS,
     ArtifactBuildError,
     build_findings_table,
+    build_workbook,
+    workbook_filename,
 )
 from assessments.artifacts import domains as artifact_domains
 from assessments.artifacts.layout import category_of as artifact_category_of
@@ -87,7 +89,7 @@ from assessments.security_rule_queries import (
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
@@ -893,6 +895,40 @@ class FindingsDomainView(TemplateView):
         context["rows"] = rows
         context["severities"] = severity_breakdown(table.by_severity)
         return context
+
+
+#: What a browser is told an .xlsx is. The long one: the short `application/vnd.ms-excel`
+#: names the pre-2007 format, and Excel warns that the file does not match its extension.
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+class FindingsWorkbookView(View):
+    """The engineer-detail workbook, as a download.
+
+    Built on the request, synchronously - Jason, 2026-09-28: "synchronously is fine for now".
+    MEASURED at 10.2s for the lab's 153 KB workbook, which is longer than it sounds when a
+    browser gives no sign that anything is happening; a second click starts a second build.
+    The build is one query per finding model per tab, so on a real estate the fix is a stored
+    artifact and a job rather than a longer timeout.
+
+    `build_workbook()` returns bytes and knows nothing about the filesystem, which is exactly
+    what makes this fifteen lines. The guard path is the part worth having: `ArtifactBuildError`
+    derives from `Exception` rather than `SystemExit` so a web worker can CATCH it - a guard
+    refusing means the workbook would have been wrong, and the reader needs to be told which
+    guard and why, not handed a 500 or, worse, the wrong file.
+    """
+
+    def get(self, request, *args, **kwargs):
+        try:
+            content, _reports = build_workbook()
+        except ArtifactBuildError as exc:
+            messages.error(request, f"The workbook was not built: {exc}")
+            return HttpResponseRedirect(reverse("assessment_findings_summary"))
+
+        filename = workbook_filename(get_application_environment())
+        response = HttpResponse(content, content_type=XLSX_CONTENT_TYPE)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 def findings_href_for(config_object) -> str:

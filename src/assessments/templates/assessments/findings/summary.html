@@ -28,8 +28,33 @@ categories rather than by anything invented here.
                     {% if run %}
                     <span>Run {{ run.pk }}{% if run.completed_at %} · {{ run.completed_at|date:"Y-m-d H:i" }} UTC{% endif %}</span>
                     {% endif %}
+                    {% comment %}
+                    The whole workbook, from the page that is its Summary tab. It builds on the
+                    request - 10.2s on the lab - and the browser shows nothing while it does,
+                    so the wait is said in the title rather than left as an unexplained pause.
+                    {% endcomment %}
+                    <a href="{% url 'assessment_findings_workbook' %}"
+                       title="Builds the workbook now. The lab takes about ten seconds; there is no progress indicator, so give it a moment rather than clicking again."
+                       class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        Download Workbook
+                    </a>
                 </div>
             </div>
+
+            {% if messages %}
+            {% comment %}
+            base.html does not render messages - each page does its own - so without this block
+            a guard refusing to build the workbook would redirect here and say NOTHING, which
+            is the failure the guards exist to prevent.
+            {% endcomment %}
+            <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-2">
+                <div class="flex flex-col gap-2">
+                    {% for message in messages %}
+                    <div class="border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% elif message.tags == 'warning' %}border-amber-200 bg-amber-50 text-amber-800{% else %}border-slate-200 bg-white text-slate-700{% endif %}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <div class="min-h-0 flex-1 overflow-auto bg-white px-4 py-4">
                 <div class="max-w-5xl">

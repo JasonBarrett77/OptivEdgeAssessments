@@ -17,6 +17,7 @@ from assessments.views import (
     ControlListView,
     FindingsDomainView,
     FindingsSummaryView,
+    FindingsWorkbookView,
     ControlQueryCreateView,
     ControlQueryDeleteView,
     ControlQueryUpdateView,
@@ -32,6 +33,13 @@ urlpatterns = [
         "findings/",
         FindingsSummaryView.as_view(),
         name="assessment_findings_summary",
+    ),
+    # Before the slug route, which would otherwise swallow "workbook" and 404 on a domain
+    # that does not exist.
+    path(
+        "findings/workbook/",
+        FindingsWorkbookView.as_view(),
+        name="assessment_findings_workbook",
     ),
     path(
         "findings/<slug:slug>/",

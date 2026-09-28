@@ -329,6 +329,29 @@ decision about that TAB, not about the data - so a surface passing `ALL_TESTED_C
 the provenance and the firing condition anyway (Jason, 2026-09-25: "can we add the provenance
 data, even if both presentation surfaces don't use it?").
 
+**The workbook is downloadable from the findings summary**, `findings/workbook/`, as of
+2026-09-28. It builds ON THE REQUEST - Jason: "synchronously is fine for now" - measured at
+10.2s for the lab's 153 KB file. Two things follow from that number rather than from taste: the
+browser shows nothing while it builds, so a second click starts a second build, and when this
+stops being tolerable the answer is a stored artifact and a job, not a longer timeout.
+
+The route sits BEFORE `findings/<slug:slug>/`, which would otherwise match `workbook` and 404.
+
+**A refused build redirects to the summary carrying the guard's message.** That is the whole
+point of `ArtifactBuildError` deriving from `Exception`: a guard refusing means the workbook
+would have been wrong, and the reader has to be told which guard and why. `base.html` does not
+render messages - each page does its own - so the summary template grew a messages block,
+without which the redirect would have said nothing at all.
+
+**The filename is `artifacts/naming.py`**, not the view's: a name is not a path, so it does not
+break the "nothing here knows about the filesystem" rule, and the docx will want the same
+convention. `acme-op-1234567-assessment-2026-09-28.xlsx` - who, which engagement, when. The
+date is the BUILD date, deliberately not a collection window: the Summary tab carries the
+window, and a filename that looked like one would be read as authoritative. Each part is
+slugified because client names are free text on their way into a `Content-Disposition` header,
+and a deployment with no `ApplicationEnvironment` drops those parts rather than refusing the
+download.
+
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
 the state's lifetime equal to the file's.

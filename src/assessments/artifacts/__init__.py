@@ -11,6 +11,7 @@ The docx report will sit beside this, sharing the run and the engagement metadat
 from __future__ import annotations
 
 from .errors import ArtifactBuildError
+from .naming import workbook_filename
 from .sheets.findings import ALL_TESTED_COLUMNS, FindingsTable, build_findings_table
 from .workbook import build_workbook
 
@@ -20,4 +21,5 @@ __all__ = [
     "FindingsTable",
     "build_findings_table",
     "build_workbook",
+    "workbook_filename",
 ]
