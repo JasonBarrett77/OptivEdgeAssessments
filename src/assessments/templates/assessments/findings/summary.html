@@ -87,9 +87,17 @@ grouped by the product's own categories rather than by anything invented here.
                             <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Domain</th>
                             <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Description</th>
                             <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Findings</th>
+                            {% comment %}
+                            One width for all five, so the counts read as a grid. w-16 is 64px
+                            against a 60.8px worst case - "CRITICAL" at 52.8px plus the 8px of
+                            px-1 - measured from the font rather than eyeballed. Which is also
+                            why the last column is headed "Info": "INFORMATIONAL" is 97.6px and
+                            was on its own forcing one column three times the width of "LOW".
+                            {% endcomment %}
                             {% for severity in severity_headers %}
-                            <th class="sticky top-0 z-10 w-16 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                                {{ severity.label }}
+                            <th class="sticky top-0 z-10 w-16 border-b border-slate-300 bg-slate-50 px-1 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+                                title="{{ severity.label }}">
+                                {{ severity.short }}
                             </th>
                             {% endfor %}
                         </tr>
@@ -115,18 +123,25 @@ grouped by the product's own categories rather than by anything invented here.
                             <td class="border-b border-slate-100 px-3 py-1.5 align-top text-right text-[12px] {% if domain.total %}font-semibold text-slate-900{% else %}text-slate-400{% endif %}">
                                 {{ domain.total }}
                             </td>
+                            {% comment %}
+                            The box fills its cell - `flex h-5 w-full` - rather than shrinking
+                            to its digits, so every box is the same height and width whether it
+                            holds 4 or 250. Sizing lives on the box and not on the cell, which
+                            is what keeps the two branches below identical in shape.
+                            {% endcomment %}
                             {% for severity in domain.cells %}
-                            <td class="border-b border-slate-100 px-1 py-1.5 align-top text-center text-[12px]">
+                            <td class="border-b border-slate-100 px-1 py-1.5 align-top">
                                 {% if severity.count %}
-                                <span class="inline-flex min-w-6 items-center justify-center border px-1.5 py-0.5 font-semibold {{ severity.classes }}"
+                                <span class="flex h-5 w-full items-center justify-center border text-[11px] font-semibold {{ severity.classes }}"
                                       title="{{ severity.count }} {{ severity.label }}">{{ severity.count }}</span>
                                 {% else %}
                                 {% comment %}
                                 A dash, not a 0: the zeros are the majority of this grid, and a
                                 field of noughts hides the numbers that matter. The column is
-                                still here, which is the part that was worth keeping.
+                                still here, which is the part that was worth keeping. No border,
+                                so the eye reads the bordered boxes as the content.
                                 {% endcomment %}
-                                <span class="text-slate-300">&ndash;</span>
+                                <span class="flex h-5 w-full items-center justify-center text-[11px] text-slate-300">&ndash;</span>
                                 {% endif %}
                             </td>
                             {% endfor %}

@@ -8,6 +8,7 @@ that table and that the order really is the workbook's.
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from unittest import mock
 
@@ -142,6 +143,31 @@ class FindingsSummaryPageTests(TestCase):
             for domain in category["domains"]:
                 with self.subTest(domain["slug"]):
                     self.assertEqual([cell["label"] for cell in domain["cells"]], headers)
+
+    def test_every_count_box_is_the_same_box(self):
+        """Jason, 2026-09-28: "All bordered boxes containing the counts are the same
+        height/width, regardless of the content width." So the box is sized by its CELL - a
+        fixed height and the cell's full width - and never by its digits: `250` and `4` draw
+        the same rectangle. A width class on the box, or padding on the cell instead of the
+        box, would both reintroduce the variation this removes."""
+        html = self.client.get(self.url).content.decode()
+
+        boxes = re.findall(r'<span class="(flex h-5 w-full[^"]*)"', html)
+        self.assertTrue(boxes, "expected the severity cells to draw fixed boxes")
+        for box in boxes:
+            with self.subTest(box[:60]):
+                self.assertNotRegex(box, r"\b(min-)?w-\d", "a width class re-sizes the box")
+                self.assertNotRegex(box, r"\bp[xy]?-\d", "padding on the box re-sizes it")
+
+    def test_the_narrow_column_heading_keeps_the_full_word_available(self):
+        """"Informational" is 97.6px at the header's size against "Low" at 26.7px, so it alone
+        set the width of every severity column. Shortened in the HEADING only - the full label
+        stays on the cell title and everywhere that is not a column."""
+        response = self.client.get(self.url)
+
+        headings = [cell["short"] for cell in response.context["severity_headers"]]
+        self.assertEqual(headings, ["Critical", "High", "Medium", "Low", "Info"])
+        self.assertContains(response, 'title="Informational"')
 
     def test_a_domain_with_nothing_wrong_reads_as_a_zero_row(self):
         """A bare 0 used to read as a column nobody filled in, which is why this page said "No

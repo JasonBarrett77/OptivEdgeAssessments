@@ -314,6 +314,16 @@ that matter; the Findings total shows a real `0`, because a headed numeric colum
 above and below it does not read as unfilled - which is what the page's old "No findings" text
 was working around.
 
+**Every count box is the same box.** Jason: "All bordered boxes containing the counts are the
+same height/width, regardless of the content width." So the box is sized by its CELL -
+`flex h-5 w-full` - and never by its digits, and the five columns share one width. A width
+class on the box, or padding moved from the box to the cell, reintroduces exactly the variation
+this removed; `test_findings_views` refuses both. The last column is headed **Info** because
+"INFORMATIONAL" measures 97.6px at that size against "LOW" at 26.7px and was on its own setting
+the width of every severity column - shortened in the HEADING only, with the full label on the
+cell's `title` and everywhere else untouched. `w-16` is 64px against a 60.8px worst case
+("CRITICAL" at 52.8px plus 8px of `px-1`), all measured from the font.
+
 **The Summary counts rather than builds.** `severity_counts()` is one query per finding model;
 building all twenty-two tables to total them would do the whole job of every page to draw one.
 

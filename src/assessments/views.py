@@ -281,6 +281,11 @@ FINDING_GROUP_PAGE_SIZE = 50
 _SEVERITY_ORDER = ["critical", "high", "medium", "low", "informational"]
 _SEVERITY_RANK = {value: rank for rank, value in enumerate(reversed(_SEVERITY_ORDER))}
 _SEVERITY_LABELS = {value: label for value, label in Control.Severity.choices}
+#: Column headings, where the label has to fit a numeric column. Only one severity needs it:
+#: "INFORMATIONAL" measures 97.6px at the header's size against "LOW" at 26.7px, so on its own
+#: it set the width of every severity column. The full label stays on the cell's `title`, and
+#: everywhere that is not a column heading keeps it outright.
+_SEVERITY_SHORT_LABELS = {"informational": "Info"}
 
 # One place color lives: severity and status badges. Everything else stays neutral.
 _SEVERITY_BADGE_CLASSES = {
@@ -970,13 +975,18 @@ def severity_cells(by_severity):
     rather than a missing column" - and a page whose chips moved from row to row could not be
     read down, which is what made it worth changing.
     """
-    return [{
-        "value": value,
-        "label": _SEVERITY_LABELS.get(value, value),
-        "count": by_severity.get(value, 0),
-        "classes": _SEVERITY_BADGE_CLASSES.get(value, ""),
-        "swatch": _SEVERITY_SWATCH_CLASSES.get(value, ""),
-    } for value in _SEVERITY_ORDER]
+    cells = []
+    for value in _SEVERITY_ORDER:
+        label = _SEVERITY_LABELS.get(value, value)
+        cells.append({
+            "value": value,
+            "label": label,
+            "short": _SEVERITY_SHORT_LABELS.get(value, label),
+            "count": by_severity.get(value, 0),
+            "classes": _SEVERITY_BADGE_CLASSES.get(value, ""),
+            "swatch": _SEVERITY_SWATCH_CLASSES.get(value, ""),
+        })
+    return cells
 
 
 
