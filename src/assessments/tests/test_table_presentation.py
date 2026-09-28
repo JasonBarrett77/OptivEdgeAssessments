@@ -15,8 +15,11 @@ from pathlib import Path
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 import assessments
+from optivedge_integrations.integrations.models import (
+    Appliance, ManagementStation, Snapshot)
 
 TEMPLATES = Path(assessments.__file__).parent / "templates" / "assessments"
 STYLES = "assessments/partials/table_styles.html"
@@ -93,3 +96,81 @@ class RenderedPageTests(TestCase):
 
         self.assertContains(response, "white-space: nowrap")
         self.assertContains(response, "oea-table")
+
+
+class MultiValueCellTests(TestCase):
+    """A cell holding several values puts one on each line.
+
+    Jason, 2026-09-27, about the management-SSH page: "In fields where multiple values may
+    exist, the values should be separated by new lines." The three algorithm cells were
+    comma-joined, which read as a paragraph - and reads as a very WIDE paragraph now that a
+    data cell does not wrap (see `TableMarkupTests`).
+
+    The split is made here as text, on newlines, and the template runs every cell through
+    `linebreaksbr`: device-supplied values stay escaped, and the workbook already does the
+    same, so a page and its tab agree.
+    """
+
+    def test_no_presentation_module_comma_joins_a_list(self):
+        """Every one of these was a multi-value cell: SSH algorithms, unauthenticated NTP
+        servers, SNMP surfaces, revocation checks, sequence members, matched query names."""
+        import assessments
+
+        root = Path(assessments.__file__).parent
+        offenders = []
+        for name in ("configuration_results.py", "views.py"):
+            for number, line in enumerate((root / name).read_text(encoding="utf-8").split("\n"), 1):
+                if '", ".join' in line:
+                    offenders.append(f"{name}:{number} {line.strip()[:70]}")
+
+        self.assertEqual(
+            offenders, [],
+            "a multi-value cell joins on newlines, not commas; if this really is prose, say so "
+            "in a comment and exempt it here")
+
+    def test_the_ssh_algorithm_cells_break_on_newlines(self):
+        from optivedge_integrations.integrations.models import ManagementSshSettings
+
+        from assessments import configuration_results as config_results
+
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.rows")
+        appliance = Appliance.objects.create(
+            management_station=station, serial_number="S-rows", hostname="fw-rows")
+        snapshot = Snapshot.objects.create(
+            management_station=station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        settings = ManagementSshSettings.objects.create(
+            management_station=station, appliance=appliance, source_snapshot=snapshot,
+            profile_name="p", profile_found=True,
+            ciphers_below_preferred=True, non_preferred_ciphers=["aes128-cbc", "3des-cbc"],
+            kex_below_preferred=True, non_preferred_kex=["diffie-hellman-group1-sha1"],
+            macs_below_preferred=True, non_preferred_macs=["hmac-sha1", "hmac-md5"],
+            host_key_type="RSA", host_key_bits=2048)
+
+        row = config_results.RESULTS["management-ssh"].row(settings)
+        ciphers, macs = row[2], row[4]
+
+        self.assertEqual(ciphers, "aes128-cbc\n3des-cbc")
+        self.assertEqual(macs, "hmac-sha1\nhmac-md5")
+        self.assertNotIn(", ", ciphers)
+
+    def test_a_sequence_keeps_its_chain_marker_on_the_following_lines(self):
+        """The order is the meaning - it is the fallback order - so one per line keeps the
+        marker rather than dropping it with the commas."""
+        from assessments import configuration_results as config_results
+
+        class FakeSequence:
+            member_names = ["first", "second"]
+            member_methods = ["ldap", None]
+            appliance = "fw"
+            scope = "shared"
+            vsys_name = ""
+            name = "seq"
+            has_local_member = False
+            is_administrative = True
+            referrer_count = 0
+
+        cell = config_results.RESULTS["authentication-sequence"].row(FakeSequence())[3]
+
+        self.assertEqual(cell, "first (ldap)\n> second (not found)")

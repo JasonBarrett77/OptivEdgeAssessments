@@ -1214,8 +1214,9 @@ class ConfigurationObjectView(TemplateView):
             evaluate_queryset_control_queries(rows, control, model_name=obj.search_model))
 
         def extra_cells(item):
+            # One query name per line, like every other multi-value cell (Jason, 2026-09-27).
             return (severity_label(severity_by_id[item.pk]),
-                    ", ".join(q.name for q in matched_by_object[item.pk]))
+                    "\n".join(q.name for q in matched_by_object[item.pk]))
 
         note = ""
         if skipped:

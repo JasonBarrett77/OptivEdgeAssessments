@@ -291,11 +291,11 @@ RESULTS = {
             # the preferred value and nothing outside its allowed set - and names what broke it.
             # These columns used to show the minimum-value flags, which no control asserts.
             ("preferred" if not s.ciphers_below_preferred
-             else (", ".join(s.non_preferred_ciphers) or "no aes256-gcm")),
+             else ("\n".join(s.non_preferred_ciphers) or "no aes256-gcm")),
             ("preferred" if not s.kex_below_preferred
-             else (", ".join(s.non_preferred_kex) or "no ECDH")),
+             else ("\n".join(s.non_preferred_kex) or "no ECDH")),
             ("preferred" if not s.macs_below_preferred
-             else (", ".join(s.non_preferred_macs) or "no hmac-sha2-512")),
+             else ("\n".join(s.non_preferred_macs) or "no hmac-sha2-512")),
             ("All (RSA + every ECDSA curve)" if s.host_key_type.lower() == "all"
              else f"{s.host_key_type} {s.host_key_bits}"),
         ),
@@ -313,7 +313,7 @@ RESULTS = {
             # makes, and an empty cell reads as missing data.
             n.secondary_server or "None",
             ("symmetric key" if n.all_servers_symmetric_key
-             else (", ".join(n.unauthenticated_servers) or "no server configured")),
+             else ("\n".join(n.unauthenticated_servers) or "no server configured")),
         ),
     ),
     "snmp": ResultsSpec(
@@ -328,7 +328,7 @@ RESULTS = {
             ("default string" if s.community_is_default
              else ("set" if s.community_set else "-")),
             # The question the version alone cannot answer: is any of this reachable.
-            (", ".join(s.exposed_surfaces) if s.is_exposed else "no surface enables SNMP"),
+            ("\n".join(s.exposed_surfaces) if s.is_exposed else "no surface enables SNMP"),
         ),
     ),
     "system-identity": ResultsSpec(
@@ -524,8 +524,8 @@ RESULTS = {
             _where(q),
             q.name,
             # In order, with the method, because the order is the meaning.
-            " > ".join(f"{n} ({m or 'not found'})"
-                       for n, m in zip(q.member_names, q.member_methods)) or "Nothing",
+            "\n> ".join(f"{n} ({m or 'not found'})"
+                        for n, m in zip(q.member_names, q.member_methods)) or "Nothing",
             _yes_no(q.has_local_member),
             _yes_no(q.is_administrative),
             _nothing(q.referrer_count, "place(s)"),
@@ -557,7 +557,7 @@ RESULTS = {
             _where(p),
             p.name,
             # "none" is the finding, so it is spelled rather than left as an empty cell.
-            ", ".join(filter(None, ["CRL" if p.use_crl else "", "OCSP" if p.use_ocsp else ""]))
+            "\n".join(filter(None, ["CRL" if p.use_crl else "", "OCSP" if p.use_ocsp else ""]))
             or "none",
             _nothing(len(p.ca_certificate_names or []), "certificate(s)"),
         ),

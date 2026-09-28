@@ -413,6 +413,17 @@ table can exceed its container rather than folding to it.
 **Prose opts back in** with `oea-prose`: a domain description, a catalog description, a query's
 short description. A sentence held on one line scrolls the page for no reason.
 
+**A cell holding several values puts one on each line.** Jason, 2026-09-27: "In fields where
+multiple values may exist, the values should be separated by new lines." Eight cells were
+comma-joined - the three SSH algorithm cells, unauthenticated NTP servers, exposed SNMP
+surfaces, revocation checks, sequence members and the control preview's matched queries - which
+read as a paragraph, and read as a very WIDE one once a data cell stopped wrapping. The split
+is made as TEXT, on newlines, and the template runs each cell through `linebreaksbr`, so
+device-supplied values stay escaped. The workbook already did this, so a page and its tab now
+agree. An authentication sequence keeps its `>` marker on the lines after the first: the order
+is the fallback order, so losing it with the commas would have cost more than the wrapping did.
+`test_table_presentation` fails on a `", ".join` reappearing in either presentation module.
+
 **The stylesheet is assessments-owned.** The shell's
 `components/partials/analytical_table_styles.html` is OptivEdge's and shared with every other
 app, so it is not the place for this.
