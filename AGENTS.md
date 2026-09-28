@@ -301,6 +301,19 @@ same place. Slugs are explicit rather than derived from the title, for the reaso
 `configuration_navigation` gives: a title is the vendor's word and can be renamed; a slug is a
 URL somebody bookmarked.
 
+**The Summary is a grid, not a list of chips** (2026-09-28). It was a table per category with
+each domain's severities as a row of chips, so a severity sat in a different place on every row
+and the page could not be read DOWN a column - "which domain holds the criticals" was a hunt.
+It is now ONE table with the categories as heading rows and a fixed column per severity, which
+is the layout the workbook's Summary tab already used, for the reason its own comment gives: a
+column exists even where nothing reached that severity.
+
+Two small decisions inside that, so they are not re-litigated: a severity cell with no findings
+shows a DASH, because the zeros are most of the grid and a field of noughts hides the counts
+that matter; the Findings total shows a real `0`, because a headed numeric column with numbers
+above and below it does not read as unfilled - which is what the page's old "No findings" text
+was working around.
+
 **The Summary counts rather than builds.** `severity_counts()` is one query per finding model;
 building all twenty-two tables to total them would do the whole job of every page to draw one.
 

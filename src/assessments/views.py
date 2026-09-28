@@ -817,7 +817,7 @@ class FindingsSummaryView(TemplateView):
                     "title": domain.title,
                     "description": domain.description,
                     "total": sum(by_severity.values()),
-                    "severities": severity_breakdown(by_severity),
+                    "cells": severity_cells(by_severity),
                 })
             if domains:
                 categories.append({
@@ -835,6 +835,9 @@ class FindingsSummaryView(TemplateView):
         context["categories"] = categories
         context["total"] = sum(totals.values())
         context["severities"] = severity_breakdown(totals)
+        # The column headers, which are the severities themselves - so a domain's counts and
+        # the heading above them cannot fall out of step.
+        context["severity_headers"] = severity_cells({})
         context["run"] = AssessmentRun.objects.order_by("-pk").first()
         return context
 
@@ -956,6 +959,24 @@ def severity_breakdown(by_severity):
         "classes": _SEVERITY_BADGE_CLASSES.get(value, ""),
         "swatch": _SEVERITY_SWATCH_CLASSES.get(value, ""),
     } for value in _SEVERITY_ORDER if by_severity.get(value)]
+
+
+def severity_cells(by_severity):
+    """Every severity, worst first, INCLUDING the ones at zero.
+
+    The difference from `severity_breakdown`, which drops them: a breakdown is a sentence about
+    one thing and a column is a place in a grid. The workbook's Summary tab settled this - "a
+    column exists even where no sheet has a finding at that severity, and a zero is visible
+    rather than a missing column" - and a page whose chips moved from row to row could not be
+    read down, which is what made it worth changing.
+    """
+    return [{
+        "value": value,
+        "label": _SEVERITY_LABELS.get(value, value),
+        "count": by_severity.get(value, 0),
+        "classes": _SEVERITY_BADGE_CLASSES.get(value, ""),
+        "swatch": _SEVERITY_SWATCH_CLASSES.get(value, ""),
+    } for value in _SEVERITY_ORDER]
 
 
 

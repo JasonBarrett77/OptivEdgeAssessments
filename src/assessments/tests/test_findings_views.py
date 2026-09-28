@@ -129,12 +129,32 @@ class FindingsSummaryPageTests(TestCase):
 
         self.assertEqual(linked, {domain.slug for domain in artifact_domains.DOMAINS})
 
-    def test_a_domain_with_nothing_wrong_says_so(self):
-        """"No findings" rather than 0: this is the reference surface, and a bare zero reads as
-        a column nobody filled in."""
+    def test_every_severity_is_a_column_whether_or_not_anything_reached_it(self):
+        """The reason the page became a table. A chip list showed only the severities a domain
+        had, so a severity sat in a different place on every row and the page could not be read
+        down a column. The workbook's Summary tab had already settled it in its own terms: "a column
+        exists even where no sheet has a finding at that severity"."""
         response = self.client.get(self.url)
 
-        self.assertContains(response, "No findings")
+        headers = [cell["label"] for cell in response.context["severity_headers"]]
+        self.assertEqual(headers, ["Critical", "High", "Medium", "Low", "Informational"])
+        for category in response.context["categories"]:
+            for domain in category["domains"]:
+                with self.subTest(domain["slug"]):
+                    self.assertEqual([cell["label"] for cell in domain["cells"]], headers)
+
+    def test_a_domain_with_nothing_wrong_reads_as_a_zero_row(self):
+        """A bare 0 used to read as a column nobody filled in, which is why this page said "No
+        findings" in words. In a grid it does not: the column is headed, and every row has a
+        number in the same place. The severity cells take a dash rather than a nought, because
+        the zeros are most of this grid and a field of noughts hides the counts that matter."""
+        empty = [domain for category in self.client.get(self.url).context["categories"]
+                 for domain in category["domains"] if not domain["total"]]
+
+        self.assertTrue(empty, "expected at least one domain with no findings")
+        for domain in empty:
+            with self.subTest(domain["slug"]):
+                self.assertEqual([cell["count"] for cell in domain["cells"]], [0, 0, 0, 0, 0])
 
 
 class DomainOrderTests(TestCase):
