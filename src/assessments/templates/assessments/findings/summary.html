@@ -3,6 +3,10 @@
 
 {% block title %} | Findings{% endblock %}
 
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
 {% comment %}
 The workbook's Summary tab, on screen. Same question in the same order: who this is for, how
 much there is, how bad it is, and which page answers it - grouped by the product's own
@@ -48,7 +52,7 @@ categories rather than by anything invented here.
                             <h2 class="text-sm font-semibold text-slate-900">{{ category.label }}</h2>
                             <span class="text-[11px] text-slate-500">{{ category.total }} finding{{ category.total|pluralize }}</span>
                         </div>
-                        <table class="mt-2 w-full border-collapse">
+                        <table class="oea-table mt-2 min-w-full border-collapse">
                             <tbody>
                                 {% for domain in category.domains %}
                                 <tr class="transition-colors hover:bg-blue-50/60">
@@ -58,7 +62,7 @@ categories rather than by anything invented here.
                                             {{ domain.title }}
                                         </a>
                                     </td>
-                                    <td class="border-b border-slate-100 py-1.5 pr-3 align-top text-[11px] leading-4 text-slate-600">
+                                    <td class="oea-prose border-b border-slate-100 py-1.5 pr-3 align-top text-[11px] leading-4 text-slate-600">
                                         {{ domain.description }}
                                     </td>
                                     <td class="w-64 border-b border-slate-100 py-1.5 align-top text-right">

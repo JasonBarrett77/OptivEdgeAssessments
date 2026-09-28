@@ -2,6 +2,10 @@
 
 {% block title %} | Control{% endblock %}
 
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
 {% block content %}
 {% include "assessments/partials/control_detail_content.html" %}
 {% endblock %}

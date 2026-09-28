@@ -1,0 +1,39 @@
+{% comment %}
+Table behaviour for every Assessments table. Jason, 2026-09-27: "ensure lines do no break on
+'-', no truncation, and tables can scroll horizontally."
+
+The three are one rule: a cell shows its value whole, and the TABLE scrolls rather than the
+value folding or being cut.
+
+`white-space: nowrap` is what stops a break at a hyphen. A hyphen is a soft wrap opportunity
+per UAX #14, so `aes256-gcm`, `TLSv1.2 - TLSv1.3` and `pushed_pre` were all fair game for the
+line breaker, and there is no property that suppresses only that break while still wrapping at
+spaces - the alternative is wrapping every token in the markup, which is worse. A cell that
+holds SEVERAL values still shows one per line: those come from `<br>`, which nowrap honours.
+
+Nothing is clipped: no `text-overflow`, no fixed table layout. `table-layout: auto` lets a
+column take the width its content needs, and the container scrolls in both directions.
+
+Included through `{% block head %}` rather than added to the shell's
+`components/partials/analytical_table_styles.html`, which is OptivEdge's and shared with every
+other app.
+{% endcomment %}
+<style>
+    .oea-table {
+        table-layout: auto;
+    }
+
+    .oea-table th,
+    .oea-table td {
+        white-space: nowrap;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    /* A cell that is deliberately prose - a description, a rationale - opts back into
+       wrapping. It still never breaks mid-token, only between words. */
+    .oea-table .oea-prose {
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+</style>

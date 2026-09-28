@@ -2,6 +2,10 @@
 
 {% block title %} | Catalogs{% endblock %}
 
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="flex h-full w-full min-h-0 min-w-0 flex-col">
     {% include "assessments/partials/controls_tabs.html" with active_tab="catalogs" %}

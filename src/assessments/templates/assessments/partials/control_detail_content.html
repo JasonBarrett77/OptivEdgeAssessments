@@ -111,7 +111,7 @@
                     </div>
                 </div>
                 <div class="overflow-auto border-x border-b border-slate-200">
-                    <table class="min-w-full table-auto border-separate border-spacing-0">
+                    <table class="oea-table min-w-full border-separate border-spacing-0">
                         <thead>
                             <tr>
                                 <th class="sticky top-0 z-10 h-8 border-b border-slate-200 bg-slate-50 px-3 text-left text-[11px] font-medium uppercase tracking-wide text-slate-600">Name</th>
@@ -135,7 +135,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">{% if control_query.is_active %}Active{% else %}Inactive{% endif %}</td>
-                                <td class="h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
+                                <td class="oea-prose h-8 border-b border-slate-200 px-3 py-1.5 text-sm text-slate-800">
                                     {% if control_query.short_description %}
                                         {{ control_query.short_description }}
                                     {% else %}

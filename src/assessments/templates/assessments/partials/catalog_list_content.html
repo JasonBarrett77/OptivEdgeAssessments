@@ -29,7 +29,7 @@
             </div>
             {% endif %}
             <div class="min-h-0 flex-1 overflow-auto">
-                <table class="min-w-full table-fixed border-separate border-spacing-0">
+                <table class="oea-table min-w-full border-separate border-spacing-0">
                     <thead>
                         <tr>
                             <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Catalog</th>
@@ -46,7 +46,7 @@
                                 <div class="text-sm font-medium text-slate-900">{{ catalog.label }}</div>
                                 <div class="font-mono text-xs text-slate-400">{{ catalog.key }} / {{ catalog.version }}</div>
                             </td>
-                            <td class="border-b border-slate-200 px-3 py-2 align-middle text-sm text-slate-700">
+                            <td class="oea-prose border-b border-slate-200 px-3 py-2 align-middle text-sm text-slate-700">
                                 {% if catalog.description %}{{ catalog.description }}{% else %}<span class="text-slate-400">—</span>{% endif %}
                             </td>
                             <td class="border-b border-slate-200 px-3 py-2 align-middle text-sm text-slate-700 whitespace-nowrap">

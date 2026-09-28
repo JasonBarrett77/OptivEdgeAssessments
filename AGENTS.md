@@ -392,6 +392,35 @@ query built on one can be aimed at a control of another type. `ControlQueryCreat
 the control's default and says which model the query targets, rather than storing one that can
 never match - `test_configuration_queries.SaveQueryOntoAControlTests` pins that.
 
+## Assessments tables show the value whole
+
+`templates/assessments/partials/table_styles.html`, keyed on the `oea-table` class and pulled
+in through `{% block head %}`. Jason, 2026-09-27: "ensure lines do no break on '-', no
+truncation, and tables can scroll horizontally." Those are one rule: the cell shows its value
+whole and the TABLE scrolls.
+
+**`white-space: nowrap` is what stops a break at a hyphen.** A hyphen is a soft wrap
+opportunity per UAX #14, so `aes256-gcm`, `TLSv1.2 - TLSv1.3` and `pushed_pre` were all fair
+game for the line breaker. There is no property that suppresses only that break while still
+wrapping at spaces - the alternative is wrapping every token in the markup - so a data cell
+does not wrap at all and the container scrolls in both directions. A cell holding SEVERAL
+values still shows one per line: those are `<br>`, which nowrap honours.
+
+**`table-fixed` was the other half of truncation** and is gone from every table: a fixed layout
+hands each column a width and makes the content fit it. `min-w-full` replaces `w-full` so a
+table can exceed its container rather than folding to it.
+
+**Prose opts back in** with `oea-prose`: a domain description, a catalog description, a query's
+short description. A sentence held on one line scrolls the page for no reason.
+
+**The stylesheet is assessments-owned.** The shell's
+`components/partials/analytical_table_styles.html` is OptivEdge's and shared with every other
+app, so it is not the place for this.
+
+`test_table_presentation` checks it statically - every `<table>` carries the class, no template
+fixes its layout, no cell truncates - because a page can carry the stylesheet and a table that
+ignores it, and nothing at runtime would say so.
+
 ## Building a query from the rows you ticked
 
 `configuration_selection.py`. Tick rows on a query page, press the button, and the builder
