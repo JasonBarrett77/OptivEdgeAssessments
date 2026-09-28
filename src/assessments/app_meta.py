@@ -1,10 +1,10 @@
 """Assessments app metadata for project composition.
 
-Four items: the controls, what the controls found, what the configuration says, and the
-experimental shelf. The Findings item names two routes rather than one per domain - the domain
-pages route on a slug, so the list cannot fall behind the way the old Device Configuration
-item did, which drifted six tabs behind because this file is nowhere near the one you edit
-when adding a tab.
+Four items, in the order the work runs in: the controls that ask, the configuration they ask
+of, what the controls found, and the experimental shelf. The Findings item names two routes
+rather than one per domain - the domain pages route on a slug, so the list cannot fall behind
+the way the old Device Configuration item did, which drifted six tabs behind because this file
+is nowhere near the one you edit when adding a tab.
 """
 
 
@@ -61,29 +61,29 @@ SIDEBAR_SECTION = [
                 },
             },
             {
-                #: What the controls found, laid out exactly as the engineer-detail workbook
-                #: lays it out - the same table, from `artifacts.build_findings_table`. The
-                #: Configuration item below asks the configuration a question; this one
-                #: reports the answers the controls already gave.
-                "label": "Findings",
-                "href": "/assessments/findings/",
-                "icon": "flag",
-                "active_names": {
-                    "assessment_findings_summary",
-                    "assessment_findings_domain",
-                },
-            },
-            {
-                #: Querying the configuration, organised the way the PAN-OS web interface
-                #: is. A DIFFERENT surface from Device Configuration, not its successor: that
-                #: item presents what the controls found, this one asks a question of the
-                #: configuration and shows what matches. Both stay.
+                #: Querying the configuration, organised the way the PAN-OS web interface is.
+                #: It shows EVERY object of a type, including the ones nothing is wrong with,
+                #: which is the case the deleted device tabs used to answer. Findings, below,
+                #: reports only what the controls concluded.
                 "label": "Configuration",
                 "href": "/assessments/configuration/",
                 "icon": "settings",
                 "active_names": {
                     "assessment_configuration_index",
                     "assessment_configuration_object",
+                },
+            },
+            {
+                #: What the controls found, laid out exactly as the engineer-detail workbook
+                #: lays it out - the same table, from `artifacts.build_findings_table`. Last
+                #: of the three because that is the order the work runs in: the controls ask,
+                #: the configuration answers, the findings are what came of it.
+                "label": "Findings",
+                "href": "/assessments/findings/",
+                "icon": "flag",
+                "active_names": {
+                    "assessment_findings_summary",
+                    "assessment_findings_domain",
                 },
             },
         ],
