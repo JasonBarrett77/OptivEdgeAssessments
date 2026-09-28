@@ -1,7 +1,7 @@
 """Assessments app metadata for project composition.
 
-Four items, in the order the work runs in: the controls that ask, the configuration they ask
-of, what the controls found, and the experimental shelf. The Findings item names two routes
+Four items, in the order the work runs in: the controls that ask, the explorer that asks of the
+configuration directly, what the controls found, and the experimental shelf. The Findings item names two routes
 rather than one per domain - the domain pages route on a slug, so the list cannot fall behind
 the way the old Device Configuration item did, which drifted six tabs behind because this file
 is nowhere near the one you edit when adding a tab.
@@ -65,9 +65,15 @@ SIDEBAR_SECTION = [
                 #: It shows EVERY object of a type, including the ones nothing is wrong with,
                 #: which is the case the deleted device tabs used to answer. Findings, below,
                 #: reports only what the controls concluded.
-                "label": "Configuration",
+                #:
+                #: "Explorer" rather than "Configuration": the label has to separate this item
+                #: from Findings, and both are about the configuration - what differs is that
+                #: this one ASKS and that one reports. "Configuration" also carried a gear,
+                #: which is the universal glyph for application settings, so it pointed at the
+                #: System page instead. An eye, for a surface you look through.
+                "label": "Explorer",
                 "href": "/assessments/configuration/",
-                "icon": "settings",
+                "icon": "eye",
                 "active_names": {
                     "assessment_configuration_index",
                     "assessment_configuration_object",

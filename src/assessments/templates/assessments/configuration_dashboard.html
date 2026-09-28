@@ -10,7 +10,7 @@ these pages answer "which objects look like this" and "what would this control r
 finding count would invite the reader to treat the surface as the findings tabs.
 {% endcomment %}
 
-{% block title %} | Configuration{% endblock %}
+{% block title %} | Configuration Explorer{% endblock %}
 
 {% block head %}
 {% include "assessments/partials/table_styles.html" %}
@@ -25,7 +25,12 @@ finding count would invite the reader to treat the surface as the findings tabs.
         <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
 
             <div class="flex flex-col gap-1 pb-3">
-                <h1 class="text-[15px] font-semibold leading-5 text-slate-950">Configuration</h1>
+                {% comment %}
+                The rail says "Explorer" because it has 168px and has to sit beside Findings;
+                a page heading has the room to say what is being explored. The short label is
+                contained in the long one, so the two read as the same place.
+                {% endcomment %}
+                <h1 class="text-[15px] font-semibold leading-5 text-slate-950">Configuration Explorer</h1>
                 <div class="text-[11px] text-slate-500">
                     The objects this app can query, the controls that read them, and the queries built over them.
                 </div>
