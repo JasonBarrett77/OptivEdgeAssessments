@@ -1012,6 +1012,15 @@ class SelectionFieldMappingTests(TestCase):
     names the model does not carry and nothing said so.
     """
 
+    def test_every_query_page_can_seed_a_query_from_a_row(self):
+        """All twenty-four as of 2026-09-27. A page with no mapping shows no checkboxes, which
+        is correct only if every one of its columns really is a composite - so a new page has
+        to answer this question rather than quietly ship without the button."""
+        without = [slug for slug, spec in config_results.RESULTS.items()
+                   if not spec.query_fields]
+
+        self.assertEqual(without, [])
+
     def test_every_mapped_column_exists_on_its_page(self):
         for slug, spec in config_results.RESULTS.items():
             for column in spec.query_fields:
@@ -1029,15 +1038,23 @@ class SelectionFieldMappingTests(TestCase):
                     self.assertIn(field, available)
 
     def test_every_mapped_field_can_be_read_off_an_object(self):
-        from assessments.configuration_selection import FIELD_PATHS, MEMBER_RELATIONS
+        from assessments.configuration_selection import (
+            MEMBER_RELATIONS, read_value, _MISSING)
 
         for slug, spec in config_results.RESULTS.items():
             if not spec.query_fields:
                 continue
-            attributes = {f.name for f in spec.base_queryset().model._meta.get_fields()}
+            sample = spec.base_queryset().first()
+            if sample is None:
+                continue
             for column, field in spec.query_fields.items():
+                if field in MEMBER_RELATIONS:
+                    continue
                 with self.subTest(f"{slug}.{column}"):
-                    self.assertTrue(
-                        field in attributes or field in FIELD_PATHS or field in MEMBER_RELATIONS,
-                        f"{field} is queryable but nothing knows how to read it; add it to "
-                        f"FIELD_PATHS or MEMBER_RELATIONS in configuration_selection")
+                    # Read from a real object rather than checked against a list of names: a
+                    # path can be right in the map and wrong on the model, and only reading it
+                    # tells the difference.
+                    self.assertIsNot(
+                        read_value(sample, field), _MISSING,
+                        f"{field} is queryable but cannot be read off {slug}; add a path to "
+                        f"FIELD_PATHS or MODEL_FIELD_PATHS in configuration_selection")

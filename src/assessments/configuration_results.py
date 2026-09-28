@@ -255,6 +255,8 @@ RESULTS = {
         ),
     ),
     "management-tls": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Profile": "profile_name",
+                      "Certificate": "certificate_name", "Trust": "certificate_trust"},
         columns=("Appliance", "Profile", "Protocol Range", "Certificate", "Trust"),
         base_queryset=_ordered(ManagementTlsBinding, "appliance__hostname",
                                related=("appliance", "ssl_tls_service_profile")),
@@ -272,6 +274,12 @@ RESULTS = {
         ),
     ),
     "management-ssh": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Bound Profile": "profile_name",
+            # Each algorithm cell IS its verdict field: "preferred", or the offers that broke
+            # it. The names in that cell are the reason, not the value a clause can carry.
+            "Ciphers": "ciphers_below_preferred", "KEX": "kex_below_preferred",
+            "MACs": "macs_below_preferred"},
         columns=("Appliance", "Bound Profile", "Ciphers", "KEX", "MACs", "Host Key"),
         base_queryset=_ordered(ManagementSshSettings, "appliance__hostname"),
         row=lambda s: (
@@ -409,6 +417,8 @@ RESULTS = {
         row=lambda p: (str(p.appliance), _yes_no(p.log_on_high_dp_load)),
     ),
     "interfaces": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Plane": "plane",
+                      "Interface": "interface_name", "Interface Profile": "profile_name"},
         columns=("Appliance", "Plane", "Interface", "Interface Profile"),
         base_queryset=_ordered(ManagementInterface, "appliance__hostname", "plane",
                                "interface_name"),
@@ -425,18 +435,28 @@ RESULTS = {
     # --- Objects > Security Profiles. Two rail items over ONE model, split by kind the way PAN-OS
     # splits them; each page's base queryset is its own kind.
     "anti-spyware": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type", "Critical": "critical_blocked",
+            "High": "high_blocked", "Medium": "medium_blocked", "Used by": "referrer_count"},
         columns=("Owner", "Profile", "Scope", "Critical", "High", "Medium", "Used by"),
         base_queryset=_security_profiles,
         scope=_kind_scope("spyware"),
         row=lambda p: _security_profile_row(p),
     ),
     "vulnerability-protection": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type", "Critical": "critical_blocked",
+            "High": "high_blocked", "Medium": "medium_blocked", "Used by": "referrer_count"},
         columns=("Owner", "Profile", "Scope", "Critical", "High", "Medium", "Used by"),
         base_queryset=_security_profiles,
         scope=_kind_scope("vulnerability"),
         row=lambda p: _security_profile_row(p),
     ),
     "password-profiles": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
+            "Global Policy": "global_expiration_period",
+            "Weakens Global": "weakens_global_expiration"},
         columns=("Appliance", "Profile", "Expires", "Global Policy", "Weakens Global"),
         base_queryset=_ordered(PasswordProfile, "appliance__hostname", "name"),
         row=lambda p: (
@@ -448,6 +468,10 @@ RESULTS = {
         ),
     ),
     "administrators": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Account": "name", "Role": "role_type",
+            "Authentication": "authentication_binding", "Password": "has_password",
+            "MFA": "admin_mfa_enabled"},
         columns=("Appliance", "Account", "Role", "Authentication", "Password", "MFA"),
         base_queryset=_ordered(AdminUser, "appliance__hostname", "name"),
         row=lambda u: (
@@ -464,6 +488,13 @@ RESULTS = {
         ),
     ),
     "authentication-profile": ResultsSpec(
+        query_fields={
+            # "Scope" reads the vsys where there is one and falls back to the scope word; the
+            # clause carries `vsys_name`, which is empty on a shared object and therefore
+            # produces nothing rather than saying something the cell did not.
+            "Appliance": "hostname", "Scope": "vsys_name", "Profile": "name",
+            "Method": "method", "Lockout": "lockout_failed_attempts", "MFA": "mfa_enabled",
+            "Referenced By": "referrer_count"},
         columns=("Appliance", "Scope", "Profile", "Method", "Lockout", "MFA", "Referenced By"),
         base_queryset=_ordered(AuthenticationProfile, "appliance__hostname", "scope", "name"),
         row=lambda p: (
@@ -481,6 +512,10 @@ RESULTS = {
         ),
     ),
     "authentication-sequence": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Scope": "vsys_name", "Sequence": "name",
+            "Local Member": "has_local_member", "Administrator-Bound": "is_administrative",
+            "Referenced By": "referrer_count"},
         columns=("Appliance", "Scope", "Sequence", "Profiles, In Order", "Local Member",
                  "Administrator-Bound", "Referenced By"),
         base_queryset=_ordered(AuthenticationSequence, "appliance__hostname", "scope", "name"),
@@ -498,6 +533,9 @@ RESULTS = {
     ),
     # --- Device > Certificate Management --------------------------------------------------
     "certificates": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Scope": "vsys_name", "Certificate": "name",
+            "Signature": "signature_algorithm"},
         columns=("Appliance", "Scope", "Certificate", "Key", "Signature", "Type"),
         base_queryset=_ordered(Certificate, "appliance__hostname", "scope", "name"),
         row=lambda c: (
@@ -510,6 +548,8 @@ RESULTS = {
         ),
     ),
     "certificate-profile": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Scope": "vsys_name", "Profile": "name"},
         columns=("Appliance", "Scope", "Profile", "Revocation Checks", "CA Certificates"),
         base_queryset=_ordered(CertificateProfile, "appliance__hostname", "scope", "name"),
         row=lambda p: (
@@ -523,6 +563,9 @@ RESULTS = {
         ),
     ),
     "ssl-tls-service-profile": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Scope": "vsys_name", "Profile": "name",
+            "Certificate": "certificate_name", "SHA-1": "allows_sha1"},
         columns=("Appliance", "Scope", "Profile", "Protocol Range", "Certificate", "SHA-1"),
         base_queryset=_ordered(SslTlsServiceProfile, "appliance__hostname", "scope", "name"),
         row=lambda p: (
@@ -536,6 +579,9 @@ RESULTS = {
     ),
     # --- Device > Server Profiles ---------------------------------------------------------
     "aaa-server-profiles": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Scope": "vsys_name", "Profile": "name",
+            "Type": "kind", "Servers": "server_count", "Referenced By": "referrer_count"},
         columns=("Appliance", "Scope", "Profile", "Type", "Servers", "Referenced By"),
         base_queryset=_ordered(ServerProfile, "appliance__hostname", "scope", "kind", "name"),
         row=lambda p: (

@@ -44,6 +44,16 @@ FIELD_PATHS = {
     "configured_hostname": "hostname",
 }
 
+#: Paths that are only right for ONE model, which is why they cannot live above. The TLS
+#: binding is the case: it keeps a copy of the profile's `certificate_name`, and the compiler
+#: deliberately reads the PROFILE's through the join so the two cannot drift. Reading the copy
+#: here would produce a clause the compiler disagrees with on exactly the rows where the drift
+#: matters - the guard would drop it, and the column would silently stop contributing.
+MODEL_FIELD_PATHS = {
+    ("integrations.ManagementTlsBinding", "certificate_name"):
+        "ssl_tls_service_profile.certificate_name",
+}
+
 #: Fields holding a SET of members rather than one value: the shared members become one clause
 #: each. The relation is named here because reading it is presentation, not assessment - the
 #: same relations `configuration_results` already renders in those columns.
@@ -65,9 +75,14 @@ RESOLVED_ADDRESS_FIELDS = {
 }
 
 
+def path_for(model_label, field) -> str:
+    """How to read a field: the model's own answer first, then the shared one, then the name."""
+    return MODEL_FIELD_PATHS.get((model_label, field), FIELD_PATHS.get(field, field))
+
+
 def read_value(obj, field):
     """The value of a queryable field on one object, or `_MISSING` when it cannot be read."""
-    path = FIELD_PATHS.get(field, field)
+    path = path_for(type(obj)._meta.label, field)
     value = obj
     for part in path.split("."):
         value = getattr(value, part, _MISSING)

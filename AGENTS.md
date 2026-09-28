@@ -401,8 +401,9 @@ particularly intelligent... But having it all filled in is the time saver."
 **Only the columns on screen seed it.** `ResultsSpec.query_fields` maps a column heading to the
 one queryable field it presents; a composite column - "Character Classes", "Protocol Range",
 "Referenced By" - has no entry and contributes nothing, because there is no single value a
-clause could carry. A page with no mapping shows no checkboxes rather than a button that builds
-nothing. Eleven of twenty-four pages are mapped as of 2026-09-26.
+clause could carry. **All twenty-four pages are mapped** as of 2026-09-27, and a test refuses a
+page with no mapping - a page whose every column really is a composite would have to argue the
+case rather than quietly ship without the button.
 
 **Build by reader, verify by compiler.** Reading a field off an object is a second copy of what
 the compiler knows about that field, and if the two drift the button produces a query that does
@@ -410,10 +411,18 @@ not select the rows it came from - silently, which is the worst way for this to 
 clause is compiled and checked against the selection, and one that would exclude a selected row
 is DROPPED. Drift shows up as a missing clause instead of a wrong answer.
 
-That is not hypothetical: `binding_count` and `configured_hostname` are query names whose model
-attributes are `bound_interface_count` and `hostname`. Both were mapped, both were unreadable,
-and both produced no clause at all - which looks exactly like a field the rows disagreed on. A
-test now asserts every mapped field is both queryable and readable.
+That is not hypothetical, and the three cases are worth keeping:
+
+* `binding_count` and `configured_hostname` are query names whose model attributes are
+  `bound_interface_count` and `hostname`. Both were mapped, both were unreadable, and both
+  produced no clause at all - which looks exactly like a field the rows disagreed on.
+* `certificate_name` on a `ManagementTlsBinding` is read BY THE COMPILER through the joined
+  profile, deliberately, so the binding's copy of it cannot drift. Reading the copy would
+  disagree with the compiler on exactly the rows where the drift matters. Hence
+  `MODEL_FIELD_PATHS`: a path that is right for one model and wrong for another.
+
+The test reads every mapped field off a real object rather than checking a list of names: a
+path can be right in the map and wrong on the model, and only reading it tells the difference.
 
 **Each press is its own group, ANDed with what was there.** Refining stacks rather than merges;
 flattening two `eq` clauses on one field into one group would ask for a row that is two things
