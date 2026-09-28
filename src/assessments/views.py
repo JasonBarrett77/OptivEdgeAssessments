@@ -36,6 +36,9 @@ from assessments import configuration_results as config_results
 from assessments import configuration_selection as selection_module
 from django.contrib.contenttypes.models import ContentType
 
+from assessments.search.security_rules.fields.address_semantic import (
+    SUPPORTED_OPERATORS as ADDRESS_SEMANTIC_OPERATORS,
+)
 from assessments.search.management_interface.fields.services import (
     ADMINISTRATIVE_SERVICES,
     INSECURE_SERVICES,
@@ -1130,6 +1133,16 @@ class ConfigurationObjectView(TemplateView):
                 # Empty means the page IS the model and offers everything.
                 if not spec.fields or name in spec.fields
             },
+            # Which fields honour `include_any`. Only the semantic address fields do - every
+            # other compiler carries the flag and ignores it - and the builder had no control
+            # for it at all, so `source_address exactly any` was a query a person could build
+            # and that could never match: the gate excludes exactly the members being asked
+            # for. Derived from the operator set rather than listed, so a new semantic address
+            # field arrives with the toggle already.
+            "include_any_fields": sorted(
+                name for name, ops in
+                search_registry.get_model_entry(obj.search_model)["field_operators"].items()
+                if set(ops) & ADDRESS_SEMANTIC_OPERATORS),
             "columns": spec.columns + (("Severity", "Matched query") if extra_cells else ()),
             "rows": page_rows,
             "selectable_rows": selectable_rows,

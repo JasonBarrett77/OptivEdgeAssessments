@@ -109,9 +109,16 @@ class _Missing:
 _MISSING = _Missing()
 
 
+#: The value PAN-OS uses for "everywhere". The semantic address operators exclude `any` members
+#: unless a clause opts in, so a clause asking FOR that value has to opt in or it asks for
+#: something that cannot exist - see `search.security_rules.fields.address_semantic`.
+ANY_VALUE = "any"
+
+
 def clause(field, op, value):
-    return {"field": field, "op": op, "value": value,
-            "negated": False, "case_sensitive": False, "include_any": False}
+    return {"field": field, "op": op, "value": value, "negated": False,
+            "case_sensitive": False,
+            "include_any": isinstance(value, str) and value.strip().lower() == ANY_VALUE}
 
 
 def shared_clauses(objects, fields, *, resolved_addresses=False):

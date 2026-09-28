@@ -205,6 +205,7 @@ the fields and their operators are typed into the template a second time.
 
 {% if edit_search_open %}
 {{ field_operators|json_script:"query-fields" }}
+{{ include_any_fields|json_script:"query-include-any-fields" }}
 {{ search_model|json_script:"query-model" }}
 {% comment %}
 Chrome, spacing and controls deliberately match the security rules builder. It is the same
@@ -332,6 +333,11 @@ person who has learned one should not have to learn this one.
     const MODEL = JSON.parse(document.getElementById("query-model").textContent);
     const FIELDS = JSON.parse(document.getElementById("query-fields").textContent);
     const FIELD_NAMES = Object.keys(FIELDS);
+    // Fields where "any" is opt-in: the semantic address operators exclude `any` members
+    // unless asked, so a clause for the VALUE "any" without this matches nothing at all.
+    const INCLUDE_ANY_FIELDS = JSON.parse(
+        document.getElementById("query-include-any-fields").textContent);
+    function honoursIncludeAny(field) { return INCLUDE_ANY_FIELDS.indexOf(field) !== -1; }
 
     function newClause() {
         const field = FIELD_NAMES[0];
@@ -368,8 +374,12 @@ person who has learned one should not have to learn this one.
                             clauses: node.clauses.map(function (c) { return serialise(c, false); }) };
             return isRoot ? Object.assign({ model: MODEL }, group) : group;
         }
-        return { field: node.field, op: node.op, value: coerce(node.value),
-                 negated: !!node.negated };
+        const clause = { field: node.field, op: node.op, value: coerce(node.value),
+                         negated: !!node.negated };
+        // Carried through even for a field that ignores it: dropping it here silently undid
+        // the flag on any loaded query the moment it was re-applied.
+        if (node.include_any) { clause.include_any = true; }
+        return clause;
     }
 
     function sync() {
@@ -426,7 +436,7 @@ person who has learned one should not have to learn this one.
         const header = el("div", "flex flex-wrap items-end gap-2 px-3");
         [["", "w-8"], ["", "w-10"], ["Field", "min-w-0 flex-[1.2_1_0%]"],
          ["Operator", "min-w-0 flex-[0.8_1_0%]"], ["Value", "min-w-0 flex-[1.8_1_0%]"],
-         ["Negate?", "w-24"]].forEach(function (pair) {
+         ["Negate?", "w-24"], ["Match any?", "w-20"]].forEach(function (pair) {
             const node = el("div", pair[1] + " shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-600");
             node.textContent = pair[0];
             header.appendChild(node);
@@ -475,12 +485,20 @@ person who has learned one should not have to learn this one.
             sync();
         }, "query-clause-negated-" + path);
 
+        const anyToggle = honoursIncludeAny(node.field)
+            ? toggleControl(Boolean(node.include_any), function (event) {
+                  node.include_any = event.target.checked;
+                  sync();
+              }, "query-clause-any-" + path)
+            : el("span", "");
+
         layout.appendChild(slot(remove, "flex w-8 justify-center"));
         layout.appendChild(slot(operator, "w-10"));
         layout.appendChild(slot(field, "min-w-0 flex-[1.2_1_0%]"));
         layout.appendChild(slot(op, "min-w-0 flex-[0.8_1_0%]"));
         layout.appendChild(slot(value, "min-w-0 flex-[1.8_1_0%]"));
         layout.appendChild(slot(negate, "flex w-24 justify-start"));
+        layout.appendChild(slot(anyToggle, "flex w-20 justify-start"));
         row.appendChild(layout);
         return row;
     }

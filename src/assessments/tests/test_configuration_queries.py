@@ -1058,3 +1058,65 @@ class SelectionFieldMappingTests(TestCase):
                         read_value(sample, field), _MISSING,
                         f"{field} is queryable but cannot be read off {slug}; add a path to "
                         f"FIELD_PATHS or MODEL_FIELD_PATHS in configuration_selection")
+
+
+class IncludeAnyTests(TestCase):
+    """`any` is opt-in on the semantic address fields, and forgetting it matches nothing.
+
+    `supported_member_query` excludes `is_any` members unless a clause asks for them, which is
+    right for a query about 10.0.0.0/8 - `any` members would swamp it - and self-defeating for
+    a query about `any` itself: the gate excludes exactly the members being asked for.
+
+    Jason, 2026-09-27, on a query built from one selected rule: "when I click Apply Query
+    without changing any of the criteria, it shows only 'No Security matches this query'." The
+    build was right and the re-apply was not, because the builder's `serialise` rebuilt each
+    clause from field/op/value/negated and dropped the flag on the way out.
+    """
+
+    def test_a_clause_for_any_opts_in(self):
+        from assessments.configuration_selection import clause
+
+        self.assertTrue(clause("source_address", "includes", "any")["include_any"])
+        self.assertTrue(clause("source_address", "includes", "ANY")["include_any"])
+        self.assertFalse(clause("source_address", "includes", "10.0.0.0/8")["include_any"])
+
+    def test_the_builder_carries_the_flag_back_out(self):
+        """A proxy for the JS: `serialise` builds a fresh clause object, so a key it does not
+        name is lost the moment the query is re-applied. Asserted on the template because that
+        is where the round trip lives; the behaviour itself was checked against the lab."""
+        from pathlib import Path
+
+        import assessments
+
+        template = (Path(assessments.__file__).parent / "templates" / "assessments"
+                    / "configuration_object_query.html").read_text(encoding="utf-8")
+
+        self.assertIn("if (node.include_any) { clause.include_any = true; }", template)
+
+    def test_the_builder_offers_the_toggle_only_where_it_means_something(self):
+        """Every compiler but the semantic address one carries `include_any` and ignores it, so
+        a toggle on those fields would promise a behaviour they do not have."""
+        response = self.client.get(
+            reverse("assessment_configuration_object", args=["policies", "security"]))
+        offered = set(response.context["include_any_fields"])
+
+        self.assertEqual(offered, {"source_address", "destination_address"})
+
+    def test_no_toggle_on_a_page_with_no_address_fields(self):
+        response = self.client.get(
+            reverse("assessment_configuration_object", args=["device", "ntp"]))
+
+        self.assertEqual(response.context["include_any_fields"], [])
+
+    def test_a_query_carrying_the_flag_survives_the_server_round_trip(self):
+        """Build a query, park it, load it back: the flag has to be in what the builder is
+        handed, or the JS has nothing to preserve."""
+        node = {"model": MODEL, "operator": "and", "clauses": [
+            {"field": "name", "op": "eq", "value": "x", "include_any": True}]}
+        url = reverse("assessment_configuration_object", args=["network", "interface-mgmt"])
+
+        response = self.client.post(url, {"search": json.dumps(node)})
+        loaded = self.client.get(response.headers["Location"])
+
+        self.assertTrue(loaded.context["search_query"]["clauses"][0]["include_any"])
+        self.assertIn("include_any", loaded.context["search_payload"])

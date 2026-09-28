@@ -424,6 +424,26 @@ That is not hypothetical, and the three cases are worth keeping:
 The test reads every mapped field off a real object rather than checking a list of names: a
 path can be right in the map and wrong on the model, and only reading it tells the difference.
 
+**`any` is opt-in, and forgetting it matches nothing.** The semantic address operators exclude
+`is_any` members unless a clause sets `include_any` - right for a query about 10.0.0.0/8, where
+`any` members would swamp it, and self-defeating for a query about `any` itself, where the gate
+excludes exactly the members being asked for. `source_address exactly any` without the flag
+returns 0 of 889 rules on the lab; with it, 89.
+
+Three things were wrong with that on 2026-09-27, found from one report - a query built from a
+selected rule showed the right row behind the builder and none after "Apply Query":
+
+* the builder had NO control for the flag, so it was a query a person could build and that
+  could never match
+* `serialise` rebuilt each clause from field/op/value/negated, so a loaded query LOST the flag
+  the moment it was re-applied - which is the report
+* `configuration_selection.clause()` hardcoded it false, so a clause read off an `any` member
+  was dropped by the verify step: correct, and quiet
+
+Now: a "Match any?" toggle on the fields that honour it (derived from the operator set, so a
+new semantic address field arrives with it), `serialise` carries it through, and a clause whose
+VALUE is `any` sets it - asking for `any` while excluding `any` is never what was meant.
+
 **Each press is its own group, ANDed with what was there.** Refining stacks rather than merges;
 flattening two `eq` clauses on one field into one group would ask for a row that is two things
 at once. Only the root carries `model` (`search.syntax`), so an existing root is nested as a
