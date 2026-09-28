@@ -95,13 +95,20 @@ SIDEBAR_SECTION = [
         ],
     },
     {
+        # Collapsed until clicked: the shelf is for things that are not part of the assessment
+        # workflow, and a heading is a cheaper way to say so than three items competing with
+        # the ones above. Integrations contributes Notes to this same heading - the shell
+        # merges sections by label - and `order` keeps the merged section last, since
+        # Integrations is installed first and would otherwise decide where it lands.
         "label": "Experimental",
+        "collapsible": True,
+        "order": 100,
         "active_names": {
             "assessment_security_rule_plain_language",
         },
         "items": [
             {
-                "label": "Plain-Language Security Rule Query",
+                "label": "Plain-Language Query",
                 "href": "/assessments/security-rules/plain-language/",
                 "icon": "wand-sparkles",
                 "active_names": {
