@@ -15,9 +15,33 @@ ask what that tool was doing and find the local equivalent.
 **Add to this file whenever a control turns out to need work after it looked done.** That is
 the only way it stays worth reading.
 
+## How to use it
+
+The six phases are ordered by dependency and the order is real: a model cannot be scoped
+before the configuration is understood, and nothing can be proved before it exists. But this
+is **not a document to walk from top to bottom**, and roughly half of it never was. Two kinds
+of item live here and they are retrieved differently:
+
+- **`- [ ]` steps** apply to every control. They are the ones worth ticking, and the ones a
+  control is not finished without.
+- **plain bullets are facts** — traps, platform behaviour, codebase constraints. They do not
+  get ticked because they cannot be completed. You reach them through the sub-heading, which
+  names the SITUATION that sends you looking: *when the control walks a reference*, *when you
+  write or delete lab config*, *when you add a member to an enum*.
+
+So: read a phase's steps in order, and read the sub-headings of its facts to see which
+situations you are in. A sub-heading you are not in is a sub-heading you can skip — that is
+what it is for.
+
+The phases are not equally sequential. **Model it** and **Land it** are close to real
+workflows. **Prove it** and **Present it** are mostly situational, and trying to perform them
+in order is how their items get read past.
+
+## Where a durable fact goes
+
 **Items that produce a durable fact name where it goes**, as `→ payload contract` and so on.
 That list IS the schema: the in-flight scratchpad's fields come from these items rather than
-from a separate document, so the two cannot drift. The four destinations:
+from a separate document, so the two cannot drift. The destinations:
 
 | destination | holds |
 |---|---|
@@ -25,7 +49,13 @@ from a separate document, so the two cannot drift. The four destinations:
 | `OptivEdgeProbe/scratch/reproductions.json` | the API calls that give each control a subject |
 | `OptivEdgeProbe/scratch/control-changes.json` | deviations from controls.json, and status |
 | `OptivEdgeProbe/scratch/controls-status.csv` | every control's state at a glance — generated, never edited |
-| the OptivEdgeIntegrations vendor guides + discovery log | facts consumers depend on, and how they were established |
+| `OptivEdgeProbe/scratch/certificate-reference-locations.csv` | the 67 places a certificate can be referenced |
+| the OptivEdgeIntegrations vendor guides | facts consumers depend on, at the point of use |
+| the OptivEdgeIntegrations discovery log | how those facts were established |
+
+A `→` marker always sits immediately after the bold rule and names one row above, so the set
+of destinations an item feeds can be read off mechanically. Arrows anywhere else in the prose
+are ordinary punctuation.
 
 While a batch is in flight, `OptivEdgeProbe/scratch/in-flight.json` holds what has not reached
 one of those yet — measurements not yet recorded, which lab device carries which variant,
@@ -33,6 +63,7 @@ questions raised and unanswered. It is a scratchpad, never a source of truth: en
 and are then deleted, and empty is its normal state.
 
 ---
+
 
 ## 1. Understand the configuration — before modelling anything
 
@@ -58,6 +89,8 @@ and are then deleted, and empty is its normal state.
 > subject the control needs left behind, so it never has to be created twice.
 
 
+### Start here
+
 - [ ] **Read the Web Interface Help SECTION for the object, before anything else and again
       whenever you come back to the domain.** The whole section, not a keyword search:
       `python -m probe.doc_index --doc help "Setup > Management"`, then read the page. One read
@@ -77,14 +110,23 @@ and are then deleted, and empty is its normal state.
       later control re-measured exactly that, from scratch, at the cost of two commits and a
       failed one - and the only reason the duplication was noticed at all was going to the file
       to write the result down.*
+
+
+### Enumerating the key set
+
 - [ ] **Enumerate the real key set from the device** `→ payload contract`, rather than from a sample, a document
       or memory. Use whatever the platform offers as a schema oracle. *PAN-OS: `action=complete`.
       The payload contract recorded 6 management services; a firewall accepts 10. Two
       normalizers hard-coded 5 interface containers; a PA-5220 offers 6 and a PA-VM offers 5 —
       and `sdwan`, which neither listed, is on both.*
+
 - [ ] **The key set is platform-dependent — run the schema oracle against EACH target.** `→ payload contract` Check a second
       platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
+
+
+### What an absent key means
+
 - [ ] **Establish what an absent key MEANS, and what the value means, per key.**
       `→ payload contract` These are two questions and they need different oracles. An absent
       key is not an absent setting, neighbouring keys do not share a default, and a value's
@@ -122,7 +164,12 @@ and are then deleted, and empty is its normal state.
       settled a lockout question the documentation contradicted itself about. `server-
       verification`, `ack-login-banner` and `enable-log-high-dp-load` all persist `yes` and `no`
       alike, so write/read returned nothing and one screenshot settled all three.*
-- [ ] **To learn what an ABSENT key means, write the object WITHOUT it and open THAT in the
+
+- [ ] **Distinguish absent from empty from default.** `→ payload contract` Three states, and a config format that
+      has all three will use all three. *PAN-OS: an empty `<units/>` and an empty
+      `<aggregate-ethernet/>` both parse to `None`, not `{}`.*
+
+- **To learn what an ABSENT key means, write the object WITHOUT it and open THAT in the
       UI.** The device renders its own default for a key that is not in the configuration, which
       is the question a control actually asks. Reach for it when the Help is silent and the
       device stores nothing it was not told, which is when the cheaper oracles have nothing left
@@ -132,7 +179,8 @@ and are then deleted, and empty is its normal state.
       implicit NO. Two of the three invert the safe-looking assumption; reading them as "absent
       means off" would have fired two controls on every unconfigured SAML profile in an estate.
       Neighbouring checkboxes on ONE screen do not share a default.*
-- [ ] **What the Add form SHOWS is not what the Add form WRITES, and neither settles what an
+
+- **What the Add form SHOWS is not what the Add form WRITES, and neither settles what an
       ABSENT key means.** Three different questions, and a screenshot answers only the first.
       *`Require SSL/TLS secured connection` is PRE-CHECKED on the LDAP Server Profile dialog —
       the opposite of the "checkboxes default cleared" reading. But the committed object carries
@@ -141,7 +189,11 @@ and are then deleted, and empty is its normal state.
       with no `ssl` key was not created by that form at all — which is a useful fact and not the
       one the control needed. Settling absence took a fourth step: write the key-less object by
       API and have a person open THAT in the UI.*
-- [ ] **`action=complete` answers from the SCHEMA, so it answers for objects that are not
+
+
+### Completion semantics — what `action=complete` can and cannot say
+
+- **`action=complete` answers from the SCHEMA, so it answers for objects that are not
       CONFIGURED.** Complete `entry[@name='x']` for a name nothing uses and the children and
       enum values come back anyway, so an object type absent from every device still describes
       itself — no instance, no lab subject, no write. *`shared/admin-role` was null on all three
@@ -169,13 +221,15 @@ and are then deleted, and empty is its normal state.
       what surfaced the three predefined admin roles a `custom` binding can point at. The oracle
       table above says what each oracle is good for HERE, not what it is limited to; ranking one
       use of this one above the others would contradict it.
-- [ ] **To ask whether a node is VALID somewhere, complete a made-up ENTRY under it** —
+
+- **To ask whether a node is VALID somewhere, complete a made-up ENTRY under it** —
       `<node>/entry[@name='x']` — never the container. There are THREE outcomes and they are
       three different facts: child keys returned (the node is valid there), no completions
       (valid, nothing to enumerate), and an API error `code=6 Invalid sequence` (the path itself
       is rejected). *`admin-role` returns two child keys under `shared` and INVALID PATH under a
       vsys — that is what a real negative looks like.*
-- [ ] **A container of `entry` elements returns NO completions whether or not it exists.**
+
+- **A container of `entry` elements returns NO completions whether or not it exists.**
       Completing it proves nothing. *This produced a confidently wrong scoping conclusion:
       `vsys/entry/authentication-profile` returned nothing, was read as "not valid here", and
       recorded as settled across seventeen vsys on three devices. The node is perfectly valid —
@@ -183,20 +237,23 @@ and are then deleted, and empty is its normal state.
       wrong answer read as a strong one. Authentication profiles, certificates, certificate
       profiles, SSL/TLS service profiles, the local user database, server profiles and log
       settings are all vsys-scopable.*
-- [ ] **Two sibling nodes can complete identically and store differently.** A value list from
+
+- **Two sibling nodes can complete identically and store differently.** A value list from
       `action=complete` does not say whether the value is TEXT or an ELEMENT. *`protocol` on a
       radius server profile stores `{"PAP": null}`; `protocol` on the tacplus profile beside it
       stores the string `"PAP"`. Both complete to `['CHAP', 'PAP', ...]`. Writing the radius
       form into tacplus is refused at the write - "tacplus -> <name> -> protocol is invalid" -
       so a neighbour's wire form is not evidence about this one.*
-- [ ] **An empty completion set on a LEAF means the element takes no text — so complete
+
+- **An empty completion set on a LEAF means the element takes no text — so complete
       `<leaf>/member` before believing that.** *`devicereader` returned nothing and was written
       as `<devicereader>yes</devicereader>`, refused with "has unexpected text"; `<devicereader/>`
       was accepted, and that was recorded as the answer. It is half the answer. Completing
       `devicereader/member` returns `localhost.localdomain`: the leaf is a MEMBER LIST that is
       also valid bare, and `__telemetryuser` carries the populated form on all three lab devices.
       A model built on the bare shape drops the device names.*
-- [ ] **Sibling keys under one parent are not one shape. Complete EACH of them.** The parent
+
+- **Sibling keys under one parent are not one shape. Complete EACH of them.** The parent
       being a single UI dropdown is not evidence the payload is uniform. *`permissions/role-based`
       offers seven children in THREE shapes: `superuser`/`superreader` are yes/no leaves,
       `deviceadmin`/`devicereader` are member lists of device names, and
@@ -204,23 +261,26 @@ and are then deleted, and empty is its normal state.
       were live on the lab at once. Completing one sibling and generalising would have reported
       two thirds of the estate's administrators as holding no role at all — which reads as an
       account with no privilege, the safest-looking wrong answer there is.*
-- [ ] **On a reference field, completions are ELIGIBILITY-FILTERED — the completion list IS the
+
+- **On a reference field, completions are ELIGIBILITY-FILTERED — the completion list IS the
       dropdown.** They are the values valid *there* on *that device*, not every instance of the
       type. *One authentication-profile field returned four values, another one, and a third
       none, on one device, purely by method eligibility — confirmed against the UI dropdowns
       twice, on two devices, with two different causes.* So an empty result is never disproof
       that the field can reference the type, and this is what makes `complete` a stand-in for a
       screenshot on any reference field.
-- [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
-      config read. *Four management services are invisible to `show system services` and to the
-      running config; only the compiled ACL sees them.*
+
+
+### Reading the vendor documentation
+
 - [ ] **Read the SECTION a sentence sits in before quoting it.** `probe.doc_index` prints it.
       Whole chapters govern one operating mode, and a rule from
       `Certifications > FIPS-CC Security Functions` is not advice about a field. *"You must
       ensure Failed Attempts and Lockout Time are greater than 0" was quoted here as general
       hardening that contradicted the corpus, and manufactured a doubt that cost a planned
       hardware experiment. It is a FIPS-CC requirement and contradicted nothing.*
-- [ ] **When a document contradicts ITSELF, understand the contradiction before measuring —
+
+- **When a document contradicts ITSELF, understand the contradiction before measuring —
       it usually carries the discriminator.** Two sentences in one document about one field
       cannot be resolved by finding a third, so a measurement is coming; but read both claims
       closely first and find what separates them — scope, operating mode, management plane,
@@ -234,6 +294,14 @@ and are then deleted, and empty is its normal state.
       write-up: the result settles the locally-set case and leaves the template case UNTESTED
       rather than disproved. Skipping straight to the device would have produced the same
       reading and a conclusion that overclaimed.*
+
+
+### Reading device output
+
+- [ ] **Ask which oracle can SEE it at all.** `→ discovery log` Some settings appear in no
+      config read. *Four management services are invisible to `show system services` and to the
+      running config; only the compiled ACL sees them.*
+
 - [ ] **Never read truncated output as absence.** Print full values, or say `... (truncated)`.
       *A probe printed `json.dumps(node)[:300]` and a long `initcfg` public key pushed
       `idle-timeout` and `api/key/lifetime` past the cut; they were recorded as "not set on any
@@ -242,22 +310,25 @@ and are then deleted, and empty is its normal state.
       three LDAP profiles, and "three lab profiles have no ssl key, so they were not created by
       the form" was written into the payload contract before a full read showed all six state
       it. Knowing the rule is not the same as not printing a slice.
-- [ ] **Distinguish absent from empty from default.** `→ payload contract` Three states, and a config format that
-      has all three will use all three. *PAN-OS: an empty `<units/>` and an empty
-      `<aggregate-ethernet/>` both parse to `None`, not `{}`.*
-- [ ] **A provenance marker on a CONTAINER says nothing about the entries inside it.**
+
+
+### Provenance, and values that arrive from a central manager
+
+- [ ] **Check what the value looks like when it arrives from a central manager** `→ payload contract`, not only
+      when set on the device. The shape usually differs, and not every read exposes the
+      difference. *PAN-OS: a template leaf arrives as `{'@ptpl': …, '#text': 'yes'}` and a
+      naive reader calls it unset; `action=get` strips `@ptpl` entirely, so only merged config
+      carries it.*
+
+- **A provenance marker on a CONTAINER says nothing about the entries inside it.**
       `→ payload contract` Read entry provenance from the entry. *`mgt-config/users` reports
       `{"@ptpl": "shared", ...}` on both PA-5220s while not one of their entries carries a marker:
       there is a template literally NAMED `shared` whose users node is EMPTY, and pushing an empty
       container marks the container. Reading the container would have labelled six device-local
       accounts as template-managed, and the template name looking like the shared-scope keyword is
       what makes it convincing.*
-- [ ] **Check what the value looks like when it arrives from a central manager** `→ payload contract`, not only
-      when set on the device. The shape usually differs, and not every read exposes the
-      difference. *PAN-OS: a template leaf arrives as `{'@ptpl': …, '#text': 'yes'}` and a
-      naive reader calls it unset; `action=get` strips `@ptpl` entirely, so only merged config
-      carries it.*
-- [ ] **Whether a central manager delivered something is a question PER VIEW, not per device.**
+
+- **Whether a central manager delivered something is a question PER VIEW, not per device.**
       `→ payload contract` Read every view that can carry it before calling it absent. *A
       Panorama-shared anti-spyware profile that nothing referenced was looked for in
       fw-core-tpa-b's vsys1 pushed view, not found, and written into the lab script as "not
@@ -265,36 +336,31 @@ and are then deleted, and empty is its normal state.
       view of four. It surfaced only because normalization, which unions every vsys, put the
       object where the write-up said it could not be.*
 
-- [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
-      guards against id collisions — next free number, check both files — and says nothing
-      about a control that already exists under a different domain. Grep `controls.json` for
-      the *assertion*, not the name, and check neighbouring domains before deciding a control
-      is new. *PAN-MGT-014 was allocated for the certificate half of a split, and duplicated
-      PAN-CRT-006 "Management Certificate Issued by Trusted CA" — same intent, same
-      man-in-the-middle rationale, same minimum. Splitting a control feels like creating one,
-      so the corpus was never searched for the half being split off; it surfaced only when the
-      certificates domain came up as the next batch. Re-identified, and nothing about the
-      built control changed — it was correct and filed under the wrong number.*
 
 ## 2. Model it — in OptivEdgeIntegrations
+
+
+### Choosing the model
 
 - [ ] **Decide the object root by asking what a finding names.** *"Telnet is enabled" is not
       reportable; "telnet is enabled on ethernet1/1" is. The surface is the object and the
       service is a value on it. An unused profile has no surface, which is why the profile
       needed a model of its own.*
+
 - [ ] **Scope it by where the config lives, not by how the documentation groups it.** The
       two disagree. *PAN-OS: `vsys/entry/…` → `EnforcementPoint`, everything else →
       `Appliance`. `Zone` is a network-plane concept that scopes like policy because it lives
       under `vsys/entry`.*
+
 - [ ] **Populate every appliance, including both HA peers**, unless there is a bridge model
       recording which appliances a row speaks for. *Interfaces were normalized for the active
       member only, which gave the model appliance-anchored identity with group-like
       population — "this peer has no interfaces" became indistinguishable from "this peer was
       never normalized".*
-- [ ] **Provenance uses `ProvenancedMixin` and `FieldProvenance`. There is no second
-      mechanism.** Read it with the helpers in `normalization/common.py`. *A bespoke
-      `provenance = CharField` was built and removed a day later: it could not hold the type,
-      could not be queried, and could not tell a PAN-OS default from a local value.*
+
+
+### Provenance
+
 - [ ] **Storing a value for an ABSENT key is a claim about the vendor, so say which kind it
       is.** `parse_yes_no_field`, `parse_integer_field` and `parse_text_field` take an
       `Implicit`, and it is not optional: `Implicit.measured(value, citation)` where someone
@@ -310,6 +376,7 @@ and are then deleted, and empty is its normal state.
       which PAN-POL-009 turns on. 14 of the 33 are still assumptions; the inventory test in
       OptivEdgeIntegrations names each one, so adding another is a deliberate act and the list
       doubles as the queue of what to measure next.*
+
 - [ ] **A column normalization COMPUTED goes in the model's `DERIVED_FIELDS`.** A verdict, a
       count, a filtered subset, a value resolved through another object: none of them has a
       payload key, so none can have a provenance row, and undeclared they are indistinguishable
@@ -321,6 +388,7 @@ and are then deleted, and empty is its normal state.
       the normalized lab found the one real mistake: `community_is_default` IS computed, and its
       row is written on purpose, because the community string's value is never stored and that
       row is the only record of who set the credential.*
+
 - [ ] **Adding fields to an already-provenanced model does NOT inherit its provenance.**
       Every new field must be appended to that normalizer's `field_provenance_data` too, or it
       silently stores values with no source. *Sixteen password-complexity fields went onto
@@ -328,6 +396,15 @@ and are then deleted, and empty is its normal state.
       written — and none of them recorded provenance. Nothing failed: the columns were right,
       the findings were right, and the gap only surfaced while building the tab. The model
       being provenanced is what makes this easy to miss.*
+
+- **Provenance uses `ProvenancedMixin` and `FieldProvenance`. There is no second
+      mechanism.** Read it with the helpers in `normalization/common.py`. *A bespoke
+      `provenance = CharField` was built and removed a day later: it could not hold the type,
+      could not be queried, and could not tell a PAN-OS default from a local value.*
+
+
+### Writing the normalizer
+
 - [ ] **Search for an existing helper before writing one.** *`common.py` already had
       `scalar_value`, `parse_yes_no_field`, `parse_integer_field`, `parse_text_field`,
       `entry_provenance`, `classify_prov_type`, `was_absent`, `Implicit` and `ABSENT`; a private
@@ -336,11 +413,14 @@ and are then deleted, and empty is its normal state.
       whole question on 2026-09-21: an absent key arrives as the `Implicit` declaration now. Two
       lines in the security rule normalizer asked the old question and would have silently
       turned both log flags from null into False, with the whole suite passing.
+
 - [ ] **Never skip a payload you cannot parse.** Emit a `NormalizationIssue`. *A list that
       looks complete and is not is worse than an error.*
+
 - [ ] **Report an unknown shape rather than dropping it.** Keep the row, warn, say what was
       unrecognised. *An unfamiliar interface container is still walked, because hard-coding
       the container set is what made `sdwan` invisible.*
+
 - [ ] **Wire it into every path that produces the data** — collection and re-normalization
       both — with its **own** error handling. One part of the answer failing must not silently
       remove another. *PAN-OS: `flows.py`, where the two paths share one loop.*
@@ -351,6 +431,9 @@ and are then deleted, and empty is its normal state.
       called none of them. The only thing that ever ran them was a test and a scratch script, so
       the renormalize button left four model families stale and said nothing. Found while wiring
       the fourth, by looking for the loop to add it to and discovering there wasn't one.*
+
+
+### Coverage
 
 - [ ] **Check a new model against the certificate reference list.** `→ certificate-reference-locations.csv`
       `OptivEdgeProbe/scratch/certificate-reference-locations.csv` holds the 67 places PAN-OS
@@ -377,30 +460,122 @@ and are then deleted, and empty is its normal state.
       build a reference map by asking "does completing this return the type" — that makes a
       schema fact into an inventory fact.
 
+
 ## 3. Assess it — the control
 
-- [ ] **An "unused" control is only as good as its list of hiding places, so do not scan BY
-      PATH.** Walk the whole payload for the referring key and keep the enumerated path list as
-      a CROSS-CHECK on what the walk finds. A path the enumeration missed makes the control
-      report an in-use object as unused — the worst direction for a hygiene control to fail in,
-      because the remediation is deletion. *PAN-AUTH-025: the CLI grammar named eight referrer
-      paths and only one was populated on the lab, so seven were "absent" — and absent-because-
-      unconfigured is indistinguishable from absent-because-the-payload-does-not-carry-it. Two
-      were created for their SHAPE rather than their realism, which brought the confirmed-readable
-      set to all four structural shapes: a container of entries, a device leaf, a vsys leaf, and
-      a leaf nested inside a vsys entry.*
-      **And a referring key can hold a MEMBER LIST, under a key you have not seen.** Twice now
-      a walk matched only leaves: MFA factors are `multi-factor-auth/factors/member` and a
-      sequence's profiles are `authentication-profiles/member`, and both references vanished
-      silently — an in-use MFA server profile and every profile used through a sequence reported
-      unused. The cross-check that found both was searching the payload for the object NAMES and
-      listing every path whose value is one; run it whenever a referrer key set changes.
-- [ ] **A reference from inside a scope resolves within that scope first.** Attributing it to
-      the wrong definition is two errors at once — the real object reports unused and the orphan
-      reports in use. *The path builder read `@name` off the parent instead of the entry, so
-      entry names never reached the path and the vsys was never found: every vsys-scoped
-      reference was attributed to the SHARED profile of that name. Invisible on a lab where all
-      nine profiles are shared, and found by reading the rendered paths rather than by a test.*
+
+### Identify the control
+
+- [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
+      guards against id collisions — next free number, check both files — and says nothing
+      about a control that already exists under a different domain. Grep `controls.json` for
+      the *assertion*, not the name, and check neighbouring domains before deciding a control
+      is new. *PAN-MGT-014 was allocated for the certificate half of a split, and duplicated
+      PAN-CRT-006 "Management Certificate Issued by Trusted CA" — same intent, same
+      man-in-the-middle rationale, same minimum. Splitting a control feels like creating one,
+      so the corpus was never searched for the half being split off; it surfaced only when the
+      certificates domain came up as the next batch. Re-identified, and nothing about the
+      built control changed — it was correct and filed under the wrong number.*
+
+- [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
+      `scratch/control-changes.json` with what now covers any dropped ground.
+
+- [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
+      asserted telnet and http together; `controls.json` has them as two controls.*
+
+
+### What the control asserts
+
+- [ ] **Assert the PREFERRED value, not the minimum — one check, at the stricter number.**
+      `→ control-changes.json` Where the corpus names both, the control fires below the preferred
+      and the finding carries the control's own severity. Do NOT build a graded band between the
+      minimum and the preferred, and do not assert the minimum and leave the preferred unasserted.
+      *Jason, 2026-09-14: "Let's simplify the class by setting the preferred as the only control
+      check. There's no alternative... the preferred should replace the minimum. I'll let the
+      consultant reduce severity based on risk." Five controls had shipped asserting only the
+      minimum while the corpus also named a preferred and a `preferred_gap_severity` —
+      PAN-AUTH-008, 009, 010, 011 and 015 — so a device sitting between the two reported nothing.
+      The same shape was open in PAN-MCR-001 and 003.* It is the same principle as *Do not lower a
+      corpus severity*,
+      at the other end: report the stricter reading and leave the relaxation to the only person
+      holding the context. **`preferred_gap_severity` is therefore not something to implement** —
+      a band it grades cannot exist once the preferred is the threshold.
+      **The sentinel and direction rules still apply.** A preferred value that is NUMERICALLY
+      LOWER than the minimum (PAN-AUTH-010: minimum 90 days, preferred 60) still needs both ends,
+      and a sentinel keeps its own meaning (PAN-AUTH-015: 0 is locked until an administrator
+      releases, which is stronger than any duration and must not fire).
+
+- [ ] **Check whether the assertion is broader than the control's title.** `→ control-changes.json` A control named
+      for one subject often asserts something true of several. *PAN-MGT-001/002/003 were
+      written for the management interface and apply to every administrative surface.*
+
+- [ ] **Check the control's own TITLE against what the query actually asserts.** A reference
+      being present is not the property the title names, and the gap is invisible while every
+      subject happens to agree. *PAN-AUTH-019, "External Authentication for Administrator
+      Accounts", tested only whether an authentication profile was BOUND. It never read the
+      profile's METHOD, and three of the four lab accounts passing it were reaching the
+      firewall's own local user database through one - `local-database` and `none` are methods
+      too. Nothing failed; the control simply answered a different question under its own name,
+      and it took Jason reading the description to see it.*
+
+- **Do not lower a corpus severity because you can only measure part of the failure.**
+      `→ control-changes.json` Severity travels ONE WAY in practice: an assessor who sees the
+      finding can downgrade it with the context you do not have, and nobody re-reads an
+      understated finding to raise it. Report what the corpus says and say plainly, in the
+      description, which half was measured. *PAN-AUTH-021 is `critical` for "default account WITH
+      the default password"; `phash` is a hash, so only the account's existence is visible. It
+      shipped at `high` on that reasoning and Jason reversed it the same day — "the consultant
+      can then do the work to reduce the severity if it meets minimum control language. We can't
+      account for that." The lowering was defensible and still wrong, because it moved a
+      judgement out of the hands of the only person holding the facts.*
+      **A corpus field can be an artefact of how the corpus was built.** Where
+      `minimum_value_descr` and `preferred_value_descr` split one assertion into two, read them
+      together rather than treating the split as a finding about the control.
+
+- **A `posture` or `architecture-review` control usually cannot be decided from config.**
+      Enumerate and let the assessor filter, rather than guessing. *006 asks whether a zone is
+      "untrusted", which no zone name states.*
+      **Some cannot be decided at all, and the honest move is not to build them.** Ask what the
+      assertion compares. If one side of the comparison is intent — what a role's holder needs,
+      what an account is for — the config holds one side and no query completes it. Enumerating
+      is right where the assessor can finish the judgement from the rows; where they cannot,
+      a control that fires on everything is worse than none. *PAN-AUTH-023 asks for
+      "least-privilege custom admin roles". The roles and their assignments are readable; the
+      fit between a role and its holder is not. Built literally it would fire on every account
+      not holding a custom role — 20 of 21 on the lab, most of them legitimately. Deferred, with
+      the decidable neighbour named: whether a defined custom role is assigned to nobody.*
+      **Check whether the narrow reading is decidable before assuming it is.** *"Is this role
+      over-broad" sounds like a query. A role entry records only the features explicitly SET —
+      the lab's role stores three — so breadth needs the implicit value of every webui, restapi
+      and xmlapi feature PAN-OS has. Hundreds of enumerations for one control.*
+
+- **A control that cannot be decided from config is FINISHED when it becomes an INTERVIEW
+      QUESTION — not deferred, and not outstanding.** `→ control-changes.json` Write the question
+      the consultant will ask, record it beside the reason the configuration cannot answer it, and
+      count the control complete. *Jason, 2026-09-14, on PAN-AUTH-020: "This is not a config check,
+      it needs to be handled via interview. Let's mark 020 as complete." `build_controls_csv` counts
+      `interview` as complete for that reason, and the same ruling completed PAN-AAA-003, PAN-AAA-007
+      and PAN-AUTH-023 — four controls that had been reading as unfinished work for weeks.*
+      **`deferred` and `decided` still mean outstanding.** A control waiting on a model, an oracle
+      or a ruling is not finished; one whose answer lives in a person is.
+      **A control BUILT before the discovery stays in the catalogue, inactive**, so the question and
+      the reason travel with it and it generates no findings by design. One never built needs no seed
+      entry at all. *PAN-AUTH-020 is in seed.json with `is_active` false, carrying its interview text
+      in the description; PAN-AAA-003, PAN-AAA-007 and PAN-AUTH-023 are in neither the seed nor the
+      database.*
+
+- **A corpus `preferred_value` can be an artefact of the field existing, not a control.**
+      `→ control-changes.json` Check whether the preferred value is a distinguishable
+      configuration state before building a check for it. *PAN-AUTH-020's
+      `preferred_value_descr` asks for "a phishing-resistant factor (FIDO2/certificate) rather
+      than push or OTP". The device records a vendor type and a server, not a factor modality,
+      so nothing in the config distinguishes them. Jason: "Skip the FIDO2/certificate check on
+      this one. This is another case of *_values being filled in because they exist in the
+      schema."*
+
+
+### Writing the query
+
 - [ ] **A finding rests on a COLUMN. Never on a JSON field or a raw payload.** If a control
       needs something that currently lives inside a JSON blob, promote it to a real column in
       normalization and query that. Raw payload fields — `raw_rule`, `raw_profile` — are never
@@ -419,7 +594,6 @@ and are then deleted, and empty is its normal state.
       asserts was promoted: a column per key would be eleven migrations ahead of a
       requirement.*
 
-
 - [ ] **Check what the control's field does when the key is ABSENT, before trusting the
       finding count.** Three different absences reach a column as a stored value:
       `pan_os_default` (the vendor's, measured), `assumed_default` (ours), and `not_configured`
@@ -429,173 +603,33 @@ and are then deleted, and empty is its normal state.
       normalizer stores NULL for it rather than False — and a change that turned that null into
       False passed the entire suite, because nothing covered it. Read `provenance_for(field)` on
       a real subject and see which of the three you are standing on.*
-- [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
-      `scratch/control-changes.json` with what now covers any dropped ground.
-- [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
-      asserted telnet and http together; `controls.json` has them as two controls.*
-- [ ] **Do not lower a corpus severity because you can only measure part of the failure.**
-      `→ control-changes.json` Severity travels ONE WAY in practice: an assessor who sees the
-      finding can downgrade it with the context you do not have, and nobody re-reads an
-      understated finding to raise it. Report what the corpus says and say plainly, in the
-      description, which half was measured. *PAN-AUTH-021 is `critical` for "default account WITH
-      the default password"; `phash` is a hash, so only the account's existence is visible. It
-      shipped at `high` on that reasoning and Jason reversed it the same day — "the consultant
-      can then do the work to reduce the severity if it meets minimum control language. We can't
-      account for that." The lowering was defensible and still wrong, because it moved a
-      judgement out of the hands of the only person holding the facts.*
-      **A corpus field can be an artefact of how the corpus was built.** Where
-      `minimum_value_descr` and `preferred_value_descr` split one assertion into two, read them
-      together rather than treating the split as a finding about the control.
-- [ ] **Assert the PREFERRED value, not the minimum — one check, at the stricter number.**
-      `→ control-changes.json` Where the corpus names both, the control fires below the preferred
-      and the finding carries the control's own severity. Do NOT build a graded band between the
-      minimum and the preferred, and do not assert the minimum and leave the preferred unasserted.
-      *Jason, 2026-09-14: "Let's simplify the class by setting the preferred as the only control
-      check. There's no alternative... the preferred should replace the minimum. I'll let the
-      consultant reduce severity based on risk." Five controls had shipped asserting only the
-      minimum while the corpus also named a preferred and a `preferred_gap_severity` —
-      PAN-AUTH-008, 009, 010, 011 and 015 — so a device sitting between the two reported nothing.
-      The same shape was open in PAN-MCR-001 and 003.* It is the same principle as the item above,
-      at the other end: report the stricter reading and leave the relaxation to the only person
-      holding the context. **`preferred_gap_severity` is therefore not something to implement** —
-      a band it grades cannot exist once the preferred is the threshold.
-      **The sentinel and direction rules still apply.** A preferred value that is NUMERICALLY
-      LOWER than the minimum (PAN-AUTH-010: minimum 90 days, preferred 60) still needs both ends,
-      and a sentinel keeps its own meaning (PAN-AUTH-015: 0 is locked until an administrator
-      releases, which is stronger than any duration and must not fire).
-- [ ] **Check whether the assertion is broader than the control's title.** `→ control-changes.json` A control named
-      for one subject often asserts something true of several. *PAN-MGT-001/002/003 were
-      written for the management interface and apply to every administrative surface.*
-- [ ] **Check the control's own TITLE against what the query actually asserts.** A reference
-      being present is not the property the title names, and the gap is invisible while every
-      subject happens to agree. *PAN-AUTH-019, "External Authentication for Administrator
-      Accounts", tested only whether an authentication profile was BOUND. It never read the
-      profile's METHOD, and three of the four lab accounts passing it were reaching the
-      firewall's own local user database through one - `local-database` and `none` are methods
-      too. Nothing failed; the control simply answered a different question under its own name,
-      and it took Jason reading the description to see it.*
-- [ ] **Following a reference to read a property of the target belongs in NORMALIZATION.**
+
+- [ ] **Watch the breadth of what fires.** *006 firing on any enabled service would flag every
+      interface with `ping` on. It fires on the five administrative services only.*
+
+- **Following a reference to read a property of the target belongs in NORMALIZATION.**
       The search layer compares a field to a literal and cannot traverse an edge, so a control
       needing "the method of the profile this account points at" gets a resolved column, not a
       join. *`centrally_authenticated` reads three keys on the account AND the method of a row
       on another model. Same reasoning as `weakens_global_expiration`, which compares two fields
       the search layer could not compare either.*
-- [ ] **A `posture` or `architecture-review` control usually cannot be decided from config.**
-      Enumerate and let the assessor filter, rather than guessing. *006 asks whether a zone is
-      "untrusted", which no zone name states.*
-      **Some cannot be decided at all, and the honest move is not to build them.** Ask what the
-      assertion compares. If one side of the comparison is intent — what a role's holder needs,
-      what an account is for — the config holds one side and no query completes it. Enumerating
-      is right where the assessor can finish the judgement from the rows; where they cannot,
-      a control that fires on everything is worse than none. *PAN-AUTH-023 asks for
-      "least-privilege custom admin roles". The roles and their assignments are readable; the
-      fit between a role and its holder is not. Built literally it would fire on every account
-      not holding a custom role — 20 of 21 on the lab, most of them legitimately. Deferred, with
-      the decidable neighbour named: whether a defined custom role is assigned to nobody.*
-      **Check whether the narrow reading is decidable before assuming it is.** *"Is this role
-      over-broad" sounds like a query. A role entry records only the features explicitly SET —
-      the lab's role stores three — so breadth needs the implicit value of every webui, restapi
-      and xmlapi feature PAN-OS has. Hundreds of enumerations for one control.*
-- [ ] **A control that cannot be decided from config is FINISHED when it becomes an INTERVIEW
-      QUESTION — not deferred, and not outstanding.** `→ control-changes.json` Write the question
-      the consultant will ask, record it beside the reason the configuration cannot answer it, and
-      count the control complete. *Jason, 2026-09-14, on PAN-AUTH-020: "This is not a config check,
-      it needs to be handled via interview. Let's mark 020 as complete." `build_controls_csv` counts
-      `interview` as complete for that reason, and the same ruling completed PAN-AAA-003, PAN-AAA-007
-      and PAN-AUTH-023 — four controls that had been reading as unfinished work for weeks.*
-      **`deferred` and `decided` still mean outstanding.** A control waiting on a model, an oracle
-      or a ruling is not finished; one whose answer lives in a person is.
-      **A control BUILT before the discovery stays in the catalogue, inactive**, so the question and
-      the reason travel with it and it generates no findings by design. One never built needs no seed
-      entry at all. *PAN-AUTH-020 is in seed.json with `is_active` false, carrying its interview text
-      in the description; PAN-AAA-003, PAN-AAA-007 and PAN-AUTH-023 are in neither the seed nor the
-      database.*
-- [ ] **Watch the breadth of what fires.** *006 firing on any enabled service would flag every
-      interface with `ping` on. It fires on the five administrative services only.*
-- [ ] **Adding a member to an enum? Check every map keyed by that enum.** Nothing enforces
-      the pairing, and the failure is silent. *`interface_management_profile` was added to
-      `ControlType` and not to `_CONTROL_TYPE_TARGET_MODEL`, so `target_model` was wiped on
-      every save and the catalog reported permanent drift against itself. There is now a test
-      asserting the maps stay in step.*
-- [ ] **A classifier that collapses many values into a verdict must be right at the
+
+- **A classifier that collapses many values into a verdict must be right at the
       boundary.** Find the value that looks like one class and behaves like another, and check
       both directions — over-correcting is as wrong as the original. *A list containing only
       `0.0.0.0/0` was reported Restricted. The fix then reported `[0.0.0.0/0, jump host]` as
       undetermined everywhere, a false positive on a hardened device, and contradicted a
       measurement already in the corpus.*
 
-## 4. Present it
-
-- [ ] **One object, one row — every control that assesses it reports there.** Where several
-      controls share a subject, the tab presents the OBJECT and all of its findings together,
-      rather than one row per control or a tab per control. An engineer fixes the object, not
-      the control, and needs to see everything wrong with it in one place. *An SSL/TLS service
-      profile is assessed by PAN-CRT-005 for its protocol floor and PAN-CRT-009 for its
-      algorithms, and they fail independently — `oep-tls-legacy` reports both, while
-      `oep-mgmt-tls-hardened` passes the floor and fails the algorithms. Two rows for that
-      first profile would imply two problems where there is one object to remediate.*
-      This is why the finding models carry `subject_name` and `subject_scope`: the object is
-      the key the presentation groups by, and a name alone is not unique on a device.
-- [ ] **A column that colours one direction must be re-read when a control fires the other
-      way.** Emphasis in a table is an assertion, and it goes stale silently: nothing fails,
-      the cell simply argues against the finding beside it. *The MFA column ambered "off" and
-      left a factor count plain, which was right while every control wanted MFA on. PAN-AAA-011
-      fires on MFA being PRESENT — vendor-API factors are not invoked for administrator login —
-      so the most reassuring cell on the row was the finding, and the amber was on the rows with
-      nothing to report.*
-- [ ] **If the scoping clause is DERIVED, the tab must show it.** A control that fires on some
-      rows and not others must let the row explain which it is. When the deciding property is
-      computed rather than displayed — a reference walk, a resolved binding, a cohort size — the
-      table has to carry it as its own column or sub-line, or identical-looking rows report
-      differently and the tab reads as broken. *PAN-AAA-010 fires on `all` only for profiles an
-      administrator authenticates through. All nine lab profiles show `all`; five report and four
-      do not, and nothing in the rendered row said why until `is_administrative` became an
-      "administrator-bound" marker under the allow-list cell.*
-- [ ] **A new subject gets its OWN TAB, not columns on Device Configuration.** That table is
-      being retired precisely because it accumulated a column group per finding type and every
-      new control widened it; object- and control-specific tabs replace it as they come up. Put
-      the subject and its controls on one tab, and show controls that fail independently side
-      by side so the rows where they disagree are visible. *PAN-MGT-010 was first built as a
-      three-column group on Device Configuration, which the LoginBannerListView docstring
-      already explained not to do. It became the Management TLS tab, which is also what made
-      the 010-passes / 014-fails row legible on a single line.*
-      **A tab also picks a SECTION, and the rule is in `navigation.py`, not here.** Key on the
-      config subtree; key on the QUESTION instead when one spans several subtrees; fall through
-      to Device. Adding the tuple entry is the whole job — the bar, the sidebar highlight and
-      four tests all derive from it. *The Device section reached eleven tabs before
-      Authentication was split out of it, and six of the eleven were the authentication story,
-      spread across `deviceconfig`, `mgt-config` and `shared`. Keying strictly on the subtree is
-      what scattered them.*
-- [ ] **Show only the provenance you actually have.** Values resolved from an object elsewhere
-      in the tree carry no `@ptpl` of their own, so a provenance line under them is an
-      invention. *On the Management TLS tab only the BINDING has provenance; the profile's
-      protocol range and certificate are read from the profile object and deliberately show
-      none.*
-- [ ] **Subclass `DeviceTabListView`; declare, do not re-implement.** `subject_model`,
-      `finding_model`, `finding_subject_field`, orderings, and a `build_row`. **If your finding
-      model is shared with another tab, `finding_controls` is mandatory** - empty means every
-      control of that model, so the four DeviceConfigurationProfile tabs would show each
-      other's findings. *Removing it from Master Key broke no test until a test was written
-      for exactly that; the page simply filled with fifty findings from three other tabs.*
-- [ ] **Extend `device_tab_base.html` and declare `COLUMNS` on the view.** The page supplies a
-      description, its columns and its rows; the nav, toolbar, toggles, empty state and header
-      come from the base. *Eight templates re-typed the whole scaffold, and one `<th>` class
-      string appeared 38 times.* The two grouped-header pages keep their own headers on
-      purpose - see `tables.py` for why.
-- [ ] **The table stays square automatically now** - `test_device_tab_tables_are_square` renders
-      every tab and checks each body row against its header. *Removing two model fields left the
-      headers declaring columns the body no longer rendered, shifting everything after them; it
-      was found by reading. Do not re-add a manual check, and do not let the test go vacuous:
-      it creates a row on every tab, because an empty database renders no table at all.*
-- [ ] **Blank cells are ambiguous.** Say "any source", "Nothing", not nothing at all.
-- [ ] **A compiler must be able to SERVE every operator it advertises.** `FIELD_OPERATOR_REGISTRY`
+- **A compiler must be able to SERVE every operator it advertises.** `FIELD_OPERATOR_REGISTRY`
       is a promise, and until something rendered it to a person nothing checked it was kept.
       *Two compilers took the text operator set from `scalar_text` without taking its behaviour:
       `is_empty` is the one operator whose valid value is the EMPTY string, and both rejected it
       with "search value must be a non-empty string". Invisible for as long as the only consumer
       was a hand-written control query. The moment the configuration query builder rendered the
       registry into a dropdown, it offered an operator that could only ever error.*
-- [ ] **`is_empty` over a field read THROUGH a foreign key must include the missing row.** A
+
+- **`is_empty` over a field read THROUGH a foreign key must include the missing row.** A
       join to nothing is NULL, and `fk__field=""` does not match NULL - so a query asking "is
       this empty" quietly excludes the rows where there is nothing at all, which is usually the
       case the clause was written for. *`ManagementTlsBinding` reads its protocol floor through
@@ -603,28 +637,16 @@ and are then deleted, and empty is its normal state.
       exists to catch a binding that resolves to no profile, and with a plain lookup it matched
       only profiles that exist and are silent. Removing the null branch fails four tests;
       nothing else would have noticed.*
-- [ ] **A broken template comment is not an error, it is CONTENT.** `{# ... #}` is single-line
-      only; spread over two lines Django stops treating it as a comment and prints it. *A note
-      to the next developer became a paragraph of grey text in the middle of the configuration
-      rail, twice — once per loop iteration. Every test passed, the page returned 200, and Jason
-      caught it by looking at the screen. `test_no_template_comment_spans_a_line` now checks the
-      template files; use `{% comment %}` for anything that does not fit on one line.*
-- [ ] **Anything referenced by name is unvalidated until render.** Icons, template includes,
-      URL names. *A lucide icon that does not exist reads an SVG off disk and 500s, failing
-      ten unrelated view tests at once.* **For icons, list the directory first** — the set is
-      not lucide's, it is the ~17 SVGs vendored at
-      `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
-      now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
-      another tab already uses is fine and normal here; inventing a plausible name is not.*
-- [ ] **A sentinel is not a low value, it is a different meaning — so it needs its own
-      query.** `failed-attempts 0` means lockout is OFF and `idle-timeout 0` means sessions
-      never expire; both sort as the gentlest value on any numeric comparison and are the worst
-      possible settings. A range query cannot express that, so write `eq 0` separately and give
-      it the severity the meaning deserves. Check `notes` for an overloaded zero before writing
-      any of it. *PAN-AUTH-015 runs the other way: its 0 means locked until an administrator
-      intervenes, which is stricter than any duration, so flagging it would report the most
-      restrictive setting as a weakness.*
-- [ ] **Severity comes from QUERIES. There is one mechanism and this is it.**
+
+
+### Severity
+
+- [ ] **Transcribing thresholds is where they get fat-fingered — diff, do not read.** Compute
+      what every value in the field's domain reports before and after, and refuse the change
+      unless the two are identical. *`OptivEdgeProbe/scratch/convert_severity_scales.py` will
+      not write unless the diff is empty. It caught the SAML widening on its first run.*
+
+- **Severity comes from QUERIES. There is one mechanism and this is it.**
       A control has ONE baseline query saying what fires, and `default_severity` on the control
       is the severity a finding reports when only that matched. A non-baseline query carrying
       `adjusted_severity` states a severity for a specific condition; when several match, the
@@ -639,34 +661,136 @@ and are then deleted, and empty is its normal state.
       measure field of the wrong type, and the bands silently outranking an operator query. Ten
       controls' bands converted to eight operator queries with a zero behaviour diff — most
       bands turned out to equal the default and needed no query at all.*
-- [ ] **A non-baseline query MUST carry a severity.** Without one it matches, contributes
+
+- **A non-baseline query MUST carry a severity.** Without one it matches, contributes
       nothing, and leaves the finding at the default — indistinguishable from the query not
       existing. A baseline query must NOT carry one; `ControlQuery.clean()` and the catalog
       schema both refuse it, because the baseline tier's severity lives on the control.
-- [ ] **A severity query fires ON ITS OWN, so it must carry whatever the baseline was
+
+- **A severity query fires ON ITS OWN, so it must carry whatever the baseline was
       carrying.** A band only ever refined the severity of something already firing; a query
       widens the control unless it repeats the baseline's other conditions. *Converting
       PAN-AUTH-018 emitted `attempts 4 to 5 → low` without the baseline's `method != saml-idp`
       exclusion, and SAML profiles that had never fired started reporting. The before/after diff
       caught it; nothing else would have.*
-- [ ] **The corpus still carries `severity_scale` on 16 UNBUILT controls. Convert it; do not
+
+- **The corpus still carries `severity_scale` on 16 UNBUILT controls. Convert it; do not
       look for something that reads it.** One non-baseline query per band whose severity differs
       from the control's default, each repeating whatever else the baseline requires, plus a
       separate `eq` query for every sentinel. Bands equal to the default need no query — the
       baseline already reports it. *Nine of the twenty-five converted this way produced eight
       queries between them, because most bands were the default.* The corpus field note says the
       same thing, so the two cannot drift.
-- [ ] **Transcribing thresholds is where they get fat-fingered — diff, do not read.** Compute
-      what every value in the field's domain reports before and after, and refuse the change
-      unless the two are identical. *`OptivEdgeProbe/scratch/convert_severity_scales.py` will
-      not write unless the diff is empty. It caught the SAML widening on its first run.*
-- [ ] **A control being `done` does not mean its THRESHOLDS have been tested.** `status: done`
+
+- **A sentinel is not a low value, it is a different meaning — so it needs its own
+      query.** `failed-attempts 0` means lockout is OFF and `idle-timeout 0` means sessions
+      never expire; both sort as the gentlest value on any numeric comparison and are the worst
+      possible settings. A range query cannot express that, so write `eq 0` separately and give
+      it the severity the meaning deserves. Check `notes` for an overloaded zero before writing
+      any of it. *PAN-AUTH-015 runs the other way: its 0 means locked until an administrator
+      intervenes, which is stricter than any duration, so flagging it would report the most
+      restrictive setting as a weakness.*
+
+- **A control being `done` does not mean its THRESHOLDS have been tested.** `status: done`
       says the control works; `query_values_tested` in `controls-status.csv` says every
       threshold in its queries has had a real subject. *A control can be done with one of four
       severity thresholds ever having fired. All 40 built controls read `no` today, including
       the ten whose values came from the corpus and were converted without ever being subject-
       tested — the conversion proved the new queries reproduce the old bands, which is a
       different claim from the numbers being right.*
+
+
+### When the control walks a reference
+
+- **An "unused" control is only as good as its list of hiding places, so do not scan BY
+      PATH.** Walk the whole payload for the referring key and keep the enumerated path list as
+      a CROSS-CHECK on what the walk finds. A path the enumeration missed makes the control
+      report an in-use object as unused — the worst direction for a hygiene control to fail in,
+      because the remediation is deletion. *PAN-AUTH-025: the CLI grammar named eight referrer
+      paths and only one was populated on the lab, so seven were "absent" — and absent-because-
+      unconfigured is indistinguishable from absent-because-the-payload-does-not-carry-it. Two
+      were created for their SHAPE rather than their realism, which brought the confirmed-readable
+      set to all four structural shapes: a container of entries, a device leaf, a vsys leaf, and
+      a leaf nested inside a vsys entry.*
+      **And a referring key can hold a MEMBER LIST, under a key you have not seen.** Twice now
+      a walk matched only leaves: MFA factors are `multi-factor-auth/factors/member` and a
+      sequence's profiles are `authentication-profiles/member`, and both references vanished
+      silently — an in-use MFA server profile and every profile used through a sequence reported
+      unused. The cross-check that found both was searching the payload for the object NAMES and
+      listing every path whose value is one; run it whenever a referrer key set changes.
+
+- **A reference from inside a scope resolves within that scope first.** Attributing it to
+      the wrong definition is two errors at once — the real object reports unused and the orphan
+      reports in use. *The path builder read `@name` off the parent instead of the entry, so
+      entry names never reached the path and the vsys was never found: every vsys-scoped
+      reference was attributed to the SHARED profile of that name. Invisible on a lab where all
+      nine profiles are shared, and found by reading the rendered paths rather than by a test.*
+
+
+### When you add a member to an enum
+
+- [ ] **Adding a member to an enum? Check every map keyed by that enum.** Nothing enforces
+      the pairing, and the failure is silent. *`interface_management_profile` was added to
+      `ControlType` and not to `_CONTROL_TYPE_TARGET_MODEL`, so `target_model` was wiped on
+      every save and the catalog reported permanent drift against itself. There is now a test
+      asserting the maps stay in step.*
+
+
+## 4. Present it
+
+
+### Where a finding appears
+
+- [ ] **A new finding model is invisible to the Findings pages.** That page enumerates one
+      finding model by name — `RuleFinding` — out of the twenty-three in
+      `finding_registry.FINDING_KINDS`. Do not wire yours in; the surface is
+      pending replacement. Add it to the list in `AGENTS.md` under *Surfaces pending replacement*
+      so the gap stays counted. *Five finding models drifted out without one test failing, taking
+      the whole certificates domain out of the client deliverable that then had to be deleted.*
+
+- **One object, one row — every control that assesses it reports there.** Where several
+      controls share a subject, the tab presents the OBJECT and all of its findings together,
+      rather than one row per control or a tab per control. An engineer fixes the object, not
+      the control, and needs to see everything wrong with it in one place. *An SSL/TLS service
+      profile is assessed by PAN-CRT-005 for its protocol floor and PAN-CRT-009 for its
+      algorithms, and they fail independently — `oep-tls-legacy` reports both, while
+      `oep-mgmt-tls-hardened` passes the floor and fails the algorithms. Two rows for that
+      first profile would imply two problems where there is one object to remediate.*
+      This is why the finding models carry `subject_name` and `subject_scope`: the object is
+      the key the presentation groups by, and a name alone is not unique on a device.
+
+- **A new subject gets its OWN TAB, not columns on Device Configuration.** That table is
+      being retired precisely because it accumulated a column group per finding type and every
+      new control widened it; object- and control-specific tabs replace it as they come up. Put
+      the subject and its controls on one tab, and show controls that fail independently side
+      by side so the rows where they disagree are visible. *PAN-MGT-010 was first built as a
+      three-column group on Device Configuration, which the LoginBannerListView docstring
+      already explained not to do. It became the Management TLS tab, which is also what made
+      the 010-passes / 014-fails row legible on a single line.*
+      **A tab also picks a SECTION, and the rule is in `navigation.py`, not here.** Key on the
+      config subtree; key on the QUESTION instead when one spans several subtrees; fall through
+      to Device. Adding the tuple entry is the whole job — the bar, the sidebar highlight and
+      four tests all derive from it. *The Device section reached eleven tabs before
+      Authentication was split out of it, and six of the eleven were the authentication story,
+      spread across `deviceconfig`, `mgt-config` and `shared`. Keying strictly on the subtree is
+      what scattered them.*
+
+
+### Building the tab
+
+- [ ] **Subclass `DeviceTabListView`; declare, do not re-implement.** `subject_model`,
+      `finding_model`, `finding_subject_field`, orderings, and a `build_row`. **If your finding
+      model is shared with another tab, `finding_controls` is mandatory** - empty means every
+      control of that model, so the four DeviceConfigurationProfile tabs would show each
+      other's findings. *Removing it from Master Key broke no test until a test was written
+      for exactly that; the page simply filled with fifty findings from three other tabs.*
+
+- [ ] **Extend `device_tab_base.html` and declare `COLUMNS` on the view.** The page supplies a
+      description, its columns and its rows; the nav, toolbar, toggles, empty state and header
+      come from the base. *Eight templates re-typed the whole scaffold, and one `<th>` class
+      string appeared 38 times.* The two grouped-header pages keep their own headers on
+      purpose - see `tables.py` for why.
+
 - [ ] **Use the shared machinery; do not copy a neighbouring module.** A finding model
       subclasses `FindingBase` or `ObjectFindingBase` (declaring only its own FK, `through`,
       index and constraint); a generator supplies a subject sentence and an `ObjectFindingSpec`
@@ -674,70 +798,68 @@ and are then deleted, and empty is its normal state.
       `finding_registry.FINDING_KINDS`. *Five generators were 111 of 122 lines identical, and
       seven finding models carried the same thirty lines each - copying is also what let five
       of them drift out of the report unnoticed.*
-- [ ] **A new finding model is invisible to the Findings pages.** That page enumerates one
-      finding model by name — `RuleFinding` — out of the twenty-three in
-      `finding_registry.FINDING_KINDS`. Do not wire yours in; the surface is
-      pending replacement. Add it to the list in `AGENTS.md` under *Surfaces pending replacement*
-      so the gap stays counted. *Five finding models drifted out without one test failing, taking
-      the whole certificates domain out of the client deliverable that then had to be deleted.*
+
+- **The table stays square automatically now** - `test_device_tab_tables_are_square` renders
+      every tab and checks each body row against its header. *Removing two model fields left the
+      headers declaring columns the body no longer rendered, shifting everything after them; it
+      was found by reading. Do not re-add a manual check, and do not let the test go vacuous:
+      it creates a row on every tab, because an empty database renders no table at all.*
+
+
+### What the row must show
+
+- [ ] **Show only the provenance you actually have.** Values resolved from an object elsewhere
+      in the tree carry no `@ptpl` of their own, so a provenance line under them is an
+      invention. *On the Management TLS tab only the BINDING has provenance; the profile's
+      protocol range and certificate are read from the profile object and deliberately show
+      none.*
+
+- [ ] **Blank cells are ambiguous.** Say "any source", "Nothing", not nothing at all.
+
 - [ ] **Empty-state text must name the right action.** *Both tabs said "run a sync"; both
       needed only a renormalize, which contacts no device.*
 
+- **A column that colours one direction must be re-read when a control fires the other
+      way.** Emphasis in a table is an assertion, and it goes stale silently: nothing fails,
+      the cell simply argues against the finding beside it. *The MFA column ambered "off" and
+      left a factor count plain, which was right while every control wanted MFA on. PAN-AAA-011
+      fires on MFA being PRESENT — vendor-API factors are not invoked for administrator login —
+      so the most reassuring cell on the row was the finding, and the amber was on the rows with
+      nothing to report.*
+
+- **If the scoping clause is DERIVED, the tab must show it.** A control that fires on some
+      rows and not others must let the row explain which it is. When the deciding property is
+      computed rather than displayed — a reference walk, a resolved binding, a cohort size — the
+      table has to carry it as its own column or sub-line, or identical-looking rows report
+      differently and the tab reads as broken. *PAN-AAA-010 fires on `all` only for profiles an
+      administrator authenticates through. All nine lab profiles show `all`; five report and four
+      do not, and nothing in the rendered row said why until `is_administrative` became an
+      "administrator-bound" marker under the allow-list cell.*
+
+
+### Things that only break at render
+
+- **A broken template comment is not an error, it is CONTENT.** `{# ... #}` is single-line
+      only; spread over two lines Django stops treating it as a comment and prints it. *A note
+      to the next developer became a paragraph of grey text in the middle of the configuration
+      rail, twice — once per loop iteration. Every test passed, the page returned 200, and Jason
+      caught it by looking at the screen. `test_no_template_comment_spans_a_line` now checks the
+      template files; use `{% comment %}` for anything that does not fit on one line.*
+
+- **Anything referenced by name is unvalidated until render.** Icons, template includes,
+      URL names. *A lucide icon that does not exist reads an SVG off disk and 500s, failing
+      ten unrelated view tests at once.* **For icons, list the directory first** — the set is
+      not lucide's, it is the ~17 SVGs vendored at
+      `OptivEdge/src/optivedge/templates/components/icons/`. *Picked from memory three times
+      now — `lock`, `layers`, then `key-round` and `git-branch` in one commit. Reusing an icon
+      another tab already uses is fine and normal here; inventing a plausible name is not.*
+
+
 ## 5. Prove it — against hardware, not fixtures
 
-- [ ] **A person typing a credential is an uncontrolled input. Have the INSTRUMENT
-      authenticate instead.** Where an authentication attempt can be made programmatically —
-      PAN-OS: `type=keygen` — the password is exactly what you set, and the run is repeatable.
-      Ask a person only for what no API can do. *A precedence result rested on one failed login
-      typed by a person. Jason then found his console copy appended a trailing period to the
-      password, so what had been sent was unknown; the result was withdrawn. Retaken over
-      keygen — the instrument setting the passwords itself and retiring them afterwards — it
-      ran in one command, produced its own controls, and reproduced twice.*
-- [ ] **A log reason can be TRUE and still not discriminate the thing you are testing.** Ask
-      whether the failure you are worried about and the failure you are testing for produce
-      DIFFERENT lines. *"Authentication request is timed out. auth profile 'oep-auth-deadend'"
-      was read as proof the profile took precedence. It is not: a wrong password produces the
-      identical line, because the request goes to RADIUS either way. What made it readable was a
-      second attempt in the same run — wrong password, no profile bound — logging "Invalid
-      username/password" with no profile clause. Only once a local check is known to be logged,
-      and logged DIFFERENTLY, does an absent second entry mean "no fallback was attempted"
-      rather than "nothing was logged".*
-- [ ] **A failed login, a refused connection, a timeout — ask the DEVICE why before reading the
-      outcome.** A negative outcome has many causes and they are indistinguishable from the
-      client side; the device usually logged which one. *PAN-AUTH-019 turned on whether a bound
-      authentication profile displaces a stored password. The login failed, which alone proves
-      only that the login failed — the account might have been wrong, the role might not permit
-      the web interface, the password might have been mistyped. The system log, subtype `auth`,
-      said "Reason: Authentication request is timed out. auth profile 'oep-auth-deadend' ...
-      server address '192.0.2.1'", which names the path taken AND shows only one attempt. The
-      same log reads "Invalid username/password" elsewhere, so the reasons are distinguishable
-      and the line is its own negative control — though only once the item above has been
-      satisfied.* **`type=log` must go DIRECT to the device** — Panorama accepts `target=` on a
-      log query, ignores it, and answers from its own database. **An event whose cause is a
-      TIMEOUT is logged when the timeout expires, after the API call has already returned**, so
-      a log query fired immediately shows every other case and not the one under test.
-- [ ] **An instrument that tidies up after itself will tidy up state someone else is standing
-      on.** Anything handed to a person - a credential, a lab subject, a pushed binding - is now
-      shared state, and a later run of your own tool is the most likely thing to destroy it.
-      Verify the handoff still works immediately before handing it over, and say so. *Two
-      accounts were armed with a password for a human web-login test. The measurement script was
-      then run again for an unrelated timing question, and its cleanup step retired both
-      credentials twenty minutes before the person tried them. The device answered "Invalid
-      username/password", which read as the POSITIVE CONTROL FAILING - the most alarming possible
-      result - and was the tool tidying up underneath. The script now has an `arm` mode that sets
-      the passwords and stops.*
-- [ ] **A credential created for an experiment must not outlive it.** Replace it with a hash of
-      nothing once the measurement is taken, and keep the account if it is a subject. *A
-      profile-bound account's password is unusable only while the profile is bound, and profiles
-      get removed.*
-- [ ] **How long a failure took is evidence, and it is usually free to record.** Two mechanisms
-      that produce the same outcome often cannot produce the same LATENCY. *Whether a bound
-      authentication profile falls back to a stored password could not be settled by the outcome
-      - a refusal is a refusal. It is settled by the clock: a local check answers in 0.2-0.4s and
-      an attempt that waits out a dead RADIUS server takes 5.3-6.9s. The refusal took 6.89s, so
-      the device waited out the timeout and declined rather than spending another 0.2s on the
-      password it had just been proved to hold. Both measure scripts now record elapsed time on
-      every attempt.*
+
+### Designing an experiment that can fail
+
 - [ ] **A setting present in the config is not a setting in FORCE. Prove the mechanism is live
       in the same run, with an attempt that MUST go through it.** Otherwise an observation is
       consistent with two different worlds — the mechanism declining to act, and the mechanism
@@ -750,7 +872,44 @@ and are then deleted, and empty is its normal state.
       seconds before the other account authenticated locally. Same binding, same run, one state
       that had to come back different.* `@ptpl` in the merged config proves it was pushed, not
       that it is doing anything.
-- [ ] **The control has to be the SAME SUBJECT with one variable moved, not a neighbouring
+
+- [ ] **Include a state that MUST come back different.** When a measurement's answer is "no
+      change", that reading is indistinguishable from "the thing was never wired up" — the
+      instrument being broken and the device being uninteresting look identical. Pair every
+      such measurement with a control state whose result is known in advance, in the same run.
+      *This was hit twice on one day, 2026-09-02, on unrelated objects. A custom SSL/TLS
+      profile sharing a predefined name changed nothing; only a second, uniquely-named profile
+      — which did change what negotiated, proving bindings work on that device at all — made
+      the null result admissible. Separately, `[0.0.0.0/0, 10.99.99.99]` on a profile came back
+      OPEN, but so had the state before it, so the surface had never been watched TRANSITION
+      into it; re-running from a freshly closed baseline was what turned "still open" into
+      "opened".*
+
+- [ ] **How long a failure took is evidence, and it is usually free to record.** Two mechanisms
+      that produce the same outcome often cannot produce the same LATENCY. *Whether a bound
+      authentication profile falls back to a stored password could not be settled by the outcome
+      - a refusal is a refusal. It is settled by the clock: a local check answers in 0.2-0.4s and
+      an attempt that waits out a dead RADIUS server takes 5.3-6.9s. The refusal took 6.89s, so
+      the device waited out the timeout and declined rather than spending another 0.2s on the
+      password it had just been proved to hold. Both measure scripts now record elapsed time on
+      every attempt.*
+
+- [ ] **A failed login, a refused connection, a timeout — ask the DEVICE why before reading the
+      outcome.** A negative outcome has many causes and they are indistinguishable from the
+      client side; the device usually logged which one. *PAN-AUTH-019 turned on whether a bound
+      authentication profile displaces a stored password. The login failed, which alone proves
+      only that the login failed — the account might have been wrong, the role might not permit
+      the web interface, the password might have been mistyped. The system log, subtype `auth`,
+      said "Reason: Authentication request is timed out. auth profile 'oep-auth-deadend' ...
+      server address '192.0.2.1'", which names the path taken AND shows only one attempt. The
+      same log reads "Invalid username/password" elsewhere, so the reasons are distinguishable
+      and the line is its own negative control — though only once *A log reason can be TRUE and
+      still not discriminate* has been satisfied.* **`type=log` must go DIRECT to the device** — Panorama accepts `target=` on a
+      log query, ignores it, and answers from its own database. **An event whose cause is a
+      TIMEOUT is logged when the timeout expires, after the API call has already returned**, so
+      a log query fired immediately shows every other case and not the one under test.
+
+- **The control has to be the SAME SUBJECT with one variable moved, not a neighbouring
       subject that behaves.** Other objects behaving sensibly prove the instrument works; they
       say nothing about what THIS one would have done. Vary the thing under test on the thing
       under test, and the OUTCOME then carries the result without any inference from logs.
@@ -763,18 +922,67 @@ and are then deleted, and empty is its normal state.
       other accounts answers it. What settled it was unbinding the profile from THAT account,
       authenticating, binding it back, and failing with the same password a minute later. The
       conclusion never changed across all three; the evidence was inadmissible twice.*
-- [ ] **Include a state that MUST come back different.** When a measurement's answer is "no
-      change", that reading is indistinguishable from "the thing was never wired up" — the
-      instrument being broken and the device being uninteresting look identical. Pair every
-      such measurement with a control state whose result is known in advance, in the same run.
-      *This was hit twice on one day, 2026-09-02, on unrelated objects. A custom SSL/TLS
-      profile sharing a predefined name changed nothing; only a second, uniquely-named profile
-      — which did change what negotiated, proving bindings work on that device at all — made
-      the null result admissible. Separately, `[0.0.0.0/0, 10.99.99.99]` on a profile came back
-      OPEN, but so had the state before it, so the surface had never been watched TRANSITION
-      into it; re-running from a freshly closed baseline was what turned "still open" into
-      "opened".*
-- [ ] **A count is meaningless without the environment that produced it.** Two databases
+
+- **A log reason can be TRUE and still not discriminate the thing you are testing.** Ask
+      whether the failure you are worried about and the failure you are testing for produce
+      DIFFERENT lines. *"Authentication request is timed out. auth profile 'oep-auth-deadend'"
+      was read as proof the profile took precedence. It is not: a wrong password produces the
+      identical line, because the request goes to RADIUS either way. What made it readable was a
+      second attempt in the same run — wrong password, no profile bound — logging "Invalid
+      username/password" with no profile clause. Only once a local check is known to be logged,
+      and logged DIFFERENTLY, does an absent second entry mean "no fallback was attempted"
+      rather than "nothing was logged".*
+
+
+### Instruments and credentials
+
+- [ ] **A person typing a credential is an uncontrolled input. Have the INSTRUMENT
+      authenticate instead.** Where an authentication attempt can be made programmatically —
+      PAN-OS: `type=keygen` — the password is exactly what you set, and the run is repeatable.
+      Ask a person only for what no API can do. *A precedence result rested on one failed login
+      typed by a person. Jason then found his console copy appended a trailing period to the
+      password, so what had been sent was unknown; the result was withdrawn. Retaken over
+      keygen — the instrument setting the passwords itself and retiring them afterwards — it
+      ran in one command, produced its own controls, and reproduced twice.*
+
+- [ ] **An instrument that tidies up after itself will tidy up state someone else is standing
+      on.** Anything handed to a person - a credential, a lab subject, a pushed binding - is now
+      shared state, and a later run of your own tool is the most likely thing to destroy it.
+      Verify the handoff still works immediately before handing it over, and say so. *Two
+      accounts were armed with a password for a human web-login test. The measurement script was
+      then run again for an unrelated timing question, and its cleanup step retired both
+      credentials twenty minutes before the person tried them. The device answered "Invalid
+      username/password", which read as the POSITIVE CONTROL FAILING - the most alarming possible
+      result - and was the tool tidying up underneath. The script now has an `arm` mode that sets
+      the passwords and stops.*
+
+- [ ] **A credential created for an experiment must not outlive it.** Replace it with a hash of
+      nothing once the measurement is taken, and keep the account if it is a subject. *A
+      profile-bound account's password is unusable only while the profile is bound, and profiles
+      get removed.*
+
+- [ ] **Validate the instrument before believing it.** `→ payload contract's instrument_note` A
+      measuring tool's failure modes mimic device behaviour, and the mimicry is close enough to
+      publish. Prove the tool reports a KNOWN result correctly before trusting it on an unknown
+      one, and record every trap next to the measurement so the next reader does not re-derive
+      it. *`measure_mgmt_tls.sh` produced four separate wrong answers: openssl prints
+      `verify error:num=18` on SUCCESSFUL handshakes, so grepping for "error" reported every
+      version refused; it silently will not OFFER tls1/tls1_1 without `SECLEVEL=0`, which reads
+      as a server refusal; detecting on the session summary's `Protocol :` line loses TLS 1.3
+      entirely, so a correctly hardened device looked like it refused everything — the most
+      dangerous of the four, because 1.3 is the PASSING outcome; and the obvious fix, the
+      `New, TLSv...` line, reports genuine 1.1 and 1.2 handshakes as `TLSv1.0`. A device fact
+      was published from the third of these and had to be corrected.*
+
+
+### Trusting a verification tool
+
+- [ ] **Run the census** — `OptivEdgeProbe/scratch/lab_findings_census.py` — and check no
+      implemented control comes back empty. An empty one is either a control that needs a
+      subject or a control that does not work, and the census does not tell you which; that is
+      the point of asking before you believe it is done.
+
+- **A count is meaningless without the environment that produced it.** Two databases
       with different appliance topology give different totals for the same correct lab, and a
       number quoted across them reads as findings lost. Make the tool print WHICH database and
       what makes it differ, so a total cannot be repeated without its context. *The findings
@@ -795,8 +1003,10 @@ and are then deleted, and empty is its normal state.
       four times, describing the exact thing we then spent a round reconciling. The checklist
       says an empty control is either one needing a subject or one that does not work, and
       that the census cannot tell you which — so ask. Neither of us asked, because we were
-      reading to confirm rather than to learn. Same posture as the item above.*
-- [ ] **A verification tool must not fail in the direction of its own answer.** The census
+      reading to confirm rather than to learn. Same posture as *A count is meaningless without the
+      environment that produced it*.*
+
+- **A verification tool must not fail in the direction of its own answer.** The census
       exists to answer "did a control go quiet". One `try` wrapped its collection AND every
       normalizer for an appliance, so a single failed read skipped all of them and the tool
       reported zero findings for that host across every control — a failure that is
@@ -813,28 +1023,16 @@ and are then deleted, and empty is its normal state.
       *Found by a peer session reviewing a fix for the identical coupling one layer down,
       where one unavailable predefined catalog was discarding all three for both PA-5220s.
       Same shape, twice in one day: the gating step should be the only one that gates.*
-- [ ] **Validate the instrument before believing it.** `→ payload contract's instrument_note` A
-      measuring tool's failure modes mimic device behaviour, and the mimicry is close enough to
-      publish. Prove the tool reports a KNOWN result correctly before trusting it on an unknown
-      one, and record every trap next to the measurement so the next reader does not re-derive
-      it. *`measure_mgmt_tls.sh` produced four separate wrong answers: openssl prints
-      `verify error:num=18` on SUCCESSFUL handshakes, so grepping for "error" reported every
-      version refused; it silently will not OFFER tls1/tls1_1 without `SECLEVEL=0`, which reads
-      as a server refusal; detecting on the session summary's `Protocol :` line loses TLS 1.3
-      entirely, so a correctly hardened device looked like it refused everything — the most
-      dangerous of the four, because 1.3 is the PASSING outcome; and the obvious fix, the
-      `New, TLSv...` line, reports genuine 1.1 and 1.2 handshakes as `TLSv1.0`. A device fact
-      was published from the third of these and had to be corrected.*
+
+
+### Making the control fire
+
 - [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
       Configure the condition on the lab and watch it fire on the right subject. *001 and 002
       both returned zero against the lab as it stood.* **Set the passing and failing subjects
-      in the same commit** — see the note at the top of phase 1 — and prefer subjects the
+      in the same commit** — see *Measure in parallel, not in series* at the top of phase 1 — and prefer subjects the
       discovery phase already created.
-- [ ] **LEAVE the condition in place.** `→ reproductions.json` Every implemented control should have at least one
-      live finding in the lab, permanently. A control with no subject cannot be demonstrated,
-      cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
-      reported nothing for a correct reason — `server-verification` absent means enabled — so
-      it was turned off on the passive HA member and deliberately not reverted.*
+
 - [ ] **A column tested against one input has been tested against one input.** If every row
       in the estate gives a column the same value, rendering it correctly proves nothing about
       the other cases — including the case where the column is simply broken. Leave a subject
@@ -852,24 +1050,27 @@ and are then deleted, and empty is its normal state.
       changes nothing visible; and pushing a value that REMEDIATES the control silences the
       finding you were trying to decorate — push a value that still fails, or an explicit
       negative like `ack-login-banner: no`.
-- [ ] **A subject you built is also a measurement — go back and read it.** Creating lab
-      config to make a control fire does not feel like taking a measurement, so nobody
-      re-opens the vendor guide afterwards. But a subject is an INSTANCE of the shape the
-      guide describes, and it frequently answers something the guide still lists as open.
-      After building one, re-read that object's guide and check whether its Limits section is
-      now stale. *A guide claimed `@ptpl` on a profile entry was unconfirmed because no
-      populated profile had been pushed from a template — one had been, weeks earlier, as
-      another control's subject, and the markers turned out to sit on four levels including a
-      service leaf that arrives as `{"@ptpl":…, "#text":"yes"}` where a local one is the bare
-      string `"yes"`. It had been in plain sight in every verification read since, unnoticed
-      because those reads were confirming the lab was intact rather than looking to learn.*
+
 - [ ] **Exercise every axis the control spans**, not just the one that was convenient.
       *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
       spell the same setting with opposite sense, so a control tested on one is untested on
       the other.*
+
 - [ ] **Run the real pipeline, not the fixtures.** *Fixtures passed while real config broke
       four separate ways: empty `<units/>`, empty container, subinterface type discrimination,
       and a warning on every unconfigured port.*
+
+
+### When you write or delete lab config
+
+- [ ] **An abandoned experiment can leave the candidate config INVALID, which blocks every
+      later commit on that device — including someone else's.** A failed commit does not roll
+      the candidate back. Before moving on, delete what you wrote and commit clean, and say so.
+      *Three failed commits on fw-core-tpa-b left an MFA server profile the device would not
+      accept; anything else committed there would have failed with an error naming an object
+      nobody else had touched. This is the third instance — a certificate-profile missing 'CA'
+      and an SSL/TLS profile missing `certificate` did the same.*
+
 - [ ] **A template change is undone on EVERY device the stack serves, not the one you tested
       on.** A push scoped to one serial arms one device; any later push of that stack — yours,
       the operator's, another session's — carries the live template to the rest. So the revert
@@ -877,20 +1078,21 @@ and are then deleted, and empty is its normal state.
       device-wide RADIUS test was armed and reverted on fw-core-tpa-b only. The next day
       fw-core-tpa-a was found still carrying both device-wide leaves at the live RADIUS server —
       a push made while the template was live had reached it, and nothing had looked.*
-- [ ] **Name what is still fixture-only.** `→ the vendor guide's Limits` *`layer2`, `tap`, `virtual-wire`, `ha`,
-      `dhcp-client`, `pppoe`, IPv6 addressing and `sdwan` have never been seen on hardware.*
-- [ ] **A `set` on a member list APPENDS. It does not replace.** Re-pointing a reference means
+
+- **A `set` on a member list APPENDS. It does not replace.** Re-pointing a reference means
       deleting the old member, not writing the new one. *Re-pointing an MFA factor at a second
       server profile left BOTH members, so the delete of the first was refused for a reference
       that was believed already gone — and the refusal message named the referrer correctly, so
       the tool was right and the mental model was wrong. `delete .../member[text()='<name>']`
-      removes one member.* The item below says re-pointing the referrer earlier in the same
+      removes one member.* *DELETE returns a node to its implicit state* says re-pointing the referrer earlier in the same
       commit clears a refusal; this is what "re-pointing" has to actually do.
-- [ ] **A commit that names one invalid object is not evidence the others are good.**
+
+- **A commit that names one invalid object is not evidence the others are good.**
       Validation reports the first failure and stops. *Two MFA server profiles were built to
       compare vendors; the commit named only the first. Deleting it made the commit name the
       second — which had been read as "the Duo one passed".*
-- [ ] **DELETE returns a node to its implicit state**, which is how scaffolding comes out when
+
+- **DELETE returns a node to its implicit state**, which is how scaffolding comes out when
       the prior state is unknown. Two things measured, one expected:
       **Measured** — on some paths deleting an ABSENT node succeeds silently rather than
       erroring, so a successful delete is not evidence anything was there. **Measured** — it
@@ -909,7 +1111,8 @@ and are then deleted, and empty is its normal state.
       and re-bind the replacement first, delete the old object second.
       Whether a *structurally* undeletable leaf exists, and whether walking up helps for that
       case, is still unobserved — do not assume this measurement covers it.
-- [ ] **On a central manager, "pending changes" can mean UNPUSHED, not staged.** A pre-write
+
+- **On a central manager, "pending changes" can mean UNPUSHED, not staged.** A pre-write
       guard that reads it as "somebody is mid-edit" waits for a state that never arrives.
       *Measured 2026-09-14: Panorama answers `check pending-changes` with `yes` and
       `location: device-group` while a commit replies "There are no changes to commit". Its own
@@ -918,14 +1121,8 @@ and are then deleted, and empty is its normal state.
       exist.* On a FIREWALL the flag means what everyone assumes. So read `location` — and
       remember that clearing it means PUSHING, which reaches devices and carries whatever anyone
       else has committed into those device groups, so it is never the tidy-up it looks like.
-- [ ] **An abandoned experiment can leave the candidate config INVALID, which blocks every
-      later commit on that device — including someone else's.** A failed commit does not roll
-      the candidate back. Before moving on, delete what you wrote and commit clean, and say so.
-      *Three failed commits on fw-core-tpa-b left an MFA server profile the device would not
-      accept; anything else committed there would have failed with an error naming an object
-      nobody else had touched. This is the third instance — a certificate-profile missing 'CA'
-      and an SSL/TLS profile missing `certificate` did the same.*
-- [ ] **A commit refusal usually names a missing PREREQUISITE, not an unavailable feature —
+
+- **A commit refusal usually names a missing PREREQUISITE, not an unavailable feature —
       and an empty completion set on a reference field often just means nobody has built the
       thing it points at yet.** Read the refusal as a shopping list and build up the chain.
       *PAN-AUTH-020 had no passing subject: `mfa-enable` needs a factor, a factor needs an
@@ -935,53 +1132,81 @@ and are then deleted, and empty is its normal state.
       as a gap that could not be closed. The device had six certificates and zero certificate
       profiles: creating one made the same MFA profile commit first try. The completion was
       empty because the OBJECT TYPE was absent, not because the reference was unsatisfiable, and
-      an empty completion set is never disproof — an item three phases up says exactly that.*
-- [ ] **A support object built only to satisfy validation may be inoperative, and should be.**
+      an empty completion set is never disproof — *On a reference field, completions are
+      ELIGIBILITY-FILTERED*, in phase 1, says exactly that.*
+
+- **A support object built only to satisfy validation may be inoperative, and should be.**
       *Jason, 2026-09-08: "We can build fake server and authentication profiles that are
       inoperative just for config validation." The MFA server profile points at a Duo tenant
       that does not exist and the RADIUS profile at 192.0.2.1. Both controls read configuration
       and neither authenticates, so a working back end would prove nothing extra and would be a
       real credential in a lab.*
-- [ ] **A corpus `preferred_value` can be an artefact of the field existing, not a control.**
-      `→ control-changes.json` Check whether the preferred value is a distinguishable
-      configuration state before building a check for it. *PAN-AUTH-020's
-      `preferred_value_descr` asks for "a phishing-resistant factor (FIDO2/certificate) rather
-      than push or OTP". The device records a vendor type and a server, not a factor modality,
-      so nothing in the config distinguishes them. Jason: "Skip the FIDO2/certificate check on
-      this one. This is another case of *_values being filled in because they exist in the
-      schema."*
+
+
+### What to leave behind
+
+- [ ] **LEAVE the condition in place.** `→ reproductions.json` Every implemented control should have at least one
+      live finding in the lab, permanently. A control with no subject cannot be demonstrated,
+      cannot be checked after a refactor, and its UI has nothing to render. *PAN-MGT-009
+      reported nothing for a correct reason — `server-verification` absent means enabled — so
+      it was turned off on the passive HA member and deliberately not reverted.*
+
+- [ ] **A subject you built is also a measurement — go back and read it.** Creating lab
+      config to make a control fire does not feel like taking a measurement, so nobody
+      re-opens the vendor guide afterwards. But a subject is an INSTANCE of the shape the
+      guide describes, and it frequently answers something the guide still lists as open.
+      After building one, re-read that object's guide and check whether its Limits section is
+      now stale. *A guide claimed `@ptpl` on a profile entry was unconfirmed because no
+      populated profile had been pushed from a template — one had been, weeks earlier, as
+      another control's subject, and the markers turned out to sit on four levels including a
+      service leaf that arrives as `{"@ptpl":…, "#text":"yes"}` where a local one is the bare
+      string `"yes"`. It had been in plain sight in every verification read since, unnoticed
+      because those reads were confirming the lab was intact rather than looking to learn.*
+
+- [ ] **Name what is still fixture-only.** `→ the vendor guide's Limits` *`layer2`, `tap`, `virtual-wire`, `ha`,
+      `dhcp-client`, `pppoe`, IPv6 addressing and `sdwan` have never been seen on hardware.*
+
 - [ ] **Revert the SCAFFOLDING, keep the SUBJECT.** `→ reproductions.json` Two different kinds of lab change:
       config written to measure a shape or a default is scaffolding and comes out; config that
       is the thing a control detects stays. Say plainly which is which. *Template pushes used
       to read provenance markers were reverted; the unused profiles and the disabled
       update-server verification were not, because PAN-MGT-013 and PAN-MGT-009 need them.*
-- [ ] **Run the census** — `OptivEdgeProbe/scratch/lab_findings_census.py` — and check no
-      implemented control comes back empty. An empty one is either a control that needs a
-      subject or a control that does not work, and the census does not tell you which; that is
-      the point of asking before you believe it is done.
+
 
 ## 6. Land it
+
+
+### Record it
+
+- [ ] **Record the reproduction** `→ reproductions.json` — the actual API calls that give
+      this control a subject, written from the strings the script used rather than
+      reconstructed later. Note `subject_kind`: a control whose subject is an UNTOUCHED default
+      has no call, and writing the default explicitly would not reproduce it.
+
+- [ ] **Update `scratch/control-changes.json`.** Move `status` from `decided` to
+      `implemented`, record what was built and what verified it, and add any deviation
+      decided along the way. The file is only worth having if it still matches what shipped —
+      a stale entry is worse than none, because it will be trusted.
+
+- [ ] **Empty `scratch/in-flight.json`.** Run `python -m scratch.check_in_flight`: every fact
+      it holds should have graduated to its durable home, and its entry deleted. A non-empty
+      file is a to-do list, and anything left in it has not landed anywhere that will be read
+      again.
 
 - [ ] **Regenerate the status CSV** `→ controls-status.csv` —
       `python -m scratch.build_controls_csv`. It is generated from `controls.json` and
       `control-changes.json`, never edited, so it cannot drift; the only way it goes stale is
       not being run. It is how the state of 228 controls is read without opening the JSON.
-- [ ] **Empty `scratch/in-flight.json`.** Run `python -m scratch.check_in_flight`: every fact
-      it holds should have graduated to its durable home, and its entry deleted. A non-empty
-      file is a to-do list, and anything left in it has not landed anywhere that will be read
-      again.
-- [ ] **Record the reproduction** `→ reproductions.json` — the actual API calls that give
-      this control a subject, written from the strings the script used rather than
-      reconstructed later. Note `subject_kind`: a control whose subject is an UNTOUCHED default
-      has no call, and writing the default explicitly would not reproduce it.
-- [ ] **Update `scratch/control-changes.json`.** Move `status` from `decided` to
-      `implemented`, record what was built and what verified it, and add any deviation
-      decided along the way. The file is only worth having if it still matches what shipped —
-      a stale entry is worse than none, because it will be trusted.
+
+
+### Ship it
+
 - [ ] **Migration** — and check whether an existing environment needs a data migration.
+
 - [ ] **Say what the operator must run**: migrate → renormalize → reseed → regenerate
       findings. Renormalize needs no device connection; a sync does.
-- [ ] **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
+
+- **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
       re-normalized.** `→ control-changes.json` A migration creates the column; only normalization
       fills it. Between the two, every row holds the field's DEFAULT - and for a boolean that
       default is `False`, which on a "does this device offer something weak" column means
@@ -1005,6 +1230,18 @@ and are then deleted, and empty is its normal state.
       has no rows until normalization creates them, so there is no window in which a stale row
       reads as compliant - a new model is absent, and absence is visible. Adding a field to a
       populated model is the case to think about.
+
+
+### Documentation
+
+- [ ] **Record measurements where the consumer is.** `→ the vendor guide` A vendor fact goes in the
+      OptivEdgeIntegrations guides, next to the code that depends on it; the method stays in
+      OptivEdgeProbe. A fact that spans subtrees goes at the top level, not under one of them.
+      Stage doc changes for review first.
+
+- [ ] **Add a discovery-log entry** `→ discovery log` for anything ambiguous, anything that took more than one
+      attempt, and anything that contradicted an expectation.
+
 - [ ] **Audit a staged document against the TRANSCRIPT, not against memory.** Feedback arrives
       across many turns and some of it lands nowhere; recall cannot tell an item you applied from
       one you meant to. The session transcript is on disk — extract every user turn and check the
@@ -1014,7 +1251,8 @@ and are then deleted, and empty is its normal state.
       by design, that a device-wide binding has to be pushed and reverted from Panorama because it
       locks everyone out, and that the control reads CONFIGURATION rather than the behaviour the
       measurements describe. None of them were disputed — they were simply never written down.*
-- [ ] **A staged document you edited and did not RE-READ may not say what you think.** Patching
+
+- **A staged document you edited and did not RE-READ may not say what you think.** Patching
       the same file across a dozen turns accumulates duplication and reorders it out of
       coherence, and a find-and-replace that MATCHES NOTHING fails silently — `str.replace`
       returns the string unchanged and no test covers a draft. Assert every replacement landed,
@@ -1035,9 +1273,3 @@ and are then deleted, and empty is its normal state.
       by cutting from its first line to the next spec's first line also removed the five specs
       that sat in between - the anchors were right and the span was not. The suite caught it at
       once; asserting the span held exactly one spec would have stopped it before the write.*
-- [ ] **Record measurements where the consumer is.** `→ the vendor guide` A vendor fact goes in the
-      OptivEdgeIntegrations guides, next to the code that depends on it; the method stays in
-      OptivEdgeProbe. A fact that spans subtrees goes at the top level, not under one of them.
-      Stage doc changes for review first.
-- [ ] **Add a discovery-log entry** `→ discovery log` for anything ambiguous, anything that took more than one
-      attempt, and anything that contradicted an expectation.
