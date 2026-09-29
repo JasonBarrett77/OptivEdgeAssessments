@@ -62,6 +62,43 @@ one of those yet — measurements not yet recorded, which lab device carries whi
 questions raised and unanswered. It is a scratchpad, never a source of truth: entries graduate
 and are then deleted, and empty is its normal state.
 
+## Where the answers already are
+
+PAN-OS instances of general capabilities. A second vendor has its own, and the shape — a set
+of vendor guides holding CONCLUSIONS, an instrument repo holding METHOD — is what transfers.
+
+**Look here before measuring. In this order.**
+
+| when you need | go to |
+|---|---|
+| what is already known about an object | the OptivEdgeIntegrations vendor guides, `integrations/docs/palo-alto/pan-os/` — 21 of them, and they are the conclusions, kept next to the code that depends on them |
+| how a known fact was established, or its raw capture | `OptivEdgeProbe/archive/catalog/findings/` (31, frozen) and `captures/` (51, tracked because findings cite them as evidence) |
+| why a fact reads the way it does | `OptivEdgeIntegrations/.../pan-os/discovery-log.md` — newest first, and it records what was ambiguous or took more than one attempt |
+| key sets, wire shapes, implicit values | `OptivEdgeProbe/reference/panos-payload-contract.json` |
+| a technique for establishing something | `OptivEdgeProbe/archive/catalog/procedures/establish-a-fact.md` — in the archive because it belonged to the retired catalog, not because it expired |
+
+The guides came out of the findings: 11 were migrated on 2026-08-27 and there are 21 now. The
+findings stayed behind with the method and the evidence. So **a guide is the first stop and
+the archive is the second** — going to the archive first reads the working-out of a conclusion
+that has since been written down properly, and possibly superseded.
+
+**Searching the vendor's own documents.** Three indexes, each authoritative for something
+different, all queried the same way — `python -m probe.doc_index [--doc help|api|guide] <term>`:
+
+| index | authoritative for |
+|---|---|
+| `--doc help` — Web Interface Help | what is on a SCREEN and what each field means. Its table of contents mirrors the UI |
+| `--doc api` — API Usage Guide | request shapes, what each `action` does, what a code MIGHT mean |
+| `--doc guide` — Administrator's Guide | how to DO something, and why |
+
+Read the SECTION path each result prints, not just the sentence — that rule has its own item
+in phase 1 and it cost a planned experiment.
+
+**The CLI grammar** is `python -m probe.cli_index <term>` over 70k records. **The schema
+oracle** is `probe.investigations.schema_introspection.complete` — phase 1 has seven items on
+what it can and cannot settle. `python -m probe.pipeline_check` asserts a change ARRIVED on
+every firewall by re-reading config rather than trusting job status.
+
 ---
 
 
@@ -103,7 +140,12 @@ and are then deleted, and empty is its normal state.
       authentication-profile` exists as a device-wide binding the corpus xpath for PAN-AUTH-019
       does not mention.*
 
-- [ ] **Read the payload contract's entry for the object BEFORE measuring anything.** It is
+- [ ] **Read what is already known BEFORE measuring anything** — the OptivEdgeIntegrations
+      guide for the object first, then the payload contract's entry, then the frozen findings
+      in `OptivEdgeProbe/archive/catalog/` if you need the method behind one. See *Where the
+      answers already are*. The guide is first because it is the CONCLUSION, maintained next to
+      the code; the archive is the working-out and may have been superseded by it. The payload
+      contract is
       written to be read, and the entries carry the traps as well as the key sets. *The
       `mfa-server-profile` entry has said since 2026-09-08 that `mfa-cert-profile` is required
       and that a profile without it is refused at commit with "Invalid MFA vendor config". A
@@ -1063,6 +1105,18 @@ and are then deleted, and empty is its normal state.
 
 ### When you write or delete lab config
 
+- **A refused call is classified by MEASUREMENT, not by the vendor's error-code table.**
+  `classify-an-api-failure.md` in the OptivEdgeIntegrations guides holds the measured
+  behaviour; reach for it before reading anything into a code. *The vendor publishes a table,
+  and five of its meanings were checked against a live device: four disagreed. An unknown
+  command returns `17` where the table says `1`, a malformed xpath returns `7` — with
+  `status="success"` — where it says `6`, and deleting a nonexistent node returns `7` where it
+  says `13`. The table is a reliable guide to the code SPACE and an unreliable one to any
+  device's behaviour, so use it to know a code exists and measurement to know what it means.*
+  Two consequences that catch people: on reads the outcome is `code`, not `status`, and `19`
+  means data was returned; and one code spans unrelated causes, so the code narrows the search
+  and the message text discriminates.
+
 - [ ] **An abandoned experiment can leave the candidate config INVALID, which blocks every
       later commit on that device — including someone else's.** A failed commit does not roll
       the candidate back. Before moving on, delete what you wrote and commit clean, and say so.
@@ -1177,6 +1231,20 @@ and are then deleted, and empty is its normal state.
 
 
 ### Record it
+
+- [ ] **Read the rules before editing a lookup table, and validate it after.** The payload
+      contract and the CLI index are believed by everything downstream, and nothing fails when
+      one of them is wrong. They have DIFFERENT rules and both are in `reference/README.md`:
+      the boxed block governs `cli-commands.jsonl` and every claim in it must be traceable to
+      something that happened; the payload contract is governed by its own `scope` block —
+      deliberately partial, entries earn their place by being CONSUMED, and a missing node
+      means nobody needed it rather than that there is a gap. Run
+      `python -m probe.validate_cli_index` after touching the index. *The boxed rules exist
+      because knowledge in that file decayed three times in a single day — a guess hardened
+      into a fact once nobody remembered it was a guess, a claim lost its provenance, and a gap
+      looked like an oversight.* The hooks re-run the validator, but they are a REMINDER rather
+      than a gate: they do nothing in a clone that has not run
+      `git config core.hooksPath .githooks`, and `--no-verify` skips them.
 
 - [ ] **Record the reproduction** `→ reproductions.json` — the actual API calls that give
       this control a subject, written from the strings the script used rather than
