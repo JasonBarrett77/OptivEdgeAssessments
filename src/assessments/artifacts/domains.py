@@ -54,6 +54,11 @@ DOMAINS = (
     FindingsDomain("security-rules", security_rules.SPEC),
     # Objects
     _object_domain("security-profiles", T.SECURITY_PROFILE),
+    # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
+    # that reason - but the workbook requires tabs to follow the Summary's category order, and
+    # coverage categorises as Objects because its subject is an address object. The product's
+    # own ordering wins over the editorial preference.
+    _object_domain("coverage", T.COVERAGE),
     # Network
     _object_domain("interface-management-profiles", T.INTERFACE_MANAGEMENT_PROFILE),
     # Device

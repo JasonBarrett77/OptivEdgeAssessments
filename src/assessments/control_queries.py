@@ -244,6 +244,11 @@ def evaluate_certificate_profile_control_queries(queryset, control):
     )
 
 
+def evaluate_coverage_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset, control, model_name="integrations.AddressObject")
+
+
 def evaluate_certificate_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,

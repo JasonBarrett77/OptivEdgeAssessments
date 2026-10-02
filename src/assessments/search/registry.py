@@ -107,6 +107,13 @@ from assessments.search.system_identity.compiler import (
     SYSTEM_IDENTITY_MODEL,
     compile_system_identity_search_node,
 )
+from assessments.search.address_object.compiler import (
+    FIELD_OPERATOR_REGISTRY as ADDRESS_OBJECT_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.address_object.compiler import (
+    ADDRESS_OBJECT_MODEL,
+    compile_address_object_search_node,
+)
 from assessments.search.login_banner.compiler import (
     FIELD_OPERATOR_REGISTRY as LOGIN_BANNER_FIELD_OPERATOR_REGISTRY,
 )
@@ -153,6 +160,7 @@ from assessments.search.authentication_sequence.compiler import (
     compile_authentication_sequence_search_node,
 )
 from optivedge_integrations.integrations.models import (
+    AddressObject,
     AdminUser,
     ServerProfile,
     AuthenticationProfile,
@@ -264,6 +272,11 @@ MODEL_REGISTRY = {
         "model_class": SystemIdentity,
         "field_operators": SYSTEM_IDENTITY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_system_identity_search_node,
+    },
+    ADDRESS_OBJECT_MODEL: {
+        "model_class": AddressObject,
+        "field_operators": ADDRESS_OBJECT_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_address_object_search_node,
     },
     LOGIN_BANNER_MODEL: {
         "model_class": LoginBanner,

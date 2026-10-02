@@ -34,6 +34,7 @@ from optivedge_integrations.integrations.presentation import (
 )
 
 from optivedge_integrations.integrations.models import (
+    AddressObject,
     AdminUser,
     AuthenticationProfile,
     AuthenticationSequence,
@@ -182,6 +183,28 @@ def _rule_profiles(rule):
     return _lines(groups + individual)
 
 
+def _resolved_content(obj) -> str:
+    """What is known about an object's runtime content, in the terms the coverage controls use.
+
+    Only EDL and FQDN objects have runtime content at all; for everything else the size comes
+    from the value itself, so there is nothing to say and saying "none" would read as a gap.
+    """
+    if obj.address_type not in (AddressObject.TYPE_EDL, AddressObject.TYPE_FQDN):
+        return "\u2013"
+    if obj.resolved_content_truncated:
+        total = obj.resolved_content_source_total
+        return f"Truncated ({obj.num_hosts:,} of {total:,})" if total else "Truncated"
+    if obj.num_hosts is None:
+        return "Not collected"
+    return f"Resolved ({obj.resolved_entries.count():,} range(s))"
+
+
+def _is_referenced(obj) -> bool:
+    return (obj.securityrulesourceaddressref_set.exists()
+            if hasattr(obj, "securityrulesourceaddressref_set")
+            else obj.source_address_refs.exists() or obj.destination_address_refs.exists())
+
+
 RESULTS = {
     # --- Policies > Security ---------------------------------------------------------------
     # The same columns and the same values as /assessments/security-rules/, deliberately. Two
@@ -240,6 +263,26 @@ RESULTS = {
     # --- Device > Setup ---------------------------------------------------------------------
     # All six were cut out of `DeviceConfigurationProfile` on 2026-09-10, one control cluster
     # at a time, and none of these pages reads it any more.
+    "addresses": ResultsSpec(
+        query_fields={"Name": "name", "Type": "address_type", "Scope": "namespace_type",
+                      "Addresses": "num_hosts", "Referenced": "referenced_by_policy"},
+        columns=("Name", "Type", "Scope", "Addresses", "Content", "Referenced"),
+        base_queryset=_ordered(AddressObject, "name",
+                               related=("enforcement_point", "appliance_group")),
+        row=lambda o: (
+            o.name,
+            o.get_address_type_display(),
+            f"{o.namespace_type}:{o.namespace_value}" if o.namespace_value else o.namespace_type,
+            # "Unknown" rather than blank or 0. NULL means the size was never established - an
+            # EDL nobody collected, or one the device could not fetch - and 0 would read as the
+            # narrowest possible object, which is the whole hazard the PAN-COV controls exist
+            # for. A blank cell reads as missing data, which is right but says nothing about
+            # whether that is expected.
+            "Unknown" if o.num_hosts is None else f"{o.num_hosts:,}",
+            _resolved_content(o),
+            _yes_no(_is_referenced(o)),
+        ),
+    ),
     "login-banner": ResultsSpec(
         query_fields={"Appliance": "hostname", "Banner": "text",
                       "Acknowledgement Required": "acknowledgement_required"},

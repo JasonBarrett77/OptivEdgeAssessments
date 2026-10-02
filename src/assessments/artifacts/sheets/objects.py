@@ -52,6 +52,15 @@ APPLIANCE = (
 #: header is rejected by Excel, and xlsxwriter drops it with a warning, leaving a sheet of stray
 #: cells where the table should be (seen 2026-09-18 on AAA Server Profile and Security Profile).
 NAME = (("Object", None, False, lambda s, _p: s.name or NONE, "name"),)
+
+#: Coverage findings name an address object, which hangs off an enforcement point or an
+#: appliance group rather than an appliance - so APPLIANCE, which reads `s.appliance`, does not
+#: apply. "Where" carries whichever owner it has.
+COVERAGE_SUBJECT = (
+    ("Object", None, False, lambda s, _p: s.name or NONE, "name"),
+    ("Type", 18, False, lambda s, _p: s.get_address_type_display()),
+    ("Where", 24, False, lambda s, _p: str(s.enforcement_point or s.appliance_group or NONE)),
+)
 SCOPE = (("Scope", 12, False, lambda s, _p: scope_of(s), "scope"),)
 KIND = (("Kind", 22, False, lambda s, _p: s.get_kind_display(), "kind"),)
 
@@ -114,6 +123,17 @@ def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
 #: missing provenance row means or which columns are computed: Integrations records the first and
 #: declares the second on the model, as of 2026-09-21.
 SPECS = (
+    # Its own tab, deliberately separate from the object findings. Jason, 2026-10-02: "I don't
+    # want them to disturb the highly structured, object related findings." It sits with the
+    # Objects tabs because its subject is an address object and the workbook orders tabs by
+    # category.
+    spec(T.COVERAGE,
+         "What this assessment could not establish, and why. These are gaps in the measurement "
+         "rather than faults on the device: an external dynamic list whose content was never "
+         "collected, or one collected only in part. A rule referencing an object of unknown "
+         "size cannot be scored for breadth, and an unscored rule must not read as a narrow "
+         "one - which is what these exist to prevent.",
+         title="Coverage", subject=COVERAGE_SUBJECT),
     spec(T.LOGIN_BANNER,
          "The banner shown before an administrator logs in, and whether they must acknowledge it."),
     spec(T.MASTER_KEY,

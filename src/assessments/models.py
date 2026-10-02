@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from optivedge.models import ApplicationEnvironment
 from optivedge_integrations.integrations.models import (
+    AddressObject,
     AdminUser,
     ServerProfile,
     AuthenticationProfile,
@@ -71,6 +72,7 @@ class ConfigurationSearchState(models.Model):
 class Control(models.Model):
     class ControlType(models.TextChoices):
         SECURITY_RULE = "security_rule", "Security Rule"
+        COVERAGE = "coverage", "Coverage"
         CONFIG = "config", "Configuration"
         MANAGEMENT_INTERFACE = "management_interface", "Management Interface"
         INTERFACE_MANAGEMENT_PROFILE = "interface_management_profile", "Interface Management Profile"
@@ -138,6 +140,10 @@ class Control(models.Model):
     #: in step, because nothing else does.
     _CONTROL_TYPE_TARGET_MODEL = {
         "security_rule": "integrations.SecurityRule",
+        # Coverage controls assess OUR visibility, not the device. They target address objects
+        # because that is where an unresolvable or uncollected EDL shows up; a coverage control
+        # over another model needs its own control_type, since this map is one-to-one.
+        "coverage": "integrations.AddressObject",
         "management_interface": "integrations.ManagementInterface",
         "interface_management_profile": "integrations.InterfaceManagementProfile",
         "ssl_tls_service_profile": "integrations.SslTlsServiceProfile",
@@ -178,6 +184,7 @@ class Control(models.Model):
         super().save(*args, **kwargs)
 
     _TARGET_MODEL_LABELS = {
+        "integrations.AddressObject": "Address Object",
         "integrations.SecurityRule": "Security Rule",
         "integrations.ManagementInterface": "Management Interface",
         "integrations.InterfaceManagementProfile": "Interface Management Profile",
@@ -833,6 +840,60 @@ class CertificateFinding(ObjectFindingBase):
 
     def __str__(self) -> str:
         return f"{self.control.control_id} on certificate {self.subject_name}"
+
+
+class CoverageFinding(ObjectFindingBase):
+    """A finding about what this ASSESSMENT could not see, rather than about the device.
+
+    Jason, 2026-10-02: "I want these to be somewhat generic in nature, it doesn't need to
+    follow the object related pattern strictly ... I'd prefer a separate tab for 'coverage'
+    findings with descriptions that include object names if relevant. I don't want them to
+    disturb the highly structured, object related findings."
+
+    The generic half is the PRESENTATION and the summary: these get their own tab and say what
+    is unknown in prose, rather than being columns beside the object findings. The structure is
+    kept, because the first attempt at this dropped the foreign key and six convergence
+    invariants rejected it - every finding model extends ObjectFindingBase, freezes a subject
+    name, and is generated through one spec. Those tests exist because five finding models once
+    drifted out of the report by being special, and a coverage finding is not worth being the
+    exception that reopens it.
+
+    So the subject is an address object, keyed. The limit that implies is real and worth
+    stating: a coverage control about something that is NOT an address object - a rule whose
+    application count cannot be resolved, say - cannot use this model, because control_type
+    maps to exactly one target model. That control needs its own, and the question of a truly
+    subject-less finding should be reopened then, with a real case rather than a hypothetical.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="coverage_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="coverage_findings")
+    address_object = models.ForeignKey(
+        AddressObject, on_delete=models.CASCADE, related_name="coverage_findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="CoverageFindingControlQuery",
+        related_name="coverage_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["address_object"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "address_object"],
+                name="unique_coverage_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} coverage: {self.subject_name}"
+
+
+class CoverageFindingControlQuery(FindingControlQueryBase):
+    coverage_finding = models.ForeignKey(
+        CoverageFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="coverage_finding_links")
 
 
 class CertificateFindingControlQuery(FindingControlQueryBase):

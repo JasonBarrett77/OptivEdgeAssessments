@@ -88,6 +88,12 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("security", "Security", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.SecurityRule"),
+    # Objects > Addresses, 2026-10-02. Turned on for the PAN-COV coverage controls, which query
+    # address objects: every control query must have a results page, and a query with nowhere to
+    # go is one an assessor cannot check.
+    ConfigObject("addresses", "Addresses", "Objects", "", "list-checks",
+                 where="Objects > Addresses",
+                 search_model="integrations.AddressObject"),
     # Objects > Security Profiles - the first Objects items, 2026-09-11. PAN-OS lists each profile
     # type as its own rail child, and so does this: two items over one model, split by kind in
     # configuration_results, each backed by a completed control.

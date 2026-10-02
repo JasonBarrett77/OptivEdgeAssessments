@@ -2808,6 +2808,95 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-COV-001",
+          "name": "External Dynamic List Content Not Collected",
+          "control_type": "coverage",
+          "default_severity": "medium",
+          "description": "An address object referenced by policy whose content has never been collected, so the number of addresses it permits is unknown.\n\nTHIS IS A FINDING ABOUT THE ASSESSMENT, NOT THE DEVICE. Nothing here says the firewall is misconfigured. It says a question could not be answered, and it exists because the alternative is silence: an object with no size falls through a breadth score as the NARROWEST possible value, which is a false negative on the controls whose whole purpose is finding rules that permit too much.\n\nWHY IT HAPPENS. EDL and FQDN content lives only in the device's runtime cache, never in its configuration, so it is collected by the separate \"Refresh EDL/FQDN Cache\" action rather than by a configuration sync. That action is deliberately not part of a regular refresh - FQDN is one cheap call per appliance, but EDL collection is one call per referenced list, each potentially paged - so a freshly synced estate legitimately has none of it.\n\nONLY REFERENCED OBJECTS REPORT. A list sitting unused in the address book is not a gap; collection follows normalized rule references, so an unreferenced list is expected to be unsized.\n\nONLY WHERE NOBODY ASKED. The query requires that no collection has reported on the object at all. An object a collection DID reach, and which the device then failed to resolve, is not this - it is a device fault and reports as PAN-POL-023. The two are identical in the size column and are told apart by whether the device ever answered.\n\nNOT the same as an EDL the DEVICE could not fetch, which is a real defect in the customer's configuration and is PAN-POL-023. The two are distinguishable: a device that tried and failed leaves a snapshot reporting its own totals, where a list nobody collected has no snapshot at all.",
+          "rationale": "A breadth score computed over an object of unknown size is not a conservative estimate, it is a wrong one in the dangerous direction - the rule reads as tight and nobody has reason to doubt it. Medium because the assessment, not the estate, is what is incomplete; it should be visible and actioned, not compete with real findings.",
+          "audit": "Objects > Addresses. An EDL or FQDN object showing no resolved content. The remedy is to run the EDL/FQDN cache refresh, which contacts the device; a configuration sync will not fill it.",
+          "remediation": "Run \"Refresh EDL/FQDN Cache\" for the management station, then regenerate findings. If it remains unresolved afterwards the device itself cannot fetch the list, which is PAN-POL-023 and is the customer's to fix.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.AddressObject",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "referenced_by_policy",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "is_edl",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "size_known",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "resolved_content_truncated",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "collection_attempted",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AddressObject"
+        },
+        {
+          "control_id": "PAN-COV-002",
+          "name": "External Dynamic List Content Truncated at the Collection Ceiling",
+          "control_type": "coverage",
+          "default_severity": "medium",
+          "description": "An external dynamic list whose content was collected only in part, because it holds more members than the collection ceiling keeps.\n\nTHE CEILING IS OURS, NOT THE DEVICE'S. The firewall reports the full total and will serve it; collection stops at 50,000 members per list to bound how much of one response has to be held and stored. So this is a limit of the assessment, and the number of addresses recorded for the object is a known UNDER-COUNT.\n\nWHAT IT MEANS FOR ANYTHING SCORED FROM IT. A breadth figure derived from a truncated list is a floor rather than a figure: the object is at least this broad and may be far broader. The device's own reported total is kept beside the collected count, so the shortfall is readable rather than inferred.\n\nIt is also worth knowing on its own terms. A list of more than fifty thousand entries is a large thing for a rule to depend on, and whether anyone has looked at what is in it is a fair question for an assessor to ask.",
+          "rationale": "An under-count reads as a smaller object, and a smaller object reads as a tighter rule. Recording the truncation is what stops a partial collection being mistaken for a complete one. Medium for the same reason as PAN-COV-001: the gap is in what was measured, not in the estate.",
+          "audit": "Objects > Addresses. The object reports both the number of addresses collected and the total the device reported; they disagree.",
+          "remediation": "Nothing on the device. Either accept the floor, or raise the collection ceiling and re-run the EDL/FQDN cache refresh if the exact size matters to a finding that rests on it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.AddressObject",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "referenced_by_policy",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "resolved_content_truncated",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.AddressObject"
         }
       ]
     }
