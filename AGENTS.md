@@ -375,6 +375,56 @@ slugified because client names are free text on their way into a `Content-Dispos
 and a deployment with no `ApplicationEnvironment` drops those parts rather than refusing the
 download.
 
+**A joined row arrives whole, and that is how one timestamp cost 1.75 GB** (2026-10-05). Every
+findings tab read its Config collected column through `subject.source_snapshot.collected_at`, so
+every spec pulled the snapshot into its `select_related`. That is a JOIN, and a `Snapshot`
+carries `payload` - the raw merged config - which Django decodes on fetch whether or not anyone
+reads it. 511 rule findings pointing at 8 distinct snapshots fetched 210 MB of JSON text and
+turned it into 1.75 GB of Python objects, to render 8 dates. Security Rules took 13.24s; all 23
+tabs summed, 25.01s.
+
+Query counts were never the signal - 12 before, 13 after. Memory was: ~5.9 MB per finding row,
+and `tracemalloc` put 142 of one tab's 184 MB on `json/decoder.py`.
+
+Three things came out of it, and the order matters:
+
+* **`FindingBase.snapshot`** records the configuration a finding was COMPUTED FROM, copied off
+  the subject by the generator. The subject's own `source_snapshot` says what that object is
+  CURRENTLY parsed from, and normalization repoints it in place, so a finding read through the
+  relationship reports a date later than anything it was derived from. `on_delete=PROTECT`,
+  nullable, `related_name="+"` - which is why it can sit on the abstract base where
+  `assessment_run` and `control` cannot. One write site: all 22 generators route through
+  `object_findings.generate_object_findings`.
+* **`collected_at_by_snapshot`** seeds one `{snapshot_id: collected_at}` map per build off
+  `snapshot_id`, a column on rows already loaded, so the snapshot table is not joined at all.
+  `source_snapshot` is gone from all four specs that named it. Security Rules: 0.83s, 20 MB.
+* **`collected_at_by_appliance`** (was `latest_merged_config`) asks the database for
+  MAX(collected_at) per appliance instead of building 112 Snapshot instances to keep 3 dates.
+  4.60s/558 MB to 9ms/0.36 MB, and the workbook from 11.98s to 2.07s. It returns the DATE, not
+  the row - handing back a row is what invites the next caller to read one more field off
+  something that cost a megabyte.
+
+**Deferring every JSONField would have been worse than the bug.** Most of them are read -
+`ciphers`, `kex`, `macs`, `bound_interface_names`, `exposed_surfaces`,
+`unauthenticated_servers` are the newline-separated cells - and a deferred field that IS read is
+fetched lazily: right answer, one query per row, nothing raised. `verbatim_payload_paths` defers
+only fields that are BOTH a JSONField (asked of `_meta`) and `raw_*` (the one naming rule that
+holds here, and already unreadable by the query service boundary). `test_artifacts` builds every
+domain both ways and requires identical query counts - warming both paths first, because
+`get_for_model` caches per process and unwarmed it reports +1 on all 23 domains. A constant
+offset is a cache miss; an N+1 would cost one query per ROW.
+
+**Two structural guards were narrowed by this and are worth re-reading before trusting.** Both
+identified a finding's subject as "any FK into integrations", true only while a finding had one.
+`FindingBase.snapshot` gives every finding a second, so `test_findings_rest_on_columns` reported
+Snapshot as 24 unreachable subjects and `test_query_service_boundary` admitted it to the
+asserted set. Both now ask `finding_registry` for the subject it NAMES. Stricter, not looser:
+Snapshot is normalization's input, and `payload` is already forbidden outright.
+
+**Still outstanding:** the Management Interfaces tab issues 98 queries, an N+1 in that tab's
+value readers that predates all of the above and is unrelated to it. It is cheap on 15 rows and
+will not be on a real estate.
+
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
 the state's lifetime equal to the file's.
