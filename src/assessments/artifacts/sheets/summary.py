@@ -63,8 +63,8 @@ def engagement_rows(infos):
     runs = list(AssessmentRun.objects.filter(pk__in=run_ids).order_by("pk"))
     completed = "\n".join(utc(r.completed_at) for r in runs)
 
-    snapshots = appliances_sheet.latest_merged_config(list(Appliance.objects.all()))
-    collected = sorted(s.collected_at for s in snapshots.values())
+    collected = sorted(
+        appliances_sheet.collected_at_by_appliance(list(Appliance.objects.all())).values())
     if not collected:
         collected_text = "Not collected"
     elif collected[0] == collected[-1]:

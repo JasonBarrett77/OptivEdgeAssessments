@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from django.db.models import Max
+
 from optivedge_integrations.integrations.models import Appliance, ApplianceGroup, Snapshot
 
 from ..layout import (
@@ -38,20 +40,30 @@ COLUMNS = [
     ("Config collected (UTC)", None, False),
 ]
 
-def latest_merged_config(appliances) -> dict[int, Snapshot]:
-    latest = {}
-    snapshots = Snapshot.objects.filter(
-        appliance__in=appliances, source_type=MERGED_CONFIG).order_by("collected_at", "pk")
-    for snapshot in snapshots:
-        latest[snapshot.appliance_id] = snapshot  # ascending, so the last one wins
-    return latest
+def collected_at_by_appliance(appliances) -> dict:
+    """{appliance_id: when its configuration was last collected}.
+
+    The DATABASE picks the newest, and returns a date rather than a row. It used to build every
+    merged-config `Snapshot` as a model instance, sorted them in Python and kept the last per
+    appliance - and a Snapshot carries `payload`, the raw merged config, which Django decodes on
+    fetch whether or not anyone reads it. Measured 2026-10-05 on the lab: 112 snapshots loaded
+    and decoded, 4.6s and 558 MB, to produce three dates. Both callers ever wanted the date.
+
+    Returning the value rather than the row is the part that keeps it honest. Handing back a
+    `Snapshot` invites the next caller to read something else off it, which is how this started.
+    """
+    rows = (Snapshot.objects
+            .filter(appliance__in=appliances, source_type=MERGED_CONFIG)
+            .values("appliance_id")
+            .annotate(latest=Max("collected_at")))
+    return {row["appliance_id"]: row["latest"] for row in rows}
 
 
 def build_rows(appliances):
     members = defaultdict(list)
     for appliance in appliances:
         members[appliance.appliance_group_id].append(appliance)
-    snapshots = latest_merged_config(appliances)
+    collected = collected_at_by_appliance(appliances)
 
     rows = []
     for appliance in appliances:
@@ -59,7 +71,7 @@ def build_rows(appliances):
         peers = ([a for a in members[group.pk] if a.pk != appliance.pk]
                  if group is not None and group.group_type != ApplianceGroup.TYPE_STANDALONE
                  else [])
-        snapshot = snapshots.get(appliance.pk)
+        when = collected.get(appliance.pk)
         rows.append([
             appliance.hostname or NONE,
             appliance.serial_number or NONE,
@@ -68,7 +80,7 @@ def build_rows(appliances):
             ha_role(appliance),
             "\n".join(p.hostname or p.serial_number for p in peers),
             str(appliance.management_station),
-            utc(snapshot.collected_at) if snapshot else "Not collected",
+            utc(when) if when else "Not collected",
         ])
     assert all(len(r) == len(COLUMNS) for r in rows), "row/column mismatch"
     return rows
