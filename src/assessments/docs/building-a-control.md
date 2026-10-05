@@ -17,7 +17,7 @@ the only way it stays worth reading.
 
 ## How to use it
 
-The six phases are ordered by dependency and the order is real: a model cannot be scoped
+The phases are ordered by dependency and the order is real: a model cannot be scoped
 before the configuration is understood, and nothing can be proved before it exists. But this
 is **not a document to walk from top to bottom**, and roughly half of it never was. Two kinds
 of item live here and they are retrieved differently:
@@ -102,6 +102,31 @@ every firewall by re-reading config rather than trusting job status.
 ---
 
 
+## 0. Identify the control
+
+> **First, because everything after it depends on the answer.** Which control this is decides
+> which configuration is worth reading, which object gets modelled and what the query has to
+> assert. Until 2026-10-05 this sat in phase 3, after the configuration had been understood and
+> the model built - which is the wrong way round, and was made worse by a restructure that
+> moved it there from the end of phase 1 on thematic grounds rather than sequential ones.
+
+- [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
+      guards against id collisions — next free number, check both files — and says nothing
+      about a control that already exists under a different domain. Grep `controls.json` for
+      the *assertion*, not the name, and check neighbouring domains before deciding a control
+      is new. *PAN-MGT-014 was allocated for the certificate half of a split, and duplicated
+      PAN-CRT-006 "Management Certificate Issued by Trusted CA" — same intent, same
+      man-in-the-middle rationale, same minimum. Splitting a control feels like creating one,
+      so the corpus was never searched for the half being split off; it surfaced only when the
+      certificates domain came up as the next batch. Re-identified, and nothing about the
+      built control changed — it was correct and filed under the wrong number.*
+
+- [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
+      `scratch/control-changes.json` with what now covers any dropped ground.
+
+- [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
+      asserted telnet and http together; `controls.json` has them as two controls.*
+
 ## 1. Understand the configuration — before modelling anything
 
 > **Measure in parallel, not in series.** A commit is the slow step, and most variants are
@@ -128,18 +153,6 @@ every firewall by re-reading config rather than trusting job status.
 
 ### Start here
 
-- [ ] **Read the Web Interface Help SECTION for the object, before anything else and again
-      whenever you come back to the domain.** The whole section, not a keyword search:
-      `python -m probe.doc_index --doc help "Setup > Management"`, then read the page. One read
-      gives the field set, the ranges, the defaults, the semantics, the cross-references and
-      the traps — and it is cheap enough that going back to it is never the expensive option.
-      **It is not only for implicit values.** Reading it narrowly is how you miss that a field
-      you were not asking about is the second binding for the one you were. *The Authentication
-      Settings section stated three of four implicit values, gave the reachable ranges, named
-      the vendor's own recommended value, and revealed that `deviceconfig/system/
-      authentication-profile` exists as a device-wide binding the corpus xpath for PAN-AUTH-019
-      does not mention.*
-
 - [ ] **Read what is already known BEFORE measuring anything** — the OptivEdgeIntegrations
       guide for the object first, then the payload contract's entry, then the frozen findings
       in `OptivEdgeProbe/archive/catalog/` if you need the method behind one. See *Where the
@@ -152,6 +165,19 @@ every firewall by re-reading config rather than trusting job status.
       later control re-measured exactly that, from scratch, at the cost of two commits and a
       failed one - and the only reason the duplication was noticed at all was going to the file
       to write the result down.*
+
+- [ ] **Read the Web Interface Help SECTION for the object, before anything else and again
+      whenever you come back to the domain.** The whole section, not a keyword search:
+      `python -m probe.doc_index --doc help "Setup > Management"`, then read the page. One read
+      gives the field set, the ranges, the defaults, the semantics, the cross-references and
+      the traps — and it is cheap enough that going back to it is never the expensive option.
+      **It is not only for implicit values.** Reading it narrowly is how you miss that a field
+      you were not asking about is the second binding for the one you were. *The Authentication
+      Settings section stated three of four implicit values, gave the reachable ranges, named
+      the vendor's own recommended value, and revealed that `deviceconfig/system/
+      authentication-profile` exists as a device-wide binding the corpus xpath for PAN-AUTH-019
+      does not mention.*
+
 
 
 ### Enumerating the key set
@@ -445,6 +471,36 @@ every firewall by re-reading config rather than trusting job status.
       could not be queried, and could not tell a PAN-OS default from a local value.*
 
 
+### A new column on an existing model
+
+> Here rather than in phase 6, where it sat until 2026-10-05. The hazard is designed around at
+> the moment the column is CREATED: meeting it at landing means rewriting the migration.
+
+- **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
+      re-normalized.** `→ control-changes.json` A migration creates the column; only normalization
+      fills it. Between the two, every row holds the field's DEFAULT - and for a boolean that
+      default is `False`, which on a "does this device offer something weak" column means
+      compliant. So the control does not error and does not render an empty page: it passes every
+      device, which is indistinguishable from a hardened estate. *Measured 2026-09-14 on one copy
+      of the lab, with only the re-normalize differing: PAN-MCR-001, 002 and 003 fired on 0 of 3
+      migrated-and-reseeded, and on 2 of 3 after re-normalizing from the same stored snapshots,
+      as `non_preferred_ciphers` went from `[]` to `['aes128-cbc']`. Nothing failed in between.*
+      **So a control whose query moves to a new column is not landed when its tests pass.** Say
+      the sequence in its record - migrate, RENORMALIZE, reseed, regenerate - and say what
+      skipping the re-normalize looks like, because "it reports nothing" will otherwise be read as
+      good news.
+      **Give the column a default that FIRES.** The hazard is not the gap between migrating and
+      normalizing; it is that the natural default sits on the compliant side. `False` on "does
+      this device offer something weak" is the safe-looking value and the dangerous one. The
+      precedent was already here: `MasterKey` records a key nobody asked about as `undetermined`,
+      which fires, because "we never asked" must not look like "we asked and it was fine". A
+      derived column carries the same obligation - pair the firing default with a data migration
+      marking existing rows not-yet-computed.
+      **This bites a column ADDED to rows that already exist, and only that.** A brand-new model
+      has no rows until normalization creates them, so there is no window in which a stale row
+      reads as compliant - a new model is absent, and absence is visible. Adding a field to a
+      populated model is the case to think about.
+
 ### Writing the normalizer
 
 - [ ] **Search for an existing helper before writing one.** *`common.py` already had
@@ -504,26 +560,6 @@ every firewall by re-reading config rather than trusting job status.
 
 
 ## 3. Assess it — the control
-
-
-### Identify the control
-
-- [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
-      guards against id collisions — next free number, check both files — and says nothing
-      about a control that already exists under a different domain. Grep `controls.json` for
-      the *assertion*, not the name, and check neighbouring domains before deciding a control
-      is new. *PAN-MGT-014 was allocated for the certificate half of a split, and duplicated
-      PAN-CRT-006 "Management Certificate Issued by Trusted CA" — same intent, same
-      man-in-the-middle rationale, same minimum. Splitting a control feels like creating one,
-      so the corpus was never searched for the half being split off; it surfaced only when the
-      certificates domain came up as the next batch. Re-identified, and nothing about the
-      built control changed — it was correct and filed under the wrong number.*
-
-- [ ] **Use the id from `controls.json`** `→ control-changes.json`, and record every deviation in
-      `scratch/control-changes.json` with what now covers any dropped ground.
-
-- [ ] **Replace the superseded seed control** `→ control-changes.json`, and check whether it splits. *Seed `MGMT-001`
-      asserted telnet and http together; `controls.json` has them as two controls.*
 
 
 ### What the control asserts
@@ -781,6 +817,14 @@ every firewall by re-reading config rather than trusting job status.
 ## 4. Present it
 
 
+> **Make the control fire before building any of this.** *Making the control fire*, in phase 5,
+> is cheap and tells you whether there is a row to render at all — a control that returns zero
+> findings leaves a tab correct and empty, which looks identical to one that is broken. A
+> pointer rather than a move: the subject it needs is hardware work and belongs with the rest
+> of phase 5. *PAN-COV-001 and 002 had their tab, their domain and their workbook sheet built
+> before anyone checked, and both returned nothing — not because they were broken but because
+> the lab held no instance of either condition.*
+
 ### Where a finding appears
 
 - [ ] **A new finding model is invisible to the Findings pages.** That page enumerates one
@@ -899,6 +943,19 @@ every firewall by re-reading config rather than trusting job status.
 
 ## 5. Prove it — against hardware, not fixtures
 
+
+> **Half of this phase runs during phase 1, and that is not a defect.** Designing an experiment
+> that can fail, trusting an instrument, and writing or deleting lab config are how a
+> measurement gets taken — so they happen while the configuration is being understood, not
+> after the control exists. The phase-1 note about measuring in parallel says the same thing
+> from the other side: a failing subject set up to measure a shape is the subject the control
+> needs left behind, so it is never created twice.
+>
+> What genuinely belongs here, after the control exists, is **Making the control fire** and
+> **What to leave behind**. Read those two when the control is built; read the rest when you
+> are still measuring.
+>
+> It stays one phase because the heading earns its place by being the thing people skip.
 
 ### Designing an experiment that can fail
 
@@ -1067,42 +1124,6 @@ every firewall by re-reading config rather than trusting job status.
       Same shape, twice in one day: the gating step should be the only one that gates.*
 
 
-### Making the control fire
-
-- [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
-      Configure the condition on the lab and watch it fire on the right subject. *001 and 002
-      both returned zero against the lab as it stood.* **Set the passing and failing subjects
-      in the same commit** — see *Measure in parallel, not in series* at the top of phase 1 — and prefer subjects the
-      discovery phase already created.
-
-- [ ] **A column tested against one input has been tested against one input.** If every row
-      in the estate gives a column the same value, rendering it correctly proves nothing about
-      the other cases — including the case where the column is simply broken. Leave a subject
-      that produces a DIFFERENT value for each column a control introduces.
-      The instance that produced this rule: **leave at least one finding whose row SHOWS
-      PROVENANCE.** `→ reproductions.json` A finding written locally proves the control fires
-      and proves nothing about the provenance column, because local renders BLANK by design —
-      so a tab can look correct while the whole provenance path is untested end to end. Push at least one subject from a template or
-      stack so a source actually renders, and say in `reproductions.json` which subject exists
-      for that purpose. *Both the Login Banner and Management TLS tabs shipped with every
-      provenance cell blank and no way to tell a working toggle from a broken one: every value
-      on them was device-local or absent. Jason caught it in the view, not the tests.*
-      Two traps when creating one: a **local value survives a template push of a different
-      value** and stays unmarked, so pushing to a device that already sets the field locally
-      changes nothing visible; and pushing a value that REMEDIATES the control silences the
-      finding you were trying to decorate — push a value that still fails, or an explicit
-      negative like `ack-login-banner: no`.
-
-- [ ] **Exercise every axis the control spans**, not just the one that was convenient.
-      *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
-      spell the same setting with opposite sense, so a control tested on one is untested on
-      the other.*
-
-- [ ] **Run the real pipeline, not the fixtures.** *Fixtures passed while real config broke
-      four separate ways: empty `<units/>`, empty container, subinterface type discrimination,
-      and a warning on every unconfigured port.*
-
-
 ### When you write or delete lab config
 
 - **A refused call is classified by MEASUREMENT, not by the vendor's error-code table.**
@@ -1196,6 +1217,41 @@ every firewall by re-reading config rather than trusting job status.
       and neither authenticates, so a working back end would prove nothing extra and would be a
       real credential in a lab.*
 
+### Making the control fire
+
+- [ ] **Make the control fire.** A control that returns zero findings has proven nothing.
+      Configure the condition on the lab and watch it fire on the right subject. *001 and 002
+      both returned zero against the lab as it stood.* **Set the passing and failing subjects
+      in the same commit** — see *Measure in parallel, not in series* at the top of phase 1 — and prefer subjects the
+      discovery phase already created.
+
+- [ ] **A column tested against one input has been tested against one input.** If every row
+      in the estate gives a column the same value, rendering it correctly proves nothing about
+      the other cases — including the case where the column is simply broken. Leave a subject
+      that produces a DIFFERENT value for each column a control introduces.
+      The instance that produced this rule: **leave at least one finding whose row SHOWS
+      PROVENANCE.** `→ reproductions.json` A finding written locally proves the control fires
+      and proves nothing about the provenance column, because local renders BLANK by design —
+      so a tab can look correct while the whole provenance path is untested end to end. Push at least one subject from a template or
+      stack so a source actually renders, and say in `reproductions.json` which subject exists
+      for that purpose. *Both the Login Banner and Management TLS tabs shipped with every
+      provenance cell blank and no way to tell a working toggle from a broken one: every value
+      on them was device-local or absent. Jason caught it in the view, not the tests.*
+      Two traps when creating one: a **local value survives a template push of a different
+      value** and stays unmarked, so pushing to a device that already sets the field locally
+      changes nothing visible; and pushing a value that REMEDIATES the control silences the
+      finding you were trying to decorate — push a value that still fails, or an explicit
+      negative like `ack-login-banner: no`.
+
+- [ ] **Exercise every axis the control spans**, not just the one that was convenient.
+      *PAN-OS: both service polarities, both management planes, both HA peers — the two planes
+      spell the same setting with opposite sense, so a control tested on one is untested on
+      the other.*
+
+- [ ] **Run the real pipeline, not the fixtures.** *Fixtures passed while real config broke
+      four separate ways: empty `<units/>`, empty container, subinterface type discrimination,
+      and a warning on every unconfigured port.*
+
 
 ### What to leave behind
 
@@ -1273,32 +1329,6 @@ every firewall by re-reading config rather than trusting job status.
 
 - [ ] **Say what the operator must run**: migrate → renormalize → reseed → regenerate
       findings. Renormalize needs no device connection; a sync does.
-
-- **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
-      re-normalized.** `→ control-changes.json` A migration creates the column; only normalization
-      fills it. Between the two, every row holds the field's DEFAULT - and for a boolean that
-      default is `False`, which on a "does this device offer something weak" column means
-      compliant. So the control does not error and does not render an empty page: it passes every
-      device, which is indistinguishable from a hardened estate. *Measured 2026-09-14 on one copy
-      of the lab, with only the re-normalize differing: PAN-MCR-001, 002 and 003 fired on 0 of 3
-      migrated-and-reseeded, and on 2 of 3 after re-normalizing from the same stored snapshots,
-      as `non_preferred_ciphers` went from `[]` to `['aes128-cbc']`. Nothing failed in between.*
-      **So a control whose query moves to a new column is not landed when its tests pass.** Say
-      the sequence in its record - migrate, RENORMALIZE, reseed, regenerate - and say what
-      skipping the re-normalize looks like, because "it reports nothing" will otherwise be read as
-      good news.
-      **Give the column a default that FIRES.** The hazard is not the gap between migrating and
-      normalizing; it is that the natural default sits on the compliant side. `False` on "does
-      this device offer something weak" is the safe-looking value and the dangerous one. The
-      precedent was already here: `MasterKey` records a key nobody asked about as `undetermined`,
-      which fires, because "we never asked" must not look like "we asked and it was fine". A
-      derived column carries the same obligation - pair the firing default with a data migration
-      marking existing rows not-yet-computed.
-      **This bites a column ADDED to rows that already exist, and only that.** A brand-new model
-      has no rows until normalization creates them, so there is no window in which a stale row
-      reads as compliant - a new model is absent, and absence is visible. Adding a field to a
-      populated model is the case to think about.
-
 
 ### Documentation
 
