@@ -113,11 +113,40 @@ class ValueReader(NamedTuple):
     members: Callable | None = None
 
 
-def member_provenance(reader, subject) -> str:
-    """The distinct answers the child rows give, worst-known-first order kept as encountered."""
+def member_provenance_index(spec, subjects) -> dict:
+    """One provenance index over the CHILD rows every value reader walks to.
+
+    The subject's own provenance has always been bulk-loaded; its members' was not.
+    `member_provenance` called `member.provenance_for("__entry__")` per member, which is a query
+    each: the Management Interfaces tab issued 88 of its 96 queries this way, one per service
+    and per permitted source across 15 rows. It scales with members, not with rows, so it was
+    invisible on a small estate and would not have stayed that way.
+
+    Members themselves cost nothing to walk - they come from `subject_prefetch` - so this only
+    replaces the per-member provenance lookup.
+    """
+    members = []
+    for reader in spec.value_readers.values():
+        if reader.members is None:
+            continue
+        for subject in subjects:
+            members.extend(reader.members(subject))
+    return provenance_index(members)
+
+
+def member_provenance(reader, subject, index) -> str:
+    """The distinct answers the child rows give, worst-known-first order kept as encountered.
+
+    Reads the bulk index, with the same DERIVED fallback `provenance_for` applies - a computed
+    column has no stored row and must not read as "Not recorded".
+    """
     labels = []
     for member in reader.members(subject):
-        row = member.provenance_for("__entry__")
+        model = type(member)
+        row = index.get(
+            (ContentType.objects.get_for_model(model).pk, member.pk, "__entry__"))
+        if row is None and "__entry__" in model.DERIVED_FIELDS:
+            row = FieldProvenance(provenance_type=FieldProvenance.ProvenanceType.DERIVED)
         label = row.get_provenance_type_display() if row is not None else "Not recorded"
         if label not in labels:
             labels.append(label)
@@ -542,6 +571,7 @@ def columns_for(spec, settings, tested=None):
 def build_rows(spec, findings, controls, settings, tested=None):
     subject_by_finding = {f: spec.kind_for(f.control.control_type).subject_of(f) for f in findings}
     provenance = provenance_index(set(subject_by_finding.values()))
+    member_prov = member_provenance_index(spec, set(subject_by_finding.values()))
     fields_by_control = {
         c.pk: tested_fields(spec.subject_model(spec.kind_for(c.control_type)), c,
                             spec.value_readers)
@@ -576,8 +606,8 @@ def build_rows(spec, findings, controls, settings, tested=None):
         for field, stored in shown:
             reader = spec.value_readers.get(field)
             if reader is not None:
-                cells.append(((member_provenance(reader, policy) if reader.members
-                               else reader.provenance), ""))
+                cells.append(((member_provenance(reader, policy, member_prov)
+                               if reader.members else reader.provenance), ""))
             else:
                 cells.append(provenance_cells(provenance_of(field), stored=stored))
         if spec.provenance_cell is not None:

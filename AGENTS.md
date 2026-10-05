@@ -421,9 +421,18 @@ Snapshot as 24 unreachable subjects and `test_query_service_boundary` admitted i
 asserted set. Both now ask `finding_registry` for the subject it NAMES. Stricter, not looser:
 Snapshot is normalization's input, and `payload` is already forbidden outright.
 
-**Still outstanding:** the Management Interfaces tab issues 98 queries, an N+1 in that tab's
-value readers that predates all of the above and is unrelated to it. It is cheap on 15 rows and
-will not be on a real estate.
+**A member's provenance is bulk-loaded too** (2026-10-05). The subject's always was; its
+MEMBERS' was not - `member_provenance` called `member.provenance_for("__entry__")` per member,
+so Management Interfaces issued 88 of its 96 queries one service and one permitted source at a
+time. `member_provenance_index` builds one index over every child row the spec's value readers
+walk to, and `member_provenance` takes it as an argument, which is what stops the per-member
+query returning: there is no longer a version of that function able to look one up on its own.
+96 queries to 11, rows byte-identical.
+
+It scaled with MEMBERS and not with rows, which is why 15 rows cost 96 queries and why it
+stayed invisible - 0.026s on the lab. `test_artifacts` now refuses any `provenance_for` call
+under `artifacts/`, parsed with `ast` rather than grepped, because the docstrings there NAME the
+call they replaced and a text match cannot tell an explanation from a reintroduction.
 
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps

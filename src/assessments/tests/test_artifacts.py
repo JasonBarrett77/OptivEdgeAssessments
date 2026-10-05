@@ -555,3 +555,43 @@ class DeferredPayloadTests(TestCase):
                     count(domain.spec, defer=True), count(domain.spec, defer=False),
                     f"{domain.slug}: deferring changed the query count, so something reads a "
                     f"field it declines to fetch")
+
+
+class BulkProvenanceTests(TestCase):
+    """Provenance is read from an index built up front, never per object in a row loop.
+
+    `member_provenance` called `member.provenance_for("__entry__")` once per member, so the
+    Management Interfaces tab issued 88 of its 96 queries one service and one permitted source
+    at a time. It scaled with MEMBERS rather than with rows, which is why 15 rows could cost 96
+    queries and why it stayed invisible: on the lab it was 0.026s.
+    """
+
+    def test_no_sheet_reads_provenance_one_object_at_a_time(self):
+        """`provenance_for` is Integrations' per-object accessor and is right in a view that
+        wants one answer. In a sheet it is a query per row, or per member of per row."""
+        import ast
+
+        # Parsed rather than grepped: the docstrings here NAME the call they replaced, and a
+        # text match cannot tell an explanation from a reintroduction.
+        offenders = []
+        for path in sorted(Path(__file__).resolve().parent.parent.glob("artifacts/**/*.py")):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "provenance_for"):
+                    offenders.append(f"{path.name}:{node.lineno}")
+
+        self.assertEqual(
+            offenders, [],
+            "build provenance once with provenance_index/member_provenance_index instead: "
+            f"{offenders}")
+
+    def test_member_provenance_requires_the_index(self):
+        """Taking it as an argument is what stops the per-member query coming back: there is no
+        longer a version of this function that can look one up on its own."""
+        import inspect
+
+        from assessments.artifacts.sheets.findings import member_provenance
+
+        self.assertIn("index", inspect.signature(member_provenance).parameters)
