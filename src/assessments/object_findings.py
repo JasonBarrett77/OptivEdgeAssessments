@@ -112,6 +112,17 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
                     "subject_name": spec.subject_name(obj),
                     "summary": spec.summary(obj, matched_queries),
                     "matched_query_names": [q.name for q in matched_queries],
+                    # The configuration this finding was computed from, PINNED HERE rather than
+                    # read back through the subject later. The subject's own `source_snapshot`
+                    # answers a different question - what that object is currently parsed from -
+                    # and normalization repoints it in place on the next collection, so a
+                    # finding reading through the relationship would report a date later than
+                    # anything it was derived from. See `FindingBase.snapshot`.
+                    #
+                    # Every subject model carries `source_snapshot`, checked across all 24
+                    # finding kinds, so `getattr` is for the one that eventually does not
+                    # rather than for the ones that do.
+                    "snapshot": getattr(obj, "source_snapshot", None),
                 }
                 if spec.subject_scope is not None:
                     fields["subject_scope"] = spec.subject_scope(obj)

@@ -37,6 +37,7 @@ from django.test import TestCase
 
 from assessments.models import Control
 from assessments.search.exceptions import SearchSyntaxError
+from assessments.finding_registry import FINDING_KINDS
 from assessments.search.registry import MODEL_REGISTRY
 
 #: Tried in order until one is accepted. A field that accepts NONE of them is a FAILURE rather
@@ -188,21 +189,18 @@ class FindingsRestOnColumnsTests(TestCase):
         Every *Finding model's subject must be a model the registry knows, so a finding cannot
         be produced against something no checked query path can reach.
         """
-        from django.apps import apps
-
         registered = {entry["model_class"] for entry in MODEL_REGISTRY.values()}
         unregistered = []
-        for model in apps.get_app_config("assessments").get_models():
-            if not model.__name__.endswith("Finding"):
-                continue
-            subjects = [
-                f.related_model for f in model._meta.get_fields()
-                if getattr(f, "many_to_one", False)
-                and f.related_model._meta.app_label == "integrations"
-            ]
-            for subject in subjects:
-                if subject not in registered:
-                    unregistered.append(f"{model.__name__} -> {subject.__name__}")
+        # The SUBJECT comes from the registry, which names it per kind. It used to be inferred
+        # as "any FK into integrations", which was true for as long as a finding had exactly
+        # one - until `FindingBase.snapshot` gave every finding a second, and the inference
+        # started reporting Snapshot as twenty-four unreachable subjects. A snapshot is the
+        # configuration a finding was computed FROM; nothing asserts anything about it, and
+        # `Snapshot.payload` is the one thing the boundary forbids reading outright.
+        for kind in FINDING_KINDS:
+            subject = kind.model._meta.get_field(kind.subject_field).related_model
+            if subject not in registered:
+                unregistered.append(f"{kind.model.__name__} -> {subject.__name__}")
         self.assertEqual(
             unregistered, [],
             f"finding subject(s) no registered query path can reach: {unregistered}")

@@ -70,19 +70,24 @@ def _asserted_models():
     boundary starts applying to Zone without anyone remembering to add it.
 
     It deliberately excludes models that carry no verdict - IntegrationRun is a collection run
-    record and FieldProvenance says where a value came from. Filtering those in a view is
-    presentation, not a private interpretation of a device's configuration.
+    record, FieldProvenance says where a value came from, and Snapshot is normalization's INPUT.
+    Filtering those in a view is presentation, not a private interpretation of a device's
+    configuration.
+
+    "Recorded against" is read from the registry, which NAMES each kind's subject. It was
+    inferred as "any FK from a finding into integrations", which held while a finding had
+    exactly one such FK - until `FindingBase.snapshot` gave every finding a second and Snapshot
+    joined the asserted set. That would have been the wrong conclusion in both directions: it
+    is not a model a control asserts anything about, and its `payload` is the field the second
+    boundary below forbids reading at all, which is a stronger rule than this one rather than a
+    weaker one.
     """
+    from assessments.finding_registry import FINDING_KINDS
     from assessments.search.registry import MODEL_REGISTRY
 
     covered = {entry["model_class"] for entry in MODEL_REGISTRY.values()}
-    for model in apps.get_app_config("assessments").get_models():
-        if not model.__name__.endswith("Finding"):
-            continue
-        for field in model._meta.get_fields():
-            if (getattr(field, "many_to_one", False)
-                    and field.related_model._meta.app_label == "integrations"):
-                covered.add(field.related_model)
+    for kind in FINDING_KINDS:
+        covered.add(kind.model._meta.get_field(kind.subject_field).related_model)
     return {model.__name__: model for model in covered}
 
 

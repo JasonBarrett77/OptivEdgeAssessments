@@ -35,6 +35,7 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     ManagementInterface,
     SecurityRule,
+    Snapshot,
 )
 
 
@@ -363,6 +364,22 @@ class FindingBase(models.Model):
     none of those things: each model numbers its own rows, so ids collide across models, and every
     run deletes and recreates findings, so they never repeat.
 
+    `snapshot` is the configuration the finding was COMPUTED FROM, copied off the subject at
+    generation time. It is not the same question as the subject's own `source_snapshot`, which
+    says what that object is CURRENTLY parsed from: re-collect without re-running findings and
+    the subject is repointed in place, so a finding reading through the relationship starts
+    reporting a collection date later than anything it was derived from. Pinning it here makes
+    the date a fact about the run, and makes a stale assessment visible instead of invisible.
+
+    It CAN live on the abstract base, unlike the two above, because nothing needs a reverse
+    accessor: `related_name="+"` declines the reverse relation outright, so there is no name to
+    interpolate and `Snapshot` does not grow twenty-four accessors nobody asked for.
+
+    `on_delete=PROTECT` so configuration an assessment depends on cannot be deleted out from
+    under it. `null=True` because a run predating this field, or a subject that normalization
+    left without a snapshot, is a real state and not worth refusing a finding over - it renders
+    as "Not recorded" rather than failing the run.
+
     Subclass Meta must CONCATENATE `constraints` as well as `indexes` - Django replaces both rather
     than merging them, and `test_finding_reference` fails for a model that loses the constraint.
     """
@@ -379,6 +396,15 @@ class FindingBase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     #: Allocated from the run on first save; see the class docstring and `reference`.
     reference_number = models.PositiveIntegerField(editable=False)
+    #: The configuration this finding was COMPUTED FROM, copied off the subject when the
+    #: generator writes the finding. See the class docstring.
+    snapshot = models.ForeignKey(
+        Snapshot,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         abstract = True
