@@ -530,6 +530,39 @@ class SecurityRulePageTests(TestCase):
                       "default-forwarding", "vsys1", "allow"):
             self.assertIn(value, here, value)
 
+    def test_each_address_cell_carries_the_side_s_breadth(self):
+        """PAN-POL-002's audit step promises it: "The rule's own row carries the resolved host
+        count for each side". In the address cell rather than a column of its own, because the
+        member names and their size are one fact - a list of names says nothing about how much
+        space it covers, and one name can be a /8."""
+        rule = self._rule("sized", order=1)
+        rule.source_num_hosts = 16_384
+        rule.destination_num_hosts = 1
+        rule.save()
+
+        html = self.client.get(self.url).content.decode()
+
+        self.assertIn("(16,384 addresses)", html)
+        self.assertIn("(1 address)", html)
+
+    def test_an_unmeasurable_side_reads_Unknown_and_never_zero(self):
+        """Zero is the narrowest value there is, so printing it would make the rule nobody
+        could measure read as the tightest rule on the page."""
+        rule = self._rule("unsized", order=1)
+        rule.source_num_hosts = None
+        rule.destination_num_hosts = 256
+        rule.save()
+
+        html = self.client.get(self.url).content.decode()
+
+        self.assertIn("(Unknown addresses)", html)
+        self.assertNotIn("(0 addresses)", html)
+
+    def test_the_breadth_did_not_add_a_column(self):
+        """It is a line inside an existing cell, so the agreement with the rules page's column
+        set - asserted above - still holds."""
+        self.assertEqual(config_results.RESULTS["security"].columns, self.RULES_PAGE_COLUMNS)
+
     def test_a_multi_value_cell_renders_one_value_per_line(self):
         """Joined with commas, four zones and five addresses wrap into a paragraph. The rules
         page gives each member its own line and so does this one."""

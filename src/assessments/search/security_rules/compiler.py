@@ -6,6 +6,12 @@ from django.db.models import Q, Subquery
 
 from assessments.search.exceptions import SearchSyntaxError
 from assessments.search.security_rules.fields.action import compile_action_clause
+from assessments.search.security_rules.fields.address_breadth import (
+    compile_destination_breadth_known_clause,
+    compile_destination_num_hosts_clause,
+    compile_source_breadth_known_clause,
+    compile_source_num_hosts_clause,
+)
 from assessments.search.security_rules.fields.application import compile_application_clause
 from assessments.search.security_rules.fields.config_source import compile_config_source_clause
 from assessments.search.security_rules.fields.description import compile_description_clause
@@ -45,6 +51,10 @@ SECURITY_RULE_MODEL = "integrations.SecurityRule"
 
 FIELD_COMPILERS = {
     "action": compile_action_clause,
+    "source_num_hosts": compile_source_num_hosts_clause,
+    "destination_num_hosts": compile_destination_num_hosts_clause,
+    "source_breadth_known": compile_source_breadth_known_clause,
+    "destination_breadth_known": compile_destination_breadth_known_clause,
     "application": compile_application_clause,
     "config_source": compile_config_source_clause,
     "description": compile_description_clause,
@@ -70,6 +80,10 @@ FIELD_COMPILERS = {
 }
 FIELD_OPERATOR_REGISTRY = {
     "action": compile_action_clause.SUPPORTED_OPERATORS,
+    "source_num_hosts": compile_source_num_hosts_clause.SUPPORTED_OPERATORS,
+    "destination_num_hosts": compile_destination_num_hosts_clause.SUPPORTED_OPERATORS,
+    "source_breadth_known": compile_source_breadth_known_clause.SUPPORTED_OPERATORS,
+    "destination_breadth_known": compile_destination_breadth_known_clause.SUPPORTED_OPERATORS,
     "application": compile_application_clause.SUPPORTED_OPERATORS,
     "config_source": compile_config_source_clause.SUPPORTED_OPERATORS,
     "description": compile_description_clause.SUPPORTED_OPERATORS,

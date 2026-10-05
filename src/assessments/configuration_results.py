@@ -153,14 +153,34 @@ def _lines(values):
     return "\n".join(values) if values else "-"
 
 
-def _addresses(rule, related_name, negated):
+def _addresses(rule, related_name, negated, num_hosts):
     """Addresses, with the negation marker the rules page puts in front of them.
 
     `negate-source` inverts the whole list - the rule matches everything EXCEPT these - so a
     cell that shows the addresses without saying so states the opposite of what the rule does.
+
+    The last line is the side's BREADTH, which is what PAN-POL-002 scores and what its audit
+    step tells an assessor to read. It belongs in this cell rather than a column of its own
+    because the member names and their size are one fact - a list of names says nothing about
+    how much space it covers, and one name can be a /8. On a negated side it is the size of the
+    COMPLEMENT, so it is deliberately the one number here that does not describe the names
+    above it; that is what the rule permits.
     """
     values = listed_address_ref_values(rule, related_name)
-    return _lines((["NOT"] if negated else []) + values)
+    return _lines((["NOT"] if negated else []) + values + [_breadth(num_hosts)])
+
+
+def _breadth(num_hosts):
+    """One side's address breadth. `Unknown` is NOT `0`.
+
+    A side is unmeasurable when it names a dynamic address group or a region, or an EDL/FQDN
+    with no resolved content or content truncated at the collection ceiling. Printing 0 there
+    would make the rule nobody could measure read as the tightest rule on the page, which is
+    the one reading this column must never produce.
+    """
+    if num_hosts is None:
+        return "(Unknown addresses)"
+    return f"({num_hosts:,} address{'' if num_hosts == 1 else 'es'})"
 
 
 def _logged(value):
@@ -241,9 +261,10 @@ RESULTS = {
             entry_device_group_name(r) or "-",
             r.name,
             _lines(listed_member_values(r, "securityrulefromzones")),
-            _addresses(r, "source_address_refs", r.negate_source),
+            _addresses(r, "source_address_refs", r.negate_source, r.source_num_hosts),
             _lines(listed_member_values(r, "securityruletozones")),
-            _addresses(r, "destination_address_refs", r.negate_destination),
+            _addresses(r, "destination_address_refs", r.negate_destination,
+                       r.destination_num_hosts),
             _lines(listed_member_values(r, "securityruleapplications")),
             _lines(listed_member_values(r, "securityruleservices")),
             r.action or "-",
