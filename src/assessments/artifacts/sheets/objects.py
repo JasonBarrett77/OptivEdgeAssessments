@@ -113,6 +113,17 @@ BINDING_COUNT = findings_sheet.ValueReader(
 
 
 
+#: Whether any security rule points at this object, on either side - what keeps the coverage
+#: controls proportionate, since an EDL nobody references is EXPECTED to be unsized. A reader
+#: rather than a model property because the answer lives on the ref rows, and the spec prefetches
+#: both so the sheet does not pay a query per row for it.
+REFERENCED_BY_POLICY = findings_sheet.ValueReader(
+    read=lambda obj: "Yes" if (obj.securityrulesourceaddressref_set.all()
+                               or obj.securityruledestinationaddressref_set.all()) else "No",
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
         control_types=(control_type,), title=title, description=description,
@@ -133,7 +144,23 @@ SPECS = (
          "collected, or one collected only in part. A rule referencing an object of unknown "
          "size cannot be scored for breadth, and an unscored rule must not read as a narrow "
          "one - which is what these exist to prevent.",
-         title="Coverage", subject=COVERAGE_SUBJECT),
+         title="Coverage", subject=COVERAGE_SUBJECT,
+         # An address object hangs off an enforcement point or an appliance group, never a
+         # single appliance - the same reason COVERAGE_SUBJECT reads "Where" instead of an
+         # Appliance column. Both defaults here are appliance-scoped and neither applies, which
+         # is what broke this tab and the coverage findings page: `appliance_of` reads
+         # `s.appliance` and the select_related walks `appliance__appliance_group`.
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance_group",
+                                 "enforcement_point__appliance", "appliance_group",
+                                 "source_snapshot"),
+         value_readers={"referenced_by_policy": REFERENCED_BY_POLICY},
+         # The reverse accessors on AddressObject, which are NOT the names a rule uses for the
+         # same tables - a rule has `source_address_refs`, an address object has
+         # `securityrulesourceaddressref_set`. Prefetching so the Referenced column does not
+         # cost a query per row.
+         subject_prefetch=("securityrulesourceaddressref_set",
+                           "securityruledestinationaddressref_set")),
     spec(T.LOGIN_BANNER,
          "The banner shown before an administrator logs in, and whether they must acknowledge it."),
     spec(T.MASTER_KEY,

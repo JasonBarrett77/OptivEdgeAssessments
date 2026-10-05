@@ -350,3 +350,129 @@ class FiringConditionTests(TestCase):
             control, {"field": "name", "op": "sounds_like", "value": "x"})
 
         self.assertEqual(rendered, "name sounds_like x")
+
+
+class EveryDomainDrawsWithTheWholeCatalogTests(TestCase):
+    """Every findings domain, with every control the catalog ships, on an empty estate.
+
+    Two bugs got through the suite and onto the running app on 2026-10-05, both because no test
+    combined those three things:
+
+    * PAN-POL-002 tests `source_breadth_known`, a SEARCH field with no column behind it, and
+      `build_findings_table` refuses a tested field the subject model can neither store nor
+      compute - "A value held on related rows needs a value_reader on the sheet". 588 tests
+      passed because each control test seeds only its own control, so nothing ever built the
+      security-rules table with PAN-POL-002 present.
+    * The Coverage tab inherited the appliance-scoped `subject_select_related` default, and its
+      subject is an address object, which has no `appliance`. `test_coverage_controls` proved
+      the findings GENERATE; nothing drew them.
+
+    Neither needs a finding, an appliance or a snapshot - the field check iterates controls, and
+    `select_related` is validated when the SQL is compiled, so an empty database raises both.
+    That is what makes this test cheap enough to cover all of it.
+    """
+
+    def setUp(self):
+        from assessments.tests._seed import seed_control, seed_specs
+        self.seeded = [seed_control(spec) for spec in seed_specs().values()]
+        self._build_subjects()
+
+    def _build_subjects(self):
+        """One subject for each of the two domains whose presentation was broken, because an
+        EMPTY estate does not exercise the same code.
+
+        Django skips `prefetch_related` entirely when a queryset returns no rows, so the
+        Coverage tab's prefetch named two relations that do not exist on AddressObject - a
+        rule has `source_address_refs`, an address object has
+        `securityrulesourceaddressref_set` - and an empty-database test passed anyway. It was
+        caught by rendering against the lab. These subjects put the rows back.
+        """
+        from optivedge_integrations.integrations.models import (
+            AddressObject,
+            EnforcementNode,
+            EnforcementPoint,
+            SecurityRule,
+            SecurityRuleSourceAddressRef,
+        )
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.domains")
+        group = ApplianceGroup.objects.create(
+            management_station=station, name="g-domains",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        appliance = Appliance.objects.create(
+            management_station=station, appliance_group=group,
+            serial_number="S-domains", hostname="fw-domains")
+        point = EnforcementPoint.objects.create(
+            management_station=station, appliance_group=group,
+            vsys_name="vsys1", vsys_display_name="vsys1")
+        snapshot = Snapshot.objects.create(
+            management_station=station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        # Every enforcement point is shown on the Enforcement Points tab THROUGH a node, and
+        # that tab refuses to build if one would vanish. A fixture without this is incomplete
+        # rather than minimal.
+        EnforcementNode.objects.create(
+            management_station=station, appliance=appliance, enforcement_point=point)
+
+        # PAN-POL-002: an allow rule broad enough to land in the critical band.
+        rule = SecurityRule.objects.create(
+            management_station=station, enforcement_point=point, source_snapshot=snapshot,
+            config_source=SecurityRule.SOURCE_LOCAL, effective_order=1, rule_position=1,
+            name="rule-domains", action="allow", rule_type="universal",
+            source_num_hosts=4_294_967_296, destination_num_hosts=None)
+        # PAN-COV-001: an EDL a rule references and nothing ever collected.
+        edl = AddressObject.objects.create(
+            management_station=station, enforcement_point=point, source_snapshot=snapshot,
+            config_source=SecurityRule.SOURCE_LOCAL, name="edl-domains",
+            namespace_type="local_vsys", namespace_value="vsys1", precedence_rank=10,
+            address_type=AddressObject.TYPE_EDL, is_edl=True, edl_list_type="ip",
+            value="ip", normalized_value="ip")
+        SecurityRuleSourceAddressRef.objects.create(
+            security_rule=rule, raw_value=edl.name, position=0,
+            ref_type=SecurityRuleSourceAddressRef.RefType.ADDRESS_OBJECT, address_object=edl)
+        regenerate_findings()
+
+    def test_the_two_domains_this_exists_for_actually_have_rows(self):
+        """Guards the sweep below: without rows it degrades to the empty-estate check that
+        already let a prefetch bug through."""
+        from assessments.artifacts import ALL_TESTED_COLUMNS, build_findings_table
+        from assessments.artifacts.domains import DOMAINS
+
+        by_slug = {domain.slug: domain for domain in DOMAINS}
+        for slug in ("security-rules", "coverage"):
+            with self.subTest(domain=slug):
+                table = build_findings_table(by_slug[slug].spec, tested=ALL_TESTED_COLUMNS)
+                self.assertTrue(table.rows, f"{slug} rendered no rows")
+
+    def test_the_controls_that_broke_it_are_actually_seeded(self):
+        """Guards the tests below rather than the product. A seeder that produced nothing, or
+        skipped a control type, would make them pass over an empty loop - so this names the
+        three controls whose presence is the whole point rather than asserting a row count.
+        """
+        seeded = {control.control_id for control in self.seeded}
+        for control_id in ("PAN-POL-002", "PAN-COV-001", "PAN-COV-002"):
+            self.assertIn(control_id, seeded)
+        self.assertGreater(len(seeded), 60, "the shipped catalog should hold dozens of controls")
+
+    def test_every_domain_builds_its_findings_table(self):
+        from assessments.artifacts import ALL_TESTED_COLUMNS, build_findings_table
+        from assessments.artifacts.domains import DOMAINS
+
+        self.assertTrue(DOMAINS)
+        for domain in DOMAINS:
+            with self.subTest(domain=domain.slug):
+                build_findings_table(domain.spec, tested=ALL_TESTED_COLUMNS)
+
+    def test_every_domain_builds_the_way_the_workbook_asks_for_it(self):
+        """The pages pass `tested=ALL_TESTED_COLUMNS` and the workbook takes the spec's own
+        columns, so the two surfaces do not exercise the same code."""
+        from assessments.artifacts import build_findings_table
+        from assessments.artifacts.domains import DOMAINS
+
+        for domain in DOMAINS:
+            with self.subTest(domain=domain.slug):
+                build_findings_table(domain.spec)
+
+    def test_the_whole_workbook_builds_with_every_control_active(self):
+        content, _reports = build_workbook()
+        self.assertTrue(content)

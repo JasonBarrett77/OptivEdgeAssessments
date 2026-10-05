@@ -27,6 +27,7 @@ from django.urls import reverse
 from assessments import configuration_navigation as config_nav
 from assessments.security_rule_queries import build_security_rule_display_queryset
 from optivedge_integrations.integrations.presentation import (
+    address_breadth_label,
     entry_device_group_name,
     listed_address_ref_values,
     listed_member_values,
@@ -167,20 +168,7 @@ def _addresses(rule, related_name, negated, num_hosts):
     above it; that is what the rule permits.
     """
     values = listed_address_ref_values(rule, related_name)
-    return _lines((["NOT"] if negated else []) + values + [_breadth(num_hosts)])
-
-
-def _breadth(num_hosts):
-    """One side's address breadth. `Unknown` is NOT `0`.
-
-    A side is unmeasurable when it names a dynamic address group or a region, or an EDL/FQDN
-    with no resolved content or content truncated at the collection ceiling. Printing 0 there
-    would make the rule nobody could measure read as the tightest rule on the page, which is
-    the one reading this column must never produce.
-    """
-    if num_hosts is None:
-        return "(Unknown addresses)"
-    return f"({num_hosts:,} address{'' if num_hosts == 1 else 'es'})"
+    return _lines((["NOT"] if negated else []) + values + [address_breadth_label(num_hosts)])
 
 
 def _logged(value):

@@ -28,6 +28,8 @@ from __future__ import annotations
 from assessments.models import Control
 
 from . import findings as findings_sheet
+from optivedge_integrations.integrations.presentation import address_breadth_label
+
 from ..layout import NONE, SheetInfo, appliance_names
 
 def joined(rows, attribute="value") -> str:
@@ -41,6 +43,20 @@ def joined(rows, attribute="value") -> str:
     security rule it is usually `any` written another way.
     """
     return "\n".join(str(getattr(row, attribute)) for row in rows) or "(empty)"
+
+
+def with_breadth(members: str, num_hosts) -> str:
+    """Member names, then how much address space they come to - PAN-POL-002's subject.
+
+    In this cell rather than a column of its own because the names and their size are one fact:
+    a list of names says nothing about how much space it covers, and one name can be a /8. The
+    same line appears on the configuration explorer's rule rows, from the same helper.
+
+    On a NEGATED side the number is the size of the complement, so it is deliberately the one
+    line here that does not describe the names above it. That is what the rule permits, and
+    `raw_value` keeps the "NOT" implicit in the control's own Fires when cell.
+    """
+    return f"{members}\n{address_breadth_label(num_hosts)}"
 
 
 #: A rule's services live on `SecurityRuleService` rows, in configured order.
@@ -57,10 +73,12 @@ SERVICE_READER = findings_sheet.ValueReader(
 #: is what an engineer reads in the UI and searches the configuration for. What each reference
 #: resolves to is a question for the objects domain, not for this cell.
 SOURCES_READER = findings_sheet.ValueReader(
-    read=lambda rule: joined(rule.source_address_refs.all(), "raw_value"),
+    read=lambda rule: with_breadth(
+        joined(rule.source_address_refs.all(), "raw_value"), rule.source_num_hosts),
 )
 DESTINATIONS_READER = findings_sheet.ValueReader(
-    read=lambda rule: joined(rule.destination_address_refs.all(), "raw_value"),
+    read=lambda rule: with_breadth(
+        joined(rule.destination_address_refs.all(), "raw_value"), rule.destination_num_hosts),
 )
 APPLICATIONS_READER = findings_sheet.ValueReader(
     read=lambda rule: joined(rule.securityruleapplications.all()),
@@ -167,7 +185,16 @@ SPEC = findings_sheet.DeviceSettingSheet(
     #: already say. A control testing a field with no column will need it back.
     tested_columns=(),
     hidden_fields=("config_source", "action", "service", "source_address", "destination_address",
-                   "application"),
+                   "application",
+                   # PAN-POL-002. The Sources and Destinations columns carry both the members and
+                   # the side's host count, so a column per breadth field would repeat them -
+                   # and `*_breadth_known` is the same fact as the count being Unknown.
+                   "source_num_hosts", "destination_num_hosts",
+                   "source_breadth_known", "destination_breadth_known",
+                   # A SCOPE condition rather than an observation: PAN-POL-002 excludes disabled
+                   # rules, so every row on this sheet is an enabled rule by construction. The
+                   # Fires when cell states it on the surfaces that carry that block.
+                   "disabled"),
     #: A rule belongs to a vsys, not to one appliance: nothing to link to on the Appliances tab.
     appliance_of=lambda rule: None,
     subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance",
