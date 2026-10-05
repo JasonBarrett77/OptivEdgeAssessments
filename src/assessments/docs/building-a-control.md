@@ -106,9 +106,7 @@ every firewall by re-reading config rather than trusting job status.
 
 > **First, because everything after it depends on the answer.** Which control this is decides
 > which configuration is worth reading, which object gets modelled and what the query has to
-> assert. Until 2026-10-05 this sat in phase 3, after the configuration had been understood and
-> the model built - which is the wrong way round, and was made worse by a restructure that
-> moved it there from the end of phase 1 on thematic grounds rather than sequential ones.
+> assert.
 
 - [ ] **Search the corpus for the CONCEPT before allocating a new id.** The allocation rule
       guards against id collisions — next free number, check both files — and says nothing
@@ -473,8 +471,8 @@ every firewall by re-reading config rather than trusting job status.
 
 ### A new column on an existing model
 
-> Here rather than in phase 6, where it sat until 2026-10-05. The hazard is designed around at
-> the moment the column is CREATED: meeting it at landing means rewriting the migration.
+> The hazard is designed around at the moment the column is CREATED. Meeting it at landing
+> means rewriting the migration.
 
 - **A control reading a NEW derived column reports a CLEAN ESTATE until the data is
       re-normalized.** `→ control-changes.json` A migration creates the column; only normalization
@@ -954,8 +952,6 @@ every firewall by re-reading config rather than trusting job status.
 > What genuinely belongs here, after the control exists, is **Making the control fire** and
 > **What to leave behind**. Read those two when the control is built; read the rest when you
 > are still measuring.
->
-> It stays one phase because the heading earns its place by being the thing people skip.
 
 ### Designing an experiment that can fail
 
