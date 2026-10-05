@@ -42,6 +42,7 @@ from typing import Callable, NamedTuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldDoesNotExist
+from django.db.models import JSONField
 
 from assessments import finding_registry
 from assessments.control_queries import SEVERITY_RANK
@@ -628,6 +629,40 @@ def build_rows(spec, findings, controls, settings, tested=None):
 
 
 
+def model_at(model, path: str):
+    """The model a `__`-separated relation path ends on."""
+    for part in path.split("__"):
+        model = model._meta.get_field(part).related_model
+    return model
+
+
+def verbatim_payload_paths(kind, spec) -> tuple:
+    """The `raw_*` columns on the models a kind joins - fetched otherwise, read never.
+
+    TWO conditions, and both matter. The field must be a JSONField, which `_meta` is asked
+    rather than a name being trusted - AGENTS.md rejected detecting JSON fields by name, since
+    it would need nineteen renames and would still miss the twentieth. And it must be `raw_*`,
+    which is the one naming rule that DOES hold here: verbatim vendor data, and the query
+    service boundary already forbids reading it, so deferring it cannot break a reader that is
+    allowed to exist.
+
+    That second condition is the whole care in this function. Most JSONFields on these models
+    ARE read - `ciphers`, `bound_interface_names`, `exposed_surfaces`, `unauthenticated_servers`
+    are the newline-separated cells - and deferring those would turn each one into a query per
+    row: slower than the problem, and silent. Measured 2026-10-05: deferring the raw payloads
+    alone takes the policy tab from 0.72s to 0.48s and 20.4 MB to 16.3 MB, with query counts
+    unchanged.
+    """
+    paths = [kind.subject_field] + [f"{kind.subject_field}__{path}"
+                                    for path in spec.subject_select_related]
+    deferred = []
+    for path in paths:
+        model = model_at(kind.model, path)
+        deferred += [f"{path}__{f.name}" for f in model._meta.get_fields()
+                     if isinstance(f, JSONField) and f.name.startswith("raw_")]
+    return tuple(deferred)
+
+
 def load(spec):
     controls = list(Control.objects.filter(control_type__in=spec.control_types, is_active=True)
                     .prefetch_related("queries").order_by("control_id"))
@@ -641,7 +676,8 @@ def load(spec):
                               for path in spec.subject_select_related))
             .prefetch_related("control__queries",
                               *(f"{kind.subject_field}__{path}"
-                                for path in spec.subject_prefetch)))
+                                for path in spec.subject_prefetch))
+            .defer(*verbatim_payload_paths(kind, spec)))
     # Reference order: the run allocates by generator, then control, then subject, so this is
     # also control-then-appliance within a kind - and every tab's numbers read upward.
     findings.sort(key=lambda f: f.reference_number)

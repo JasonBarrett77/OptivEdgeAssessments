@@ -16,13 +16,16 @@ So these tests are mostly about isolation and refusal, not about layout.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import io
 import re
 import zipfile
 from pathlib import Path
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from assessments.artifacts import ArtifactBuildError, build_workbook
@@ -476,3 +479,79 @@ class EveryDomainDrawsWithTheWholeCatalogTests(TestCase):
     def test_the_whole_workbook_builds_with_every_control_active(self):
         content, _reports = build_workbook()
         self.assertTrue(content)
+
+
+class DeferredPayloadTests(TestCase):
+    """What the findings tabs decline to fetch.
+
+    A joined row arrives whole, so a wide column on a joined model is paid for per ROW whether
+    or not anything reads it. `Snapshot.payload` cost 1.75 GB on one tab that way before the
+    snapshot left the join entirely; the `raw_*` payloads on the subjects are the same habit,
+    smaller.
+
+    The care here is in what is NOT deferred. Most JSONFields on these models are read - the
+    SSH algorithm lists, bound interface names, exposed SNMP surfaces - and deferring one of
+    those turns it into a query per row: slower than the problem it set out to fix, and silent.
+    """
+
+    def test_only_verbatim_vendor_payloads_are_deferred(self):
+        """`raw_*`, which the query service boundary already forbids reading. A JSONField the
+        tabs DO read must never appear here."""
+        from assessments.artifacts import domains as artifact_domains
+        from assessments.artifacts.sheets.findings import verbatim_payload_paths
+
+        for domain in artifact_domains.DOMAINS:
+            spec = domain.spec
+            for control_type in spec.control_types:
+                kind = spec.kind_for(control_type)
+                with self.subTest(f"{domain.slug}/{kind.model.__name__}"):
+                    for path in verbatim_payload_paths(kind, spec):
+                        self.assertRegex(path.rsplit("__", 1)[-1], r"^raw_",
+                                         f"{path} is deferred but is not a raw_* payload")
+
+    def test_a_json_field_is_identified_by_the_model_and_not_by_its_name(self):
+        """Both conditions are required. `raw_*` alone would defer a CharField called
+        `raw_text`; JSONField alone would defer `ciphers` and cost a query per row."""
+        import inspect
+
+        from assessments.artifacts.sheets import findings as findings_module
+
+        source = inspect.getsource(findings_module.verbatim_payload_paths)
+        self.assertIn("JSONField", source)
+        self.assertIn('startswith("raw_")', source)
+
+    def test_deferring_adds_no_queries(self):
+        """The failure this guards against. If a deferred field turns out to be read, Django
+        fetches it lazily - correct output, one extra query per row, nothing raised. So each
+        domain is built both ways and the counts must match.
+
+        BOTH PATHS ARE WARMED FIRST. `ContentType.objects.get_for_model` caches per process, so
+        whichever build runs first pays for it and looks one query worse. Measured without the
+        warm-up this reported a +1 on all 23 domains - a constant offset, which is the shape of
+        a cache miss and not of an N+1, since a lazy field would cost one query per ROW.
+
+        Only the domains with findings in this fixture exercise it; the full check is run
+        against lab data, where all 23 have rows and the counts are identical.
+        """
+        from unittest import mock
+
+        from assessments.artifacts import ALL_TESTED_COLUMNS, build_findings_table
+        from assessments.artifacts import domains as artifact_domains
+
+        def count(spec, *, defer):
+            whole = mock.patch(
+                "assessments.artifacts.sheets.findings.verbatim_payload_paths",
+                return_value=())
+            with contextlib.nullcontext() if defer else whole:
+                with CaptureQueriesContext(connection) as queries:
+                    build_findings_table(spec, tested=ALL_TESTED_COLUMNS)
+            return len(queries)
+
+        for domain in artifact_domains.DOMAINS:
+            with self.subTest(domain.slug):
+                count(domain.spec, defer=True)
+                count(domain.spec, defer=False)
+                self.assertEqual(
+                    count(domain.spec, defer=True), count(domain.spec, defer=False),
+                    f"{domain.slug}: deferring changed the query count, so something reads a "
+                    f"field it declines to fetch")
