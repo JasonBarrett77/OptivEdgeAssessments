@@ -256,6 +256,29 @@ every firewall by re-reading config rather than trusting job status.
       one the control needed. Settling absence took a fourth step: write the key-less object by
       API and have a person open THAT in the UI.*
 
+- [ ] **When the cheaper oracles are exhausted, ASK.** A screenshot of an unconfigured form, or
+      a login attempt, is usually faster than inference and is sometimes the ONLY oracle there
+      is. Say which object, which screen, and what state it has to be in - an object written
+      WITHOUT the key, not a fresh Add form, when absence is the question.
+
+      **The reason it is sometimes the only oracle: a default is not IN the configuration.** A
+      config read records what was SET. What the device does when nothing was set is behaviour,
+      not data, and it appears in no read - not merged, not running, not effective - UNLESS a
+      central manager explicitly wrote the value, and then what you are reading is Panorama's
+      choice rather than the vendor's default. The device's own rendering is where the vendor's
+      default becomes visible, and on a Panorama-managed estate it may be the only place it
+      ever is.
+
+      *The two log flags, measured 2026-09-22 on pan-fw-111. A shared rule was pushed carrying
+      NEITHER key, and its absence was confirmed in Panorama's running and candidate configs, in
+      the device's pushed-shared-policy and in effective-running - four reads agreeing the key
+      is not there, and not one of them saying what that means. The device's own UI rendered
+      "Log at Session End" TICKED and "Log at Session Start" unticked: log-end absent is YES,
+      log-start absent is NO, two keys on one screen defaulting opposite ways. PAN-POL-009 turns
+      on it, and reading log-end as "no" would have reported ten correctly-logging rules as
+      unlogged. It was measured because Jason opened the screen; nothing else could have
+      answered it.*
+
 
 ### Completion semantics — what `action=complete` can and cannot say
 
