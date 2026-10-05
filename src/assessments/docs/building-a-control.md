@@ -548,13 +548,11 @@ every firewall by re-reading config rather than trusting job status.
       and `confirmed_vxpath`; the how-to is in the generator's docstring.
 
       **An empty completion result is NOT disproof, and this is the part that will mislead you.**
-      Completions are ELIGIBILITY-FILTERED: they are the values valid *there* on *that device*,
-      not every instance of the type. *One authentication-profile field returned four values,
-      another returned one, and a third returned none — on the same device, purely by method
-      eligibility, and the empty one was a perfectly real reference field.* A different device
-      answers differently. Never downgrade a row because a completion came back empty, and never
-      build a reference map by asking "does completing this return the type" — that makes a
-      schema fact into an inventory fact.
+      Completions are eligibility-filtered — *On a reference field, completions are
+      ELIGIBILITY-FILTERED*, in phase 1, has what that means and the measurement behind it.
+      Here it has one consequence: never downgrade a row because a completion came back empty,
+      and never build a reference map by asking "does completing this return the type" — that
+      makes a schema fact into an inventory fact.
 
 
 ## 3. Assess it — the control
@@ -1280,6 +1278,25 @@ every firewall by re-reading config rather than trusting job status.
 
 
 ## 6. Land it
+
+
+### Re-read what you assumed
+
+> Not new checks - earlier ones re-run against what actually shipped. By now phase 0 and phase 1
+> are a long way behind, and the most recent thing you did reads as the most authoritative.
+
+- [ ] **Re-read the control's description against its FINAL query.** *Check the control's own
+      TITLE against what the query actually asserts* runs in phase 3, before severity queries
+      and clause refinements land. The gap it names is invisible while every subject happens to
+      agree, and the one instance of it was caught by a person reading the description.
+- [ ] **Re-read the payload contract entry you started from.** `→ payload contract` Phase 0
+      sends you to it and nothing sends you back. A build routinely establishes something the
+      entry should now carry, and the discovery log records NEW facts rather than corrections
+      to the entry you relied on.
+- [ ] **Re-check which `Implicit` the control's fields rest on**, with `provenance_for(field)`
+      on the subject you now have, which is the real one rather than the one you reasoned about.
+      14 of the 33 defaulted sites are still `assumed`, so a control can rest on one without
+      anyone having decided that it should.
 
 
 ### Record it
