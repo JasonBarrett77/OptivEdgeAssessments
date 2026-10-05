@@ -46,12 +46,58 @@ from django.core.exceptions import FieldDoesNotExist
 from assessments import finding_registry
 from assessments.control_queries import SEVERITY_RANK
 from assessments.models import Control
-from optivedge_integrations.integrations.models import Appliance, FieldProvenance
+from optivedge_integrations.integrations.models import Appliance, FieldProvenance, Snapshot
 
 from ..layout import (
     NONE, SEVERITY_FILL, SheetInfo, TAB_COLOURS, category_of, ha_role, plural, severity_group, utc, write_header_block, write_link,
     write_table)
 from ..errors import ArtifactBuildError
+
+#: What the Config collected column says for a finding with no snapshot recorded - a run that
+#: predates `FindingBase.snapshot`, which fills itself on the next run.
+NOT_RECORDED = "Not recorded"
+
+
+def collected_at_by_snapshot(findings) -> dict:
+    """{snapshot_id: collected_at} for the configuration a set of findings was computed from.
+
+    ONE small query, keyed off `FindingBase.snapshot_id` - a column on finding rows that are
+    already loaded - so the snapshot table is never joined and `Snapshot.payload` is never
+    selected. That is the whole point of it.
+
+    This replaced `select_related("source_snapshot")` on every spec, which read the same
+    timestamp through the subject. `select_related` is a JOIN, so the payload came back once
+    per ROW: 511 rule findings pointing at 8 snapshots fetched 210 MB of JSON text and decoded
+    it into 1.75 GB of Python objects, to render 8 distinct dates. Measured 2026-10-05 at
+    12.90s for that one tab.
+
+    Reading it from the finding rather than the subject is also the honest answer - see
+    `FindingBase.snapshot`. The subject's `source_snapshot` says what that object is CURRENTLY
+    parsed from, which is a different question once anything has been re-collected.
+    """
+    ids = {f.snapshot_id for f in findings if f.snapshot_id is not None}
+    if not ids:
+        return {}
+    return dict(Snapshot.objects.filter(pk__in=ids).values_list("pk", "collected_at"))
+
+
+def collected_text(finding, collected) -> str:
+    """The Config collected cell: the run's own answer, or NOT_RECORDED."""
+    when = collected.get(finding.snapshot_id)
+    return utc(when) if when else NOT_RECORDED
+
+
+def newest_collection(findings, collected) -> str:
+    """The Config collected cell for a row that folds SEVERAL findings into one.
+
+    The newest, because the row is a single fix and the reader wants to know how current the
+    most recently seen copy was. A row whose findings all predate the field reads NOT_RECORDED
+    rather than claiming a date it does not have.
+    """
+    dates = [collected[f.snapshot_id] for f in findings
+             if collected.get(f.snapshot_id) is not None]
+    return utc(max(dates)) if dates else NOT_RECORDED
+
 
 class ValueReader(NamedTuple):
     """How to read a tested field that is not a column on the subject.
@@ -126,7 +172,12 @@ class DeviceSettingSheet:
     #: What to fetch with the findings, relative to the subject. The defaults suit a settings row
     #: reached through its appliance; a sheet whose subject columns walk somewhere else says so,
     #: rather than paying a query per row for it.
-    subject_select_related: tuple = ("appliance__appliance_group", "source_snapshot")
+    #:
+    #: `source_snapshot` was here, and in two specs that name their own, purely so the Config
+    #: collected column could read one timestamp. A joined snapshot brings its `payload` with
+    #: it, once per row - see `collected_at_by_snapshot`. Nothing walks to the snapshot now, and
+    #: nothing should: the date comes from the FINDING.
+    subject_select_related: tuple = ("appliance__appliance_group",)
     subject_prefetch: tuple = ()
     #: The columns after Provenance saying WHERE a pushed value came from. The default names the
     #: template per tested field. A sheet whose subjects are pushed as a unit says it once instead
@@ -495,6 +546,9 @@ def build_rows(spec, findings, controls, settings, tested=None):
                             spec.value_readers)
         for c in controls}
     columns = columns_for(spec, settings, tested)
+    #: Seeded once per build from the distinct snapshots these findings name, the way
+    #: `AssessmentRun.next_reference_number` seeds its counter once per run.
+    collected = collected_at_by_snapshot(findings)
     #: (row index, column index) of every cell holding a value the row's control tests.
     implicated = []
 
@@ -548,7 +602,6 @@ def build_rows(spec, findings, controls, settings, tested=None):
             if column[4] in tested_names:
                 implicated.append((row_index, offset + i))
 
-        snapshot = policy.source_snapshot
         rows.append([
             # The app's own identifier (FindingBase.reference), so a row here and the same
             # finding anywhere else in the app carry one name.
@@ -563,7 +616,7 @@ def build_rows(spec, findings, controls, settings, tested=None):
             *source_cells,
             *setting_cells,
             "\n".join(finding.matched_query_names) or NONE,
-            utc(snapshot.collected_at),
+            collected_text(finding, collected),
         ])
     assert all(len(r) == len(columns) for r in rows), "row/column mismatch"
     return rows, implicated

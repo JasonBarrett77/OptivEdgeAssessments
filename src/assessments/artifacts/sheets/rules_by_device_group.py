@@ -33,7 +33,8 @@ from ..layout import (
     NONE, SEVERITY_FILL, SheetInfo, TAB_COLOURS, plural, severity_group, utc, write_header_block,
     write_table)
 from .enforcement_points import natural_key
-from .findings import implicated_format, load, provenance_index, tested_fields
+from .findings import (collected_at_by_snapshot, implicated_format, load, newest_collection,
+                       provenance_index, tested_fields)
 from ..errors import ArtifactBuildError
 
 TITLE = "Rules by Device Group"
@@ -126,6 +127,9 @@ def write_sheet(build) -> SheetInfo:
 
     rules_by_finding = {f: spec.kind_for(f.control.control_type).subject_of(f) for f in findings}
     provenance = provenance_index(set(rules_by_finding.values()))
+    #: Same map the findings tabs use, and for the same reason: this column read the date off
+    #: `rule.source_snapshot`, which brought the snapshot's payload back once per rule.
+    collected = collected_at_by_snapshot(findings)
 
     def device_group_of(rule):
         from django.contrib.contenttypes.models import ContentType
@@ -176,7 +180,7 @@ def write_sheet(build) -> SheetInfo:
             values["Application"],
             values["Action"],
             notes_for(members, values),
-            max(utc(rule.source_snapshot.collected_at) for rule in rules),
+            newest_collection(group_findings, collected),
         ])
     assert all(len(r) == len(COLUMNS) for r in rows), "row/column mismatch"
 

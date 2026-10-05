@@ -197,8 +197,7 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    "disabled"),
     #: A rule belongs to a vsys, not to one appliance: nothing to link to on the Appliances tab.
     appliance_of=lambda rule: None,
-    subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance",
-                            "source_snapshot"),
+    subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance"),
     #: The service members every row reads, and the HA pair the Firewalls column lists.
     subject_prefetch=("securityruleservices", "securityruleapplications",
                       "source_address_refs", "destination_address_refs",

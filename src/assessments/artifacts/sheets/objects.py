@@ -152,8 +152,7 @@ SPECS = (
          # `s.appliance` and the select_related walks `appliance__appliance_group`.
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
-                                 "enforcement_point__appliance", "appliance_group",
-                                 "source_snapshot"),
+                                 "enforcement_point__appliance", "appliance_group"),
          value_readers={"referenced_by_policy": REFERENCED_BY_POLICY},
          # The reverse accessors on AddressObject, which are NOT the names a rule uses for the
          # same tables - a rule has `source_address_refs`, an address object has
@@ -235,8 +234,7 @@ SPECS = (
          subject=VSYS_SCOPED + KIND + NAME,
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
-                                 "enforcement_point__appliance", "appliance_group",
-                                 "source_snapshot"),
+                                 "enforcement_point__appliance", "appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances",)),
     spec(T.ADMIN_USER,
          "The administrator accounts on each firewall: what each may do, and what it authenticates "
