@@ -80,7 +80,20 @@ class ManagementSshControlTests(TestCase):
         self.assertIn("chacha20-poly1305@openssh.com", found["PAN-MCR-001"].summary)
         self.assertIn("hmac-sha1", found["PAN-MCR-003"].summary)
         self.assertIn("the device default", found["PAN-MCR-003"].summary)
-        self.assertIn("RSA 2048 host key", found["PAN-MCR-004"].summary)
+        # The TRAP, said once per finding rather than per list. Jason, 2026-10-06: the point is
+        # "the fact that no explicit values are set, and the default values are known to be weak
+        # on even modern versions of software" - so the sentence has to rule out upgrading as the
+        # fix, which a reader shown only "offers hmac-sha1" would reasonably reach for.
+        for control_id in ("PAN-MCR-001", "PAN-MCR-002", "PAN-MCR-003"):
+            with self.subTest(control_id):
+                summary = found[control_id].summary
+                self.assertIn("weak on current PAN-OS", summary)
+                self.assertIn("not by upgrading", summary)
+        # No key type is configured, so the finding says that rather than naming RSA 2048 - a
+        # value normalization inferred and 2026-09-14 measured unreliable on a device ever set
+        # to `all`.
+        self.assertIn("no host key type configured", found["PAN-MCR-004"].summary)
+        self.assertNotIn("RSA 2048", found["PAN-MCR-004"].summary)
 
     def test_a_ciphers_only_profile_leaves_every_other_list_at_the_default(self):
         """tpa-a's shape: the unset MAC list is the default, not empty. Only 001 is answered."""

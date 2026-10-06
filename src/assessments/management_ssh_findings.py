@@ -70,13 +70,30 @@ def _subject(obj) -> str:
     # report; `all` does, because it serves an RSA key alongside the ECDSA ones.
     if obj.host_key_type.lower() == "all":
         parts.append("host key type All - an RSA key served alongside every ECDSA curve")
-    elif obj.host_key_type.upper() != "ECDSA" or obj.host_key_bits < 256:
+    elif not obj.host_key_type:
+        # Integrations stores absent rather than RSA 2048 since 2026-10-06: the vendor default is
+        # measured unreliable on a device ever set to `all`, whose generated ECDSA keys survive
+        # the setting being deleted. So the finding reports the absence, which is what the
+        # configuration actually shows - and is the more actionable statement anyway.
+        parts.append("no host key type configured, so what the server presents is unestablished "
+                     "and likely an RSA key below the preferred ECDSA 256")
+    elif obj.host_key_type.upper() != "ECDSA" or (obj.host_key_bits or 0) < 256:
         parts.append(f"a {obj.host_key_type} {obj.host_key_bits} host key (preferred: ECDSA 256)"
                      + ("" if obj.profile_found else ", the device default"))
     if not obj.rekey_interval_seconds:
         parts.append("no time-based rekey interval")
-    if not obj.defaults_measured and (obj.ciphers_default or obj.macs_default or obj.kex_default):
-        parts.append("the device default offer is unmeasured for this PAN-OS version")
+    if obj.ciphers_default or obj.macs_default or obj.kex_default:
+        # Said ONCE, not per list, and said at all because the sentence otherwise reports a weak
+        # algorithm without the reason it is there. Jason, 2026-10-06: the trap is "the fact that
+        # no explicit values are set, and the default values are known to be weak on even modern
+        # versions of software" - so a fully patched estate can be offering SHA-1 with nothing
+        # misconfigured anywhere, and upgrading will not change it.
+        if obj.defaults_measured:
+            parts.append("these are the device's own defaults, which are weak on current PAN-OS "
+                         "as measured on this release - inherited rather than misconfigured, and "
+                         "fixed by setting explicit algorithms, not by upgrading")
+        else:
+            parts.append("the device default offer is unmeasured for this PAN-OS version")
     subject = "; ".join(parts)
     if obj.profile_name:
         subject += f". {RESTART_CAVEAT}"
