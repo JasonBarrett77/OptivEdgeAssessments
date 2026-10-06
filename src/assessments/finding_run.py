@@ -15,6 +15,7 @@ asking, not about how many models back the answer.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.utils import timezone
 
@@ -107,12 +108,51 @@ class FindingRunResult:
     by_kind: dict
 
 
-def regenerate_findings() -> FindingRunResult:
-    assessment_run = AssessmentRun.objects.create(
+def summarise_run(controls, findings, links, skipped) -> str:
+    """One sentence, led by the thing most easily missed."""
+    summary = (f"Controls: {controls}. Findings: {findings}. Query links: {links}. "
+               f"Skipped queries: {skipped}.")
+    if skipped:
+        summary = (f"Attention: {skipped} quer{'y' if skipped == 1 else 'ies'} could not be "
+                   f"compiled, so the control{'' if skipped == 1 else 's'} using "
+                   f"{'it' if skipped == 1 else 'them'} contributed nothing. " + summary)
+    return summary
+
+
+def open_findings_run() -> AssessmentRun:
+    """The run row, RUNNING, before any generator touches it.
+
+    Separated from `regenerate_findings` so a view can open it inside the REQUEST and hand the
+    pk to a background thread. The page the browser lands on then always finds a run in
+    progress; opened on the thread, it could render before the row existed and show nothing
+    happening.
+    """
+    return AssessmentRun.objects.create(
         name=f"Findings {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
         status=AssessmentRun.Status.RUNNING,
         started_at=timezone.now(),
     )
+
+
+#: A RUNNING run younger than this blocks starting another. Older ones are taken to be orphans:
+#: the worker thread is a daemon, so a server restart mid-run kills it and leaves the row
+#: RUNNING for ever, which without an age limit would disable the button permanently. The same
+#: reasoning and the same figure as Integrations' COLLECTION_LOCK_MAX_AGE.
+FINDINGS_LOCK_MAX_AGE = timedelta(hours=2)
+
+
+def findings_run_in_progress() -> AssessmentRun | None:
+    """The findings run currently filling, or None. Orphans are ignored, not resumed."""
+    return (AssessmentRun.objects
+            .filter(status=AssessmentRun.Status.RUNNING,
+                    started_at__gte=timezone.now() - FINDINGS_LOCK_MAX_AGE)
+            .order_by("-started_at")
+            .first())
+
+
+def regenerate_findings(assessment_run: AssessmentRun | None = None) -> FindingRunResult:
+    if assessment_run is None:
+        assessment_run = open_findings_run()
     totals = [0, 0, 0, 0]
     by_kind = {}
     try:
@@ -120,15 +160,23 @@ def regenerate_findings() -> FindingRunResult:
             counts = generate(assessment_run)
             by_kind[label] = counts
             totals = [a + b for a, b in zip(totals, counts)]
-    except Exception:
+    except Exception as exc:
         # One generator failing fails the run. A partially-filled run reported as complete
         # would understate findings, which is the direction that hides problems.
         assessment_run.mark_failed()
-        assessment_run.save(update_fields=["status", "completed_at"])
+        assessment_run.notes = f"Run failed: {type(exc).__name__}: {exc}"[:2000]
+        assessment_run.save(update_fields=["status", "completed_at", "notes"])
         raise
 
     assessment_run.mark_completed()
-    assessment_run.save(update_fields=["status", "completed_at"])
+    # THE RUN REPORTS ITSELF. The outcome used to be a Django message written by the view, and
+    # the view no longer waits for the run - it starts a thread and returns. A message cannot be
+    # written from there, and the one signal that most needed carrying is the skipped-query
+    # count: a query that no longer compiles makes its control contribute nothing, which reads
+    # exactly like a clean result. So the sentence lives on the run, survives navigation, and is
+    # still there when somebody asks later what that run actually did.
+    assessment_run.notes = summarise_run(*totals)
+    assessment_run.save(update_fields=["status", "completed_at", "notes"])
     return FindingRunResult(
         assessment_run=assessment_run,
         controls_evaluated=totals[0], findings_created=totals[1],

@@ -23,13 +23,61 @@
                 <h1 class="text-sm font-semibold text-slate-900">Active Controls</h1>
                 <div class="flex items-center gap-2">
                     <a href="/assessments/findings/" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">View Findings</a>
+                    {% if findings_run %}
+                    {% comment %}
+                    Disabled rather than hidden: a button that vanishes reads as a page that
+                    broke. The view refuses a second run anyway - this says why before the
+                    click rather than after it.
+                    {% endcomment %}
+                    <button type="button" disabled
+                            class="inline-flex h-8 cursor-not-allowed items-center justify-center border border-slate-300 bg-slate-100 px-3 text-sm font-medium whitespace-nowrap text-slate-400">
+                        Running…
+                    </button>
+                    {% else %}
                     <form method="post" action="{% url 'assessment_control_run_findings' %}">
                         {% csrf_token %}
                         <button type="submit" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Run Findings</button>
                     </form>
+                    {% endif %}
                     <a href="/assessments/controls/create/" class="inline-flex h-8 items-center justify-center border border-blue-300 bg-blue-50 px-3 text-sm font-medium whitespace-nowrap text-blue-700 hover:bg-blue-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">Create</a>
                 </div>
             </div>
+            {% if findings_run %}
+            {% comment %}
+            The run is on a background thread, so this page is the only thing reporting it.
+            Reloading every five seconds is the same mechanism the management station's details
+            tab uses for a collection, and for the same reason: there is no request left to
+            report to. `data-findings-run-in-progress` is what a test can find.
+            {% endcomment %}
+            <div data-findings-run-in-progress="{{ findings_run.pk }}"
+                 class="flex items-center gap-2 border-y border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+                <span class="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-500"></span>
+                <span>
+                    Findings run in progress, started {{ findings_run.started_at|date:"H:i:s" }} UTC.
+                    This page refreshes itself until it finishes - you can browse away without
+                    stopping it.
+                </span>
+            </div>
+            <script>
+                // Only while a run is in progress: the block this sits in is not rendered
+                // otherwise, so an idle page never reloads under the reader.
+                setTimeout(function () { window.location.reload(); }, 5000);
+            </script>
+            {% endif %}
+            {% if not findings_run and latest_findings_run %}
+            {% comment %}
+            The last run's own account of itself. It carries the skipped-query count, which used
+            to be a WARNING-level Django message from the view - and the view no longer waits for
+            the run, so there is nothing to write a message from. On the run instead, it also
+            survives navigation and is still readable a day later.
+            {% endcomment %}
+            <div data-findings-run-outcome
+                 class="border-y px-4 py-2 text-sm {% if latest_findings_run.status == 'failed' %}border-red-200 bg-red-50 text-red-800{% else %}border-slate-200 bg-slate-50 text-slate-700{% endif %}">
+                <span class="font-medium">Last findings run</span>
+                <span class="text-slate-500">· {{ latest_findings_run.completed_at|date:"Y-m-d H:i" }} UTC</span>
+                — {{ latest_findings_run.notes }}
+            </div>
+            {% endif %}
             {% if messages %}
             <div class="border-y border-slate-200 bg-slate-50 px-4 py-2">
                 <div class="flex flex-col gap-2">

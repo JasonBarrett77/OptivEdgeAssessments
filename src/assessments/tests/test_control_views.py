@@ -1,4 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
+from unittest import mock
+from datetime import timedelta
+
 from django.test import TestCase
 from django.contrib import messages
 from django.contrib.messages import get_messages
@@ -6,6 +9,7 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from assessments.finding_run import FINDINGS_LOCK_MAX_AGE, regenerate_findings
 from assessments.models import (
     AssessmentRun,
     Control,
@@ -461,14 +465,17 @@ class ControlViewTests(TestCase):
         )
         self.create_security_rule()
 
-        response = self.client.post(reverse("assessment_control_run_findings"), follow=True)
+        result = regenerate_findings()
 
-        self.assertRedirects(response, reverse("assessment_control_list"))
         self.assertEqual(RuleFinding.objects.count(), 0)
-
-        message = list(get_messages(response.wsgi_request))[-1]
-        self.assertEqual(message.level, messages.WARNING)
-        self.assertIn("Skipped queries: 1.", str(message))
+        self.assertEqual(result.skipped_queries, 1)
+        # The signal moved from a WARNING-level message to the run itself when the view stopped
+        # waiting for the run: a background thread has no request to write a message from. On
+        # the run it also survives navigation, and the sentence leads with the thing most
+        # easily missed rather than burying it behind three counts.
+        notes = AssessmentRun.objects.latest("started_at").notes
+        self.assertIn("could not be compiled", notes)
+        self.assertIn("Skipped queries: 1.", notes)
 
     def test_control_run_findings_reports_success_when_nothing_was_skipped(self):
         self.control.queries.all().delete()
@@ -484,11 +491,11 @@ class ControlViewTests(TestCase):
         )
         self.create_security_rule()
 
-        response = self.client.post(reverse("assessment_control_run_findings"), follow=True)
+        regenerate_findings()
 
-        message = list(get_messages(response.wsgi_request))[-1]
-        self.assertEqual(message.level, messages.SUCCESS)
-        self.assertIn("Skipped queries: 0.", str(message))
+        notes = AssessmentRun.objects.latest("started_at").notes
+        self.assertIn("Skipped queries: 0.", notes)
+        self.assertNotIn("could not be compiled", notes)
 
     def test_control_run_findings_view_recreates_rule_findings(self):
         self.control.queries.all().delete()
@@ -530,9 +537,11 @@ class ControlViewTests(TestCase):
             control_query=baseline_query,
         )
 
-        response = self.client.post(reverse("assessment_control_run_findings"), follow=True)
+        # Called directly, which is what the view's background thread does. The POST is
+        # covered by `BackgroundFindingsRunTests`, where the thread is not actually started -
+        # a real one would use its own connection and never see this test's transaction.
+        regenerate_findings()
 
-        self.assertRedirects(response, reverse("assessment_control_list"))
         self.assertFalse(RuleFinding.objects.filter(pk=stale_finding.pk).exists())
         self.assertEqual(RuleFinding.objects.count(), 1)
 
@@ -544,7 +553,6 @@ class ControlViewTests(TestCase):
         self.assertEqual(finding.assessment_run.status, AssessmentRun.Status.COMPLETED)
         self.assertEqual(finding.control_queries.count(), 1)
         self.assertEqual(finding.control_queries.first(), baseline_query)
-        self.assertContains(response, "Findings regenerated.")
 
         # The matched query names are snapshotted onto the finding at generation time and
         # stay frozen even if the control query is renamed afterwards.
@@ -875,3 +883,93 @@ class ControlListViewNoEnvironmentTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context["current_catalog_state"])
         self.assertFalse(response.context["catalog_drifted"])
+
+
+class BackgroundFindingsRunTests(TestCase):
+    """Run Findings starts a thread and returns.
+
+    A run is 24 generators, each deleting and recreating every finding of its model, so holding
+    it in the request made the browser wait for all of it - into any proxy or server timeout,
+    and on SQLite it was the longest window for a concurrent reader to collide with the writer
+    and raise "database is locked". Jason, 2026-10-06: "make Run Findings run in the background
+    ... so that browsing away from the page doesn't interrupt Run Findings."
+
+    The thread is never actually started here. A real one opens its own database connection and
+    would not see this test's transaction, so what is asserted is the DISPATCH - a run opened,
+    a thread asked for, a redirect - and the work itself is covered by the tests that call
+    `regenerate_findings` directly.
+    """
+
+    def setUp(self):
+        self.url = reverse("assessment_control_run_findings")
+        self.list_url = reverse("assessment_control_list")
+
+    def post(self):
+        with mock.patch("assessments.views.threading.Thread") as thread:
+            response = self.client.post(self.url, follow=True)
+        return response, thread
+
+    def test_the_run_is_opened_in_the_request_not_on_the_thread(self):
+        """Opened on the thread, the page this redirects to could render before the row
+        existed - showing nothing in progress, and never refreshing."""
+        response, thread = self.post()
+
+        self.assertRedirects(response, self.list_url)
+        run = AssessmentRun.objects.get()
+        self.assertEqual(run.status, AssessmentRun.Status.RUNNING)
+        thread.assert_called_once()
+        self.assertEqual(thread.call_args.kwargs["args"], (run.pk,))
+        self.assertTrue(thread.call_args.kwargs["daemon"])
+        thread.return_value.start.assert_called_once()
+
+    def test_a_second_run_is_refused_while_one_is_in_progress(self):
+        """Two runs would interleave their delete-and-recreate writes on the same tables, and
+        the reference allocator assumes one run fills at a time."""
+        self.post()
+
+        response, thread = self.post()
+
+        thread.assert_not_called()
+        self.assertEqual(AssessmentRun.objects.count(), 1)
+        self.assertIn("already in progress",
+                      str(list(get_messages(response.wsgi_request))[-1]))
+
+    def test_an_orphaned_run_does_not_disable_the_button_for_ever(self):
+        """The worker is a daemon, so a server restart mid-run kills it and leaves the row
+        RUNNING. Without an age limit that would refuse every later run."""
+        self.post()
+        AssessmentRun.objects.update(
+            started_at=timezone.now() - FINDINGS_LOCK_MAX_AGE - timedelta(minutes=1))
+
+        _response, thread = self.post()
+
+        thread.assert_called_once()
+        self.assertEqual(AssessmentRun.objects.count(), 2)
+
+    def test_the_page_reports_the_run_and_refreshes_itself(self):
+        self.post()
+
+        response = self.client.get(self.list_url)
+
+        self.assertContains(response, "data-findings-run-in-progress")
+        self.assertContains(response, "window.location.reload()")
+        self.assertContains(response, "you can browse away without")
+
+    def test_an_idle_page_does_not_refresh_itself(self):
+        """A page that reloads under a reader who is halfway through something is worse than
+        one that needs a manual refresh."""
+        response = self.client.get(self.list_url)
+
+        self.assertNotContains(response, "window.location.reload()")
+        self.assertNotContains(response, "data-findings-run-in-progress")
+
+    def test_a_finished_run_reports_what_it_did(self):
+        """The counts were a Django message from the view, and the view no longer waits for the
+        run. They live on the run now, which also means they are still there tomorrow."""
+        regenerate_findings()
+
+        response = self.client.get(self.list_url)
+
+        self.assertContains(response, "data-findings-run-outcome")
+        self.assertContains(response, "Skipped queries: 0.")
+        self.assertNotContains(response, "data-findings-run-in-progress")

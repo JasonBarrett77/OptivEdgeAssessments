@@ -6,6 +6,8 @@ integration data. Keep collector and normalization logic in `integrations`.
 
 import datetime as _dt
 import json
+import logging
+import threading
 from urllib.parse import urlencode
 
 from collections import defaultdict
@@ -28,7 +30,11 @@ from assessments.control_queries import (
     evaluate_queryset_control_queries,
     severity_label,
 )
-from assessments.finding_run import regenerate_findings
+from assessments.finding_run import (
+    findings_run_in_progress,
+    open_findings_run,
+    regenerate_findings,
+)
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
 from assessments.tables import Column
@@ -88,6 +94,7 @@ from assessments.security_rule_queries import (
 )
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import connections
 from django.db.models import Count
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.core.paginator import Paginator
@@ -96,6 +103,8 @@ from django.urls import reverse, reverse_lazy
 from django.views.generic import DetailView, ListView, TemplateView
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.views import View
+
+logger = logging.getLogger(__name__)
 
 from optivedge_integrations.integrations.presentation import (
     entry_device_group_name,
@@ -448,6 +457,14 @@ class ControlListView(ListView):
             drifted = catalog_has_drifted(current_catalog_state.current_catalog.payload)
         context["current_catalog_state"] = current_catalog_state
         context["catalog_drifted"] = drifted
+        #: Drives the banner and the self-refresh. None means idle, and the page then carries no
+        #: reload script at all - an idle page that reloads itself loses whatever the reader was
+        #: in the middle of.
+        context["findings_run"] = findings_run_in_progress()
+        #: What the last run did, read off the run itself. The view that STARTS a run no longer
+        #: waits for it, so there is no request left to write a message from.
+        context["latest_findings_run"] = (
+            AssessmentRun.objects.exclude(notes="").order_by("-started_at").first())
         return context
 
 
@@ -512,21 +529,62 @@ def report_finding_run(request, message: str, *, skipped_queries: int) -> None:
         messages.success(request, message)
 
 
+def _run_findings_in_background(assessment_run_pk: int) -> None:
+    """Thread entry point for ControlRunFindingsView.
+
+    Takes a primary key rather than the instance: the thread has its own database connection
+    and reads its own row. Nothing it raises reaches a user, so it is logged - and
+    `regenerate_findings` already marks the run FAILED before re-raising, which is what the
+    page reports. The connection is closed either way, or the thread leaves one open for the
+    life of the process.
+
+    Mirrors `optivedge_integrations.integrations.views._run_station_collection_in_background`
+    deliberately, down to the shape of the guard: the two are the same problem.
+    """
+    try:
+        regenerate_findings(AssessmentRun.objects.get(pk=assessment_run_pk))
+    except Exception:
+        logger.exception("Background findings run %s failed", assessment_run_pk)
+    finally:
+        connections.close_all()
+
+
 class ControlRunFindingsView(View):
-    """Every active control, policy and device alike, in one run - see assessments.finding_run."""
+    """Every active control, policy and device alike, in one run - see assessments.finding_run.
+
+    ON A BACKGROUND THREAD since 2026-10-06. A run is 24 generators, each deleting and
+    recreating every finding of its model, and holding that in the request meant the browser
+    waited for all of it - so it ran into any proxy or server timeout, and on SQLite it was the
+    longest window in which a concurrent reader could collide with the writer. Jason, 2026-10-06:
+    "make Run Findings run in the background... so that browsing away from the page doesn't
+    interrupt Run Findings."
+    """
 
     def post(self, request, *args, **kwargs):
-        result = regenerate_findings()
-        report_finding_run(
+        control_list_url = reverse("assessment_control_list")
+
+        # Two runs at once would interleave their delete-and-recreate writes on the same
+        # finding tables, and the reference allocator assumes one run fills at a time.
+        if findings_run_in_progress() is not None:
+            messages.error(request, "A findings run is already in progress.")
+            return HttpResponseRedirect(control_list_url)
+
+        # Opened HERE, not on the thread: the page this redirects to has to find the run
+        # already in progress, or it renders as idle and never refreshes.
+        assessment_run = open_findings_run()
+        threading.Thread(
+            target=_run_findings_in_background,
+            args=(assessment_run.pk,),
+            name=f"findings-run-{assessment_run.pk}",
+            daemon=True,
+        ).start()
+
+        messages.success(
             request,
-            (
-                f"Findings regenerated. Controls: {result.controls_evaluated}. "
-                f"Findings: {result.findings_created}. Query links: {result.query_links_created}. "
-                f"Skipped queries: {result.skipped_queries}."
-            ),
-            skipped_queries=result.skipped_queries,
+            "Findings run started in the background. This page refreshes itself until it "
+            "finishes, and you can browse away without stopping it.",
         )
-        return HttpResponseRedirect(reverse("assessment_control_list"))
+        return HttpResponseRedirect(control_list_url)
 
 
 class ControlDetailView(DetailView):
