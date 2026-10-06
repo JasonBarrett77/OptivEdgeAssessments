@@ -157,7 +157,10 @@ def _default_template_cell(subject, provenance_of, fields):
     """One template name per tested field, blank where none was pushed by a template."""
     names = []
     for field, stored in fields:
-        row = provenance_of(field) if stored else None
+        # No `if stored` short-circuit: the accessor handed to a source column WALKS to the
+        # object when the field has no answer of its own, and a derived field on a
+        # template-pushed object still has to name the template.
+        row = provenance_of(field)
         names.append(row.raw_value if row is not None and row.provenance_type == "template" else "")
     return "\n".join(names) if any(names) else ""
 
@@ -465,6 +468,37 @@ def provenance_index(subjects) -> dict[tuple[int, int, str], FieldProvenance]:
     return index
 
 
+def remediation_accessor(provenance_of, stored_by_field, entry_row):
+    """`provenance_of`, but answering WHERE TO GO AND CHANGE IT rather than where it came from.
+
+    `read-template-provenance.md` states the distinction: "Provenance answers **where do I go
+    to change this**, not what a value's history is." A tested field often cannot answer that -
+    `binding_count` on an unused interface management profile is DERIVED, and a derived number
+    has no location - but the OBJECT can: the profile is defined locally or pushed by a
+    template, and that is where it gets deleted or rescoped.
+
+    So: the field's own provenance, else the object's `__entry__`, else nothing. Measured on
+    lab data 2026-10-05 - the field answers 81% of findings, the object a further 10%, and the
+    8% remaining were the two gaps Integrations has since closed.
+
+    A walk rather than a per-control declaration, deliberately. A declaration would be 71
+    decisions to keep current, and the walk extends itself - the same argument
+    `artifacts/domains.py` and the asserted-model set make.
+
+    DERIVED counts as no answer. `provenance_of` synthesises a DERIVED row for a declared
+    computed column, which is true and useless here: it is the case the object has to answer.
+
+    `stored_by_field` is consulted rather than taking a second argument, because a source
+    column's contract passes one field name and nothing else.
+    """
+    def remediation_of(field):
+        row = provenance_of(field) if stored_by_field.get(field, True) else None
+        if row is not None and row.provenance_type != FieldProvenance.ProvenanceType.DERIVED:
+            return row
+        return entry_row
+    return remediation_of
+
+
 def provenance_cells(row: FieldProvenance | None, *, stored=True) -> tuple[str, str]:
     """(provenance, template) for one field, from what Integrations RECORDED.
 
@@ -602,14 +636,32 @@ def build_rows(spec, findings, controls, settings, tested=None):
             return row
 
         shown = [(f, stored) for f, stored in fields if f not in spec.hidden_fields]
+        #: Already loaded - `provenance_index` indexes every row for these subjects, the entry
+        #: row among them - so the walk costs no query.
+        entry_row = provenance.get((content_type_id, policy.pk, "__entry__"))
+        remediation_of = remediation_accessor(provenance_of, dict(fields), entry_row)
         cells = []
         for field, stored in shown:
             reader = spec.value_readers.get(field)
-            if reader is not None:
-                cells.append(((member_provenance(reader, policy, member_prov)
-                               if reader.members else reader.provenance), ""))
+            if reader is not None and reader.members:
+                cells.append((member_provenance(reader, policy, member_prov), ""))
+            elif reader is not None:
+                # A reader's static `provenance` is prose ABOUT THE FIELD, and both that exist
+                # say "Derived" - true, and no help in finding the thing to change. So the
+                # object answers where it can, and the prose stands only where it cannot.
+                resolved = (remediation_of(field)
+                            if reader.provenance == FieldProvenance.ProvenanceType.DERIVED.label
+                            else None)
+                cells.append(provenance_cells(resolved, stored=True) if resolved is not None
+                             else (reader.provenance, ""))
             else:
-                cells.append(provenance_cells(provenance_of(field), stored=stored))
+                resolved = remediation_of(field)
+                # `stored` only decides the wording when NOTHING answered. A field that is not
+                # a column of its own still has a location once the walk reaches the object,
+                # and `provenance_cells` returns "Derived" on `stored=False` before it looks at
+                # the row - so the resolved row has to be presented as the answer it is.
+                cells.append(provenance_cells(
+                    resolved, stored=True if resolved is not None else stored))
         if spec.provenance_cell is not None:
             prov = spec.provenance_cell(policy, provenance_of, shown)
         else:
@@ -620,7 +672,7 @@ def build_rows(spec, findings, controls, settings, tested=None):
         setting_cells = [read(policy, provenance_of) for _h, _w, _wrap, read, _f in settings]
 
         tested_cell_values = tested_cells(spec, finding, policy, shown, prov, tested)
-        source_cells = [read(policy, provenance_of, shown)
+        source_cells = [read(policy, remediation_of, shown)
                         for _h, _w, _wrap, read, _f in map(as_column, spec.source_columns)]
 
         tested_names = {field for field, _ in fields}

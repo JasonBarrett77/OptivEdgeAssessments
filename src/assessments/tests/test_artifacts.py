@@ -24,7 +24,7 @@ import zipfile
 from pathlib import Path
 
 from django.db import connection
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -595,3 +595,105 @@ class BulkProvenanceTests(TestCase):
         from assessments.artifacts.sheets.findings import member_provenance
 
         self.assertIn("index", inspect.signature(member_provenance).parameters)
+
+
+class RemediationProvenanceTests(SimpleTestCase):
+    """Provenance answers WHERE TO GO AND CHANGE IT, not where a value came from.
+
+    `read-template-provenance.md` states it: "Provenance answers **where do I go to change
+    this**, not what a value's history is." A tested field often cannot answer that -
+    `binding_count` on an unused interface management profile is derived, and a derived number
+    has no location - but the object can, because the profile is defined somewhere.
+
+    A WALK rather than a per-control declaration. Jason, 2026-10-05, on whether the control
+    should name its source: "do we need that value defined, or a method? It seems that, for the
+    most important question, we can get the answer from the provenance value closest to what
+    we're measuring." Measured on lab data: the field answers 81% of findings and the object a
+    further 10%, so 71 declarations would have bought nothing a rule does not.
+    """
+
+    def accessor(self, rows, stored, entry):
+        from assessments.artifacts.sheets.findings import remediation_accessor
+
+        return remediation_accessor(lambda field: rows.get(field), stored, entry)
+
+    @staticmethod
+    def row(kind, value=""):
+        from optivedge_integrations.integrations.models import FieldProvenance
+
+        return FieldProvenance(provenance_type=kind, raw_value=value)
+
+    def test_the_fields_own_provenance_wins(self):
+        field = self.row("template", "tpl-a")
+        entry = self.row("local")
+        resolved = self.accessor({"minimum_length": field}, {"minimum_length": True}, entry)
+
+        self.assertIs(resolved("minimum_length"), field)
+
+    def test_a_field_with_no_row_falls_through_to_the_object(self):
+        entry = self.row("local")
+        resolved = self.accessor({}, {"kind": True}, entry)
+
+        self.assertIs(resolved("kind"), entry)
+
+    def test_a_field_that_is_not_a_column_falls_through_to_the_object(self):
+        """`binding_count` is a query name whose model attribute is `bound_interface_count`, so
+        `tested_fields` reports it unstored. F-0078 is this case, and its answer is where the
+        profile is defined."""
+        entry = self.row("template", "ptpl_fw-core-tpa")
+        resolved = self.accessor({}, {"binding_count": False}, entry)
+
+        self.assertIs(resolved("binding_count"), entry)
+
+    def test_derived_counts_as_no_answer(self):
+        """`provenance_of` synthesises a DERIVED row for a declared computed column. That is
+        true and useless here - a computed value has no location - so it must not block the
+        walk. Without this the object is never reached for any derived field."""
+        entry = self.row("local")
+        resolved = self.accessor({"server_count": self.row("derived")},
+                                 {"server_count": True}, entry)
+
+        self.assertIs(resolved("server_count"), entry)
+
+    def test_nothing_anywhere_stays_nothing(self):
+        """No invention. A settings node carries no `__entry__`, and a derived field on one has
+        no location to offer - which is honest rather than a gap to paper over."""
+        resolved = self.accessor({}, {"timezone_is_utc": True}, None)
+
+        self.assertIsNone(resolved("timezone_is_utc"))
+
+    def test_pan_os_default_is_an_answer_and_is_not_walked_past(self):
+        """"Nothing configured this" is a real statement about the field. Walking past it would
+        replace a measured fact with the object's location and lose the reason the finding
+        fired."""
+        default = self.row("pan_os_default", "0")
+        resolved = self.accessor({"failed_attempts": default},
+                                 {"failed_attempts": True}, self.row("local"))
+
+        self.assertIs(resolved("failed_attempts"), default)
+
+
+class RemediationWiringTests(TestCase):
+    """The walk has to reach both cells that answer "where", not just one."""
+
+    def test_the_template_column_does_not_short_circuit_on_stored(self):
+        """It read `provenance_of(field) if stored else None`, so a derived field named no
+        template even when the object was pushed by one. Measured on the lab: F-0080's Template
+        cell was blank and is now `ptpl_fw-core-tpa`."""
+        import inspect
+
+        from assessments.artifacts.sheets import findings as findings_module
+
+        source = inspect.getsource(findings_module._default_template_cell)
+        self.assertNotIn("if stored else None", source)
+
+    def test_source_columns_receive_the_walking_accessor(self):
+        """`source_columns` are documented as "saying WHERE a pushed value came from", so they
+        get the accessor that can answer it."""
+        import inspect
+
+        from assessments.artifacts.sheets import findings as findings_module
+
+        source = inspect.getsource(findings_module.build_rows)
+        self.assertIn("read(policy, remediation_of, shown)", source)
+        self.assertIn("remediation_accessor(provenance_of", source)

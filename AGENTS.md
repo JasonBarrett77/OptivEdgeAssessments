@@ -324,6 +324,52 @@ the width of every severity column - shortened in the HEADING only, with the ful
 cell's `title` and everywhere else untouched. `w-16` is 64px against a 60.8px worst case
 ("CRITICAL" at 52.8px plus 8px of `px-1`), all measured from the font.
 
+**The Provenance column answers "where do I go and change this"** (2026-10-05), which is a
+different question from where a value came from. `read-template-provenance.md` in Integrations
+states it that way and adds that separating the three unmarked cases - local, overridden,
+actively overriding - "would produce a distinction with no action attached to it", because all
+three mean: go to the device.
+
+`remediation_accessor` is the walk: the tested FIELD's provenance, else the OBJECT's
+`__entry__`, else nothing. A derived number has no location - `binding_count` on an unused
+interface management profile is the case - but the profile is defined somewhere, and that is
+where it gets deleted or rescoped.
+
+**A walk, not a per-control declaration.** Jason, 2026-10-05: "do we need that value defined,
+or a method? It seems that, for the most important question, we can get the answer from the
+provenance value closest to what we're measuring." Measured first: the field answers 81% of the
+lab's findings and the object a further 10%, so 71 declarations would have bought nothing a rule
+does not - and would need keeping current. A per-control override is deliberately NOT built
+until a control needs to contradict the walk.
+
+Four things the walk has to get right, each with a test:
+
+* **DERIVED counts as no answer.** `provenance_of` synthesises a DERIVED row for a declared
+  computed column; letting that block the walk means the object is never reached.
+* **`pan_os_default` IS an answer** and is not walked past. "Nothing configured this" is the
+  reason the finding fired.
+* **`stored` only decides the WORDING when nothing answered.** `provenance_cells` returns
+  "Derived" on `stored=False` before it looks at the row, so a resolved row has to be passed as
+  `stored=True` or the walk's answer is discarded at the last step.
+* **Both cells that answer "where" walk.** The Template column read
+  `provenance_of(field) if stored else None` and so named no template for a derived field on a
+  pushed object; source columns now receive the walking accessor, which is what they were
+  documented for.
+
+It costs no query: `provenance_index` already loads the `__entry__` row with the rest.
+
+Effect on the lab, before re-normalizing: 7 domains improved, +57 findings gained a location,
+several going from none to all - security profiles 0 of 17 to 17, AAA server profiles 12 of 34
+to 34, authentication profiles 7 of 16 to 16. Administrators is 0 to 2 of 32 only because the
+lab predates the Integrations fix that writes an explicit `local` entry row.
+
+**The Integrations side of this** was two storage bugs, found by measuring rather than assumed:
+a locally defined entry recorded NOTHING in two normalizers, so absence meant both "defined on
+the device" and "nothing tracks this" - 25 of 26 administrator accounts and half the interface
+management profiles; and three SSH fields were read by raw dict access, discarding their marker.
+`@ptpl` can also name a template STACK, which has its own config layer; it is stored as given and
+not disambiguated, because an engineer reads stacks and templates alike.
+
 **The Summary counts rather than builds.** `severity_counts()` is one query per finding model;
 building all twenty-two tables to total them would do the whole job of every page to draw one.
 
