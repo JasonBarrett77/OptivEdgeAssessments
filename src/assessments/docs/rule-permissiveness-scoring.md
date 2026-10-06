@@ -316,10 +316,63 @@ Jason, 2026-09-30: create subjects for every test case after building, on **pan-
 only currently reachable device, single-vsys, slow commits. Per the checklist they are left in
 place afterwards.
 
-Four of the six address bands have **no lab subject today**. Of 501 sized objects: 490 in Null,
-2 in High, 9 in Critical, and **zero** in Info, Low or Medium. The three missing address bands
-are cheap netmask objects (/17, /15, /12). Service and application subjects wait on the models
-above.
+**Built 2026-10-05.** All six address bands now report. The lab's own policy supplies Critical
+(174 rule sides broader than a /8) and Indeterminate (3); the four bands in between had no rule
+subject and now have one each, written by `OptivEdgeProbe/scratch/lab_breadth_subjects.py`:
+
+| Band | Object | Prefix | Addresses |
+|---|---|---|---|
+| Informational | `oep-breadth-info` | 10.64.0.0/18 | 16,384 |
+| Low | `oep-breadth-low` | 10.65.0.0/16 | 65,536 |
+| Medium | `oep-breadth-medium` | 10.68.0.0/14 | 262,144 |
+| High | `oep-breadth-high` | 10.96.0.0/11 | 2,097,152 |
+
+Each is the **source** of one enabled local allow rule whose destination is `oep-breadth-sink`
+(198.51.100.254/32, RFC 5737). These rules are **not disabled**, unlike the PAN-COV subjects,
+because the control excludes disabled rules — a disabled rule permits nothing, so scoring its
+breadth would be meaningless. Harmlessness comes from the destination and from `application
+ssl` / `service application-default` instead.
+
+**A band is covered when a RULE lands in it, not when an object does.** The object census that
+sized this work — 490 of 501 objects Null, 2 High, 9 Critical — said High was covered. It was
+not: those two objects are not on the source or destination of any in-scope allow rule, and the
+rule-side distribution measured before any subject was written read 174 critical, **0 high**, 0
+medium, 0 low, 0 informational, 1,529 narrow, 3 indeterminate. Four bands were missing, not
+three, and the earlier wording of this section said both numbers in one paragraph.
+
+**The full case matrix was built the same day**, after the four band subjects: 98 rules on
+pan-fw-111, ten or more for each of the nine cases the control distinguishes — the five bands,
+the narrow band that must stay silent, indeterminate, worst-side-wins, and the out-of-scope
+actions. `OptivEdgeProbe/scratch/lab_breadth_matrix.py` writes them and
+`scratch/validate_pol002.py verify` checks each one against an expectation file computed by
+that module's own arithmetic rather than read back from the normalizer. 98/98 agree on both the
+side counts and the severity.
+
+Three kinds of case needed more than a netmask object, and they are the ones that would
+otherwise fail invisibly:
+
+- **Exact band edges.** Every threshold is `gt` against a power of two, so one `gte` moves a
+  whole class of rules by one severity. An `ip-range` object takes an arbitrary count, so each
+  band has a subject at exactly its floor+1 and exactly its ceiling. One rule is exactly 8,192
+  addresses and must report **nothing**; the next is 8,193.
+- **Merges that cross a band.** A side naming a /8 and a /16 inside it is 16,777,216 merged and
+  16,842,752 unmerged — `high` against `critical`. The band reveals whether the union was
+  de-duplicated, where a count only reveals it to someone checking the arithmetic.
+- **Negated sides that are not critical.** Negating one host only exercises the critical band. A
+  range from `0.0.0.0` to `MAX − n` has a complement of exactly *n*, so a negated side can be
+  landed in any band; if negation were reading the members instead of the complement, all four
+  would report critical.
+
+Objects for different rules may overlap freely — breadth is computed per rule side, so two
+rules each naming a /8 do not interact. Only members on the **same** side merge, which is what
+the merge cases above are built on.
+
+One PAN-OS constraint turned up while building it: **`negate-source` cannot be combined with
+the keyword `any`.** The `set` is accepted and the COMMIT refuses the whole candidate. It is a
+keyword check and not a space check — the same space as a `0.0.0.0/0` object negates and commits
+fine, which is the only subject that reaches the normalizer's empty-complement branch.
+
+Service and application subjects wait on the models above.
 
 ## Open questions
 
