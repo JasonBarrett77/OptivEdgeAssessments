@@ -26,26 +26,39 @@ allow rule exposes on its broadest side"* — a **max** over one side. That is a
 record in `control-changes.json` when this is built, with the reasoning in *Why not the
 corpus's measure*.
 
-### PAN-POL-001 overlaps it, but NOT quite totally
+### PAN-POL-001 was dropped into this control
 
-001 fires on source **AND** destination `any`. 002-critical fires on source **OR** destination
-`any`, so 001 is *almost* a subset and both carry the same STIG ref: the corpus split one
-requirement into two controls and we built the narrower half first.
+**2026-10-06.** 001 asserted that no allow rule leaves BOTH its source and its destination
+covering the whole address space — read semantically, so a `0.0.0.0/0` object counted as `any`.
+That is a subset of 002's critical band, since 002's bands are per side with `or`: either side
+over 16,777,216 addresses is already critical. Jason: *"I don't think we need 001 anymore. 002
+and 014 cover everything to some extent."*
 
-**Measured 2026-10-06, after both were built:** of 46 PAN-POL-001 findings on the lab, **45**
-also report 002, every one of them at critical. **One does not.** This section claimed the
-overlap was total and that 001 was a strict subset; it is not, and the claim was reasoned from
-the two queries rather than measured.
+Measured before dropping it (`OptivEdgeProbe/scratch/check_pol001_pol002_overlap.py`): of its 46
+lab findings, **45** also reported 002, every one at critical. 002 now carries
+`PANW-AG-000029` alone, so no compliance mapping is lost.
 
-The exception is **a disabled rule**. 002's baseline carries `disabled = false` and 001's does
-not, so a disabled any/any allow rule fires 001 alone. That is a false positive in 001 by 002's
-own stated reasoning — a disabled rule permits nothing, so scoring or reporting its breadth is
-meaningless — which makes this a defect in 001 rather than a gap in 002.
+An earlier version of this section claimed the overlap was *total* and 001 a strict subset. It
+was not, and the claim was reasoned from the two queries rather than measured — the 46th finding
+is the gap below.
 
-**OPEN:** whether 001 retires into 002, or keeps a distinct assertion. Either way `disabled =
-false` belongs in 001's baseline first, because two controls over one requirement that disagree
-about whether a disabled rule counts will disagree on real estates, not just on the lab. Under
-the methodology below, 001's any/any is simply the top band of both address fields.
+**The gap the drop accepts: a disabled any/any rule is reported by nothing.** 002's baseline
+carries `disabled = false` and 001's had no disabled clause, so 001 fired on a rule that permits
+nothing — a false positive at critical by 002's own reasoning. Its proper home is **PAN-POL-014,
+"Disabled Rules Removed After Grace Period"**, which is `not started`. 014's *age* half needs
+config-history correlation we do not have, so it can only be built in reduced form: report
+disabled rules, mark the age unestablished. Until then the gap stands, and a test in
+`test_security_rule_controls.py` asserts the silence deliberately rather than leaving it to be
+discovered.
+
+**002 should keep excluding disabled rules.** It scores how much address space a rule *exposes*,
+and a disabled rule exposes nothing; including them would mean either scoring that as real or
+special-casing it. The remediations differ too — narrow the side, versus delete the rule or
+document why it is kept — and so does the severity a reader should take from it.
+
+**001's tests were re-pointed at 002, not deleted.** A drop justified by "another control covers
+it" is worth exactly as much as the test that says so, and the semantic `0.0.0.0/0` case is the
+one that would have regressed silently.
 
 ## Scope
 
@@ -387,8 +400,19 @@ Service and application subjects wait on the models above.
 
 ## Open questions
 
-1. Whether PAN-POL-001 retires into this control.
-2. Whether zones return as a separate control.
+1. ~~Whether PAN-POL-001 retires into this control.~~ **Settled 2026-10-06: dropped.** See
+   above. What it leaves behind is item 5.
+2. Whether zones return as a separate control. **Sharper since the drop:** both of
+   PAN-POL-001's change entries flagged that the corpus's preferred value for it also says
+   "zones always explicit", that 001 never asserted it, and that nothing else covered it. With
+   001 gone, no control points at that ground at all — 10 lab rules have an `any` zone with
+   everything else named.
 3. Whether PAN-OS accepts port 0 in a service object (moves the service bound by 2).
 4. PAN-POL-023, the client-facing half — an EDL the DEVICE cannot fetch — is allocated and
    unbuilt. It is not a coverage finding and belongs in the policy domain.
+5. **PAN-POL-014, "Disabled Rules Removed After Grace Period"** — `not started`, and the only
+   home for the case the 001 drop gave up. Buildable today in reduced form: `disabled = yes` is
+   config-readable, while the age the control's minimum turns on ("disabled longer than 90
+   days") needs config-history correlation we do not have. Build it reporting disabled rules
+   with the age marked unestablished, or accept the gap knowingly — but it should not sit
+   unrecorded, because 001 used to report these rules and no longer does.

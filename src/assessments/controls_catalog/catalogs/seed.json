@@ -2308,56 +2308,6 @@
           "target_model": "integrations.InterfaceManagementProfile"
         },
         {
-          "control_id": "PAN-POL-001",
-          "name": "No Any/Any Allow Rules",
-          "control_type": "security_rule",
-          "default_severity": "critical",
-          "description": "No allow rule leaves BOTH its source and its destination unbounded.\n\nONE ASSERTION, NOT A COUNT. Until 2026-09-22 this fired when `any` appeared in more than one of source, destination and application - 52 rules on the lab against 44 now. That threshold was a counting heuristic no standard states, and it reached into two axes other controls already own: the application belongs to PAN-POL-005 and the service to PAN-POL-004. Twelve of its findings were rules that also fired 005, reported twice for one decision.\n\nWHAT THE NAME ALWAYS MEANT. An any/any rule is one whose source and destination are both unspecified - a trust grant with neither side named. That is the assertion, and it stands on its own without counting anything.\n\nNO CIS BACKING, STATED PLAINLY. CIS Palo Alto Firewall 11 v1.2.0 has no address-breadth recommendation, and its own 7.1 remediation shows a rule with `Address` set to `Any` as compliant so long as the application and service are specific. The corpus cites CIS 6.1 here, which is an antivirus decoder setting. This control rests on the corpus and on PANW-AG-000029, not on CIS - see scratch/control-changes.json.\n\nADDRESSES ARE READ SEMANTICALLY, not by name: a member whose range is the whole space counts, so a rule sourced from an object covering 0.0.0.0/0 fires like one that says `any`. `include_any` is set because the semantic compiler excludes `any` members unless a clause asks for them - without it this query matches nothing and reports a clean estate.\n\nThe two predefined default rules are excluded: `intrazone-default` allows any to any and its match tuple cannot be edited.",
-          "rationale": "A rule that names neither end grants more than anyone can have reasoned about, and it sits above every narrower rule beneath it in the same rulebase. Narrowing one end is usually a five-minute change; deciding which traffic the rule was ever for is not.",
-          "audit": "Policies > Security. Read Source Address and Destination Address together; both reading `any` is the finding. An address object covering 0.0.0.0/0 counts as `any`.",
-          "remediation": "Name one end. Which end is usually obvious from the rule's purpose - a rule serving a server names its destination, a rule serving a user population names its source. Where a rule genuinely serves everything in both directions, it is a default-deny bypass and should be replaced rather than narrowed.",
-          "queries": [
-            {
-              "name": "Baseline",
-              "is_baseline": true,
-              "is_active": true,
-              "adjusted_severity": null,
-              "canonical_query": {
-                "model": "integrations.SecurityRule",
-                "operator": "and",
-                "clauses": [
-                  {
-                    "field": "action",
-                    "op": "eq",
-                    "value": "allow"
-                  },
-                  {
-                    "field": "config_source",
-                    "op": "eq",
-                    "value": "default",
-                    "negated": true
-                  },
-                  {
-                    "field": "source_address",
-                    "op": "exactly",
-                    "value": "any",
-                    "include_any": true
-                  },
-                  {
-                    "field": "destination_address",
-                    "op": "exactly",
-                    "value": "any",
-                    "include_any": true
-                  }
-                ]
-              }
-            }
-          ],
-          "implementation_version": "v2",
-          "is_active": true,
-          "target_model": "integrations.SecurityRule"
-        },
-        {
           "control_id": "PAN-POL-004",
           "name": "Application-Default Service Preferred",
           "control_type": "security_rule",
@@ -2406,7 +2356,7 @@
           "name": "No Port-Only Rules (App-ID Required)",
           "control_type": "security_rule",
           "default_severity": "high",
-          "description": "Every allow rule names the applications it permits.\n\nA rule with `application any` forgoes App-ID entirely: whatever is tunnelled over the ports it opens passes, and the rule's own name is the only record of what it was for.\n\nTHE UNTRUST QUALIFIER IS DROPPED, DELIBERATELY. controls.json sets the minimum at \"no allow rule CROSSING AN UNTRUST BOUNDARY has application any\", and no configuration says which zone is untrusted - the same wall PAN-MGT-006 hit over \"untrusted interfaces\". The preferred value has no such qualifier (\"all allow rules application-based\"), it is the stricter reading, and it is decidable, so it is what this asserts.\n\nOVERLAPS PAN-POL-001 ON PURPOSE. A rule with `application any` AND an unbounded address fires both, because they are two different statements about it: this one says the rule identifies nothing, and 001 says its match tuple is unbounded. Fixing the application clears this one and may leave that one standing.",
+          "description": "Every allow rule names the applications it permits.\n\nA rule with `application any` forgoes App-ID entirely: whatever is tunnelled over the ports it opens passes, and the rule's own name is the only record of what it was for.\n\nTHE UNTRUST QUALIFIER IS DROPPED, DELIBERATELY. controls.json sets the minimum at \"no allow rule CROSSING AN UNTRUST BOUNDARY has application any\", and no configuration says which zone is untrusted - the same wall PAN-MGT-006 hit over \"untrusted interfaces\". The preferred value has no such qualifier (\"all allow rules application-based\"), it is the stricter reading, and it is decidable, so it is what this asserts.\n\nOVERLAPS PAN-POL-002 ON PURPOSE. A rule with `application any` AND an unbounded address fires both, because they are two different statements about it: this one says the rule identifies nothing, and PAN-POL-002 says how much address space it exposes. Fixing the application clears this one and leaves that one standing. This previously named PAN-POL-001, which was dropped on 2026-10-06 into PAN-POL-002's critical band.",
           "rationale": "Port-only rules are how an allowed port becomes an allowed tunnel. App-ID is the control the platform exists to provide, and a rule that declines to use it is trusting a number.",
           "audit": "Policies > Security > Application. Any allow rule whose Application column reads `any` is the finding; Policy Optimizer lists the applications each one actually carried.",
           "remediation": "Replace `any` with the applications the rule is for - Policy Optimizer proposes them from observed traffic. Where a custom or unidentified application is involved, name it with a custom App-ID rather than leaving the rule open.",
@@ -2906,7 +2856,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "default_severity": "informational",
-          "description": "How much address space an allow rule exposes, on its broader side.\n\nSEVERITY COMES FROM THE SIZE, not from a boolean. The host count on each side is converted to the smallest subnet that would contain it - network_bits = 32 - ceil(log2(n)) - and the bands run: /0-/7 critical (over 16,777,216 addresses, including `any`), /8-/11 high, /12-/14 medium, /15-/16 low, /17-/18 informational, and /19 or narrower reports nothing. Rounding UP is deliberate: the RFC1918 aggregate is 17,891,328 addresses and lands at /7, critical, where rounding to nearest would call it /8. Jason, 2026-09-30: \"RFC1918 rules may be poorly considered.\"\n\nA SIDE'S COUNT IS THE UNION OF ITS OBJECTS, DE-DUPLICATED - two members covering the same /8 are one /8, not two - and it is read AFTER NEGATION. A negated side keeps its member refs and gains a synthetic complement beside them; the complement is what the rule actually permits. Scoring the members instead would read a negated rule as its own inverse, so negating one host would score /32 rather than the whole space but one.\n\nAN INDETERMINATE SIDE REPORTS AT MEDIUM rather than nothing. A side is unknowable when it names a dynamic address group or a region, when an EDL or FQDN on it has no resolved content, or when that content was truncated at the collection ceiling and is a known under-count. The count is NULL in those cases, never 0 - zero is the narrowest value there is, and a rule nobody could measure must not read as the tightest rule on the device. Why a particular object could not be sized is reported separately by the PAN-COV coverage controls.\n\nSCOPE. Allow rules only, excluding the two predefined default rules, whose match tuple cannot be edited, and excluding disabled rules, which permit nothing.\n\nv1 IS ADDRESSES ONLY, which is what this control's name asserts. The wider permissiveness methodology also scores service and application and combines the per-field tiers into an aggregate; service is PAN-POL-003 and needs a ServiceObject model that does not exist, application needs application-group resolution that does not exist, and the aggregate needs all four. See rule-permissiveness-scoring.md.\n\nPAN-POL-001 OVERLAPS THIS CONTROL, almost totally. It fires on source AND destination both `any`, which is nearly a subset of this control's critical band, and both carry the same STIG reference. Measured on the lab 2026-10-06: 45 of 46 PAN-POL-001 findings also report here, all at critical. The exception is a DISABLED any/any rule - this control's baseline carries `disabled = false` and PAN-POL-001's does not, so a disabled rule fires 001 alone. By the reasoning this control states, that is a false positive in 001: a disabled rule permits nothing. Whether 001 retires into this one is undecided.",
+          "description": "How much address space an allow rule exposes, on its broader side.\n\nSEVERITY COMES FROM THE SIZE, not from a boolean. The host count on each side is converted to the smallest subnet that would contain it - network_bits = 32 - ceil(log2(n)) - and the bands run: /0-/7 critical (over 16,777,216 addresses, including `any`), /8-/11 high, /12-/14 medium, /15-/16 low, /17-/18 informational, and /19 or narrower reports nothing. Rounding UP is deliberate: the RFC1918 aggregate is 17,891,328 addresses and lands at /7, critical, where rounding to nearest would call it /8. Jason, 2026-09-30: \"RFC1918 rules may be poorly considered.\"\n\nA SIDE'S COUNT IS THE UNION OF ITS OBJECTS, DE-DUPLICATED - two members covering the same /8 are one /8, not two - and it is read AFTER NEGATION. A negated side keeps its member refs and gains a synthetic complement beside them; the complement is what the rule actually permits. Scoring the members instead would read a negated rule as its own inverse, so negating one host would score /32 rather than the whole space but one.\n\nAN INDETERMINATE SIDE REPORTS AT MEDIUM rather than nothing. A side is unknowable when it names a dynamic address group or a region, when an EDL or FQDN on it has no resolved content, or when that content was truncated at the collection ceiling and is a known under-count. The count is NULL in those cases, never 0 - zero is the narrowest value there is, and a rule nobody could measure must not read as the tightest rule on the device. Why a particular object could not be sized is reported separately by the PAN-COV coverage controls.\n\nSCOPE. Allow rules only, excluding the two predefined default rules, whose match tuple cannot be edited, and excluding disabled rules, which permit nothing.\n\nv1 IS ADDRESSES ONLY, which is what this control's name asserts. The wider permissiveness methodology also scores service and application and combines the per-field tiers into an aggregate; service is PAN-POL-003 and needs a ServiceObject model that does not exist, application needs application-group resolution that does not exist, and the aggregate needs all four. See rule-permissiveness-scoring.md.\n\nPAN-POL-001 WAS DROPPED INTO THIS CONTROL on 2026-10-06, and this control now carries its STIG reference alone. It asserted that no allow rule leaves BOTH its source and its destination covering the whole address space - read semantically, so a 0.0.0.0/0 object counted as `any` - which is a subset of this control's critical band. Measured before the drop: 45 of its 46 lab findings also reported here, all at critical. The 46th was a DISABLED any/any rule, which 001 reported because its baseline had no `disabled` clause and this one does. That was a false positive by the reasoning here - a disabled rule permits nothing - and disabled rules are PAN-POL-014's subject, which is not yet built. Until it is, a disabled rule of any breadth is reported by nothing.",
           "rationale": "A rule's reach is the product of what it permits on each side, and the side nobody narrowed is the one that decides it. Breadth is also the property an assessor can act on without knowing the business: naming one end of a rule is usually a short change, where deciding what traffic a rule was ever for is not.",
           "audit": "Policies > Security. Read Source Address and Destination Address as address SPACE rather than as member counts - one object can be a /8. The rule's own row carries the resolved host count for each side, and `Unknown` where it could not be established.",
           "remediation": "Narrow the broader side to the hosts or subnets the flow actually needs. Where a side is reported Unknown, the breadth is not known to be acceptable - run the EDL/FQDN cache refresh and re-check, or replace a dynamic group or region member with something resolvable.",
