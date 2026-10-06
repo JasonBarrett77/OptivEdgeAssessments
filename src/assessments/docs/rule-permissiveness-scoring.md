@@ -26,15 +26,26 @@ allow rule exposes on its broadest side"* — a **max** over one side. That is a
 record in `control-changes.json` when this is built, with the reasoning in *Why not the
 corpus's measure*.
 
-### PAN-POL-001 overlaps it, and the overlap is total
+### PAN-POL-001 overlaps it, but NOT quite totally
 
-001 fires on source **AND** destination `any`. The corpus's 002-critical fires on source
-**OR** destination `any`. **001 is a strict subset**, so every one of its 44 lab findings
-would be reported twice at critical. Both carry the same STIG ref, so the corpus split one
+001 fires on source **AND** destination `any`. 002-critical fires on source **OR** destination
+`any`, so 001 is *almost* a subset and both carry the same STIG ref: the corpus split one
 requirement into two controls and we built the narrower half first.
 
-**OPEN:** whether 001 retires into 002, or keeps a distinct assertion. Under the methodology
-below, 001's any/any is simply the top band of both address fields.
+**Measured 2026-10-06, after both were built:** of 46 PAN-POL-001 findings on the lab, **45**
+also report 002, every one of them at critical. **One does not.** This section claimed the
+overlap was total and that 001 was a strict subset; it is not, and the claim was reasoned from
+the two queries rather than measured.
+
+The exception is **a disabled rule**. 002's baseline carries `disabled = false` and 001's does
+not, so a disabled any/any allow rule fires 001 alone. That is a false positive in 001 by 002's
+own stated reasoning — a disabled rule permits nothing, so scoring or reporting its breadth is
+meaningless — which makes this a defect in 001 rather than a gap in 002.
+
+**OPEN:** whether 001 retires into 002, or keeps a distinct assertion. Either way `disabled =
+false` belongs in 001's baseline first, because two controls over one requirement that disagree
+about whether a disabled rule counts will disagree on real estates, not just on the lab. Under
+the methodology below, 001's any/any is simply the top band of both address fields.
 
 ## Scope
 
@@ -247,8 +258,8 @@ domain. So it needs a new id, and **`PAN-POL-023` is the next free number in bot
 ## Why not the corpus's measure, or the product
 
 - **The corpus's "broadest side" is a max**, and a max cannot distinguish `any → one host`
-  from `any → any`. That collision is exactly what makes PAN-POL-001 a strict subset of
-  002-critical.
+  from `any → any`. That collision is what makes PAN-POL-001 almost a subset of 002-critical -
+  almost, because 001 does not exclude disabled rules and 002 does. See the measurement above.
 - **The product of the two sides is out.** Jason, 2026-09-30: "too coarse." Worth knowing when
   revisiting: sum-of-bits is the SAME ORDERING as the product, since
   log2(src × dst) = log2(src) + log2(dst).
