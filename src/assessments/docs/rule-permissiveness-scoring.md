@@ -414,11 +414,12 @@ Service and application subjects wait on the models above.
    same shape every graded control here uses. Not critical: a rule with one zone named still
    says which direction it applies in.
 
-   **The medium band has no lab subject.** Measured 2026-10-07: of 951 allow non-default rules,
-   and of the 851 that are not probe fixtures, *exactly zero* have `any` on one side only — all
-   111 (11 real) have both. The baseline's own severity would ship untested while only the
-   raised band fires, which is backwards. One rule with `from trust` / `to any` on pan-fw-111
-   fixes it, and the checklist requires it before this is done.
+   **Both bands have subjects.** Measured 2026-10-07: of 951 allow non-default rules — and of
+   the 851 that are not probe fixtures — *exactly zero* had `any` on one side only; all 111 (11
+   real) had both. So the medium band, which the *baseline* carries, had no subject while only
+   the raised band fired. `oep024-medium` on pan-fw-111 (`from trust` / `to any`) fixes it, and
+   the bands now read medium 1, high 111, no finding 843. It is narrow on both address sides, so
+   PAN-POL-002 stays silent on it — one rule, one control.
 
    The high band is 11 real rules plus the 98 case-matrix rules, which all carry `from any` /
    `to any`. Giving those 98 explicit zones is the cheaper fix — nothing in 002 turns on their
