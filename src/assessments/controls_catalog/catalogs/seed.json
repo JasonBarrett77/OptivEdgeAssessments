@@ -3132,6 +3132,278 @@
               }
             }
           ]
+        },
+        {
+          "control_id": "PAN-POL-014",
+          "name": "Disabled Rules Removed (Hygiene)",
+          "control_type": "security_rule",
+          "target_model": "integrations.SecurityRule",
+          "implementation_version": "v1",
+          "is_active": true,
+          "default_severity": "low",
+          "description": "A disabled allow rule left in the policy, and how much it would permit if switched on.\n\nTHE TRIGGER IS PRESENCE, NOT AGE. controls.json states this control as \"no rule has been disabled longer than 90 days\", with 30 days preferred. Nothing in a configuration says when a rule was disabled - it needs config-history correlation this assessment does not have - so asserting a grace period would be asserting something unmeasured. Every disabled allow rule reports, and the finding says nothing about how long it has been that way.\n\nSEVERITY COMES FROM THE BREADTH, using PAN-POL-002's thresholds and its severities unchanged: over 131,072 addresses on a side is medium, over 1,048,576 high, over 16,777,216 critical. The floor is low, which is the corpus severity and what a disabled rule of any size reports.\n\nWHY A DISABLED RULE IS GRADED AT ALL. Jason, 2026-10-07: \"A highly permissive but disabled rule could be worse then an operational-permissive rule. The disabled rule could be intentionally dangerous, previously used for testing purposes... Disabled rules could be more poorly designed, outside of governance type risks.\" A rule built broad for a test and left behind was never reviewed as production policy, and it is one click from being exactly the finding PAN-POL-002 reports. PAN-POL-002 excludes disabled rules because breadth scoring of an INACTIVE rule measures nothing about current exposure - not because such rules are less serious - so the two controls divide the rulebase rather than disagreeing about it.\n\nSCOPE. Disabled allow rules, excluding the two predefined default rules, whose match tuple cannot be edited. A disabled DENY rule is a different defect - protection that was turned off - and is not covered here or anywhere else yet.\n\nAn indeterminate side reports at the baseline only. PAN-POL-002 raises an unmeasurable side to medium because it might permit anything; on a disabled rule it permits nothing either way, so that argument does not carry over.",
+          "rationale": "Disabled rules preserve intent nobody has revisited. They escape review as production policy, survive audits because they match no traffic, and get re-enabled \"temporarily\" during an incident by whoever is on call. Grading by breadth puts the ones that would open the most at the top of the list, which is the order an engineer can act in.",
+          "audit": "Policies > Security, with Disabled rules shown. The rule's own row carries the resolved host count for each side, and `Unknown` where it could not be established. Read the count as what the rule WOULD permit: it permits nothing while disabled.",
+          "remediation": "Delete the rule - configuration history preserves it for archaeology - or, if it is being kept deliberately, narrow it to what the flow it was written for actually needs and record the owner. A rule kept broad because it is disabled is a rule nobody has decided about.",
+          "cis_ref": null,
+          "stig_ref": null,
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Broader than /14 on a side",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "source_num_hosts",
+                        "op": "gt",
+                        "value": 131072
+                      },
+                      {
+                        "field": "destination_num_hosts",
+                        "op": "gt",
+                        "value": 131072
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Broader than /11 on a side",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "source_num_hosts",
+                        "op": "gt",
+                        "value": 1048576
+                      },
+                      {
+                        "field": "destination_num_hosts",
+                        "op": "gt",
+                        "value": 1048576
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Broader than /8 on a side",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "critical",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "source_num_hosts",
+                        "op": "gt",
+                        "value": 16777216
+                      },
+                      {
+                        "field": "destination_num_hosts",
+                        "op": "gt",
+                        "value": 16777216
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-POL-024",
+          "name": "Security Rule Zones Explicit",
+          "control_type": "security_rule",
+          "target_model": "integrations.SecurityRule",
+          "implementation_version": "v1",
+          "is_active": true,
+          "default_severity": "medium",
+          "description": "An allow rule names the zones it applies to, on both sides.\n\nA rule with `from any` or `to any` applies to every zone pair the firewall has, including pairs nobody considered when it was written - and adding a zone later silently widens it without anyone editing the rule.\n\nSEVERITY COUNTS THE UNNAMED SIDES. One side `any` is medium; both sides `any` is high. Jason, 2026-10-07. A rule with one zone named still says which direction it applies in; a rule with neither says only \"somewhere to somewhere\".\n\nNOT CRITICAL. The address and application axes are where unbounded reach is scored - PAN-POL-002 and PAN-POL-005 - and a rule whose addresses and application are all named but whose zone is `any` is a narrower problem than either. Of the lab's rules with an `any` zone, all but one are broad elsewhere too and already report PAN-POL-002.\n\nWHERE THIS CAME FROM. controls.json states it only inside PAN-POL-001's preferred value - \"zones always explicit\" - and PAN-POL-001 never asserted it. When 001 was dropped into PAN-POL-002 on 2026-10-06 nothing was left pointing at this ground, so it became its own control. 20 corpus controls mention a zone and none of them asserts this: PAN-ZON-001 through 008 are zone PROTECTION profiles, PAN-POL-010 is about interzone deny rules, and PAN-UID-001 and PAN-IOT-002 scope features to zones.\n\nSCOPE. Allow rules only, excluding the two predefined default rules - which carry no zone elements at all and cannot be edited - and excluding disabled rules, whose zones are PAN-POL-014's business.\n\nINTRAZONE RULES ARE IN SCOPE, measured rather than assumed. PAN-OS refuses an intrazone rule whose source and destination zones differ, at the WRITE: code=12, \"Intrazone rule has different set of source and destination zones\" (pan-fw-111, 2026-10-07). So such a rule can satisfy this control - by naming the same zone on both sides - and an intrazone rule with `from any` necessarily has `to any`, which puts it in the high band rather than the medium one.",
+          "rationale": "A zone pair is the coarsest statement a rule makes about where it applies, and it is the one an engineer reads first. `any` there defers the decision to whatever the network becomes: every zone added after the rule was written inherits it. Naming the zones is also usually a short change, because the author knew the answer at the time and did not have to write it down.",
+          "audit": "Policies > Security. Read the Source Zone and Destination Zone columns. `any` on one side is medium, on both sides high. The predefined intrazone-default and interzone-default rules carry no zone elements and are out of scope.",
+          "remediation": "Name the zones the flow actually crosses. Where a rule genuinely applies to every zone - a deny-all at the bottom of the rulebase, for instance - that is a deliberate `any` and the assessor can clear it; nothing in the configuration distinguishes it from an unconsidered one.",
+          "cis_ref": null,
+          "stig_ref": null,
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "from_zone",
+                        "op": "eq",
+                        "value": "any"
+                      },
+                      {
+                        "field": "to_zone",
+                        "op": "eq",
+                        "value": "any"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Both zone sides any",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "from_zone",
+                    "op": "eq",
+                    "value": "any"
+                  },
+                  {
+                    "field": "to_zone",
+                    "op": "eq",
+                    "value": "any"
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
     }

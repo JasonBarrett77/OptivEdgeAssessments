@@ -55,7 +55,9 @@ COLUMNS = [
     ("Device group", 26, False),
     ("Rulebase", 16, False),
     ("Rule name", None, False),
+    ("Source zone", 14, True),
     ("Sources", None, True),
+    ("Destination zone", 14, True),
     ("Destinations", None, True),
     ("Service", 24, True),
     ("Application", 24, True),
@@ -68,7 +70,9 @@ COLUMNS = [
 #: compared across them rather than taken from the first.
 VALUE_READERS = {
     "Rulebase": security_rules_sheet.rulebase,
+    "Source zone": security_rules_sheet.FROM_ZONES_READER.read,
     "Sources": security_rules_sheet.SOURCES_READER.read,
+    "Destination zone": security_rules_sheet.TO_ZONES_READER.read,
     "Destinations": security_rules_sheet.DESTINATIONS_READER.read,
     "Service": security_rules_sheet.SERVICE_READER.read,
     "Application": security_rules_sheet.APPLICATIONS_READER.read,
@@ -78,7 +82,8 @@ VALUE_READERS = {
 #: Which column presents which tested field, so the value at fault is marked here as it is on the
 #: per-finding tab.
 FIELD_BY_COLUMN = {
-    "Sources": "source_address", "Destinations": "destination_address",
+    "Source zone": "from_zone", "Sources": "source_address",
+    "Destination zone": "to_zone", "Destinations": "destination_address",
     "Service": "service", "Application": "application", "Action": "action",
 }
 
@@ -174,7 +179,9 @@ def write_sheet(build) -> SheetInfo:
             group_name,
             values["Rulebase"],
             rule_name,
+            values["Source zone"],
             values["Sources"],
+            values["Destination zone"],
             values["Destinations"],
             values["Service"],
             values["Application"],

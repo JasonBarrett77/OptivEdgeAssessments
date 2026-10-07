@@ -59,6 +59,17 @@ def with_breadth(members: str, num_hosts) -> str:
     return f"{members}\n{address_breadth_label(num_hosts)}"
 
 
+#: Zones live on their own rows too, like services. PAN-POL-024 tests `from_zone` and
+#: `to_zone`, and until it was built this sheet had no zone column at all - a finding about a
+#: rule's zones with nowhere to show them. The configuration explorer's rule table has carried
+#: Source Zone and Destination Zone from the start; this now matches it.
+FROM_ZONES_READER = findings_sheet.ValueReader(
+    read=lambda rule: joined(rule.securityrulefromzones.all()),
+)
+TO_ZONES_READER = findings_sheet.ValueReader(
+    read=lambda rule: joined(rule.securityruletozones.all()),
+)
+
 #: A rule's services live on `SecurityRuleService` rows, in configured order.
 SERVICE_READER = findings_sheet.ValueReader(
     read=lambda rule: joined(rule.securityruleservices.all()),
@@ -152,9 +163,13 @@ SUBJECT_COLUMNS = (
     ("Device group", 26, False, device_group),
     ("Rulebase", 16, False, lambda rule, _p: rulebase(rule)),
     ("Rule name", None, False, lambda rule, _p: rule.name or NONE),
+    # Each zone before its own address side, the order both the rules page and the
+    # configuration explorer use.
+    ("Source zone", 14, True, lambda rule, _p: FROM_ZONES_READER.read(rule), "from_zone"),
     # Width None: sized to the longest LINE on the sheet, so no object name wraps and the list
     # reads as one name per line rather than a paragraph (Jason, 2026-09-18).
     ("Sources", None, True, lambda rule, _p: SOURCES_READER.read(rule), "source_address"),
+    ("Destination zone", 14, True, lambda rule, _p: TO_ZONES_READER.read(rule), "to_zone"),
     ("Destinations", None, True, lambda rule, _p: DESTINATIONS_READER.read(rule),
      "destination_address"),
     ("Service", 24, True, lambda rule, _p: SERVICE_READER.read(rule), "service"),
@@ -175,6 +190,8 @@ SPEC = findings_sheet.DeviceSettingSheet(
     subject_columns=SUBJECT_COLUMNS,
     source_columns=SOURCE_COLUMNS,
     value_readers={
+        "from_zone": FROM_ZONES_READER,
+        "to_zone": TO_ZONES_READER,
         "service": SERVICE_READER,
         "source_address": SOURCES_READER,
         "destination_address": DESTINATIONS_READER,
@@ -199,7 +216,8 @@ SPEC = findings_sheet.DeviceSettingSheet(
     appliance_of=lambda rule: None,
     subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance"),
     #: The service members every row reads, and the HA pair the Firewalls column lists.
-    subject_prefetch=("securityruleservices", "securityruleapplications",
+    subject_prefetch=("securityrulefromzones", "securityruletozones",
+                      "securityruleservices", "securityruleapplications",
                       "source_address_refs", "destination_address_refs",
                       "enforcement_point__appliance_group__appliances"),
     description=("The security policy each firewall enforces: what the rules allow, how tightly "
