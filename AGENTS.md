@@ -177,12 +177,58 @@ or topology.
   synchronized across the pair, so a control targeting them yields two identical findings for
   what is one configuration. HA state, when it is modelled, genuinely differs per node and
   should not be collapsed. There is currently nothing comparing the peers, so a pair that has
-  *drifted* where it should be synced produces no finding at all.
+  *drifted* where it should be synced produces no finding at all — drafted, not built, under
+  "HA peer drift is not assessed" below.
 
 * **An enforcement point is a vsys, and a single-vsys firewall is still a vsys.** There is
   no "device-level" assessment target for policy or objects. Device-wide settings are
   appliance-scoped models of their own, and `Control._CONTROL_TYPE_TARGET_MODEL` is the whole
   vocabulary: one model per control type.
+
+## HA peer drift is not assessed, and the assumption is now load-bearing
+
+**Draft for after controls.json. Nothing here is built.**
+
+An HA pair's configuration is assumed synchronized. Nothing checks it, and as of 2026-10-07 two
+pieces of behaviour REST on the assumption rather than merely coexisting with it:
+
+* the device-wide models hold one row per appliance, so a pair reports two findings for one
+  configuration and a reader takes them to agree
+* OptivEdgeIntegrations' `choose_local_appliance` now reads the PEER's merged config when the
+  active member has none, which is correct only if the two are the same
+
+So a drifted pair produces no finding, reports its drift as agreement, and may be assessed
+against the wrong node. That is three ways of being wrong about the same thing, and the third
+one arrived while fixing something else — which is the reason to write this down now rather
+than when the control is built.
+
+**What a real implementation needs, before any of it is worth starting.**
+
+* **A per-field answer to "should this be synchronized?"** This is the whole difficulty and it
+  is not a property of the model. `SystemIdentity.hostname` legitimately differs per node, and
+  so do the management address and the HA priority; `PasswordComplexityPolicy.minimum_length`
+  and `LoginBanner.text` must not. A control that compared whole rows would fire on every pair
+  in every estate, which is the same uselessness as one that fires on none. The declaration has
+  to sit beside each field, the way `DERIVED_FIELDS` does, so it cannot drift from what it
+  describes.
+* **A subject that is the PAIR.** Every finding model today is one row per object, and
+  `Control._CONTROL_TYPE_TARGET_MODEL` is one model per control type. Drift is a statement
+  about an `ApplianceGroup`, which nothing is assessed against — so this needs a finding model
+  and a control type of its own, not a query over an existing one.
+* **A decision about what it reports on a pair collected once.** The active member's snapshot
+  is the only one present in a normal collection, and comparing a node against itself finds
+  nothing. Either collection has to read both members, or the control states that it could not
+  compare — and saying nothing would be the wrong answer, since "no drift found" and "not
+  checked" are what this whole section exists to separate.
+* **What it does with an HA pair whose members run different PAN-OS versions.** An upgrade
+  takes them through that state deliberately, and defaults differ by release — so a difference
+  there is expected and a finding about it is noise.
+
+**Until then: the estate is assumed to have synchronized HA pairs, which is true of the lab and
+is stated here so it is a known assumption rather than an accident.** Same reasoning as the
+operating-mode note below, and the same refusal to fix it piecemeal: a control that compared a
+few fields would report "no drift" on a pair that had drifted in the fields it did not compare,
+which is worse than the silence it replaced.
 
 ## Operating modes are not assessed, deliberately
 
