@@ -28,10 +28,17 @@ def profile_owner(obj) -> str:
 
 
 def _gaps(obj) -> list[str]:
+    """The severities this profile fails, and why.
+
+    `blocked is False` rather than `not blocked`: None means the profile does not assess that
+    severity at all, which is not a gap. No control reaches this with a None today - the queries
+    cannot match a profile with no verdict row - but a falsy test would have turned "makes no
+    claim" into a reported failure the moment one did.
+    """
     return [f"{severity}: {detail}" for severity, blocked, detail in (
         ("critical", obj.critical_blocked, obj.critical_detail),
         ("high", obj.high_blocked, obj.high_detail),
-    ) if not blocked]
+    ) if blocked is False]
 
 
 def _subject(obj) -> str:

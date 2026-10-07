@@ -126,8 +126,20 @@ def _kind_scope(kind):
             "clauses": [{"field": "kind", "op": "eq", "value": kind, "negated": False}]}
 
 
+#: A severity this kind of profile does not assess at all.
+NOT_APPLICABLE = "n/a"
+
+
 def _verdict(blocked, detail):
-    """The reason on BOTH sides: which action blocks it, or why nothing does."""
+    """The reason on BOTH sides: which action blocks it, or why nothing does.
+
+    `None` is a THIRD state and not a quiet `False`: the profile makes no claim about this
+    severity. An antivirus profile has per-protocol decoders rather than severity rules, so it
+    answers the question not at all - and a blank cell beside rows reading "blocked (reset-both)"
+    would read as a failure.
+    """
+    if blocked is None:
+        return NOT_APPLICABLE
     return f"blocked ({detail})" if blocked else detail
 
 
