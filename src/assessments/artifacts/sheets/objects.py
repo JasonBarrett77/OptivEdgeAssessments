@@ -124,6 +124,18 @@ REFERENCED_BY_POLICY = findings_sheet.ValueReader(
 )
 
 
+#: Which protocol decoders an antivirus profile does NOT stop malware on. Blank for every
+#: other kind, which has no decoders. The resolved action, not the configured one - the
+#: configuration says `default` on every decoder of every unedited profile, so a column showing
+#: what the config holds would show the same word on a profile that blocks and one that does not.
+DECODER_COVERAGE = findings_sheet.ValueReader(
+    read=lambda profile: (", ".join(profile.non_blocking_decoders) + " (alert only)"
+                          if profile.non_blocking_decoders
+                          else ("all block" if profile.decoders.all() else "—")),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
         control_types=(control_type,), title=title, description=description,
@@ -230,12 +242,18 @@ SPECS = (
          "they are bound to.",
          subject=APPLIANCE + NAME,),
     spec(T.SECURITY_PROFILE,
-         "The anti-spyware and vulnerability profiles, and what each one blocks.",
-         subject=VSYS_SCOPED + KIND + NAME,
+         "The anti-spyware, vulnerability and antivirus profiles, and what each one blocks.",
+         subject=VSYS_SCOPED + KIND + NAME + (
+             # Antivirus has no severity verdict and the severity columns read n/a for it, so
+             # without this an antivirus finding would land on a tab that says nothing about
+             # why it fired.
+             ("Decoders not blocking", 24, True,
+              lambda profile, _p: DECODER_COVERAGE.read(profile), "has_non_blocking_decoder"),),
+         value_readers={"has_non_blocking_decoder": DECODER_COVERAGE},
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),
-         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+         subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders")),
     spec(T.ADMIN_USER,
          "The administrator accounts on each firewall: what each may do, and what it authenticates "
          "with.",

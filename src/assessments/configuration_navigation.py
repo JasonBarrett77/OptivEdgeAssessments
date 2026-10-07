@@ -104,6 +104,9 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  "Security Profiles", "shield",
                  where="Objects > Security Profiles > Vulnerability Protection",
                  search_model="integrations.SecurityProfile"),
+    ConfigObject("antivirus", "Antivirus", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > Antivirus",
+                 search_model="integrations.SecurityProfile"),
     # Device > Setup. Six of our tabs are all one PAN-OS screen with sub-tabs; they sit under
     # Setup as rail children rather than being flattened, so the address stays the vendor's.
     # `management` came OUT on 2026-09-10. Every completed control that read

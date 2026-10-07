@@ -143,6 +143,17 @@ def _verdict(blocked, detail):
     return f"blocked ({detail})" if blocked else detail
 
 
+def _decoder_actions(profile) -> str:
+    """Each protocol and what it RESOLVES to, one per line.
+
+    The configured literal is almost always `default`, so a column showing it would read the
+    same for a profile that blocks and one that does not. The bracketed word in the UI is the
+    one that matters, and this is that word.
+    """
+    return _lines([f"{d.protocol}: {d.effective_action or '(unknown)'}"
+                   for d in profile.decoders.all()]) or "-"
+
+
 def _security_profile_row(p):
     return (
         p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
@@ -515,6 +526,26 @@ RESULTS = {
         base_queryset=_security_profiles,
         scope=_kind_scope("vulnerability"),
         row=lambda p: _security_profile_row(p),
+    ),
+    # Antivirus is the third kind and it does NOT get the severity columns: it has no severity
+    # rules, so critical/high/medium read n/a for every row. What it has instead is a decoder
+    # per protocol, and the action that matters is the RESOLVED one - the configuration says
+    # `default` on every decoder of every unedited profile, including the shipped one.
+    "antivirus": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type",
+            "Not blocking": "has_non_blocking_decoder", "Used by": "referrer_count"},
+        columns=("Owner", "Profile", "Scope", "Decoders", "Not blocking", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("virus"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            _decoder_actions(p),
+            _lines(p.non_blocking_decoders) if p.non_blocking_decoders else "none",
+            p.referrer_count,
+        ),
     ),
     "password-profiles": ResultsSpec(
         query_fields={

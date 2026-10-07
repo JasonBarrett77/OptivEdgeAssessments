@@ -88,6 +88,33 @@ def build_integer_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_non_blocking_decoder_compiler(field_name):
+    """Does this antivirus profile leave any protocol decoder not blocking malware?
+
+    Answered from the decoder rows, where `default` has already been resolved to what it means
+    on each protocol - reset-both on http/http2/ftp/smb, alert on smtp/imap/pop3. The
+    configuration says `default` on every decoder of every unedited profile, including the
+    shipped one, so a compiler reading the configured literal would find nothing wrong with any
+    of them.
+
+    `false` requires at least one decoder row. A profile with none is not an antivirus profile
+    that blocks everywhere; it is a kind that has no decoders, and it must not read as passing.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        if value:
+            return SecurityProfile.objects.filter(
+                decoders__blocks=False).distinct().values("pk")
+        return (SecurityProfile.objects.filter(decoders__isnull=False)
+                .exclude(decoders__blocks=False).distinct().values("pk"))
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 def build_verdict_compiler(field_name, severity):
     """`critical_blocked = true/false`, answered from the severity-verdict rows.
 
@@ -148,6 +175,7 @@ FIELD_COMPILERS = {
     "high_detail": build_verdict_detail_compiler("high_detail", "high"),
     "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
     "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
+    "has_non_blocking_decoder": build_non_blocking_decoder_compiler("has_non_blocking_decoder"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),
