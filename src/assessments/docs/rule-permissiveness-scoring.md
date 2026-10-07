@@ -402,17 +402,39 @@ Service and application subjects wait on the models above.
 
 1. ~~Whether PAN-POL-001 retires into this control.~~ **Settled 2026-10-06: dropped.** See
    above. What it leaves behind is item 5.
-2. Whether zones return as a separate control. **Sharper since the drop:** both of
-   PAN-POL-001's change entries flagged that the corpus's preferred value for it also says
-   "zones always explicit", that 001 never asserted it, and that nothing else covered it. With
-   001 gone, no control points at that ground at all — 10 lab rules have an `any` zone with
-   everything else named.
+2. ~~Whether zones return as a separate control.~~ **Settled 2026-10-07: allocated as
+   `PAN-POL-024`, "Security Rule Zones Explicit", stubbed and not built.** It is the one piece
+   of PAN-POL-001's ground nothing else covers — both of 001's change entries said so. The data
+   is already modelled (`SecurityRuleFromZone`/`ToZone`, with `from_zone`/`to_zone` already in
+   the search compiler), so it is seed-only: no OEI work, no migration.
+
+   Two things to read before building it. **Severity is the real question, not the query** —
+   of 11 real lab rules with an `any` zone, only 1 has everything else named; the other 10 are
+   broad elsewhere and already report 002, so on this estate the control mostly adds a second
+   finding to rules that already have one. And **the 98 case-matrix rules on pan-fw-111 all
+   carry `from any` / `to any`**, so it would report 109 findings here with 98 of them
+   fixtures. They do not need `any` zones — nothing in 002 turns on it — so giving them
+   explicit zones first is probably the cheaper fix.
 3. Whether PAN-OS accepts port 0 in a service object (moves the service bound by 2).
 4. PAN-POL-023, the client-facing half — an EDL the DEVICE cannot fetch — is allocated and
-   unbuilt. It is not a coverage finding and belongs in the policy domain.
+   unbuilt. It is not a coverage finding and belongs in the policy domain. **Registered in
+   `control-changes.json` on 2026-10-07**, five days after this document started using the
+   number: an allocated id with no entry there makes `build_controls_csv.py` refuse to run, the
+   same way the PAN-COV ids did.
 5. **PAN-POL-014, "Disabled Rules Removed After Grace Period"** — `not started`, and the only
-   home for the case the 001 drop gave up. Buildable today in reduced form: `disabled = yes` is
-   config-readable, while the age the control's minimum turns on ("disabled longer than 90
-   days") needs config-history correlation we do not have. Build it reporting disabled rules
-   with the age marked unestablished, or accept the gap knowingly — but it should not sit
-   unrecorded, because 001 used to report these rules and no longer does.
+   home for the case the 001 drop gave up. **Stubbed 2026-10-07 with a severity change:** Jason
+   asked for it to be graded by address breadth "using the same logic as 002". The mechanism
+   transfers unchanged — one baseline plus non-baseline queries carrying `adjusted_severity`,
+   worst side wins — and the columns already exist, since normalization writes
+   `source_num_hosts` for disabled rules too.
+
+   **The severities must not transfer with it.** Reusing 002's mapping verbatim makes a disabled
+   any/any *critical*, identical to an enabled one and differing only in which control reports
+   it — which would make 002's exclusion of disabled rules pointless and contradict its reason
+   for excluding them. Proposed instead: baseline `low` (the corpus value), `medium` above /12,
+   `high` above /8, and never `critical`, which stays reserved for a rule that permits
+   something now. That is 002's top three thresholds landing two severities lower.
+
+   Still unbuildable: the corpus minimum turns on how *long* a rule has been disabled, which
+   needs config-history correlation we do not have. The control ships asserting breadth-graded
+   hygiene with the age marked unestablished, or not at all.
