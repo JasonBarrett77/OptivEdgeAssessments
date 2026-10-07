@@ -402,39 +402,58 @@ Service and application subjects wait on the models above.
 
 1. ~~Whether PAN-POL-001 retires into this control.~~ **Settled 2026-10-06: dropped.** See
    above. What it leaves behind is item 5.
-2. ~~Whether zones return as a separate control.~~ **Settled 2026-10-07: allocated as
-   `PAN-POL-024`, "Security Rule Zones Explicit", stubbed and not built.** It is the one piece
-   of PAN-POL-001's ground nothing else covers — both of 001's change entries said so. The data
-   is already modelled (`SecurityRuleFromZone`/`ToZone`, with `from_zone`/`to_zone` already in
-   the search compiler), so it is seed-only: no OEI work, no migration.
+2. ~~Whether zones return as a separate control.~~ **Settled: `PAN-POL-024`, "Security Rule
+   Zones Explicit"** — allocated and stubbed 2026-10-07, not built. It is the one piece of
+   PAN-POL-001's ground nothing else covers. Seed-only: `SecurityRuleFromZone`/`ToZone` exist
+   and `from_zone`/`to_zone` are already in the search compiler, so no OEI work and no
+   migration.
 
-   Two things to read before building it. **Severity is the real question, not the query** —
-   of 11 real lab rules with an `any` zone, only 1 has everything else named; the other 10 are
-   broad elsewhere and already report 002, so on this estate the control mostly adds a second
-   finding to rules that already have one. And **the 98 case-matrix rules on pan-fw-111 all
-   carry `from any` / `to any`**, so it would report 109 findings here with 98 of them
-   fixtures. They do not need `any` zones — nothing in 002 turns on it — so giving them
-   explicit zones first is probably the cheaper fix.
+   **Severity, decided by Jason 2026-10-07:** one zone side `any` → **medium**; both sides
+   `any` → **high**. So the baseline fires at medium on either side, and a second query carrying
+   `adjusted_severity: high` repeats the baseline's conditions and adds the conjunction — the
+   same shape every graded control here uses. Not critical: a rule with one zone named still
+   says which direction it applies in.
+
+   **The medium band has no lab subject.** Measured 2026-10-07: of 951 allow non-default rules,
+   and of the 851 that are not probe fixtures, *exactly zero* have `any` on one side only — all
+   111 (11 real) have both. The baseline's own severity would ship untested while only the
+   raised band fires, which is backwards. One rule with `from trust` / `to any` on pan-fw-111
+   fixes it, and the checklist requires it before this is done.
+
+   The high band is 11 real rules plus the 98 case-matrix rules, which all carry `from any` /
+   `to any`. Giving those 98 explicit zones is the cheaper fix — nothing in 002 turns on their
+   zones — and leaves the high band with its genuine subjects.
 3. Whether PAN-OS accepts port 0 in a service object (moves the service bound by 2).
 4. PAN-POL-023, the client-facing half — an EDL the DEVICE cannot fetch — is allocated and
    unbuilt. It is not a coverage finding and belongs in the policy domain. **Registered in
    `control-changes.json` on 2026-10-07**, five days after this document started using the
    number: an allocated id with no entry there makes `build_controls_csv.py` refuse to run, the
    same way the PAN-COV ids did.
-5. **PAN-POL-014, "Disabled Rules Removed After Grace Period"** — `not started`, and the only
-   home for the case the 001 drop gave up. **Stubbed 2026-10-07 with a severity change:** Jason
-   asked for it to be graded by address breadth "using the same logic as 002". The mechanism
-   transfers unchanged — one baseline plus non-baseline queries carrying `adjusted_severity`,
-   worst side wins — and the columns already exist, since normalization writes
-   `source_num_hosts` for disabled rules too.
+5. **`PAN-POL-014`, the disabled-rule control** — stubbed 2026-10-07 and **now buildable**,
+   which it was not before. Two decisions by Jason the same day:
 
-   **The severities must not transfer with it.** Reusing 002's mapping verbatim makes a disabled
-   any/any *critical*, identical to an enabled one and differing only in which control reports
-   it — which would make 002's exclusion of disabled rules pointless and contradict its reason
-   for excluding them. Proposed instead: baseline `low` (the corpus value), `medium` above /12,
-   `high` above /8, and never `critical`, which stays reserved for a rule that permits
-   something now. That is 002's top three thresholds landing two severities lower.
+   **Severity mirrors PAN-POL-002 exactly, unshifted:** baseline `low` for any disabled allow
+   rule, then `medium` above 131,072 addresses on a side, `high` above 1,048,576, `critical`
+   above 16,777,216. 002's thresholds *and* its severities; 002's low and informational bands
+   are subsumed by a baseline that is already low.
 
-   Still unbuildable: the corpus minimum turns on how *long* a rule has been disabled, which
-   needs config-history correlation we do not have. The control ships asserting breadth-graded
-   hygiene with the age marked unestablished, or not at all.
+   I had proposed shifting those down two steps, arguing a disabled rule "permits nothing today"
+   and that scoring it as critical would make 002's exclusion pointless. **That was wrong.** 002
+   excludes disabled rules because breadth-scoring an inactive rule measures nothing — not
+   because such rules are less serious. Jason: *"A highly permissive but disabled rule could be
+   worse then an operational-permissive rule. The disabled rule could be intentionally
+   dangerous, previously used for testing purposes... Disabled rules could be more poorly
+   designed, outside of governance type risks."* A rule built broad for testing and left behind
+   was never reviewed as production policy and is one click from being 002's finding.
+
+   **The trigger is no longer a timeline.** The corpus minimum is "no rule has been disabled
+   longer than 90 days" and its preferred is "removed at 30 days"; both need config-history
+   correlation we do not have, which is what made this control read as unbuildable. The trigger
+   becomes the *presence* of a disabled allow rule, the day thresholds come out of the
+   assertion, and the hygiene framing stays in the description, rationale and remediation —
+   stale intent, escaped review, re-enabled during an incident. The corpus name asserts the
+   threshold too, so it is proposed as "Disabled Rules Removed (Hygiene)".
+
+   Seed-only: `disabled` and both count fields are registered search fields and normalization
+   writes the counts for disabled rules. Medium and high need subjects built — two disabled
+   rules sourced from a /13 and a /9, objects the case matrix already has.
