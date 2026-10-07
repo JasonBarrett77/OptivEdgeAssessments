@@ -6,6 +6,15 @@ CONCLUSIONS, computed in normalization from the profile's whole rule list, becau
 literal. The reason sits beside each verdict (`critical_detail`) so a row can be checked rather
 than taken.
 
+THEY LIVE ON A SATELLITE TABLE, one row per severity the profile answers for, and these
+compilers reach into it. The field NAMES are unchanged because they are the control contract -
+PAN-SPY-001 and PAN-VLN-001 name them in their queries - while where the value is stored is not.
+
+A profile with no row for a severity MAKES NO CLAIM about it, and matches neither
+`critical_blocked = true` nor `critical_blocked = false`. That is the point of the split: an
+antivirus profile has no severity rules, and a column that could only say yes or no had to say
+"critical is not blocked" about a profile that does not answer the question.
+
 A profile belongs to an enforcement point (vsys and predefined scope) or to an appliance group
 (shared scope), so `appliance_group` matches either path.
 """
@@ -79,6 +88,42 @@ def build_integer_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_verdict_compiler(field_name, severity):
+    """`critical_blocked = true/false`, answered from the severity-verdict rows.
+
+    A profile with no row for this severity matches NEITHER value. It is not a profile that
+    fails to block the severity; it is a profile that does not answer the question.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return SecurityProfile.objects.filter(
+            severity_verdicts__severity=severity,
+            severity_verdicts__blocked=value).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
+def build_verdict_detail_compiler(field_name, severity):
+    """The reason beside a verdict - why a severity is not blocked."""
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op not in TEXT_OPERATORS:
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, str):
+            raise SearchSyntaxError(f"{field_name} search value must be a string.")
+        lookup = "iexact" if op == "eq" else "icontains"
+        return SecurityProfile.objects.filter(**{
+            "severity_verdicts__severity": severity,
+            f"severity_verdicts__detail__{lookup}": value}).values("pk")
+    compiler.SUPPORTED_OPERATORS = TEXT_OPERATORS
+    return compiler
+
+
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
     "kind": build_text_compiler("kind", "kind"),
@@ -97,12 +142,12 @@ FIELD_COMPILERS = {
     "description": build_text_compiler("description", "description"),
     "is_predefined": build_boolean_compiler("is_predefined", "is_predefined"),
     "is_used": build_boolean_compiler("is_used", "is_used"),
-    "critical_blocked": build_boolean_compiler("critical_blocked", "critical_blocked"),
-    "critical_detail": build_text_compiler("critical_detail", "critical_detail"),
-    "high_blocked": build_boolean_compiler("high_blocked", "high_blocked"),
-    "high_detail": build_text_compiler("high_detail", "high_detail"),
-    "medium_blocked": build_boolean_compiler("medium_blocked", "medium_blocked"),
-    "medium_detail": build_text_compiler("medium_detail", "medium_detail"),
+    "critical_blocked": build_verdict_compiler("critical_blocked", "critical"),
+    "critical_detail": build_verdict_detail_compiler("critical_detail", "critical"),
+    "high_blocked": build_verdict_compiler("high_blocked", "high"),
+    "high_detail": build_verdict_detail_compiler("high_detail", "high"),
+    "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
+    "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),

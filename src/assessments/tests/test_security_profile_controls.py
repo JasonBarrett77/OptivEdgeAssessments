@@ -23,7 +23,7 @@ from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import AssessmentRun, Control, ControlQuery, SecurityProfileFinding
 from assessments.security_profile_findings import generate_security_profile_findings
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, ManagementStation, PolicyObjectNamespace, SecurityProfile, Snapshot)
+    Appliance, ApplianceGroup, ManagementStation, PolicyObjectNamespace, SecurityProfile, SecurityProfileSeverityVerdict, Snapshot)
 
 SPY = SecurityProfile.KIND_SPYWARE
 VLN = SecurityProfile.KIND_VULNERABILITY
@@ -60,15 +60,21 @@ class SecurityProfileControlTests(TestCase):
         # Owned by the group here whatever the namespace: these tests are about the QUERY, and the
         # owner rules are ScopedPolicyObject.clean()'s business, pinned in OEI.
         namespace = PolicyObjectNamespace.PREDEFINED if predefined else PolicyObjectNamespace.LOCAL_SHARED
-        return SecurityProfile.objects.create(
+        profile = SecurityProfile.objects.create(
             management_station=self.station, appliance_group=self.group, source_snapshot=self.snapshot,
             config_source="local", name=name, namespace_type=namespace,
             namespace_value="predefined" if predefined else "shared", precedence_rank=20, kind=kind,
             is_predefined=predefined, is_used=used, referrer_count=1 if used else 0,
-            referrers=["vsys1 profile-group/g"] if used else [],
-            critical_blocked=critical, critical_detail="reset-both" if critical else "alert by rule a",
-            high_blocked=high, high_detail="reset-both" if high else "alert by rule alert-high",
-            medium_blocked=medium, medium_detail="reset-both" if medium else "no catch-all rule")
+            referrers=["vsys1 profile-group/g"] if used else [])
+        # The verdicts are rows now, one per severity the profile answers for. A kind with no
+        # severity rules - antivirus - writes none, and then matches neither true nor false.
+        for severity, blocked, detail in (
+                ("critical", critical, "reset-both" if critical else "alert by rule a"),
+                ("high", high, "reset-both" if high else "alert by rule alert-high"),
+                ("medium", medium, "reset-both" if medium else "no catch-all rule")):
+            SecurityProfileSeverityVerdict.objects.create(
+                security_profile=profile, severity=severity, blocked=blocked, detail=detail)
+        return profile
 
     def _fired(self):
         generate_security_profile_findings(self.run)
@@ -121,3 +127,43 @@ class SecurityProfilePageTests(TestCase):
                     "assessment_configuration_object", args=[config_nav.category_slug("Objects"), slug]))
                 self.assertContains(response, shown)
                 self.assertNotContains(response, hidden)
+
+
+class VerdictSatelliteSearchTests(SecurityProfileControlTests):
+    """A profile that answers no severity question matches NEITHER true nor false.
+
+    This is what the satellite bought. While the verdicts were columns the only way to store
+    "does not answer" was `False`, which a query for `critical_blocked = false` would have
+    returned as though the profile failed to block critical threats.
+    """
+
+    def test_a_profile_with_no_verdicts_matches_neither_value(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        answers = self._profile("answers", critical=False)
+        silent = SecurityProfile.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            source_snapshot=self.snapshot, config_source="local", name="silent",
+            namespace_type=PolicyObjectNamespace.LOCAL_SHARED, namespace_value="shared",
+            precedence_rank=21, kind=SPY)
+
+        compile_blocked = FIELD_COMPILERS["critical_blocked"]
+        false_match = {row["pk"] for row in compile_blocked(
+            {"op": "eq", "value": False, "case_sensitive": False})}
+        true_match = {row["pk"] for row in compile_blocked(
+            {"op": "eq", "value": True, "case_sensitive": False})}
+
+        self.assertIn(answers.pk, false_match)
+        self.assertNotIn(silent.pk, false_match,
+                         "a profile that makes no claim must not read as failing")
+        self.assertNotIn(silent.pk, true_match)
+
+    def test_the_detail_is_searchable_through_the_satellite(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        weak = self._profile("weak-detail", critical=False)
+
+        matched = {row["pk"] for row in FIELD_COMPILERS["critical_detail"](
+            {"op": "contains", "value": "alert by rule", "case_sensitive": False})}
+
+        self.assertIn(weak.pk, matched)
