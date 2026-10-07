@@ -33,6 +33,11 @@ from assessments.search.security_rules.fields.name import compile_name_clause
 from assessments.search.security_rules.fields.negate_destination import compile_negate_destination_clause
 from assessments.search.security_rules.fields.negate_source import compile_negate_source_clause
 from assessments.search.security_rules.fields.provenance import compile_provenance_clause
+from assessments.search.security_rules.fields.profile_coverage import (
+    compile_has_antivirus_profile_clause,
+    compile_has_spyware_profile_clause,
+    compile_has_vulnerability_profile_clause,
+)
 from assessments.search.security_rules.fields.rule_type import compile_rule_type_clause
 from assessments.search.security_rules.fields.service import compile_service_clause
 from assessments.search.security_rules.fields.source_address import compile_source_address_clause
@@ -70,6 +75,9 @@ FIELD_COMPILERS = {
     "negate_destination": compile_negate_destination_clause,
     "negate_source": compile_negate_source_clause,
     "provenance": compile_provenance_clause,
+    "has_antivirus_profile": compile_has_antivirus_profile_clause,
+    "has_spyware_profile": compile_has_spyware_profile_clause,
+    "has_vulnerability_profile": compile_has_vulnerability_profile_clause,
     "rule_type": compile_rule_type_clause,
     "service": compile_service_clause,
     "source_address": compile_source_address_semantic_clause,
@@ -99,6 +107,9 @@ FIELD_OPERATOR_REGISTRY = {
     "negate_destination": compile_negate_destination_clause.SUPPORTED_OPERATORS,
     "negate_source": compile_negate_source_clause.SUPPORTED_OPERATORS,
     "provenance": compile_provenance_clause.SUPPORTED_OPERATORS,
+    "has_antivirus_profile": compile_has_antivirus_profile_clause.SUPPORTED_OPERATORS,
+    "has_spyware_profile": compile_has_spyware_profile_clause.SUPPORTED_OPERATORS,
+    "has_vulnerability_profile": compile_has_vulnerability_profile_clause.SUPPORTED_OPERATORS,
     "rule_type": compile_rule_type_clause.SUPPORTED_OPERATORS,
     "service": compile_service_clause.SUPPORTED_OPERATORS,
     "source_address": compile_source_address_semantic_clause.SUPPORTED_OPERATORS,

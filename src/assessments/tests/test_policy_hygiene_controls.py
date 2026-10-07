@@ -58,20 +58,23 @@ class PolicyHygieneTests(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, enforcement_point=self.point,
             source_type="test", collected_at=timezone.now())
-        seed_controls(["PAN-POL-002", "PAN-POL-014", "PAN-POL-024"],
+        seed_controls(["PAN-POL-002", "PAN-POL-008", "PAN-POL-014", "PAN-POL-024"],
                       control_type=Control.ControlType.SECURITY_RULE)
         self.order = 0
 
     def _rule(self, name, *, source=SLASH_32, destination=SLASH_32, disabled=False,
               action="allow", config_source=SecurityRule.SOURCE_LOCAL,
-              from_zone="trust", to_zone="untrust", rule_type="universal"):
+              from_zone="trust", to_zone="untrust", rule_type="universal",
+              antivirus=True, spyware=True, vulnerability=True):
         self.order += 1
         rule = SecurityRule.objects.create(
             management_station=self.station, enforcement_point=self.point,
             source_snapshot=self.snapshot, config_source=config_source,
             effective_order=self.order, rule_position=self.order, name=name,
             action=action, disabled=disabled, rule_type=rule_type,
-            source_num_hosts=source, destination_num_hosts=destination)
+            source_num_hosts=source, destination_num_hosts=destination,
+            has_antivirus_profile=antivirus, has_spyware_profile=spyware,
+            has_vulnerability_profile=vulnerability)
         if from_zone is not None:
             SecurityRuleFromZone.objects.create(
                 security_rule=rule, value=from_zone, prov="test", position=1)
@@ -203,3 +206,45 @@ class PolicyHygieneTests(TestCase):
         self._rule("intrazone-any", rule_type="intrazone", from_zone="any", to_zone="any")
 
         self.assertEqual(self._severities("PAN-POL-024"), {"intrazone-any": "high"})
+
+    # --- PAN-POL-008 ---------------------------------------------------------------------------
+
+    def test_a_rule_with_all_three_profiles_is_silent(self):
+        self._rule("protected")
+
+        self.assertEqual(self._severities("PAN-POL-008"), {})
+
+    def test_a_rule_missing_one_profile_reports_high(self):
+        self._rule("no-av", antivirus=False)
+        self._rule("no-as", spyware=False)
+        self._rule("no-vp", vulnerability=False)
+
+        self.assertEqual(self._severities("PAN-POL-008"),
+                         {"no-av": "high", "no-as": "high", "no-vp": "high"})
+
+    def test_a_rule_with_no_inspection_at_all_is_critical(self):
+        """The lab's own case: 113 rules name a profile group that names nothing, so all three
+        columns are False and the rule passes traffic uninspected."""
+        self._rule("uninspected", antivirus=False, spyware=False, vulnerability=False)
+
+        self.assertEqual(self._severities("PAN-POL-008"), {"uninspected": "critical"})
+
+    def test_a_deny_rule_needs_no_profiles(self):
+        self._rule("deny-bare", action="deny",
+                   antivirus=False, spyware=False, vulnerability=False)
+
+        self.assertEqual(self._severities("PAN-POL-008"), {})
+
+    def test_a_disabled_rule_is_out_of_scope(self):
+        """It inspects nothing because it permits nothing. PAN-POL-014 is where it reports."""
+        self._rule("disabled-bare", disabled=True,
+                   antivirus=False, spyware=False, vulnerability=False)
+
+        self.assertEqual(self._severities("PAN-POL-008"), {})
+        self.assertEqual(self._severities("PAN-POL-014"), {"disabled-bare": "low"})
+
+    def test_the_predefined_defaults_are_out_of_scope(self):
+        self._rule("intrazone-default", config_source=SecurityRule.SOURCE_DEFAULT,
+                   antivirus=False, spyware=False, vulnerability=False)
+
+        self.assertEqual(self._severities("PAN-POL-008"), {})

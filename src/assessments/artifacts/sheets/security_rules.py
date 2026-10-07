@@ -59,6 +59,37 @@ def with_breadth(members: str, num_hosts) -> str:
     return f"{members}\n{address_breadth_label(num_hosts)}"
 
 
+#: What a rule's protection RESOLVES to, which is not what it names. The group name alone is
+#: misleading in exactly the case PAN-POL-008 exists for: the lab's `default` group names no
+#: profiles, so 113 rules read "default" here and inspect nothing. Both halves are shown - what
+#: the rule names, and what is in force after resolving it.
+PROFILE_TYPE_LABELS = (
+    ("has_antivirus_profile", "antivirus"),
+    ("has_spyware_profile", "anti-spyware"),
+    ("has_vulnerability_profile", "vulnerability"),
+)
+
+
+def profiles_in_force(rule) -> str:
+    named = [g.value for g in rule.securityruleprofilegroups.all()]
+    direct = [f"{p.profile_type}: {p.value}" for p in rule.securityruleprofiles.all()]
+    in_force = [label for column, label in PROFILE_TYPE_LABELS if getattr(rule, column, False)]
+    lines = []
+    if named:
+        lines.append("group " + ", ".join(named))
+    lines.extend(direct)
+    if not lines:
+        lines.append("(none named)")
+    lines.append("in force: " + (", ".join(in_force) if in_force else "NONE"))
+    return "\n".join(lines)
+
+
+PROFILES_READER = findings_sheet.ValueReader(
+    read=profiles_in_force,
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
 #: Zones live on their own rows too, like services. PAN-POL-024 tests `from_zone` and
 #: `to_zone`, and until it was built this sheet had no zone column at all - a finding about a
 #: rule's zones with nowhere to show them. The configuration explorer's rule table has carried
@@ -175,6 +206,7 @@ SUBJECT_COLUMNS = (
     ("Service", 24, True, lambda rule, _p: SERVICE_READER.read(rule), "service"),
     ("Application", 24, True, lambda rule, _p: APPLICATIONS_READER.read(rule), "application"),
     ("Action", 10, False, lambda rule, _p: rule.action or NONE, "action"),
+    ("Profiles", 26, True, lambda rule, _p: profiles_in_force(rule), "has_antivirus_profile"),
 )
 
 SOURCE_COLUMNS = (
@@ -190,6 +222,9 @@ SPEC = findings_sheet.DeviceSettingSheet(
     subject_columns=SUBJECT_COLUMNS,
     source_columns=SOURCE_COLUMNS,
     value_readers={
+        "has_antivirus_profile": PROFILES_READER,
+        "has_spyware_profile": PROFILES_READER,
+        "has_vulnerability_profile": PROFILES_READER,
         "from_zone": FROM_ZONES_READER,
         "to_zone": TO_ZONES_READER,
         "service": SERVICE_READER,
@@ -211,12 +246,16 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    # A SCOPE condition rather than an observation: PAN-POL-002 excludes disabled
                    # rules, so every row on this sheet is an enabled rule by construction. The
                    # Fires when cell states it on the surfaces that carry that block.
-                   "disabled"),
+                   "disabled",
+                   # The Profiles column declares has_antivirus_profile and renders all three
+                   # on its "in force" line, so a column each would repeat it.
+                   "has_spyware_profile", "has_vulnerability_profile"),
     #: A rule belongs to a vsys, not to one appliance: nothing to link to on the Appliances tab.
     appliance_of=lambda rule: None,
     subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance"),
     #: The service members every row reads, and the HA pair the Firewalls column lists.
-    subject_prefetch=("securityrulefromzones", "securityruletozones",
+    subject_prefetch=("securityruleprofilegroups", "securityruleprofiles",
+                      "securityrulefromzones", "securityruletozones",
                       "securityruleservices", "securityruleapplications",
                       "source_address_refs", "destination_address_refs",
                       "enforcement_point__appliance_group__appliances"),

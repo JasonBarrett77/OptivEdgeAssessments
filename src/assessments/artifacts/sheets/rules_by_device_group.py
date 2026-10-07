@@ -62,6 +62,7 @@ COLUMNS = [
     ("Service", 24, True),
     ("Application", 24, True),
     ("Action", 10, False),
+    ("Profiles", 26, True),
     ("Notes", 30, True),
     ("Config collected (UTC)", 20, False),
 ]
@@ -77,6 +78,7 @@ VALUE_READERS = {
     "Service": security_rules_sheet.SERVICE_READER.read,
     "Application": security_rules_sheet.APPLICATIONS_READER.read,
     "Action": lambda rule: rule.action or NONE,
+    "Profiles": security_rules_sheet.profiles_in_force,
 }
 
 #: Which column presents which tested field, so the value at fault is marked here as it is on the
@@ -85,6 +87,8 @@ FIELD_BY_COLUMN = {
     "Source zone": "from_zone", "Sources": "source_address",
     "Destination zone": "to_zone", "Destinations": "destination_address",
     "Service": "service", "Application": "application", "Action": "action",
+    # Declares one of the three; its "in force" line renders all of them.
+    "Profiles": "has_antivirus_profile",
 }
 
 #: Sorts before every device group name, and renders as an empty cell - the Rulebase column says
@@ -186,6 +190,7 @@ def write_sheet(build) -> SheetInfo:
             values["Service"],
             values["Application"],
             values["Action"],
+            values["Profiles"],
             notes_for(members, values),
             newest_collection(group_findings, collected),
         ])

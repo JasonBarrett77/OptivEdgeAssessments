@@ -2395,6 +2395,114 @@
           "target_model": "integrations.SecurityRule"
         },
         {
+          "control_id": "PAN-POL-008",
+          "name": "Security Profiles on All Allow Rules",
+          "control_type": "security_rule",
+          "target_model": "integrations.SecurityRule",
+          "implementation_version": "v1",
+          "is_active": true,
+          "default_severity": "high",
+          "description": "An allow rule that permits traffic without inspecting it.\n\nEvery allow rule should carry antivirus, anti-spyware and vulnerability protection. A rule with none of the three passes whatever it permits uninspected, which is why that case is CRITICAL and a rule missing some of them is high.\n\nTHE PROFILE GROUP IS RESOLVED, NOT COUNTED. A rule names either individual profiles or one profile group, and the group is the common case. The group is looked up by name, by scope, and read for the profile types it actually contains - because a group that names nothing protects nothing. On the lab 113 rules name a group called `default` which names NO PROFILES AT ALL: they look configured in any view that stops at \"does this rule carry a profile group\", and they inspect nothing. Resolution is done in normalization and lands in three columns, for the same reason the address-breadth counts are columns - the search layer compares a field to a literal and cannot follow a reference and read what it points at.\n\nWHAT IT DOES NOT ASSERT. Nothing about the CONTENT of the profiles it finds. A rule carrying a `default` antivirus profile satisfies this control; whether that profile blocks anything is PAN-SPY-001's and PAN-VLN-001's question for the two types they cover, and no control covers antivirus profile content yet. URL filtering, file blocking and WildFire analysis are deliberately out of scope: the corpus minimum names these three.\n\nSCOPE. Enabled allow rules, excluding the two predefined default rules, whose profile setting cannot be edited. A deny rule needs no inspection profile.",
+          "rationale": "Threat prevention is the reason the firewall is in the path. An allow rule without profiles is a hole in that regardless of how tightly its addresses and applications are scoped, and it is invisible in a rulebase review because the rule looks complete - all of its match columns are filled in.",
+          "audit": "Policies > Security, the Profile column. Where a rule names a group, open the group: the finding is about what the group CONTAINS, and an empty group reads the same as a full one in the rule list.",
+          "remediation": "Attach a profile group carrying all three types, and check the group is not empty. Where a group is shared across rules, fixing the group fixes every rule naming it.",
+          "cis_ref": null,
+          "stig_ref": null,
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "has_antivirus_profile",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "has_spyware_profile",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "has_vulnerability_profile",
+                        "op": "eq",
+                        "value": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "No inspection at all",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "critical",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "has_antivirus_profile",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "has_spyware_profile",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "has_vulnerability_profile",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
           "control_id": "PAN-SPY-001",
           "name": "Anti-Spyware Profile Blocks Critical/High/Medium Severity",
           "control_type": "security_profile",
