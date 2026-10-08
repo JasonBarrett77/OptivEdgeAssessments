@@ -534,8 +534,10 @@ RESULTS = {
     "antivirus": ResultsSpec(
         query_fields={
             "Profile": "name", "Scope": "namespace_type",
-            "Not blocking": "has_non_blocking_decoder", "Used by": "referrer_count"},
-        columns=("Owner", "Profile", "Scope", "Decoders", "Not blocking", "Used by"),
+            "Not blocking": "has_non_blocking_decoder",
+            "Inline ML off": "has_disabled_ml_model", "Used by": "referrer_count"},
+        columns=("Owner", "Profile", "Scope", "Decoders", "Not blocking", "Inline ML off",
+                 "Used by"),
         base_queryset=_security_profiles,
         scope=_kind_scope("virus"),
         row=lambda p: (
@@ -544,6 +546,7 @@ RESULTS = {
             p.get_namespace_type_display(),
             _decoder_actions(p),
             _lines(p.non_blocking_decoders) if p.non_blocking_decoders else "none",
+            _lines(p.disabled_ml_models) if p.disabled_ml_models else "none",
             p.referrer_count,
         ),
     ),

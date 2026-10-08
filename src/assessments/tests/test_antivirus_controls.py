@@ -25,6 +25,7 @@ from optivedge_integrations.integrations.models import (
     PolicyObjectNamespace,
     SecurityProfile,
     SecurityProfileDecoder,
+    SecurityProfileMlModel,
     Snapshot,
 )
 
@@ -32,6 +33,11 @@ from optivedge_integrations.integrations.models import (
 SHIPPED = {"http": "reset-both", "http2": "reset-both", "ftp": "reset-both", "smb": "reset-both",
            "smtp": "alert", "imap": "alert", "pop3": "alert"}
 ALL_BLOCK = {protocol: "reset-both" for protocol in SHIPPED}
+
+#: As the predefined profile carries them on the lab. The CONTENT release names these, not
+#: PAN-OS, so production reads them from the predefined profile rather than a constant.
+MODELS = ("Windows Executables", "PowerShell Script 1", "PowerShell Script 2",
+          "Executable Linked Format", "MSOffice", "Shell", "OOXML", "MachO")
 
 
 class AntivirusDecoderControlTests(TestCase):
@@ -47,11 +53,12 @@ class AntivirusDecoderControlTests(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=self.appliance,
             source_type="config_predefined_security_profiles", collected_at=timezone.now())
-        seed_controls(["PAN-AVW-001"], control_type=Control.ControlType.SECURITY_PROFILE)
+        seed_controls(["PAN-AVW-001", "PAN-AVW-002"],
+                      control_type=Control.ControlType.SECURITY_PROFILE)
         self.rank = 0
 
     def _profile(self, name, effective_by_protocol, *, predefined=False, used=True,
-                 kind=SecurityProfile.KIND_VIRUS):
+                 kind=SecurityProfile.KIND_VIRUS, ml=None):
         self.rank += 1
         namespace = (PolicyObjectNamespace.PREDEFINED if predefined
                      else PolicyObjectNamespace.LOCAL_SHARED)
@@ -69,15 +76,22 @@ class AntivirusDecoderControlTests(TestCase):
                 # shape rather than a tidied one.
                 configured_action="default", effective_action=effective,
                 blocks=effective in SecurityProfileDecoder.BLOCKING_ACTIONS)
+        # One row per model the CONTENT release knows about, enabled or not. A model the config
+        # never names still gets a row, saying off - which is the state a profile with no ML
+        # node is in for every one of them.
+        for model, enabled in (ml if ml is not None else {m: True for m in MODELS}).items():
+            SecurityProfileMlModel.objects.create(
+                security_profile=profile, name=model, enabled=enabled,
+                configured_action="enable" if enabled else "disable")
         return profile
 
-    def _fired(self):
+    def _fired(self, control_id="PAN-AVW-001"):
         run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
         generate_security_profile_findings(run)
         return {f.security_profile.name: f.severity for f in
                 SecurityProfileFinding.objects.filter(
-                    control__control_id="PAN-AVW-001", assessment_run=run)
+                    control__control_id=control_id, assessment_run=run)
                 .select_related("security_profile")}
 
     def test_the_shipped_default_profile_fires(self):
@@ -142,3 +156,59 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(profile.non_blocking_decoders, ["imap", "pop3", "smtp"])
         self.assertTrue(profile.has_non_blocking_decoder)
+
+
+class WildFireInlineMlControlTests(AntivirusDecoderControlTests):
+    """PAN-AVW-002. The shipped profile PASSES this one and a hand-made profile fails it, which
+    is the reverse of the usual direction and the reason the control is worth having."""
+
+    def test_the_predefined_profile_passes(self):
+        """It enables every model. An administrator who leaves it alone gets more inline ML
+        than one who builds their own."""
+        self._profile("default", SHIPPED, predefined=True, used=True,
+                      ml={m: True for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {})
+
+    def test_a_profile_created_and_left_alone_fails(self):
+        """The UI writes `disable` for every model on a profile nobody edited."""
+        self._profile("ui-made", ALL_BLOCK, ml={m: False for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {"ui-made": "medium"})
+
+    def test_one_model_off_is_enough(self):
+        """The corpus minimum is Windows Executables alone; its preferred is every model, and
+        this asserts the preferred."""
+        self._profile("almost", ALL_BLOCK,
+                      ml={m: (m != "MachO") for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {"almost": "medium"})
+
+    def test_a_model_the_config_never_mentions_counts_as_off(self):
+        """A profile with no ML node has a row per model saying off, because the UI renders it
+        that way. Without those rows it would have nothing switched off and would pass while
+        running no inline ML at all."""
+        profile = self._profile("names-nothing", ALL_BLOCK, ml={m: False for m in MODELS})
+
+        self.assertEqual(profile.disabled_ml_models, sorted(MODELS))
+        self.assertEqual(self._fired("PAN-AVW-002"), {"names-nothing": "medium"})
+
+    def test_the_two_antivirus_controls_are_independent(self):
+        """A profile can block on every decoder and still run no inline ML, and the reverse.
+        They are different questions about the same object."""
+        self._profile("blocks-no-ml", ALL_BLOCK, ml={m: False for m in MODELS})
+        self._profile("ml-no-blocks", SHIPPED, ml={m: True for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-001"), {"ml-no-blocks": "high"})
+        self.assertEqual(self._fired("PAN-AVW-002"), {"blocks-no-ml": "medium"})
+
+    def test_an_unused_predefined_profile_is_out_of_scope(self):
+        self._profile("default", SHIPPED, predefined=True, used=False,
+                      ml={m: False for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {})
+
+    def test_a_profile_of_another_kind_has_no_models(self):
+        self._profile("spy", {}, kind=SecurityProfile.KIND_SPYWARE, ml={})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {})

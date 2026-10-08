@@ -88,6 +88,32 @@ def build_integer_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_disabled_ml_model_compiler(field_name):
+    """Does this antivirus profile leave any WildFire Inline ML model off?
+
+    Answered from the model rows, which carry one entry per model the CONTENT release knows
+    about - catalogued from the predefined profile rather than from a hardcoded list, because
+    controls.json says those names come from content and must be enumerated per version.
+
+    A model the profile's config never mentions is DISABLED, and has a row saying so. Without
+    that, a profile with no ML node at all would have no rows and would read as having nothing
+    switched off, when in fact it runs no inline ML whatever.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        if value:
+            return SecurityProfile.objects.filter(
+                ml_models__enabled=False).distinct().values("pk")
+        return (SecurityProfile.objects.filter(ml_models__isnull=False)
+                .exclude(ml_models__enabled=False).distinct().values("pk"))
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 def build_non_blocking_decoder_compiler(field_name):
     """Does this antivirus profile leave any protocol decoder not blocking malware?
 
@@ -176,6 +202,7 @@ FIELD_COMPILERS = {
     "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
     "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
     "has_non_blocking_decoder": build_non_blocking_decoder_compiler("has_non_blocking_decoder"),
+    "has_disabled_ml_model": build_disabled_ml_model_compiler("has_disabled_ml_model"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),
