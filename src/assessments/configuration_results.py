@@ -536,9 +536,10 @@ RESULTS = {
             "Profile": "name", "Scope": "namespace_type",
             "Not blocking": "has_non_blocking_decoder",
             "Inline ML not blocking": "has_non_blocking_ml_model",
+            "App overrides": "has_non_blocking_application_override",
             "Used by": "referrer_count"},
         columns=("Owner", "Profile", "Scope", "Decoders", "Not blocking",
-                 "Inline ML not blocking", "Used by"),
+                 "Inline ML not blocking", "App overrides", "Used by"),
         base_queryset=_security_profiles,
         scope=_kind_scope("virus"),
         row=lambda p: (
@@ -548,6 +549,10 @@ RESULTS = {
             _decoder_actions(p),
             _lines(p.non_blocking_decoders) if p.non_blocking_decoders else "none",
             _lines(p.non_blocking_ml_models) if p.non_blocking_ml_models else "none",
+            # "none" rather than a blank: almost every profile has no override at all, and a
+            # blank cell would not say whether that was looked at.
+            (_lines(p.non_blocking_application_overrides)
+             if p.non_blocking_application_overrides else "none"),
             p.referrer_count,
         ),
     ),

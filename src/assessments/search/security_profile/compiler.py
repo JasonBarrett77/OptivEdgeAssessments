@@ -27,7 +27,10 @@ from assessments.search.exceptions import SearchSyntaxError
 from assessments.search.device_configuration.fields.scalar_text import (
     SUPPORTED_OPERATORS as TEXT_OPERATORS,
 )
-from optivedge_integrations.integrations.models import SecurityProfile
+from optivedge_integrations.integrations.models import (
+    SecurityProfile,
+    SecurityProfileApplicationOverride,
+)
 
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
 INTEGER_OPERATORS = {"eq", "gt", "gte", "lt", "lte"}
@@ -146,6 +149,49 @@ def build_non_blocking_decoder_compiler(field_name):
     return compiler
 
 
+def build_non_blocking_application_override_compiler(field_name):
+    """Does this antivirus profile override a decoder's action for a named application?
+
+    A per-application override defeats the decoder action - a profile can read `reset-both` on
+    all seven decoders and still allow malware over a named application. Found 2026-10-08 by
+    enumerating the profile's key set rather than reading a sample.
+
+    `blocks=True` is the only passing state, so the filter is `blocks != True` and NOT
+    `blocks=False`: a null means the literal `default`, whose resolution is not established for
+    an override, and a null excluded from the filter would pass silently. The control fails
+    toward firing there.
+
+    UNLIKE the decoder compiler, `false` does NOT require a row. No override rows is the normal
+    and correct state - an override is an operator-added exception, and almost every profile
+    has none - so requiring one would make every ordinary profile match neither value. The
+    cost is that a profile row written before the override model existed also reads as clean;
+    the control's record names the re-normalize that fixes that.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        # ROW-LEVEL on the override model, NOT `exclude(application_overrides__blocks=True)`
+        # on the profile. That spanning exclude asks "has no blocking override" and so drops a
+        # profile for HAVING one - a profile with gmail-base=allow beside
+        # dropbox-base=reset-both would not be reported, which is the common real shape: an
+        # exception list holds several entries and only some of them are permissive.
+        #
+        # `Q(blocks=False) | Q(blocks__isnull=True)` rather than `exclude(blocks=True)`,
+        # because SQL's `NOT (blocks = TRUE)` is NULL for a NULL and the row would be dropped -
+        # and NULL is the unresolved `default`, which must be reported.
+        permissive = (SecurityProfileApplicationOverride.objects
+                      .filter(Q(blocks=False) | Q(blocks__isnull=True))
+                      .values("security_profile"))
+        if value:
+            return SecurityProfile.objects.filter(pk__in=permissive).values("pk")
+        return SecurityProfile.objects.exclude(pk__in=permissive).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 def build_verdict_compiler(field_name, severity):
     """`critical_blocked = true/false`, answered from the severity-verdict rows.
 
@@ -207,6 +253,8 @@ FIELD_COMPILERS = {
     "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
     "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
     "has_non_blocking_decoder": build_non_blocking_decoder_compiler("has_non_blocking_decoder"),
+    "has_non_blocking_application_override": build_non_blocking_application_override_compiler(
+        "has_non_blocking_application_override"),
     "has_disabled_ml_model": build_ml_model_compiler("has_disabled_ml_model", "enabled"),
     "has_non_blocking_ml_model": build_ml_model_compiler(
         "has_non_blocking_ml_model", "blocks"),

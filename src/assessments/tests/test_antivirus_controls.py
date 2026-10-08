@@ -24,6 +24,7 @@ from optivedge_integrations.integrations.models import (
     ManagementStation,
     PolicyObjectNamespace,
     SecurityProfile,
+    SecurityProfileApplicationOverride,
     SecurityProfileDecoder,
     SecurityProfileMlModel,
     Snapshot,
@@ -58,7 +59,7 @@ class AntivirusDecoderControlTests(TestCase):
         self.rank = 0
 
     def _profile(self, name, effective_by_protocol, *, predefined=False, used=True,
-                 kind=SecurityProfile.KIND_VIRUS, ml=None):
+                 kind=SecurityProfile.KIND_VIRUS, ml=None, overrides=None):
         self.rank += 1
         namespace = (PolicyObjectNamespace.PREDEFINED if predefined
                      else PolicyObjectNamespace.LOCAL_SHARED)
@@ -89,6 +90,19 @@ class AntivirusDecoderControlTests(TestCase):
                 security_profile=profile, name=model, configured_action=action,
                 enabled=action in ("enable", "enable(alert-only)"),
                 blocks=action == "enable")
+        # Per-application overrides, and ONLY the ones named - unlike the decoders and the ML
+        # models above, nothing is synthesized. An override is an operator-added exception, so
+        # the default of none is the state almost every real profile is in.
+        for application, action in (overrides or {}).items():
+            # `default` is accepted on an override and its resolution is NOT established - an
+            # override is not per-protocol, so the decoder table cannot answer it. Null blocks,
+            # which the control reports rather than passes.
+            blocks = (None if action == "default"
+                      else (action or SecurityProfileDecoder.ABSENT_ACTION)
+                      in SecurityProfileDecoder.BLOCKING_ACTIONS)
+            SecurityProfileApplicationOverride.objects.create(
+                security_profile=profile, application=application,
+                configured_action=action, blocks=blocks)
         return profile
 
     def _fired(self, control_id="PAN-AVW-001"):
@@ -124,6 +138,85 @@ class AntivirusDecoderControlTests(TestCase):
         self._profile("drops", dict(ALL_BLOCK, http="drop", smtp="reset-client"))
 
         self.assertEqual(self._fired(), {})
+
+    def test_a_permissive_application_override_fires_on_a_hardened_profile(self):
+        """The whole reason this clause exists.
+
+        Every decoder blocks, so the control's original question answers "fine". One
+        per-application override says `allow`, which defeats the http decoder for that
+        application. Reported as hardened until 2026-10-08.
+        """
+        self._profile("override-allow", ALL_BLOCK, overrides={"gmail-base": "allow"})
+
+        self.assertEqual(self._fired(), {"override-allow": "high"})
+
+    def test_an_override_that_only_alerts_fires(self):
+        """`alert` is detection without prevention, the same reading as on a decoder."""
+        self._profile("override-alert", ALL_BLOCK, overrides={"dropbox-base": "alert"})
+
+        self.assertEqual(self._fired(), {"override-alert": "high"})
+
+    def test_an_override_with_NO_action_fires_because_absent_means_allow(self):
+        """The device accepts an override entry with no action and stores it absent - measured
+        2026-10-08, along with the refusal of an EMPTY action element. Absent is the permissive
+        end here exactly as it is on a decoder."""
+        self._profile("override-absent", ALL_BLOCK, overrides={"ftp": ""})
+
+        self.assertEqual(self._fired(), {"override-absent": "high"})
+
+    def test_an_override_set_to_default_fires_because_its_resolution_is_UNESTABLISHED(self):
+        """Not because `default` is known to be permissive - because it is not known at all.
+
+        A decoder's `default` resolves per protocol and that was measured. An override is not
+        per-protocol, so the same table cannot answer it and no device oracle was found that
+        does. The control reports it so that "we could not establish this" does not render as
+        "we checked and it was fine".
+        """
+        self._profile("override-default", ALL_BLOCK, overrides={"web-browsing": "default"})
+
+        self.assertEqual(self._fired(), {"override-default": "high"})
+
+    def test_a_permissive_override_fires_even_beside_a_BLOCKING_one(self):
+        """The common real shape, and the one the first compiler got wrong.
+
+        An exception list holds several entries and only some are permissive. The first version
+        asked the question as `exclude(application_overrides__blocks=True)` on the PROFILE,
+        which drops a profile for HAVING a blocking override - so this profile, whose
+        gmail-base override allows, went unreported because dropbox-base blocks. The question
+        has to be asked per ROW.
+        """
+        self._profile("mixed", ALL_BLOCK, overrides={
+            "gmail-base": "allow", "dropbox-base": "reset-both"})
+
+        self.assertEqual(self._fired(), {"mixed": "high"})
+
+    def test_a_blocking_override_is_silent(self):
+        """An override exists to CHANGE an action and may well tighten it. A profile whose
+        override blocks is a profile that blocks, and the control must stay quiet - otherwise
+        the clause would report every profile that has any override at all."""
+        self._profile("override-blocks", ALL_BLOCK, overrides={"gmail-base": "reset-both"})
+
+        self.assertEqual(self._fired(), {})
+
+    def test_a_profile_with_no_overrides_at_all_is_silent(self):
+        """The normal case for almost every profile, and the one that would break if the
+        compiler required an override row the way the decoder compiler requires a decoder."""
+        self._profile("no-overrides", ALL_BLOCK)
+
+        self.assertEqual(self._fired(), {})
+
+    def test_the_override_list_names_the_application_and_why(self):
+        """What the finding row and both presentation surfaces read."""
+        profile = self._profile("override-detail", ALL_BLOCK, overrides={
+            "gmail-base": "allow", "ftp": "", "web-browsing": "default",
+            "dropbox-base": "reset-both"})
+
+        self.assertEqual(profile.non_blocking_application_overrides, [
+            "ftp (no action set, which allows)",
+            "gmail-base (allow)",
+            "web-browsing (default, resolution not established)",
+        ])
+        self.assertTrue(profile.has_non_blocking_application_override)
 
     def test_an_UNUSED_predefined_profile_is_not_a_finding(self):
         """Same scope as PAN-SPY-001: the shipped profile sitting unreferenced says nothing

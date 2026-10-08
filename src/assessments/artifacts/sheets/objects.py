@@ -131,6 +131,16 @@ REFERENCED_BY_POLICY = findings_sheet.ValueReader(
 #: NOT BLOCKING rather than OFF: `mlav-policy-action` has three values and `enable(alert-only)`
 #: runs the model without stopping the file, so it belongs in this list as much as `disable`
 #: does. Naming the column "off" would have made an alert-only model invisible here.
+#: A per-application override defeats the decoder action for one application, so a profile
+#: hardened on every decoder can still allow malware over whatever is listed here. "none" is
+#: the normal answer - an override is an operator-added exception - and it is spelled out
+#: rather than left blank so the cell distinguishes "no overrides" from "not looked at".
+APP_OVERRIDE_COVERAGE = findings_sheet.ValueReader(
+    read=lambda profile: (", ".join(profile.non_blocking_application_overrides)
+                          if profile.non_blocking_application_overrides else "none"),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
 ML_COVERAGE = findings_sheet.ValueReader(
     read=lambda profile: (", ".join(profile.non_blocking_ml_models)
                           if profile.non_blocking_ml_models
@@ -265,13 +275,18 @@ SPECS = (
              ("Decoders not blocking", 24, True,
               lambda profile, _p: DECODER_COVERAGE.read(profile), "has_non_blocking_decoder"),
              ("Inline ML not blocking", 26, True,
-              lambda profile, _p: ML_COVERAGE.read(profile), "has_non_blocking_ml_model"),),
+              lambda profile, _p: ML_COVERAGE.read(profile), "has_non_blocking_ml_model"),
+             ("App overrides not blocking", 30, True,
+              lambda profile, _p: APP_OVERRIDE_COVERAGE.read(profile),
+              "has_non_blocking_application_override"),),
          value_readers={"has_non_blocking_decoder": DECODER_COVERAGE,
-                        "has_non_blocking_ml_model": ML_COVERAGE},
+                        "has_non_blocking_ml_model": ML_COVERAGE,
+                        "has_non_blocking_application_override": APP_OVERRIDE_COVERAGE},
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),
-         subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders", "ml_models")),
+         subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders", "ml_models",
+                           "application_overrides")),
     spec(T.ADMIN_USER,
          "The administrator accounts on each firewall: what each may do, and what it authenticates "
          "with.",
