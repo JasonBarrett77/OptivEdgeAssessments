@@ -30,6 +30,7 @@ from assessments.search.device_configuration.fields.scalar_text import (
 from optivedge_integrations.integrations.models import (
     SecurityProfile,
     SecurityProfileApplicationOverride,
+    SecurityProfileDecoder,
 )
 
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
@@ -122,7 +123,7 @@ def build_ml_model_compiler(field_name, column):
     return compiler
 
 
-def build_non_blocking_decoder_compiler(field_name):
+def build_non_blocking_decoder_compiler(field_name, column="blocks", nullable=False):
     """Does this antivirus profile leave any protocol decoder not blocking malware?
 
     Answered from the decoder rows, where `default` has already been resolved to what it means
@@ -133,6 +134,15 @@ def build_non_blocking_decoder_compiler(field_name):
 
     `false` requires at least one decoder row. A profile with none is not an antivirus profile
     that blocks everywhere; it is a kind that has no decoders, and it must not read as passing.
+
+    THREE COLUMNS, ONE COMPILER. A decoder carries SIGNATURE ACTION, WILDFIRE SIGNATURE ACTION
+    and WILDFIRE INLINE ML ACTION, and they are independent verdict sources - a profile can be
+    hard on one and open on another. Each gets its own field so an assessor can ask about them
+    separately, and PAN-AVW-001 ORs all three.
+
+    `nullable` is for `mlav_blocks`, where a null means NOT COMPUTED - a decoder row written
+    before the column existed. Those must report, not pass, so the filter asks for
+    `!= True` rather than `== False`.
     """
     def compiler(clause):
         op, value = clause["op"], clause["value"]
@@ -140,11 +150,18 @@ def build_non_blocking_decoder_compiler(field_name):
             raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
         if not isinstance(value, bool):
             raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        # Row-level on the DECODER, for the same reason the override compiler is: a spanning
+        # `exclude(decoders__blocks=False)` on the profile asks "has no open decoder", which is
+        # the right question only for the `false` branch.
+        open_decoders = Q(**{f"{column}": False})
+        if nullable:
+            open_decoders |= Q(**{f"{column}__isnull": True})
+        permissive = (SecurityProfileDecoder.objects.filter(open_decoders)
+                      .values("security_profile"))
         if value:
-            return SecurityProfile.objects.filter(
-                decoders__blocks=False).distinct().values("pk")
+            return SecurityProfile.objects.filter(pk__in=permissive).values("pk")
         return (SecurityProfile.objects.filter(decoders__isnull=False)
-                .exclude(decoders__blocks=False).distinct().values("pk"))
+                .exclude(pk__in=permissive).distinct().values("pk"))
     compiler.SUPPORTED_OPERATORS = {"eq"}
     return compiler
 
@@ -253,6 +270,10 @@ FIELD_COMPILERS = {
     "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
     "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
     "has_non_blocking_decoder": build_non_blocking_decoder_compiler("has_non_blocking_decoder"),
+    "has_non_blocking_wildfire_decoder": build_non_blocking_decoder_compiler(
+        "has_non_blocking_wildfire_decoder", "wildfire_blocks"),
+    "has_non_blocking_mlav_decoder": build_non_blocking_decoder_compiler(
+        "has_non_blocking_mlav_decoder", "mlav_blocks", nullable=True),
     "has_non_blocking_application_override": build_non_blocking_application_override_compiler(
         "has_non_blocking_application_override"),
     "has_disabled_ml_model": build_ml_model_compiler("has_disabled_ml_model", "enabled"),

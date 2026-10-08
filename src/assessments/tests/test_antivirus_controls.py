@@ -16,7 +16,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from assessments.models import AssessmentRun, Control, SecurityProfileFinding
-from assessments.security_profile_findings import generate_security_profile_findings
+from assessments.security_profile_findings import (
+    _subject,
+    generate_security_profile_findings,
+)
 from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
     Appliance,
@@ -59,7 +62,8 @@ class AntivirusDecoderControlTests(TestCase):
         self.rank = 0
 
     def _profile(self, name, effective_by_protocol, *, predefined=False, used=True,
-                 kind=SecurityProfile.KIND_VIRUS, ml=None, overrides=None):
+                 kind=SecurityProfile.KIND_VIRUS, ml=None, overrides=None,
+                 wildfire=None, mlav=None):
         self.rank += 1
         namespace = (PolicyObjectNamespace.PREDEFINED if predefined
                      else PolicyObjectNamespace.LOCAL_SHARED)
@@ -70,13 +74,30 @@ class AntivirusDecoderControlTests(TestCase):
             namespace_value="predefined" if predefined else "shared",
             precedence_rank=self.rank, kind=kind, is_predefined=predefined,
             is_used=used, referrer_count=1 if used else 0)
+        # THREE ACTION COLUMNS PER DECODER, and they default to matching the signature action
+        # only because most tests are about one axis at a time. `wildfire=` and `mlav=` make
+        # them differ, which is the shape that passed this control until 2026-10-08: hardened
+        # in the first column, open in the other two.
+        #
+        # A `None` in the mlav mapping means NOT COMPUTED - a row written before the column
+        # existed - which must report rather than pass.
         for protocol, effective in effective_by_protocol.items():
+            wf = (wildfire or {}).get(protocol, effective)
+            # NOT `ml`: that name is the ML-model parameter used by the loop below, and
+            # binding it here silently emptied it.
+            ml_effective = effective if mlav is None else mlav.get(protocol, effective)
             SecurityProfileDecoder.objects.create(
                 security_profile=profile, protocol=protocol,
                 # What an unedited profile actually stores, so the row under test is the real
                 # shape rather than a tidied one.
                 configured_action="default", effective_action=effective,
-                blocks=effective in SecurityProfileDecoder.BLOCKING_ACTIONS)
+                blocks=effective in SecurityProfileDecoder.BLOCKING_ACTIONS,
+                configured_wildfire_action="default", effective_wildfire_action=wf,
+                wildfire_blocks=wf in SecurityProfileDecoder.BLOCKING_ACTIONS,
+                configured_mlav_action="" if ml_effective is None else "default",
+                effective_mlav_action="" if ml_effective is None else ml_effective,
+                mlav_blocks=(None if ml_effective is None
+                             else ml_effective in SecurityProfileDecoder.BLOCKING_ACTIONS))
         # One row per model the CONTENT release knows about, enabled or not. A model the config
         # never names still gets a row, saying off - which is the state a profile with no ML
         # node is in for every one of them.
@@ -138,6 +159,82 @@ class AntivirusDecoderControlTests(TestCase):
         self._profile("drops", dict(ALL_BLOCK, http="drop", smtp="reset-client"))
 
         self.assertEqual(self._fired(), {})
+
+    def test_a_profile_hardened_ONLY_on_signature_action_fires(self):
+        """The shape that passed this control until 2026-10-08.
+
+        Signature Action is reset-both on all seven protocols, so the original question
+        answers "fine". Both WildFire columns allow, so everything WildFire or inline ML
+        catches is delivered - and the finding said the profile blocked malware on every
+        decoder.
+        """
+        self._profile("sig-only", ALL_BLOCK,
+                      wildfire={p: "allow" for p in SHIPPED},
+                      mlav={p: "allow" for p in SHIPPED})
+
+        self.assertEqual(self._fired(), {"sig-only": "high"})
+
+    def test_the_wildfire_signature_column_alone_is_enough(self):
+        self._profile("wf-gap", ALL_BLOCK, wildfire=dict(ALL_BLOCK, smtp="alert"))
+
+        self.assertEqual(self._fired(), {"wf-gap": "high"})
+
+    def test_the_inline_ML_action_column_alone_is_enough(self):
+        """Distinct from PAN-AVW-002, which asks whether the MODELS run. A profile can enable
+        every model and allow every verdict they produce."""
+        self._profile("ml-action-gap", ALL_BLOCK, mlav=dict(ALL_BLOCK, http="alert"))
+
+        self.assertEqual(self._fired(), {"ml-action-gap": "high"})
+
+    def test_a_decoder_with_NO_inline_ML_verdict_recorded_is_reported(self):
+        """`mlav-action` was never collected before 2026-10-08, so rows written earlier carry
+        no value and nothing can backfill them. Null must report, not pass - otherwise the
+        window between migrating and re-normalizing reads as a hardened estate."""
+        profile = self._profile("not-computed", ALL_BLOCK,
+                                mlav={p: None for p in SHIPPED})
+
+        self.assertEqual(self._fired(), {"not-computed": "high"})
+        self.assertEqual(profile.non_blocking_mlav_decoders, [
+            "ftp (not yet computed)", "http (not yet computed)", "http2 (not yet computed)",
+            "imap (not yet computed)", "pop3 (not yet computed)", "smb (not yet computed)",
+            "smtp (not yet computed)"])
+
+    def test_all_three_columns_blocking_is_silent(self):
+        self._profile("all-three", ALL_BLOCK, wildfire=ALL_BLOCK, mlav=ALL_BLOCK)
+
+        self.assertEqual(self._fired(), {})
+
+    def test_the_subject_sentence_names_the_verdict_source_not_a_severity(self):
+        """An antivirus profile has no severity rules, so the threat-rule sentence asserted it
+        BLOCKED critical and high threats - printed on every antivirus finding, the shipped
+        `default` profile included. The reassuring sentence, on the finding reporting the
+        profile as failing. Measured against the lab 2026-10-08."""
+        profile = self._profile("speaks", dict(ALL_BLOCK, smtp="alert"),
+                                wildfire=dict(ALL_BLOCK, imap="alert"),
+                                mlav=dict(ALL_BLOCK, http="allow"),
+                                overrides={"gmail-base": "allow"})
+
+        subject = _subject(profile)
+        self.assertIn("lets malware through", subject)
+        self.assertIn("signature action allows on smtp", subject)
+        self.assertIn("WildFire signature action allows on imap", subject)
+        self.assertIn("WildFire inline ML action allows on http", subject)
+        self.assertIn("application exceptions override the decoder for gmail-base (allow)",
+                      subject)
+        self.assertNotIn("critical", subject)
+
+    def test_a_clean_antivirus_profile_says_so_in_its_own_terms(self):
+        profile = self._profile("clean", ALL_BLOCK, wildfire=ALL_BLOCK, mlav=ALL_BLOCK)
+
+        self.assertEqual(_subject(profile).endswith("blocks malware on every decoder"), True)
+        self.assertNotIn("critical", _subject(profile))
+
+    def test_a_spyware_profile_still_speaks_in_severities(self):
+        """The threat-rule kinds are unchanged - the fix branches on kind rather than
+        rewriting the sentence for everyone."""
+        profile = self._profile("spy", {}, kind=SecurityProfile.KIND_SPYWARE, ml={})
+
+        self.assertIn("critical and high threats", _subject(profile))
 
     def test_a_permissive_application_override_fires_on_a_hardened_profile(self):
         """The whole reason this clause exists.

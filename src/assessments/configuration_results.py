@@ -150,8 +150,13 @@ def _decoder_actions(profile) -> str:
     same for a profile that blocks and one that does not. The bracketed word in the UI is the
     one that matters, and this is that word.
     """
-    return _lines([f"{d.protocol}: {d.effective_action or '(unknown)'}"
-                   for d in profile.decoders.all()]) or "-"
+    # All THREE columns, because they resolve independently and a profile hardened in the
+    # first alone is the case this page exists to make visible.
+    return _lines([
+        f"{d.protocol}: {d.effective_action or '(unknown)'}"
+        f" / {d.effective_wildfire_action or '(unknown)'}"
+        f" / {'(not computed)' if d.mlav_blocks is None else (d.effective_mlav_action or '(unknown)')}"
+        for d in profile.decoders.all()]) or "-"
 
 
 def _security_profile_row(p):
@@ -534,12 +539,17 @@ RESULTS = {
     "antivirus": ResultsSpec(
         query_fields={
             "Profile": "name", "Scope": "namespace_type",
-            "Not blocking": "has_non_blocking_decoder",
-            "Inline ML not blocking": "has_non_blocking_ml_model",
-            "App overrides": "has_non_blocking_application_override",
+            "Signature action allows": "has_non_blocking_decoder",
+            "WildFire signature action allows": "has_non_blocking_wildfire_decoder",
+            "WildFire inline ML action allows": "has_non_blocking_mlav_decoder",
+            "Inline ML models not blocking": "has_non_blocking_ml_model",
+            # PAN-OS calls this tab Application Exceptions. The column follows the vendor's
+            # words, because the audit text sends an assessor to that tab by name.
+            "Application exceptions": "has_non_blocking_application_override",
             "Used by": "referrer_count"},
-        columns=("Owner", "Profile", "Scope", "Decoders", "Not blocking",
-                 "Inline ML not blocking", "App overrides", "Used by"),
+        columns=("Owner", "Profile", "Scope", "Decoders", "Signature action allows",
+                 "WildFire signature action allows", "WildFire inline ML action allows",
+                 "Inline ML models not blocking", "Application exceptions", "Used by"),
         base_queryset=_security_profiles,
         scope=_kind_scope("virus"),
         row=lambda p: (
@@ -548,6 +558,10 @@ RESULTS = {
             p.get_namespace_type_display(),
             _decoder_actions(p),
             _lines(p.non_blocking_decoders) if p.non_blocking_decoders else "none",
+            (_lines(p.non_blocking_wildfire_decoders)
+             if p.non_blocking_wildfire_decoders else "none"),
+            (_lines(p.non_blocking_mlav_decoders)
+             if p.non_blocking_mlav_decoders else "none"),
             _lines(p.non_blocking_ml_models) if p.non_blocking_ml_models else "none",
             # "none" rather than a blank: almost every profile has no override at all, and a
             # blank cell would not say whether that was looked at.

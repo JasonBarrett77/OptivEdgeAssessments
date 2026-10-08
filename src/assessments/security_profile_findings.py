@@ -31,14 +31,49 @@ def _gaps(obj) -> list[str]:
     """The severities this profile fails, and why.
 
     `blocked is False` rather than `not blocked`: None means the profile does not assess that
-    severity at all, which is not a gap. No control reaches this with a None today - the queries
-    cannot match a profile with no verdict row - but a falsy test would have turned "makes no
-    claim" into a reported failure the moment one did.
+    severity at all, which is not a gap.
+
+    THREAT-RULE KINDS ONLY. This used to add that no control reaches it with a None, because
+    the queries could not match a profile with no verdict row. PAN-AVW-001 and PAN-AVW-002 do -
+    an antivirus profile has no severity rules at all - and the `blocked is False` test held,
+    so the finding simply reported no gaps and the caller asserted the profile was fine.
+    Guarding the value was not enough; the CALLER had to stop asking this kind the question.
+    See `_antivirus_gaps`.
     """
     return [f"{severity}: {detail}" for severity, blocked, detail in (
         ("critical", obj.critical_blocked, obj.critical_detail),
         ("high", obj.high_blocked, obj.high_detail),
     ) if blocked is False]
+
+
+def _antivirus_gaps(obj) -> list[str]:
+    """What an ANTIVIRUS profile lets through, by verdict source.
+
+    An antivirus profile has no severity rules, so `_gaps` - which reads the critical and high
+    verdicts - returns nothing for one and the sentence fell through to "blocks critical and
+    high threats". That was printed on every antivirus finding, including the shipped `default`
+    profile that alerts on three mail decoders: the reassuring sentence, on the finding
+    reporting the profile as failing. Measured against the lab 2026-10-08.
+
+    Each entry names the verdict source as the UI column names it, because an engineer has to
+    find the column to change it and the three look identical in the config.
+    """
+    gaps = []
+    if obj.non_blocking_decoders:
+        gaps.append(f"signature action allows on {', '.join(obj.non_blocking_decoders)}")
+    if obj.non_blocking_wildfire_decoders:
+        gaps.append("WildFire signature action allows on "
+                    f"{', '.join(obj.non_blocking_wildfire_decoders)}")
+    if obj.non_blocking_mlav_decoders:
+        gaps.append("WildFire inline ML action allows on "
+                    f"{', '.join(obj.non_blocking_mlav_decoders)}")
+    if obj.non_blocking_application_overrides:
+        gaps.append("application exceptions override the decoder for "
+                    f"{', '.join(obj.non_blocking_application_overrides)}")
+    if obj.non_blocking_ml_models:
+        gaps.append("inline ML models not blocking: "
+                    f"{', '.join(obj.non_blocking_ml_models)}")
+    return gaps
 
 
 def _subject(obj) -> str:
@@ -49,6 +84,15 @@ def _subject(obj) -> str:
                 f"{'s' if obj.referrer_count != 1 else ''} on {profile_owner(obj)},")
     else:
         what = f"{kind} profile {obj.name} on {profile_owner(obj)}"
+
+    # ANTIVIRUS DOES NOT ANSWER THE SEVERITY QUESTION. It has no severity rules, so the
+    # critical/high verdicts are None and the threat-rule sentence below would assert that the
+    # profile blocks them - which is a claim about a question this kind never asked.
+    if obj.kind == SecurityProfile.KIND_VIRUS:
+        gaps = "; ".join(_antivirus_gaps(obj))
+        return (f"{what} lets malware through ({gaps})" if gaps
+                else f"{what} blocks malware on every decoder")
+
     gaps = "; ".join(_gaps(obj))
     return f"{what} does not block every critical and high threat ({gaps})" if gaps else \
         f"{what} blocks critical and high threats"
@@ -65,8 +109,11 @@ SPEC = ObjectFindingSpec(
     link_model=SecurityProfileFindingControlQuery,
     subject_fk="security_profile",
     link_fk="security_profile_finding",
+    # The antivirus subject sentence walks all three, so without these it is one query per
+    # profile per collection.
     queryset=lambda: SecurityProfile.objects.select_related(
-        "enforcement_point__appliance_group", "appliance_group"),
+        "enforcement_point__appliance_group", "appliance_group").prefetch_related(
+        "decoders", "ml_models", "application_overrides", "severity_verdicts"),
     evaluate=evaluate_security_profile_control_queries,
     summary=build_security_profile_finding_summary,
     subject_name=lambda obj: obj.name,

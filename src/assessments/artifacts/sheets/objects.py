@@ -141,6 +141,20 @@ APP_OVERRIDE_COVERAGE = findings_sheet.ValueReader(
     provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
 )
 
+#: The decoder's second and third action columns. Separate verdict sources from the signature
+#: action, so a profile hardened in the first column alone shows its gap only here.
+WILDFIRE_COVERAGE = findings_sheet.ValueReader(
+    read=lambda profile: (", ".join(profile.non_blocking_wildfire_decoders)
+                          if profile.non_blocking_wildfire_decoders else "none"),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+MLAV_COVERAGE = findings_sheet.ValueReader(
+    read=lambda profile: (", ".join(profile.non_blocking_mlav_decoders)
+                          if profile.non_blocking_mlav_decoders else "none"),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
 ML_COVERAGE = findings_sheet.ValueReader(
     read=lambda profile: (", ".join(profile.non_blocking_ml_models)
                           if profile.non_blocking_ml_models
@@ -276,12 +290,20 @@ SPECS = (
               lambda profile, _p: DECODER_COVERAGE.read(profile), "has_non_blocking_decoder"),
              ("Inline ML not blocking", 26, True,
               lambda profile, _p: ML_COVERAGE.read(profile), "has_non_blocking_ml_model"),
-             ("App overrides not blocking", 30, True,
+             ("Application exceptions", 30, True,
               lambda profile, _p: APP_OVERRIDE_COVERAGE.read(profile),
-              "has_non_blocking_application_override"),),
+              "has_non_blocking_application_override"),
+             ("WildFire signature action allows", 26, True,
+              lambda profile, _p: WILDFIRE_COVERAGE.read(profile),
+              "has_non_blocking_wildfire_decoder"),
+             ("WildFire inline ML action allows", 26, True,
+              lambda profile, _p: MLAV_COVERAGE.read(profile),
+              "has_non_blocking_mlav_decoder"),),
          value_readers={"has_non_blocking_decoder": DECODER_COVERAGE,
                         "has_non_blocking_ml_model": ML_COVERAGE,
-                        "has_non_blocking_application_override": APP_OVERRIDE_COVERAGE},
+                        "has_non_blocking_application_override": APP_OVERRIDE_COVERAGE,
+                        "has_non_blocking_wildfire_decoder": WILDFIRE_COVERAGE,
+                        "has_non_blocking_mlav_decoder": MLAV_COVERAGE},
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),

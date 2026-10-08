@@ -95,8 +95,8 @@ Read the SECTION path each result prints, not just the sentence — that rule ha
 in phase 1 and it cost a planned experiment.
 
 **The CLI grammar** is `python -m probe.cli_index <term>` over 70k records. **The schema
-oracle** is `probe.investigations.schema_introspection.complete` — phase 1 has seven items on
-what it can and cannot settle. `python -m probe.pipeline_check` asserts a change ARRIVED on
+oracle** is `probe.investigations.schema_introspection.complete` — use that helper rather
+than a fresh parser, and see phase 1's eight items on what it can and cannot settle. `python -m probe.pipeline_check` asserts a change ARRIVED on
 every firewall by re-reading config rather than trusting job status.
 
 ---
@@ -318,14 +318,27 @@ every firewall by re-reading config rather than trusting job status.
       is rejected). *`admin-role` returns two child keys under `shared` and INVALID PATH under a
       vsys — that is what a real negative looks like.*
 
-- **A container of `entry` elements returns NO completions whether or not it exists.**
-      Completing it proves nothing. *This produced a confidently wrong scoping conclusion:
-      `vsys/entry/authentication-profile` returned nothing, was read as "not valid here", and
-      recorded as settled across seventeen vsys on three devices. The node is perfectly valid —
-      seventeen samples of an invalid method is still an invalid method, and the VOLUME made the
-      wrong answer read as a strong one. Authentication profiles, certificates, certificate
-      profiles, SSL/TLS service profiles, the local user database, server profiles and log
-      settings are all vsys-scopable.*
+- **What completing a CONTAINER returns depends on its KEY SPACE, and there are three
+      answers.** A container whose keys come from a CLOSED SET returns the key space, not the
+      membership — an antivirus profile's `decoder` returns all seven protocol names and
+      `mlav-engine-filebased-enabled` the eight content-supplied model names, both on a profile
+      that DOES NOT EXIST. A container whose keys are operator-chosen free strings returns the
+      LOCAL MEMBERSHIP — `profiles/virus` returns the five profiles on the device,
+      `rulebase/security/rules` 114 rule names. An EMPTY container returns nothing either way,
+      and that is the case the rest of this item is about. *Recorded on 2026-10-08 as the flat
+      rule "a container proves nothing", which made a 1454-value answer on an antivirus
+      profile's `application` look like it contradicted the corpus. It did not; it was a third
+      case.*
+      **So complete the ENTRY, not the container, when you want the schema.** A made-up entry
+      name under a parent that does not exist returns the child keys and cannot be confused
+      with membership.
+      **An empty container proves nothing, and volume does not help.** *This produced a
+      confidently wrong scoping conclusion: `vsys/entry/authentication-profile` returned
+      nothing, was read as "not valid here", and recorded as settled across seventeen vsys on
+      three devices. The node is perfectly valid — seventeen samples of an invalid method is
+      still an invalid method, and the VOLUME made the wrong answer read as a strong one.
+      Authentication profiles, certificates, certificate profiles, SSL/TLS service profiles,
+      the local user database, server profiles and log settings are all vsys-scopable.*
 
 - **Two sibling nodes can complete identically and store differently.** A value list from
       `action=complete` does not say whether the value is TEXT or an ELEMENT. *`protocol` on a
@@ -359,6 +372,17 @@ every firewall by re-reading config rather than trusting job status.
       that the field can reference the type, and this is what makes `complete` a stand-in for a
       screenshot on any reference field.
 
+
+- **Reaching for `complete` means `probe.investigations.schema_introspection.complete`, not
+      your own parser.** The completions are at `response.completions.completion`, NOT under
+      `response.result` where every other config action puts its payload, and the existing
+      helper sidesteps that by reading the raw XML. It also strips a trailing slash, which
+      otherwise returns `code=3 Internal error` and reads as the feature being unavailable.
+      *A scratch script reimplemented the request, parsed `response.result.completions`, got
+      nothing, and concluded `action=complete` did not work on antivirus profiles — so three
+      action-field enums were written on the assumption that they mirrored a fourth. One did
+      not: `mlav-policy-action` has a third value, `enable(alert-only)`, which the normalizer
+      recorded as DISABLED. A working implementation was two directories away.*
 
 ### Reading the vendor documentation
 
@@ -605,6 +629,20 @@ every firewall by re-reading config rather than trusting job status.
 - [ ] **Check whether the assertion is broader than the control's title.** `→ control-changes.json` A control named
       for one subject often asserts something true of several. *PAN-MGT-001/002/003 were
       written for the management interface and apply to every administrative surface.*
+
+- [ ] **Ask what ELSE in the object can undo the assertion, and enumerate the key set to
+      find out.** `→ payload contract` "Is every field of the thing I assert about covered?" is a different
+      question from "what sibling can defeat it?", and only the second finds a node nobody
+      modelled. *PAN-AVW-001 asserts every antivirus decoder blocks malware. Two things undid
+      it. The decoder has THREE action columns — Signature, WildFire Signature, WildFire
+      Inline ML — resolving independently, and only the first was collected or asserted, so a
+      profile hardened in column one delivered everything WildFire caught. And the profile's
+      `application` node is a per-application action override carrying the same seven actions,
+      so one `allow` entry defeated all seven decoders. Both had been in the config since the
+      control was built; no lab profile had an override, so reading samples would never have
+      surfaced it. Enumerating the key set did — and only because someone asked whether all
+      the values had actually been measured. Third time on that control that the error pointed
+      the same way: a profile that permits something read as one that blocks.*
 
 - [ ] **Check the control's own TITLE against what the query actually asserts.** A reference
       being present is not the property the title names, and the gap is invisible while every
