@@ -3620,6 +3620,50 @@
               }
             }
           ]
+        },
+        {
+          "control_id": "PAN-AVW-006",
+          "name": "Unused AV / WildFire Profiles (Hygiene)",
+          "control_type": "security_profile",
+          "target_model": "integrations.SecurityProfile",
+          "implementation_version": "v1",
+          "is_active": true,
+          "default_severity": "low",
+          "description": "An antivirus profile that no security rule and no profile group names.\n\nV1 IS ANTIVIRUS ONLY, where the corpus names antivirus AND WildFire analysis profiles. Not a judgement about WildFire analysis - a structural limit worth stating. The configuration explorer has one page per profile KIND, mirroring PAN-OS's own tabs, and a control query is linked to the page whose scope its clauses contain. A query spanning two kinds matches neither page, and the resolver refuses to guess rather than send an assessor somewhere plausible and wrong. WildFire analysis profiles ARE collected and have their own page; covering them needs a sibling control or a resolver that can answer a two-kind query, and `oep-wf-unused` is standing on the lab for whichever lands.\n\nAn unreferenced profile is drift: it was built for something, that something changed, and the profile stayed. The risk is not the profile sitting there - it is the next administrator attaching it believing it current, which is how a rule ends up protected by settings nobody has looked at in two years.\n\nWHAT COUNTS AS A REFERENCE. A rule naming the profile directly in its profile-setting, or a profile group naming it. Both are already resolved - `is_used` and `referrer_count` are written by the referrer walk, which reads rules and groups across every scope a reference can resolve through.\n\nTHE PREDEFINED PROFILES ARE OUT OF SCOPE. `default` ships with the device and exists whether anyone uses it or not; an unused one says nothing about the estate. A rule protected by it is PAN-AVW-001's and PAN-AVW-002's business, not this control's. Same scope decision as PAN-SPY-001 reaches from the other side.\n\nIT SAYS NOTHING ABOUT THE PROFILE'S CONTENTS. An unused profile that blocks everything reports here exactly like an unused one that blocks nothing - the finding is that it is unattached. Whether it would protect anything is PAN-AVW-001, 002 and 003.\n\nLOW, and deliberately. Nothing is exposed by a profile nobody uses. The corpus marks it hygiene and so does this - it belongs in the same sweep as the other unused-object controls, not in a remediation queue.",
+          "rationale": "A rulebase accumulates profiles the way it accumulates rules, and nothing in the UI distinguishes a profile in service from one abandoned three migrations ago. An assessor can clear the list quickly once it exists; nobody produces it by hand.",
+          "audit": "Objects > Security Profiles > Antivirus and > WildFire Analysis. The finding names the profile and its scope; the referrer count on its row is zero, which is the whole assertion.",
+          "remediation": "Delete it, or attach it where it was meant to go. If it is kept deliberately - a pre-staged profile for an incident, say - record that, because nothing in the configuration distinguishes it from one that was forgotten.",
+          "cis_ref": null,
+          "stig_ref": null,
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "virus"
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
     }

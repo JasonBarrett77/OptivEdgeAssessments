@@ -212,3 +212,56 @@ class WildFireInlineMlControlTests(AntivirusDecoderControlTests):
         self._profile("spy", {}, kind=SecurityProfile.KIND_SPYWARE, ml={})
 
         self.assertEqual(self._fired("PAN-AVW-002"), {})
+
+
+class UnusedProfileControlTests(AntivirusDecoderControlTests):
+    """PAN-AVW-006. The finding is that nothing NAMES the profile, not that it is weak.
+
+    Its scope decision is the mirror of PAN-SPY-001's: a predefined profile nobody uses says
+    nothing about the estate, because it ships with the device whether anyone wants it or not.
+    A custom one is different - somebody built it, and it stayed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        seed_controls(["PAN-AVW-006"], control_type=Control.ControlType.SECURITY_PROFILE)
+
+    def test_an_unreferenced_custom_profile_reports(self):
+        self._profile("orphan", ALL_BLOCK, predefined=False, used=False)
+
+        self.assertEqual(self._fired("PAN-AVW-006"), {"orphan": "low"})
+
+    def test_a_referenced_custom_profile_is_silent(self):
+        self._profile("in-service", ALL_BLOCK, predefined=False, used=True)
+
+        self.assertEqual(self._fired("PAN-AVW-006"), {})
+
+    def test_an_unused_PREDEFINED_profile_is_out_of_scope(self):
+        """It ships with the device. Nobody chose to leave it there."""
+        self._profile("default", SHIPPED, predefined=True, used=False)
+
+        self.assertEqual(self._fired("PAN-AVW-006"), {})
+
+    def test_it_says_nothing_about_what_the_profile_would_block(self):
+        """An unused profile that blocks everything reports exactly like an unused one that
+        blocks nothing. Being unattached is the whole assertion."""
+        self._profile("strong-but-idle", ALL_BLOCK, used=False)
+        self._profile("weak-but-idle", {p: "allow" for p in SHIPPED}, used=False)
+
+        self.assertEqual(self._fired("PAN-AVW-006"),
+                         {"strong-but-idle": "low", "weak-but-idle": "low"})
+
+    def test_a_profile_of_another_kind_is_out_of_scope(self):
+        """v1 is antivirus only. An unused anti-spyware profile is nobody's finding yet."""
+        self._profile("spy-orphan", {}, kind=SecurityProfile.KIND_SPYWARE, used=False, ml={})
+
+        self.assertEqual(self._fired("PAN-AVW-006"), {})
+
+    def test_the_three_antivirus_controls_ask_different_questions(self):
+        """One profile, unattached and wide open: unused, not blocking, and no inline ML."""
+        self._profile("idle-and-open", {p: "allow" for p in SHIPPED}, used=False,
+                      ml={m: False for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-001"), {"idle-and-open": "high"})
+        self.assertEqual(self._fired("PAN-AVW-002"), {"idle-and-open": "medium"})
+        self.assertEqual(self._fired("PAN-AVW-006"), {"idle-and-open": "low"})

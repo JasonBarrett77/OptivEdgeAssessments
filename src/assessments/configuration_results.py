@@ -550,6 +550,24 @@ RESULTS = {
             p.referrer_count,
         ),
     ),
+    # WildFire analysis profiles decide which files go to the sandbox. No decoders, no ML
+    # models and no severity verdict - their content is a rule list, which PAN-AVW-003 will
+    # assess. This page exists so they are visible and so PAN-AVW-006 has somewhere to send an
+    # assessor once it covers them.
+    "wildfire-analysis": ResultsSpec(
+        query_fields={"Profile": "name", "Scope": "namespace_type",
+                      "Rules": "rule_count", "Used by": "referrer_count"},
+        columns=("Owner", "Profile", "Scope", "Rules", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("wildfire-analysis"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            p.rule_count,
+            p.referrer_count,
+        ),
+    ),
     "password-profiles": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
