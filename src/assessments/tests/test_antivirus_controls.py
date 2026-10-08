@@ -80,9 +80,15 @@ class AntivirusDecoderControlTests(TestCase):
         # never names still gets a row, saying off - which is the state a profile with no ML
         # node is in for every one of them.
         for model, enabled in (ml if ml is not None else {m: True for m in MODELS}).items():
+            # `enabled` and `blocks` are different questions: mlav-policy-action has three
+            # values and `enable(alert-only)` runs without stopping the file. A bare True here
+            # means the plain `enable`.
+            action = "enable" if enabled is True else (
+                "disable" if enabled is False else enabled)
             SecurityProfileMlModel.objects.create(
-                security_profile=profile, name=model, enabled=enabled,
-                configured_action="enable" if enabled else "disable")
+                security_profile=profile, name=model, configured_action=action,
+                enabled=action in ("enable", "enable(alert-only)"),
+                blocks=action == "enable")
         return profile
 
     def _fired(self, control_id="PAN-AVW-001"):
@@ -265,3 +271,40 @@ class UnusedProfileControlTests(AntivirusDecoderControlTests):
         self.assertEqual(self._fired("PAN-AVW-001"), {"idle-and-open": "high"})
         self.assertEqual(self._fired("PAN-AVW-002"), {"idle-and-open": "medium"})
         self.assertEqual(self._fired("PAN-AVW-006"), {"idle-and-open": "low"})
+
+
+class WildFireInlineMlAlertOnlyTests(AntivirusDecoderControlTests):
+    """`enable(alert-only)` - the third value of mlav-policy-action, and the one that makes
+    `enabled` and `blocks` different questions.
+
+    Enumerated from the device with action=complete on 2026-10-08. Before that the normalizer
+    tested `== "enable"` and would have recorded an alert-only model as disabled: the right
+    answer for this control by luck, and the wrong statement about the configuration. A model on
+    alert-only RUNS - it is not off - and it lets the file through.
+    """
+
+    # No setUp: the base class already seeds PAN-AVW-002.
+
+    def test_alert_only_fires_because_it_does_not_block(self):
+        self._profile("alert-only", ALL_BLOCK,
+                      ml={m: "enable(alert-only)" for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {"alert-only": "medium"})
+
+    def test_alert_only_is_NOT_the_same_as_disabled(self):
+        """The distinction the two flags exist for. One profile runs the engine and logs; the
+        other does not run it. The control reports both and an engineer fixes them
+        differently."""
+        running = self._profile("alert-only", ALL_BLOCK,
+                                ml={m: "enable(alert-only)" for m in MODELS})
+        off = self._profile("switched-off", ALL_BLOCK, ml={m: False for m in MODELS})
+
+        self.assertEqual(running.disabled_ml_models, [], "it is running")
+        self.assertEqual(running.non_blocking_ml_models, sorted(MODELS), "it is not blocking")
+        self.assertEqual(off.disabled_ml_models, sorted(MODELS))
+        self.assertEqual(off.non_blocking_ml_models, sorted(MODELS))
+
+    def test_plain_enable_blocks_and_is_silent(self):
+        self._profile("blocking", ALL_BLOCK, ml={m: "enable" for m in MODELS})
+
+        self.assertEqual(self._fired("PAN-AVW-002"), {})

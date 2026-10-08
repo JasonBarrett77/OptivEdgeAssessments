@@ -127,9 +127,13 @@ REFERENCED_BY_POLICY = findings_sheet.ValueReader(
 #: Which WildFire Inline ML models an antivirus profile does not run. A model the config never
 #: mentions is OFF and is listed here, because the absence of a setting is not the absence of a
 #: problem - a profile with no ML node runs no inline ML at all.
+#:
+#: NOT BLOCKING rather than OFF: `mlav-policy-action` has three values and `enable(alert-only)`
+#: runs the model without stopping the file, so it belongs in this list as much as `disable`
+#: does. Naming the column "off" would have made an alert-only model invisible here.
 ML_COVERAGE = findings_sheet.ValueReader(
-    read=lambda profile: (", ".join(profile.disabled_ml_models)
-                          if profile.disabled_ml_models
+    read=lambda profile: (", ".join(profile.non_blocking_ml_models)
+                          if profile.non_blocking_ml_models
                           else ("all enabled" if profile.ml_models.all() else "—")),
     provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
 )
@@ -260,10 +264,10 @@ SPECS = (
              # why it fired.
              ("Decoders not blocking", 24, True,
               lambda profile, _p: DECODER_COVERAGE.read(profile), "has_non_blocking_decoder"),
-             ("Inline ML off", 26, True,
-              lambda profile, _p: ML_COVERAGE.read(profile), "has_disabled_ml_model"),),
+             ("Inline ML not blocking", 26, True,
+              lambda profile, _p: ML_COVERAGE.read(profile), "has_non_blocking_ml_model"),),
          value_readers={"has_non_blocking_decoder": DECODER_COVERAGE,
-                        "has_disabled_ml_model": ML_COVERAGE},
+                        "has_non_blocking_ml_model": ML_COVERAGE},
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),

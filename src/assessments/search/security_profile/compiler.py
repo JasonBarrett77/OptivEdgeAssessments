@@ -88,8 +88,13 @@ def build_integer_compiler(field_name, lookup_field):
     return compiler
 
 
-def build_disabled_ml_model_compiler(field_name):
-    """Does this antivirus profile leave any WildFire Inline ML model off?
+def build_ml_model_compiler(field_name, column):
+    """Does this antivirus profile leave any WildFire Inline ML model off, or alert-only?
+
+    `mlav-policy-action` has THREE values, enumerated from the device with action=complete:
+    `enable`, `enable(alert-only)` and `disable`. A model on alert-only RUNS and does not STOP
+    the file, so `enabled` and `blocks` are different questions and the control asks the
+    second - which is the literal the corpus names for its minimum and its preferred alike.
 
     Answered from the model rows, which carry one entry per model the CONTENT release knows
     about - catalogued from the predefined profile rather than from a hardcoded list, because
@@ -106,10 +111,10 @@ def build_disabled_ml_model_compiler(field_name):
         if not isinstance(value, bool):
             raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
         if value:
-            return SecurityProfile.objects.filter(
-                ml_models__enabled=False).distinct().values("pk")
+            return SecurityProfile.objects.filter(**{
+                f"ml_models__{column}": False}).distinct().values("pk")
         return (SecurityProfile.objects.filter(ml_models__isnull=False)
-                .exclude(ml_models__enabled=False).distinct().values("pk"))
+                .exclude(**{f"ml_models__{column}": False}).distinct().values("pk"))
     compiler.SUPPORTED_OPERATORS = {"eq"}
     return compiler
 
@@ -202,7 +207,9 @@ FIELD_COMPILERS = {
     "medium_blocked": build_verdict_compiler("medium_blocked", "medium"),
     "medium_detail": build_verdict_detail_compiler("medium_detail", "medium"),
     "has_non_blocking_decoder": build_non_blocking_decoder_compiler("has_non_blocking_decoder"),
-    "has_disabled_ml_model": build_disabled_ml_model_compiler("has_disabled_ml_model"),
+    "has_disabled_ml_model": build_ml_model_compiler("has_disabled_ml_model", "enabled"),
+    "has_non_blocking_ml_model": build_ml_model_compiler(
+        "has_non_blocking_ml_model", "blocks"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),
