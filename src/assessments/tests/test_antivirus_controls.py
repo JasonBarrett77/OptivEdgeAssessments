@@ -119,6 +119,16 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(self._fired(), {"custom-weak": "high"})
 
+    def test_a_profile_naming_NO_decoders_is_the_worst_case_not_an_absent_one(self):
+        """Corrected 2026-10-08. An absent decoder action is `allow`, not the vendor default -
+        measured from the UI's own export of a profile with no decoder node, which renders all
+        seven protocols as `allow`. The first version of this control resolved absence to
+        `default`, so such a profile produced no failing decoder and reported nothing at all.
+        """
+        self._profile("names-nothing", {p: "allow" for p in SHIPPED})
+
+        self.assertEqual(self._fired(), {"names-nothing": "high"})
+
     def test_a_profile_of_another_kind_is_untouched(self):
         """An anti-spyware profile has no decoders at all. It must not read as one that blocks
         everywhere - that is why the `false` side of the search field requires a decoder row."""
