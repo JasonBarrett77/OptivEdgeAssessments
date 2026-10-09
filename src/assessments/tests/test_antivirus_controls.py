@@ -261,13 +261,14 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(self._fired(), {"override-absent": "high"})
 
-    def test_an_override_set_to_default_fires_because_its_resolution_is_UNESTABLISHED(self):
-        """Not because `default` is known to be permissive - because it is not known at all.
+    def test_an_override_set_to_default_fires_because_it_resolves_PER_SIGNATURE(self):
+        """Measured 2026-10-09, and the reason is now better than not knowing.
 
-        A decoder's `default` resolves per protocol and that was measured. An override is not
-        per-protocol, so the same table cannot answer it and no device oracle was found that
-        does. The control reports it so that "we could not establish this" does not render as
-        "we checked and it was fine".
+        An exception's `default` resolves per SIGNATURE - two profiles with the same eleven
+        `default` exceptions and opposite decoder actions render the bare word on all 22 rows
+        and agree, which rules out inheriting the decoder, the per-protocol table, and any
+        single value. A signature's own default is typically alert or reset-both, so an
+        exception left at `default` lets whatever the alerting signatures catch through.
         """
         self._profile("override-default", ALL_BLOCK, overrides={"web-browsing": "default"})
 
@@ -342,7 +343,7 @@ class AntivirusDecoderControlTests(TestCase):
         self.assertEqual(profile.non_blocking_application_overrides, [
             "ftp (no action set, which allows)",
             "gmail-base (allow)",
-            "web-browsing (default, resolution not established)",
+            "web-browsing (default - each signature's own action)",
         ])
         self.assertTrue(profile.has_non_blocking_application_override)
 
