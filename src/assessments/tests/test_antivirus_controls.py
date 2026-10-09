@@ -287,6 +287,37 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(self._fired(), {"mixed": "high"})
 
+    def test_an_exception_with_an_UNRECOGNISED_action_fires(self):
+        """The fourth case in the set: allow, absent, `default`, unknown.
+
+        The write gate refuses an unknown value today, so this arrives only from a PAN-OS
+        release that adds an enum member. The control must not pass it - an action this code
+        has never seen is not an action it has established to be blocking.
+        """
+        self._profile("unknown-action", ALL_BLOCK,
+                      overrides={"gmail-base": "quarantine-to-sandbox"})
+
+        self.assertEqual(self._fired(), {"unknown-action": "high"})
+
+    def test_every_non_blocking_exception_shape_fires_and_only_those(self):
+        """The whole set in one place, because the four permissive shapes arrive by different
+        routes and it is the SET that the control's promise rests on."""
+        permissive = self._profile("all-shapes", ALL_BLOCK, overrides={
+            "gmail-base": "allow",                 # explicit permit
+            "dropbox-base": "alert",               # detection without prevention
+            "ftp": "",                             # no action element at all -> allows
+            "web-browsing": "default",             # accepted, resolution unestablished
+            "smtp-base": "quarantine-to-sandbox",  # a value this code has never seen
+        })
+        blocking = self._profile("all-blocking", ALL_BLOCK, overrides={
+            "gmail-base": "reset-both", "dropbox-base": "drop",
+            "ftp": "reset-client", "web-browsing": "reset-server",
+        })
+
+        self.assertEqual(len(permissive.non_blocking_application_overrides), 5)
+        self.assertEqual(blocking.non_blocking_application_overrides, [])
+        self.assertEqual(self._fired(), {"all-shapes": "high"})
+
     def test_a_blocking_override_is_silent(self):
         """An override exists to CHANGE an action and may well tighten it. A profile whose
         override blocks is a profile that blocks, and the control must stay quiet - otherwise
