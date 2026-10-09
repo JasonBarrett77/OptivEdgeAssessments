@@ -160,6 +160,70 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(self._fired(), {})
 
+    #: Every value an action can hold, and whether a point carrying it passes. The two that
+    #: are not enum members are the ones that matter: no element at all, and a value a later
+    #: PAN-OS release might add. Kept as data so the control's stated rule and the behaviour
+    #: cannot drift apart - the description says "explicitly set, recognised, and stops the
+    #: transfer", and this is that sentence as a table.
+    ACTION_CASES = (
+        ("reset-both", True), ("drop", True),
+        ("reset-client", True), ("reset-server", True),
+        ("alert", False), ("allow", False),
+        ("quarantine-to-sandbox", False),   # unrecognised: not determinately blocking
+    )
+
+    def test_every_action_value_on_every_decoder_column(self):
+        """One profile per value, hardened everywhere else, so each run isolates one cell."""
+        for action, passes in self.ACTION_CASES:
+            for column in ("signature", "wildfire", "mlav"):
+                with self.subTest(action=action, column=column):
+                    kwargs = {"wildfire": ALL_BLOCK, "mlav": ALL_BLOCK}
+                    base = dict(ALL_BLOCK)
+                    if column == "signature":
+                        base["http"] = action
+                    else:
+                        kwargs[column] = dict(ALL_BLOCK, http=action)
+                    name = f"{column}-{action}"
+                    profile = self._profile(name, base, **kwargs)
+                    fired = name in self._fired()
+                    self.assertEqual(fired, not passes,
+                                     f"{column} column with {action!r}: "
+                                     f"{'fired' if fired else 'silent'}")
+                    profile.delete()
+
+    def test_every_action_value_on_an_application_exception(self):
+        """Same table, plus the two cases unique to an exception: absent, and `default`.
+
+        `default` is the one place the two surfaces differ. On a DECODER it resolves per
+        protocol and is judged on the result; on an EXCEPTION it resolves per signature, so
+        there is no single action to test and it cannot pass.
+        """
+        cases = list(self.ACTION_CASES) + [("", False), ("default", False)]
+        for action, passes in cases:
+            with self.subTest(action=action or "(absent)"):
+                name = f"exc-{action or 'absent'}"
+                profile = self._profile(name, ALL_BLOCK, wildfire=ALL_BLOCK, mlav=ALL_BLOCK,
+                                        overrides={"gmail-base": action})
+                fired = name in self._fired()
+                self.assertEqual(fired, not passes,
+                                 f"exception with {action!r}: "
+                                 f"{'fired' if fired else 'silent'}")
+                profile.delete()
+
+    def test_a_decoder_default_is_judged_on_what_it_RESOLVES_to(self):
+        """The asymmetry stated in the control's description, locked down.
+
+        A decoder at `default` is not "unset" - it has a measured per-protocol resolution, so
+        http passes and smtp does not. An exception at `default` has no such resolution.
+        """
+        self._profile("dec-default", dict(ALL_BLOCK, http="reset-both"),
+                      wildfire=ALL_BLOCK, mlav=ALL_BLOCK)
+        self.assertEqual(self._fired(), {})
+
+        self._profile("dec-default-mail", dict(ALL_BLOCK, smtp="alert"),
+                      wildfire=ALL_BLOCK, mlav=ALL_BLOCK)
+        self.assertEqual(self._fired(), {"dec-default-mail": "high"})
+
     def test_a_profile_hardened_ONLY_on_signature_action_fires(self):
         """The shape that passed this control until 2026-10-08.
 
