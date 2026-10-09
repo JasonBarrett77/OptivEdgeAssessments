@@ -30,7 +30,9 @@ TUNING = "PAN-AVW-004"
 
 def _tuning_subject(obj) -> str:
     """PAN-AVW-004. Names the count, not the eleven types - the row carries those."""
-    total = len(obj.DEFAULT_SIZE_LIMITS)
+    # ASSERTED, not DEFAULT: `eml` has a default but a template cannot set it, so it is
+    # not part of what this control asks for and must not be part of the count either.
+    total = len(obj.ASSERTED_SIZE_LIMITS)
     untuned = len(obj.untuned_file_types)
     if untuned == total:
         return (f"{obj.appliance} has not sized ANY WildFire file size limit for this estate "

@@ -23,7 +23,9 @@ from optivedge_integrations.integrations.models import (
     WildfireSettings,
 )
 
-DEFAULTS = WildfireSettings.DEFAULT_SIZE_LIMITS
+#: What the control ASSERTS - ten, not eleven. `eml` is excluded because a
+#: template cannot set it; see WildfireSettings.TEMPLATE_UNSETTABLE.
+DEFAULTS = WildfireSettings.ASSERTED_SIZE_LIMITS
 #: Every type moved off its default, which is the only fully-tuned state.
 TUNED = {k: v + 1 for k, v in DEFAULTS.items()}
 
@@ -107,7 +109,7 @@ class WildfireSettingsControlTests(TestCase):
         fired = self._fired("PAN-AVW-004")
         self.assertIn("partial", fired)
         self.assertIn("pe", fired["partial"])
-        self.assertIn("1 of 11", fired["partial"])
+        self.assertIn("1 of 10", fired["partial"])
 
     # --- PAN-AVW-005, session information and verdict reporting -----------------------------
 
