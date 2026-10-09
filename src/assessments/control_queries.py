@@ -22,6 +22,7 @@ MANAGEMENT_TLS_MODEL = "integrations.ManagementTlsBinding"
 MANAGEMENT_SSH_MODEL = "integrations.ManagementSshSettings"
 MASTER_KEY_MODEL = "integrations.MasterKey"
 UPDATE_SERVER_SETTINGS_MODEL = "integrations.UpdateServerSettings"
+WILDFIRE_SETTINGS_MODEL = "integrations.WildfireSettings"
 LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
 PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
@@ -153,6 +154,14 @@ def evaluate_update_server_settings_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or UPDATE_SERVER_SETTINGS_MODEL,
+    )
+
+
+def evaluate_wildfire_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or WILDFIRE_SETTINGS_MODEL,
     )
 
 

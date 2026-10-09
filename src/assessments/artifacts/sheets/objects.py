@@ -221,6 +221,11 @@ SPECS = (
          "identity."),
     spec(T.LOGGING_SETTINGS,
          "What the firewall does about logging when the data plane is under load."),
+    spec(T.WILDFIRE_SETTINGS,
+         "What the firewall forwards to WildFire: the per-type file size limits, and whether "
+         "session context and benign/grayware verdicts are shared. DEVICE-WIDE, as against "
+         "the WildFire analysis profile, which decides what is asked for and is reported on "
+         "the security rule."),
     spec(T.NTP_SETTINGS,
          "Where each firewall gets its time, and whether those exchanges are authenticated. "
          "Whether a configured server is reachable or synchronized is not assessed - that is "

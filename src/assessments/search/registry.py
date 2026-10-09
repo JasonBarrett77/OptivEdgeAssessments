@@ -66,6 +66,13 @@ from assessments.search.master_key.compiler import (
     MASTER_KEY_MODEL,
     compile_master_key_search_node,
 )
+from assessments.search.wildfire_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as WILDFIRE_SETTINGS_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.wildfire_settings.compiler import (
+    WILDFIRE_SETTINGS_MODEL,
+    compile_wildfire_settings_search_node,
+)
 from assessments.search.update_server_settings.compiler import (
     FIELD_OPERATOR_REGISTRY as UPDATE_SERVER_SETTINGS_FIELD_OPERATOR_REGISTRY,
 )
@@ -176,6 +183,7 @@ from optivedge_integrations.integrations.models import (
     ManagementSshSettings,
     MasterKey,
     UpdateServerSettings,
+    WildfireSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
     SecurityProfile,
@@ -237,6 +245,11 @@ MODEL_REGISTRY = {
         "model_class": MasterKey,
         "field_operators": MASTER_KEY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_master_key_search_node,
+    },
+    WILDFIRE_SETTINGS_MODEL: {
+        "model_class": WildfireSettings,
+        "field_operators": WILDFIRE_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_wildfire_settings_search_node,
     },
     UPDATE_SERVER_SETTINGS_MODEL: {
         "model_class": UpdateServerSettings,

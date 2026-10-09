@@ -51,6 +51,9 @@ class FindingRegistryTests(TestCase):
         "update server settings",
         # Device > Setup > Management > Logging and Reporting Settings.
         "logging settings",
+        # Device > Setup > WildFire. "wildfire setting" names nothing either - the screen is
+        # a cluster of settings and the finding is about the cluster.
+        "wildfire settings",
     }
 
     def test_labels_are_unique_and_prose_shaped(self):

@@ -90,6 +90,7 @@ class Control(models.Model):
         MASTER_KEY = "master_key", "Master Key"
         UPDATE_SERVER = "update_server", "Update Server Settings"
         LOGGING_SETTINGS = "logging_settings", "Logging and Reporting Settings"
+        WILDFIRE_SETTINGS = "wildfire_settings", "WildFire Settings"
         MANAGEMENT_TLS = "management_tls", "Management TLS"
         MANAGEMENT_SSH = "management_ssh", "Management SSH"
         ADMIN_USER = "admin_user", "Administrator"
@@ -160,6 +161,7 @@ class Control(models.Model):
         "master_key": "integrations.MasterKey",
         "update_server": "integrations.UpdateServerSettings",
         "logging_settings": "integrations.LoggingSettings",
+        "wildfire_settings": "integrations.WildfireSettings",
         "management_tls": "integrations.ManagementTlsBinding",
         "management_ssh": "integrations.ManagementSshSettings",
         "admin_user": "integrations.AdminUser",
@@ -202,6 +204,7 @@ class Control(models.Model):
         "integrations.MasterKey": "Master Key",
         "integrations.UpdateServerSettings": "Update Server Settings",
         "integrations.LoggingSettings": "Logging and Reporting Settings",
+        "integrations.WildfireSettings": "WildFire Settings",
         "integrations.ManagementTlsBinding": "Management TLS",
         "integrations.ManagementSshSettings": "Management SSH",
         "integrations.AdminUser": "Administrator",
@@ -1243,6 +1246,49 @@ class LoggingSettingsFinding(ObjectFindingBase):
 
     def __str__(self) -> str:
         return f"{self.control.control_id} on logging settings {self.subject_name}"
+
+
+class WildfireSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's device-wide WildFire settings.
+
+    TWO CONTROLS share this model and they ask opposite-polarity questions - PAN-AVW-004
+    fires when nothing has been TUNED, PAN-AVW-005 when something has been WITHHELD - so the
+    subject sentence is built per control rather than once for the object.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="wildfire_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="wildfire_settings_findings")
+    wildfire_settings = models.ForeignKey(
+        "integrations.WildfireSettings", on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="WildfireSettingsFindingControlQuery",
+        related_name="wildfire_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["wildfire_settings"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "wildfire_settings"],
+                name="unique_wfs_finding_per_run_control_object"),
+        ]
+
+
+class WildfireSettingsFindingControlQuery(FindingControlQueryBase):
+    wildfire_settings_finding = models.ForeignKey(
+        WildfireSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="wildfire_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["wildfire_settings_finding", "control_query"],
+                name="unique_wfs_finding_control_query_link"),
+        ]
 
 
 class LoggingSettingsFindingControlQuery(FindingControlQueryBase):

@@ -63,14 +63,15 @@ class WorkbookBuildTests(TestCase):
         content, reports = build_workbook()
 
         self.assertTrue(content.startswith(b"PK"))
-        self.assertIn("Summary: 28 tabs linked, 0 findings in total", reports[0])
+        self.assertIn("Summary: 29 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
 
         self.assertEqual(names[0], "Summary")
-        # 28 findings tabs plus the Summary. Coverage joined them on 2026-10-02.
-        self.assertEqual(len(names), 29)
+        # 29 findings tabs plus the Summary. Coverage joined them on 2026-10-02 and
+        # WildFire settings on 2026-10-09.
+        self.assertEqual(len(names), 30)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

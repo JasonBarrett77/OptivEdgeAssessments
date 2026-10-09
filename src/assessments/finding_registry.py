@@ -81,6 +81,8 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.UPDATE_SERVER, "update server settings"),
     FindingKind(m.LoggingSettingsFinding, "logging_settings",
                 m.Control.ControlType.LOGGING_SETTINGS, "logging settings"),
+    FindingKind(m.WildfireSettingsFinding, "wildfire_settings",
+                m.Control.ControlType.WILDFIRE_SETTINGS, "wildfire settings"),
     FindingKind(m.AdminUserFinding, "admin_user",
                 m.Control.ControlType.ADMIN_USER, "administrator"),
     FindingKind(m.ServerProfileFinding, "server_profile",

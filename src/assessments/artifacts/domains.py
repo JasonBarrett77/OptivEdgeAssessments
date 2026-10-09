@@ -69,6 +69,9 @@ DOMAINS = (
     _object_domain("master-key", T.MASTER_KEY),
     _object_domain("update-server", T.UPDATE_SERVER),
     _object_domain("logging-settings", T.LOGGING_SETTINGS),
+    # Device > Setup > WildFire. The device-wide settings - PAN-AVW-004 and PAN-AVW-005 -
+    # NOT the WildFire analysis profile, whose control reports on the security rule.
+    _object_domain("wildfire-settings", T.WILDFIRE_SETTINGS),
     _object_domain("ntp", T.NTP_SETTINGS),
     _object_domain("snmp", T.SNMP_SETTINGS),
     _object_domain("system-identity", T.SYSTEM_IDENTITY),

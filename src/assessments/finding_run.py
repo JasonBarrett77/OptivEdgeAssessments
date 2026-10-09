@@ -31,6 +31,7 @@ from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
 )
 from assessments.logging_settings_findings import generate_logging_settings_findings
+from assessments.wildfire_settings_findings import generate_wildfire_settings_findings
 from assessments.login_banner_findings import generate_login_banner_findings
 from assessments.management_interface_findings import generate_management_interface_findings
 from assessments.management_tls_findings import generate_management_tls_findings
@@ -72,6 +73,7 @@ GENERATORS = (
     ("master key", T.MASTER_KEY, generate_master_key_findings),
     ("update server", T.UPDATE_SERVER, generate_update_server_settings_findings),
     ("logging settings", T.LOGGING_SETTINGS, generate_logging_settings_findings),
+    ("wildfire settings", T.WILDFIRE_SETTINGS, generate_wildfire_settings_findings),
     # Device-wide services, so they sit with the settings above rather than with the objects
     # below: one row per appliance, and nothing references them.
     ("NTP", T.NTP_SETTINGS, generate_ntp_settings_findings),

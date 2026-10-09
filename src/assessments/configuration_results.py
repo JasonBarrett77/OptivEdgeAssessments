@@ -45,6 +45,7 @@ from optivedge_integrations.integrations.models import (
     ManagementInterface,
     AuthenticationSettings,
     LoggingSettings,
+    WildfireSettings,
     LoginBanner,
     ManagementTlsBinding,
     ManagementSshSettings,
@@ -509,6 +510,33 @@ RESULTS = {
         columns=("Appliance", "Verify Update Server Identity"),
         base_queryset=_ordered(UpdateServerSettings, "appliance__hostname"),
         row=lambda p: (str(p.appliance), _yes_no(p.verify_identity)),
+    ),
+    # Device > Setup > WildFire. PAN-AVW-004 and PAN-AVW-005 - the DEVICE-WIDE settings, as
+    # against the WildFire analysis PROFILE that PAN-AVW-003 reads. The profile says what is
+    # asked for; these say what the platform forwards.
+    "wildfire-settings": ResultsSpec(
+        query_fields={"Appliance": "hostname",
+                      "File size limits untuned": "size_limits_untuned",
+                      "Full session info": "shares_full_session_info",
+                      "Report benign": "report_benign_file",
+                      "Report grayware": "report_grayware_file"},
+        columns=("Appliance", "File size limits untuned", "Still at default",
+                 "Full session info", "Withheld", "Report benign", "Report grayware"),
+        base_queryset=_ordered(WildfireSettings, "appliance__hostname"),
+        row=lambda p: (
+            str(p.appliance),
+            _yes_no(p.size_limits_untuned),
+            # The list, not just the verdict: an engineer needs to know WHICH types nobody
+            # sized, and the count alone sends them back to the device to find out.
+            _lines(p.untuned_file_types) if p.untuned_file_types else "none",
+            _yes_no(p.shares_full_session_info),
+            # Empty is the GOOD state here - the config stores exclusions - so the cell says
+            # "nothing withheld" rather than leaving a blank that reads as missing data.
+            (_lines(sorted(p.session_info_excluded)) if p.session_info_excluded
+             else "nothing withheld"),
+            _yes_no(p.report_benign_file),
+            _yes_no(p.report_grayware_file),
+        ),
     ),
     "logging-and-reporting": ResultsSpec(
         query_fields={"Appliance": "hostname",

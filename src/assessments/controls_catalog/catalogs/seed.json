@@ -3732,6 +3732,85 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-AVW-004",
+          "name": "WildFire File Size Limits Tuned",
+          "control_type": "wildfire_settings",
+          "default_severity": "low",
+          "description": "An appliance whose WildFire file size limits are all still at the PAN-OS default.\n\nA TUNING CHECK, not a maximisation check (Jason, 2026-10-09), and the distinction is deliberate. The corpus asks for limits 'raised to the platform maximum'. The vendor says the opposite in the paragraph that describes the field - Help p.774: \"if the limit is too large and prevents the firewall from forwarding multiple large zero-day files at the same time, lower and tune the maximum limit based on the amount of available firewall buffer space.\" Both cannot be asserted. So this asserts neither direction: it asks whether anybody has SIZED these for the estate at all, and takes a value moved off its default - up or down - as evidence that somebody did.\n\nWHY THAT IS THE ANSWERABLE QUESTION. The right limit depends on the platform's buffer space and the traffic it carries, neither of which is in the configuration. The defaults being untouched is observable and is what it means: nobody has looked. The corpus marks this control `config_settable: false` and `evidence_source: interview-data`, which agrees that the value itself is not decidable from config.\n\nWHAT COUNTS AS UNTUNED. Every file type PAN-OS has a default for, not only the ones the configuration names - an absent entry is the clearest case of untouched there is, and walking only what is present would report a device that configures nothing as fully tuned. Eleven types: pe, apk, pdf, ms-office, jar, flash, MacOSX, archive, linux, script, eml.\n\nTHE DEFAULTS WERE MEASURED, not assumed, and they look configured. On pan-fw-111 every entry reports `@src: tpl`, but the thing named there is a template STACK and none of the six templates on the Panorama holds a wildfire node - verified by writing a value into one and watching it appear and vanish. So nothing sets them. `eml` is absent from the configuration entirely and the UI still shows 5 MB for it, which is what proves the UI renders a default for an unset entry and makes the other ten readable the same way.\n\nTHE UNITS ARE NOT UNIFORM - the UI renders pe as 16 MB and pdf as 3072 KB - so a value is compared only against its own default and never against another type's.\n\nNOT CONFIRMED ON A SECOND PLATFORM. Both PA-5220s carry no file-size-limit node at all, which makes them untuned by the same reading but does not confirm the VALUES. If a platform is ever found with different defaults, this table becomes one table per platform.",
+          "rationale": "A file above its forwarding limit is never analysed, and attackers pad payloads past default limits precisely because the defaults are predictable and widely unchanged. The limits that suit an estate depend on its hardware and traffic, so the finding is not that a number is wrong - it is that nobody has chosen one.",
+          "audit": "Device > Setup > WildFire > General Settings > File Size Limits. Compare each per-type value against the PAN-OS default for that type; a type missing from the list is at its default by definition. Note the units differ per type - pe is MB, pdf is KB - so read each row against its own default rather than against its neighbours.",
+          "remediation": "Size each limit against the platform's available buffer space and the file types the estate actually carries, and record the reasoning - the point is a deliberate choice, not a particular number. Raising every limit to the maximum is NOT the vendor's advice: Help p.774 warns that a limit too large prevents the firewall forwarding multiple large zero-day files at once. On a Panorama-managed estate set these in the TEMPLATE, not on the firewall, or the next push reverts them.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.WildfireSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "size_limits_untuned",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.WildfireSettings"
+        },
+        {
+          "control_id": "PAN-AVW-005",
+          "name": "WildFire Session Information Sharing Enabled",
+          "control_type": "wildfire_settings",
+          "default_severity": "low",
+          "description": "An appliance that withholds session context from WildFire, or does not report benign and grayware verdicts.\n\nBOTH HALVES, EITHER ONE FIRES (Jason, 2026-10-09). The corpus entry names two different things - its title and description are about session information sharing, its xpath is `report-grayware-file` - and they are two different nodes in opposite states on the lab. The control asserts both.\n\nTHE CONFIG STORES EXCLUSIONS, SO THE UI IS INVERTED, and reading it the other way round gets this control exactly backwards. `session-info-select` holds twelve `exclude-*` members - exclude-url, exclude-username, exclude-filename and nine more - so a ticked checkbox on Device > Setup > WildFire means the exclusion is ABSENT. An empty list is FULL sharing and the state this control wants. That is the opposite of the usual rule that an absent key is the weaker end, which is why it is stated here rather than left to be rediscovered.\n\nTHE TWO REPORT FLAGS ARE PLAIN. `report-benign-file` and `report-grayware-file` are yes/no and both are implicitly NO - absent on pan-fw-111 and both boxes render unticked, measured 2026-10-09. So an untouched device fails this half, and the finding says so rather than reading like somebody turned them off.\n\nWHAT IT DOES NOT ASSERT. The Inline Session Information Settings block (`cloud-inline-wf-session-info-select`) carries the same twelve exclusions for the inline-cloud engine. It is collected and shown, and not asserted - no corpus control names it, and inventing one here would be widening the corpus rather than implementing it.",
+          "rationale": "A WildFire verdict is more useful with the session that produced it - the URL, the filename, the user - and the analysis report is richer for it. Benign and grayware reporting is what makes near-miss deliveries visible at all: without it the only samples an analyst ever sees are the ones already judged malicious, which is the wrong end of the funnel for hunting.",
+          "audit": "Device > Setup > WildFire. In Session Information Settings every box should be ticked - a ticked box means that attribute is NOT excluded. In General Settings, Report Benign File and Report Grayware File should both be ticked; both are unticked by default.",
+          "remediation": "Tick every Session Information Settings box and both report boxes. On a Panorama-managed estate set them in the TEMPLATE, not on the firewall. Note the privacy direction: these forward session context including usernames and URLs to the WildFire cloud, so an estate with a data-residency or privacy constraint should take the exclusions deliberately rather than by default - this control reports the default, which is to share everything and report nothing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.WildfireSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "shares_full_session_info",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "report_benign_file",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "report_grayware_file",
+                        "op": "eq",
+                        "value": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.WildfireSettings"
         }
       ]
     }
