@@ -213,10 +213,25 @@ def _rule_appliance(rule):
 
 
 def _rule_profiles(rule):
+    """What the rule names, plus what its WildFire analysis actually amounts to.
+
+    The WildFire line is INSIDE this cell rather than in a column of its own, because this
+    page has to match the rules page's column set (Jason, 2026-09-18) - the same reason
+    address breadth renders inside the address cell. It earns the space because naming a
+    profile group and being covered are different things: on the lab 113 rules name a group
+    called `default` that lists no profiles at all, so the cell above this line reads
+    `default` and the line itself reads that nothing reaches the rule.
+    """
     groups = [value.value for value in rule.securityruleprofilegroups.all()]
     individual = [f"{profile.profile_type}: {profile.value}"
                   for profile in rule.securityruleprofiles.all()]
-    return _lines(groups + individual)
+    if rule.wildfire_analysis_submits_all is True:
+        wildfire = "WildFire analysis: all file types"
+    elif rule.wildfire_analysis_detail:
+        wildfire = f"WildFire analysis: {rule.wildfire_analysis_detail}"
+    else:
+        wildfire = "WildFire analysis: not yet computed - re-normalize"
+    return _lines(groups + individual + [wildfire])
 
 
 def _resolved_content(obj) -> str:
@@ -262,6 +277,12 @@ RESULTS = {
             "Destination Zone": "to_zone", "Destination Address": "destination_address_name",
             "Application": "application", "Service": "service", "Action": "action",
             "Log Start": "log_start", "Log End": "log_end", "Log Profile": "log_setting"},
+        # NO entry for wildfire_analysis_submits_all. `query_fields` maps a COLUMN to a
+        # searchable field and every key must name a column on this page - and this page has
+        # to match the rules page's column set (Jason, 2026-09-18), so the WildFire verdict
+        # renders inside the Profiles cell instead, as address breadth does inside the
+        # address cell. The field is still searchable: a control's query goes through the
+        # search compiler, not through this map.
         columns=("Station", "Appliance", "vsys id", "vsys name", "Order", "Config Source",
                  "Device Group", "Rule", "Source Zone", "Source Address", "Destination Zone",
                  "Destination Address", "Application", "Service", "Action", "Log Start",

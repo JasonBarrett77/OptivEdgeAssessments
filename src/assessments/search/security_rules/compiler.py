@@ -35,6 +35,7 @@ from assessments.search.security_rules.fields.negate_source import compile_negat
 from assessments.search.security_rules.fields.provenance import compile_provenance_clause
 from assessments.search.security_rules.fields.profile_coverage import (
     compile_has_antivirus_profile_clause,
+    compile_wildfire_analysis_submits_all_clause,
     compile_has_spyware_profile_clause,
     compile_has_vulnerability_profile_clause,
 )
@@ -76,6 +77,7 @@ FIELD_COMPILERS = {
     "negate_source": compile_negate_source_clause,
     "provenance": compile_provenance_clause,
     "has_antivirus_profile": compile_has_antivirus_profile_clause,
+    "wildfire_analysis_submits_all": compile_wildfire_analysis_submits_all_clause,
     "has_spyware_profile": compile_has_spyware_profile_clause,
     "has_vulnerability_profile": compile_has_vulnerability_profile_clause,
     "rule_type": compile_rule_type_clause,
@@ -108,6 +110,8 @@ FIELD_OPERATOR_REGISTRY = {
     "negate_source": compile_negate_source_clause.SUPPORTED_OPERATORS,
     "provenance": compile_provenance_clause.SUPPORTED_OPERATORS,
     "has_antivirus_profile": compile_has_antivirus_profile_clause.SUPPORTED_OPERATORS,
+    "wildfire_analysis_submits_all":
+        compile_wildfire_analysis_submits_all_clause.SUPPORTED_OPERATORS,
     "has_spyware_profile": compile_has_spyware_profile_clause.SUPPORTED_OPERATORS,
     "has_vulnerability_profile": compile_has_vulnerability_profile_clause.SUPPORTED_OPERATORS,
     "rule_type": compile_rule_type_clause.SUPPORTED_OPERATORS,

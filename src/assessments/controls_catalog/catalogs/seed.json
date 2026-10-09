@@ -3684,6 +3684,54 @@
               }
             }
           ]
+        },
+        {
+          "control_id": "PAN-AVW-003",
+          "name": "WildFire Analysis Profile Submits All File Types",
+          "control_type": "security_rule",
+          "default_severity": "high",
+          "description": "A security rule whose traffic is not fully sent for WildFire sandbox analysis.\n\nPER RULE, NOT PER PROFILE. A WildFire analysis profile nothing uses endangers nothing; a rule carries traffic. The same profile can be correct for one rule and absent from another, and the remediation - attach a profile, or widen one - belongs to the rule. PAN-AVW-006 is the control that asks about unused profiles.\n\nTHREE WAYS A RULE FAILS, and they have different fixes, so the finding says which:\n\n  - NO PROFILE REACHES IT. The rule names none, or names a profile group that names no WildFire analysis profile, or names one that resolves to nothing in scope. Nothing is sent. On the lab this is the common case: 113 rules point at a group called `default` that names no profiles at all.\n  - THE PROFILE SENDS NOTHING. A profile with no `rules` node, an empty one, or a rule carrying only a name are all valid configuration - measured 2026-10-09 by writing each - and all three submit nothing while looking configured.\n  - THE PROFILE IS TOO NARROW. Its rules name specific file types rather than `any`, or specific applications, or a single direction.\n\nWHAT IT ASSERTS. Some rule in the profile in force covers `any` file type, `any` application and both directions. The corpus names `any` for both its minimum and its preferred value, differing only in that the preferred adds direction `both` and all application traffic; this asserts the preferred, per the checklist's rule of asserting the stricter and letting an assessor relax it.\n\nBOTH DIRECTIONS MATTER and the corpus says why: inbound is delivery, outbound is exfiltration and beacon staging. A profile set to `upload` only leaves every delivered file unanalysed.\n\nA RULE WITH NO DIRECTION SET IS REPORTED, not passed. The device accepts a profile rule carrying no `direction` and stores none; the UI writes `both` when a rule is added through the form, so no instance of the absent case exists to read and nothing establishes what the device then does. Unestablished must not render as fine.\n\nTHE SHIPPED PROFILE PASSES, which is the reverse of PAN-AVW-001 and 002. The predefined `default` carries one rule: file-type `any`, application `any`, direction `both`, analysis `public-cloud` - read off the device 2026-10-09. So a rule that uses the shipped profile is fine here, and the finding is about rules that reach no profile or a hand-narrowed one.\n\nPRIVATE CLOUD IS NOT THE SAME COVERAGE, and this control does not report it. Help p.308: \"A WildFire private cloud (hosted by a WildFire appliance) does not support analysis of APK, Mac OS X, archive, and linux files.\" So a rule whose profile asks for `file-type any` at `analysis private-cloud` still leaves four types unanalysed. The corpus explicitly permits private-cloud where data residency requires it, so firing on it would contradict the corpus - and the claim is documentation, not measurement: no WildFire appliance exists on the lab to confirm it. Recorded here so an assessor reading a passing private-cloud rule knows what the pass means.\n\nWHAT THIS CONTROL DOES NOT COVER. Device-wide WildFire settings gate what is actually forwarded regardless of the profile - a file type listed here is still never analysed if it exceeds `deviceconfig/setting/wildfire/file-size-limit` for its type. That is PAN-AVW-004 and it is a separate subject; this control asserts what the profile asks for, not what the platform ultimately sends.\n\nSCOPE. Enabled allow rules that are not the implicit defaults - the same scope as PAN-POL-008, because the question is the same shape: what inspection is in force on traffic this rule permits.",
+          "rationale": "WildFire is the only thing that catches malware with no signature yet, and the profile decides what it ever sees. A file type the profile filters out is an unanalysed delivery channel, and a rule that reaches no profile at all is every file type filtered out. The gap is invisible from the rule itself: it shows a profile group and looks configured.",
+          "audit": "For each enabled allow rule, resolve what it actually reaches: Policies > Security, the rule's Profile column, then Objects > Security Profile Groups for the group it names and whether that group lists a WildFire Analysis profile. Then Objects > Security Profiles > WildFire Analysis for that profile's Rules tab - FILE TYPES must read `any`, APPLICATIONS `any`, and DIRECTION `both`. A profile with an empty Rules tab sends nothing. Note the ANALYSIS column too: `private-cloud` does not analyse APK, Mac OS X, archive or linux files at all, so a private-cloud profile asking for every file type still leaves four unanalysed.",
+          "remediation": "Attach a WildFire analysis profile to every rule that permits traffic, through the profile group the rules already name rather than rule by rule. The predefined `default` profile already submits everything, so referencing it is sufficient where no local policy requires otherwise; where a custom profile exists, give it a rule with file type `any`, application `any` and direction `both`. Check the device-wide file size limits too - PAN-AVW-004 - since a type above its limit is never analysed whatever the profile says.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "wildfire_analysis_submits_all",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
         }
       ]
     }

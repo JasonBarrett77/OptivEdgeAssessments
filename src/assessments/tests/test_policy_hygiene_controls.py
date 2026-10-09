@@ -58,14 +58,16 @@ class PolicyHygieneTests(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, enforcement_point=self.point,
             source_type="test", collected_at=timezone.now())
-        seed_controls(["PAN-POL-002", "PAN-POL-008", "PAN-POL-014", "PAN-POL-024"],
+        seed_controls(["PAN-POL-002", "PAN-POL-008", "PAN-POL-014", "PAN-POL-024",
+                       "PAN-AVW-003"],
                       control_type=Control.ControlType.SECURITY_RULE)
         self.order = 0
 
     def _rule(self, name, *, source=SLASH_32, destination=SLASH_32, disabled=False,
               action="allow", config_source=SecurityRule.SOURCE_LOCAL,
               from_zone="trust", to_zone="untrust", rule_type="universal",
-              antivirus=True, spyware=True, vulnerability=True):
+              antivirus=True, spyware=True, vulnerability=True,
+              wildfire=True, wildfire_detail=""):
         self.order += 1
         rule = SecurityRule.objects.create(
             management_station=self.station, enforcement_point=self.point,
@@ -74,7 +76,12 @@ class PolicyHygieneTests(TestCase):
             action=action, disabled=disabled, rule_type=rule_type,
             source_num_hosts=source, destination_num_hosts=destination,
             has_antivirus_profile=antivirus, has_spyware_profile=spyware,
-            has_vulnerability_profile=vulnerability)
+            has_vulnerability_profile=vulnerability,
+            # THREE STATES. True covers everything; False is a profile that is too narrow;
+            # None is no profile reaching the rule at all - which is the common real case and
+            # also what an un-renormalized row holds.
+            wildfire_analysis_submits_all=wildfire,
+            wildfire_analysis_detail=wildfire_detail)
         if from_zone is not None:
             SecurityRuleFromZone.objects.create(
                 security_rule=rule, value=from_zone, prov="test", position=1)
@@ -90,6 +97,57 @@ class PolicyHygieneTests(TestCase):
         return {f.security_rule.name: f.severity for f in
                 RuleFinding.objects.filter(control__control_id=control_id, assessment_run=run)
                 .select_related("security_rule")}
+
+    # --- PAN-AVW-003 -------------------------------------------------------------------------
+
+    def test_a_rule_whose_profile_submits_everything_is_silent(self):
+        """The predefined `default` WildFire analysis profile is this case - file-type any,
+        application any, direction both. The shipped profile PASSES here, which is the reverse
+        of PAN-AVW-001 and 002."""
+        self._rule("fully-analysed")
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {})
+
+    def test_a_rule_no_profile_reaches_fires(self):
+        """NULL, not False. The lab's own case: 113 rules name a profile group called
+        `default` that lists no profiles at all, so nothing is sent for analysis while the
+        rule looks configured."""
+        self._rule("no-profile", wildfire=None,
+                   wildfire_detail="no WildFire analysis profile is in force on this rule")
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {"no-profile": "high"})
+
+    def test_a_rule_whose_profile_is_too_narrow_fires(self):
+        self._rule("narrow", wildfire=False, wildfire_detail="wf-pe-only: no rule covers every file type")
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {"narrow": "high"})
+
+    def test_an_un_renormalized_row_fires_rather_than_passing(self):
+        """A new nullable column on an already-populated model holds NULL until something
+        re-normalizes. Null fires, so the window between migrating and re-normalizing
+        announces itself instead of reporting a clean estate - which is the failure measured
+        on PAN-MCR-001/002/003."""
+        self._rule("stale", wildfire=None, wildfire_detail="")
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {"stale": "high"})
+
+    def test_a_disabled_rule_is_out_of_scope(self):
+        """Same scope as PAN-POL-008: the question is what inspection is in force on traffic
+        the rule permits, and a disabled rule permits none."""
+        self._rule("disabled-no-wf", disabled=True, wildfire=None)
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {})
+
+    def test_a_deny_rule_is_out_of_scope(self):
+        self._rule("deny-no-wf", action="deny", wildfire=None)
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {})
+
+    def test_the_implicit_defaults_are_out_of_scope(self):
+        self._rule("intrazone-default", config_source=SecurityRule.SOURCE_DEFAULT,
+                   wildfire=None)
+
+        self.assertEqual(self._severities("PAN-AVW-003"), {})
 
     # --- PAN-POL-014 -------------------------------------------------------------------------
 

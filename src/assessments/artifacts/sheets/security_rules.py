@@ -71,6 +71,13 @@ PROFILE_TYPE_LABELS = (
 
 
 def profiles_in_force(rule) -> str:
+    """What the rule NAMES, what is actually in force, and what WildFire analysis amounts to.
+
+    The WildFire line is here rather than in a column of its own because the value is the
+    same kind of fact as the "in force" line below it - what the named profiles resolve to -
+    and because PAN-AVW-003 needs it shown somewhere. `hidden_fields` records that this
+    column is where it shows.
+    """
     named = [g.value for g in rule.securityruleprofilegroups.all()]
     direct = [f"{p.profile_type}: {p.value}" for p in rule.securityruleprofiles.all()]
     in_force = [label for column, label in PROFILE_TYPE_LABELS if getattr(rule, column, False)]
@@ -81,6 +88,12 @@ def profiles_in_force(rule) -> str:
     if not lines:
         lines.append("(none named)")
     lines.append("in force: " + (", ".join(in_force) if in_force else "NONE"))
+    if rule.wildfire_analysis_submits_all is True:
+        lines.append("WildFire analysis: all file types")
+    elif rule.wildfire_analysis_detail:
+        lines.append(f"WildFire analysis: {rule.wildfire_analysis_detail}")
+    else:
+        lines.append("WildFire analysis: not yet computed - re-normalize")
     return "\n".join(lines)
 
 
@@ -243,6 +256,12 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    # and `*_breadth_known` is the same fact as the count being Unknown.
                    "source_num_hosts", "destination_num_hosts",
                    "source_breadth_known", "destination_breadth_known",
+                   # PAN-AVW-003. The Profiles column already carries what the rule names and
+                   # what is in force; the WildFire verdict and its reason are two more lines
+                   # in that cell, because they are the same kind of fact - what the named
+                   # profiles actually resolve to. A column of its own would also break this
+                   # sheet's agreement with the rules page's column set.
+                   "wildfire_analysis_submits_all", "wildfire_analysis_detail",
                    # A SCOPE condition rather than an observation: PAN-POL-002 excludes disabled
                    # rules, so every row on this sheet is an enabled rule by construction. The
                    # Fires when cell states it on the surfaces that carry that block.
