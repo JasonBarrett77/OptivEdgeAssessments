@@ -26,8 +26,8 @@ from optivedge_integrations.integrations.models.wildfire_settings import (
     defaults_for_version,
 )
 
-#: The defaults are PER RELEASE - 11.2 added `eml`, so the key set differs - and only 11.1 is
-#: established. A device on an unestablished release reports rather than passing.
+#: PAN-OS's own declared defaults, from Panorama's Size Limit tooltip. Release-invariant for
+#: what this control asserts: 11.2 adds `eml`, which is excluded on two counts.
 ESTABLISHED = "11.1.13-h3"
 UNESTABLISHED = "11.2.3-h3"
 DEFAULTS = defaults_for_version(ESTABLISHED)
@@ -110,19 +110,24 @@ class WildfireSettingsControlTests(TestCase):
         fired = self._fired("PAN-AVW-004")
         self.assertIn("pe", fired["partial"])
 
-    def test_a_release_with_NO_established_table_reports_rather_than_passing(self):
-        """The whole reason the table is keyed by release.
+    def test_a_11_2_device_is_assessed_the_same_way(self):
+        """11.2 adds `eml` to the key set and nothing else, and `eml` is excluded - so the
+        asserted set does not vary by release and an 11.2 device is judged on the same ten."""
+        self._settings("on-11-2", version=UNESTABLISHED)
 
-        11.2 added `eml` and its defaults are not measured - the one lab device on 11.2 has
-        its limits supplied by a template stack, so they cannot be read off it. A device on
-        such a release must not read as fully tuned just because nothing can be compared.
-        """
-        self._settings("unknown-release", version=UNESTABLISHED,
-                       limits={"pe": 999})
+        self.assertIn("on-11-2", self._fired("PAN-AVW-004"))
+
+    def test_a_single_kilobyte_off_the_default_counts_as_tuned(self):
+        """The lab's stack held ms-office at 16385 against a default of 16384, and that one
+        kilobyte is the difference between "nobody sized this" and "somebody did". The rule
+        Jason set is deliberately literal, so this is recorded rather than smoothed over."""
+        limits = dict(DEFAULTS)
+        limits["ms-office"] = 16385
+        self._settings("one-kb", limits=limits)
 
         fired = self._fired("PAN-AVW-004")
-        self.assertIn("unknown-release", fired)
-        self.assertIn("not established", fired["unknown-release"])
+        self.assertIn("one-kb", fired)
+        self.assertNotIn("ms-office", fired["one-kb"])
 
     # --- PAN-AVW-005, session information and verdict reporting -----------------------------
 
