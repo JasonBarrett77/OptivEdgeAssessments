@@ -69,47 +69,33 @@ class WildfireSettingsControlTests(TestCase):
                     control__control_id=control_id, assessment_run=run)
                 .select_related("wildfire_settings__appliance")}
 
-    # --- PAN-AVW-004, the tuning check ------------------------------------------------------
+    # --- PAN-AVW-004 is DEACTIVATED ---------------------------------------------------------
 
-    def test_an_untouched_device_fires(self):
-        """What the lab actually looks like: every type at its default. The sentence says
-        "has not sized ANY", because a finding that reads like a misconfiguration when it is
-        an unset default sends an assessor looking for who changed it."""
+    def test_PAN_AVW_004_is_deactivated_and_reports_nothing(self):
+        """It was built and switched off the same day, 2026-10-09.
+
+        It compared each per-type file size limit against a recorded PAN-OS default, and
+        those values are not defaults - they are configuration held by the template STACK on
+        the lab they were measured from. All six TEMPLATES were checked and none held a
+        wildfire node; the conclusion that nothing set them skipped the STACK, which holds
+        its own configuration and overrides its member templates.
+
+        So the comparison was against one lab's stack config: wrong on that lab, meaningless
+        anywhere else. Off until the real defaults are measured, which needs the UI - a
+        device where nothing sets them shows no node in configuration at all.
+
+        The COMPUTATION is still covered, in OptivEdgeIntegrations' `untuned` tests. What is
+        asserted here is that nothing reaches an assessor until the reference values do.
+        """
+        from assessments.controls_catalog.registry import load_seed_payload
+
+        spec = next(c for cat in load_seed_payload()["catalogs"]
+                    for c in cat["controls"] if c["control_id"] == "PAN-AVW-004")
+        self.assertFalse(spec["is_active"])
+        self.assertIn("DEACTIVATED", spec["description"])
+
         self._settings("untouched")
-
-        fired = self._fired("PAN-AVW-004")
-        self.assertIn("untouched", fired)
-        self.assertIn("has not sized ANY", fired["untouched"])
-
-    def test_a_device_with_no_limits_configured_at_all_fires(self):
-        """The PA-5220s' shape: no file-size-limit node. Untuned by definition, and walking
-        only configured entries would have reported it as fully tuned."""
-        self._settings("nothing-set", limits={})
-
-        self.assertIn("nothing-set", self._fired("PAN-AVW-004"))
-
-    def test_every_type_moved_off_its_default_is_silent(self):
-        self._settings("tuned", limits=TUNED)
-
         self.assertEqual(self._fired("PAN-AVW-004"), {})
-
-    def test_tuning_DOWN_counts_as_tuning(self):
-        """Help p.774 advises lowering against buffer space, so a reduced limit is evidence
-        of a decision exactly as a raised one is. A control asserting the maximum would call
-        the vendor's own advice a finding."""
-        self._settings("lowered", limits={k: 1 for k in DEFAULTS})
-
-        self.assertEqual(self._fired("PAN-AVW-004"), {})
-
-    def test_one_type_left_at_its_default_still_fires_and_is_named(self):
-        limits = dict(TUNED)
-        limits["pe"] = DEFAULTS["pe"]
-        self._settings("partial", limits=limits)
-
-        fired = self._fired("PAN-AVW-004")
-        self.assertIn("partial", fired)
-        self.assertIn("pe", fired["partial"])
-        self.assertIn("1 of 10", fired["partial"])
 
     # --- PAN-AVW-005, session information and verdict reporting -----------------------------
 
@@ -146,12 +132,11 @@ class WildfireSettingsControlTests(TestCase):
         self.assertIn("benign", fired["default-reports"])
         self.assertIn("grayware", fired["default-reports"])
 
-    def test_the_two_controls_report_separately_on_one_appliance(self):
-        """One model, two controls, two findings - and each sentence has to be about its own
-        question or an engineer cannot tell which thing to fix."""
+    def test_only_the_active_control_reports_on_a_shared_model(self):
+        """Two controls share WildfireSettings and only one is active. The sentence builder
+        picks per control, so the risk when 004 comes back is that the wrong sentence is
+        written for a row both match - which is what this guards."""
         self._settings("both-bad", benign=False)
 
-        self.assertIn("both-bad", self._fired("PAN-AVW-004"))
-        self.assertIn("both-bad", self._fired("PAN-AVW-005"))
-        self.assertIn("file size limit", self._fired("PAN-AVW-004")["both-bad"])
+        self.assertEqual(self._fired("PAN-AVW-004"), {})
         self.assertIn("benign", self._fired("PAN-AVW-005")["both-bad"])
