@@ -22,10 +22,15 @@ from optivedge_integrations.integrations.models import (
     Snapshot,
     WildfireSettings,
 )
+from optivedge_integrations.integrations.models.wildfire_settings import (
+    defaults_for_version,
+)
 
-#: What the control ASSERTS - ten, not eleven. `eml` is excluded because a
-#: template cannot set it; see WildfireSettings.TEMPLATE_UNSETTABLE.
-DEFAULTS = WildfireSettings.ASSERTED_SIZE_LIMITS
+#: The defaults are PER RELEASE - 11.2 added `eml`, so the key set differs - and only 11.1 is
+#: established. A device on an unestablished release reports rather than passing.
+ESTABLISHED = "11.1.13-h3"
+UNESTABLISHED = "11.2.3-h3"
+DEFAULTS = defaults_for_version(ESTABLISHED)
 #: Every type moved off its default, which is the only fully-tuned state.
 TUNED = {k: v + 1 for k, v in DEFAULTS.items()}
 
@@ -41,21 +46,23 @@ class WildfireSettingsControlTests(TestCase):
                       control_type=Control.ControlType.WILDFIRE_SETTINGS)
         self.n = 0
 
-    def _settings(self, name, *, limits=None, excluded=(), benign=True, grayware=True):
+    def _settings(self, name, *, limits=None, excluded=(), benign=True, grayware=True,
+                  version=ESTABLISHED):
         self.n += 1
         appliance = Appliance.objects.create(
             management_station=self.station, appliance_group=self.group,
-            serial_number=f"S-{self.n}", hostname=name)
+            serial_number=f"S-{self.n}", hostname=name, software_version=version)
         snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=appliance,
             source_type="test", collected_at=timezone.now())
-        limits = DEFAULTS if limits is None else limits
-        untuned = sorted(t for t, d in DEFAULTS.items() if limits.get(t, d) == d)
+        table = defaults_for_version(version) or {}
+        limits = dict(table) if limits is None else limits
+        untuned = sorted(t for t, d in table.items() if limits.get(t, d) == d)
         return WildfireSettings.objects.create(
             management_station=self.station, appliance=appliance,
             appliance_group=self.group, source_snapshot=snapshot,
             size_limits=limits, untuned_file_types=untuned,
-            size_limits_untuned=bool(untuned),
+            size_limits_untuned=bool(untuned) or not table,
             session_info_excluded=list(excluded),
             shares_full_session_info=not excluded,
             report_benign_file=benign, report_grayware_file=grayware)
@@ -69,33 +76,53 @@ class WildfireSettingsControlTests(TestCase):
                     control__control_id=control_id, assessment_run=run)
                 .select_related("wildfire_settings__appliance")}
 
-    # --- PAN-AVW-004 is DEACTIVATED ---------------------------------------------------------
+    # --- PAN-AVW-004, the tuning check ------------------------------------------------------
 
-    def test_PAN_AVW_004_is_deactivated_and_reports_nothing(self):
-        """It was built and switched off the same day, 2026-10-09.
-
-        It compared each per-type file size limit against a recorded PAN-OS default, and
-        those values are not defaults - they are configuration held by the template STACK on
-        the lab they were measured from. All six TEMPLATES were checked and none held a
-        wildfire node; the conclusion that nothing set them skipped the STACK, which holds
-        its own configuration and overrides its member templates.
-
-        So the comparison was against one lab's stack config: wrong on that lab, meaningless
-        anywhere else. Off until the real defaults are measured, which needs the UI - a
-        device where nothing sets them shows no node in configuration at all.
-
-        The COMPUTATION is still covered, in OptivEdgeIntegrations' `untuned` tests. What is
-        asserted here is that nothing reaches an assessor until the reference values do.
-        """
-        from assessments.controls_catalog.registry import load_seed_payload
-
-        spec = next(c for cat in load_seed_payload()["catalogs"]
-                    for c in cat["controls"] if c["control_id"] == "PAN-AVW-004")
-        self.assertFalse(spec["is_active"])
-        self.assertIn("DEACTIVATED", spec["description"])
-
+    def test_an_untouched_device_fires(self):
+        """What the PA-5220s actually look like: no file-size-limit node at all, so every
+        type is at its default. The sentence says "has not sized ANY", because a finding that
+        reads like a misconfiguration when it is an unset default sends an assessor looking
+        for who changed it."""
         self._settings("untouched")
+
+        fired = self._fired("PAN-AVW-004")
+        self.assertIn("untouched", fired)
+        self.assertIn("has not sized ANY", fired["untouched"])
+
+    def test_every_type_moved_off_its_default_is_silent(self):
+        self._settings("tuned", limits={k: v + 1 for k, v in DEFAULTS.items()})
+
         self.assertEqual(self._fired("PAN-AVW-004"), {})
+
+    def test_tuning_DOWN_counts_as_tuning(self):
+        """Help p.774 advises lowering against buffer space, so a reduced limit is evidence
+        of a decision exactly as a raised one is. A control asserting the maximum would call
+        the vendor's own advice a finding."""
+        self._settings("lowered", limits={k: 1 for k in DEFAULTS})
+
+        self.assertEqual(self._fired("PAN-AVW-004"), {})
+
+    def test_one_type_left_at_its_default_still_fires_and_is_named(self):
+        limits = {k: v + 1 for k, v in DEFAULTS.items()}
+        limits["pe"] = DEFAULTS["pe"]
+        self._settings("partial", limits=limits)
+
+        fired = self._fired("PAN-AVW-004")
+        self.assertIn("pe", fired["partial"])
+
+    def test_a_release_with_NO_established_table_reports_rather_than_passing(self):
+        """The whole reason the table is keyed by release.
+
+        11.2 added `eml` and its defaults are not measured - the one lab device on 11.2 has
+        its limits supplied by a template stack, so they cannot be read off it. A device on
+        such a release must not read as fully tuned just because nothing can be compared.
+        """
+        self._settings("unknown-release", version=UNESTABLISHED,
+                       limits={"pe": 999})
+
+        fired = self._fired("PAN-AVW-004")
+        self.assertIn("unknown-release", fired)
+        self.assertIn("not established", fired["unknown-release"])
 
     # --- PAN-AVW-005, session information and verdict reporting -----------------------------
 
@@ -132,11 +159,10 @@ class WildfireSettingsControlTests(TestCase):
         self.assertIn("benign", fired["default-reports"])
         self.assertIn("grayware", fired["default-reports"])
 
-    def test_only_the_active_control_reports_on_a_shared_model(self):
-        """Two controls share WildfireSettings and only one is active. The sentence builder
-        picks per control, so the risk when 004 comes back is that the wrong sentence is
-        written for a row both match - which is what this guards."""
+    def test_the_two_controls_report_separately_on_one_appliance(self):
+        """One model, two controls, two findings - and each sentence has to be about its own
+        question or an engineer cannot tell which thing to fix."""
         self._settings("both-bad", benign=False)
 
-        self.assertEqual(self._fired("PAN-AVW-004"), {})
+        self.assertIn("file size limit", self._fired("PAN-AVW-004")["both-bad"])
         self.assertIn("benign", self._fired("PAN-AVW-005")["both-bad"])
