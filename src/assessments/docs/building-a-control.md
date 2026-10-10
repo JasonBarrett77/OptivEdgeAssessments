@@ -393,6 +393,24 @@ every firewall by re-reading config rather than trusting job status.
       hardening that contradicted the corpus, and manufactured a doubt that cost a planned
       hardware experiment. It is a FIPS-CC requirement and contradicted nothing.*
 
+- [ ] **The index returns PAGES, not sections. A page that ends mid-sentence is a section
+      continuing, and a negative drawn from one page is not a negative about the document.**
+      `→ payload contract` Check the neighbouring page numbers whenever a result is the last
+      thing on its page, and always before recording that the vendor does not document
+      something. *Searching for the WildFire per-type file size limits returned Help p.774,
+      which describes the field and gives advice but no numbers. It was read in full and the
+      conclusion recorded — twice — was that the maxima were undiscoverable, since a write
+      probe is also refused without naming a range. p.774 ends "...If more". p.775 opens
+      "buffer space is available" and then lists every range AND every default; p.776 carries
+      the last type and the vendor's note that the values move with the PAN-OS or content
+      release. All three pages carry the same section path.*
+      **The cost was not the wasted probe.** p.775 states the DEFAULTS, which were the thing
+      actually being hunted. Without them they were inferred from a device instead — first
+      from a template stack's configuration mistaken for the platform's, then from one device
+      covering one release. A wrong defaults table shipped, PAN-AVW-004 was built on it,
+      deactivated the next day and rebuilt twice. Reading one more page would have prevented
+      all of it.
+
 - **When a document contradicts ITSELF, understand the contradiction before measuring —
       it usually carries the discriminator.** Two sentences in one document about one field
       cannot be resolved by finding a third, so a measurement is coming; but read both claims
