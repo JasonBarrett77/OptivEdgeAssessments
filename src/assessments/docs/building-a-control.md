@@ -662,6 +662,29 @@ every firewall by re-reading config rather than trusting job status.
       the values had actually been measured. Third time on that control that the error pointed
       the same way: a profile that permits something read as one that blocks.*
 
+- [ ] **Read the action enum for a WATCH-ONLY value before treating a setting's presence as
+      protection.** `→ payload contract` Nearly every PAN-OS enum that looks like on/off has a
+      third member that runs the feature and lets the traffic through, and a control asserting
+      presence passes the profile that logs an attack it could have stopped. Enumerate the enum,
+      then ask which members BLOCK - two booleans, not one. *Four times in one domain, under
+      four different names: an antivirus ML model set to `enable(alert-only)`; a decoder action
+      of `alert`; an inline cloud-analysis detector at `alert`; and a signature exception whose
+      action is `default`. Each needed `enabled` and `blocks` modelled separately, and the first
+      one shipped as a single flag.*
+
+- [ ] **When blocking the THREAT and blocking the SOURCE are different actions, they are
+      different controls — and one can forbid what the other requires.** `→ control-changes.json`
+      Check a new assertion against the controls already built on the same object before
+      choosing how strictly to read the rule list. *PAN-VLN-002 asserts `block-ip` on brute
+      force, where PAN-VLN-001 asserts any blocking action on critical and high. Reusing the
+      severity verdict's weakest-wins made them mutually unsatisfiable: PAN-VLN-001 wants a
+      `category any` catch-all, the vendor says that action should be `reset-both` (Help p.291),
+      and such a rule also matches brute-force signatures — so it defeated the dedicated
+      `block-ip` rule, and the only profile that could pass both was one blocking the source of
+      every medium-severity detection. It reported a profile built exactly as its own
+      remediation describes. A rule NAMING the category now governs, and a broad rule can only
+      ADD coverage.*
+
 - [ ] **Check the control's own TITLE against what the query actually asserts.** A reference
       being present is not the property the title names, and the gap is invisible while every
       subject happens to agree. *PAN-AUTH-019, "External Authentication for Administrator

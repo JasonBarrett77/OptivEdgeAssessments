@@ -3865,6 +3865,59 @@
           "target_model": "integrations.SecurityProfile"
         },
         {
+          "control_id": "PAN-VLN-002",
+          "name": "Brute-Force Signatures Blocked",
+          "control_type": "security_profile",
+          "description": "Brute-force signatures detect authentication guessing - RDP, SSH, SMB and web logins. This reports a vulnerability profile that does not block the SOURCE of those attempts with `block-ip`, across critical, high and medium severity and on both the client and server sides.",
+          "rationale": "Password spraying is one host making thousands of attempts. A reset or drop action ends each attempt and leaves the source free to make the next, so the attack continues at full speed while every attempt is logged. Only `block-ip` takes the source out, and only with a `track-by` - which PAN-OS requires at commit time.\n\nThis is a different question from PAN-VLN-001, not a stricter version of it: a profile with `reset-both` on critical, high and medium satisfies that control and reports here. The vendor recommends reset-both for severity rules (Web Interface Help 11.2 p.291), so a profile following that advice exactly is the normal subject of this finding.",
+          "audit": "Objects > Security Profiles > Vulnerability Protection > <profile> > Rules. Read the Category and Action columns together: a rule covers brute force when its Category is `brute-force` or `any` and it does not narrow to particular signatures by Threat Name, CVE or Vendor ID. Action must be Block IP, which opens Track By and Duration beneath it.",
+          "remediation": "Add a rule with Category `brute-force`, Severity any, Host any and Action Block IP, with Track By set to `source` (or `source-and-destination`) and a Duration between 1 and 3600 seconds. Leave the existing severity rules in place - they answer PAN-VLN-001 and this rule answers a different question.\n\nA predefined profile cannot be edited: point the Security policy rules and Security Profile Groups using it at a custom profile instead.\n\nDuration's implicit value has not been measured, so set it explicitly rather than relying on the default.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Vulnerability profiles that do not block the source of brute-force attempts.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "vulnerability"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "brute_force_blocked_by_source",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
           "control_id": "PAN-VLN-003",
           "name": "Inline Cloud Analysis for Exploits Enabled",
           "control_type": "security_profile",

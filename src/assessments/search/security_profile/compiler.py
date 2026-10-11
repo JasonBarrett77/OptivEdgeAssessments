@@ -276,6 +276,47 @@ def build_verdict_detail_compiler(field_name, severity):
     return compiler
 
 
+def build_category_verdict_compiler(field_name, category):
+    """`brute_force_blocked_by_source = true/false`, from the category-verdict rows.
+
+    The same no-row-no-claim rule as the severity verdict, and it matters MORE here: only
+    vulnerability profiles get a row, so an antivirus or anti-spyware profile matches neither
+    value rather than reading as a profile that fails to block brute force.
+
+    This is a different question from `critical_blocked`, not a stricter version of it. A rule
+    with `reset-both` satisfies that one and fails this one, because resetting a connection
+    stops the attempt and leaves the source free to make the next.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return SecurityProfile.objects.filter(
+            category_verdicts__category=category,
+            category_verdicts__blocks_source=value).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
+def build_category_verdict_detail_compiler(field_name, category):
+    """The reason beside a category verdict - what has to change."""
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op not in TEXT_OPERATORS:
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, str):
+            raise SearchSyntaxError(f"{field_name} search value must be a string.")
+        lookup = "iexact" if op == "eq" else "icontains"
+        return SecurityProfile.objects.filter(**{
+            "category_verdicts__category": category,
+            f"category_verdicts__detail__{lookup}": value}).values("pk")
+    compiler.SUPPORTED_OPERATORS = TEXT_OPERATORS
+    return compiler
+
+
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
     "kind": build_text_compiler("kind", "kind"),
@@ -312,6 +353,10 @@ FIELD_COMPILERS = {
     "has_disabled_ml_model": build_ml_model_compiler("has_disabled_ml_model", "enabled"),
     "has_non_blocking_ml_model": build_ml_model_compiler(
         "has_non_blocking_ml_model", "blocks"),
+    "brute_force_blocked_by_source": build_category_verdict_compiler(
+        "brute_force_blocked_by_source", "brute-force"),
+    "brute_force_detail": build_category_verdict_detail_compiler(
+        "brute_force_detail", "brute-force"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),

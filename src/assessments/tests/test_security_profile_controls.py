@@ -23,7 +23,8 @@ from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import AssessmentRun, Control, ControlQuery, SecurityProfileFinding
 from assessments.security_profile_findings import generate_security_profile_findings
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, ManagementStation, PolicyObjectNamespace, SecurityProfile, SecurityProfileSeverityVerdict, Snapshot)
+    Appliance, ApplianceGroup, ManagementStation, PolicyObjectNamespace, SecurityProfile, SecurityProfileCategoryVerdict,
+    SecurityProfileSeverityVerdict, Snapshot)
 
 SPY = SecurityProfile.KIND_SPYWARE
 VLN = SecurityProfile.KIND_VULNERABILITY
@@ -167,3 +168,109 @@ class VerdictSatelliteSearchTests(SecurityProfileControlTests):
             {"op": "contains", "value": "alert by rule", "case_sensitive": False})}
 
         self.assertIn(weak.pk, matched)
+
+
+class BruteForceSourceBlockingTests(SecurityProfileControlTests):
+    """PAN-VLN-002: blocking the THREAT and blocking its SOURCE are different questions."""
+
+    def setUp(self):
+        super().setUp()
+        spec = {c["control_id"]: c
+                for c in load_seed_payload()["catalogs"][0]["controls"]}["PAN-VLN-002"]
+        control = Control.objects.create(
+            control_id="PAN-VLN-002", name=spec["name"],
+            control_type=Control.ControlType.SECURITY_PROFILE,
+            description=spec["description"], default_severity=spec["default_severity"],
+            target_model=spec["target_model"])
+        for query in spec["queries"]:
+            ControlQuery.objects.create(
+                control=control, name=query["name"], canonical_query=query["canonical_query"],
+                is_baseline=query["is_baseline"], is_active=query["is_active"])
+
+    def _verdict(self, profile, blocks_source, *, weakest="", track_by="", duration=None,
+                 detail=""):
+        return SecurityProfileCategoryVerdict.objects.create(
+            security_profile=profile,
+            category=SecurityProfileCategoryVerdict.BRUTE_FORCE,
+            blocks_source=blocks_source, weakest_action=weakest, track_by=track_by,
+            duration=duration, detail=detail)
+
+    def test_a_profile_blocking_the_source_does_not_fire(self):
+        profile = self._profile("bf-blocked", kind=VLN)
+        self._verdict(profile, True, weakest="block-ip", track_by="source", duration=300)
+        self.assertNotIn(("PAN-VLN-002", "bf-blocked"), self._fired())
+
+    def test_a_reset_both_profile_passes_vln_001_and_fires_vln_002(self):
+        # The whole point of the control, as one assertion.
+        profile = self._profile("bf-reset", kind=VLN)
+        self._verdict(profile, False, weakest="reset-both",
+                      detail="reset-both by rule rb (critical)")
+        fired = self._fired()
+        self.assertIn(("PAN-VLN-002", "bf-reset"), fired)
+        self.assertNotIn(("PAN-VLN-001", "bf-reset"), fired)
+
+    def test_a_profile_with_no_category_row_matches_neither_value(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        answers = self._profile("vln-answers", kind=VLN)
+        self._verdict(answers, False, detail="no rule covers brute-force for critical")
+        silent = self._profile("spy-silent", kind=SPY)
+
+        compile_blocked = FIELD_COMPILERS["brute_force_blocked_by_source"]
+        false_match = {row["pk"] for row in compile_blocked(
+            {"op": "eq", "value": False, "case_sensitive": False})}
+        true_match = {row["pk"] for row in compile_blocked(
+            {"op": "eq", "value": True, "case_sensitive": False})}
+
+        self.assertIn(answers.pk, false_match)
+        self.assertNotIn(silent.pk, false_match,
+                         "an anti-spyware profile makes no claim about brute-force source "
+                         "blocking and must not read as failing it")
+        self.assertNotIn(silent.pk, true_match)
+
+    def test_an_anti_spyware_profile_never_fires_this_control(self):
+        self._profile("spy-anything", kind=SPY, critical=False)
+        self.assertNotIn("PAN-VLN-002", [cid for cid, _ in self._fired()])
+
+    def test_the_detail_is_searchable(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        profile = self._profile("bf-detail", kind=VLN)
+        self._verdict(profile, False, detail="alert by rule bf (high, server side)")
+
+        matched = {row["pk"] for row in FIELD_COMPILERS["brute_force_detail"](
+            {"op": "contains", "value": "server side", "case_sensitive": False})}
+        self.assertIn(profile.pk, matched)
+
+    def test_the_subject_says_the_source_is_not_blocked(self):
+        # Without this clause the finding read "blocks critical and high threats" - the
+        # reassuring sentence on a failing profile.
+        profile = self._profile("bf-subject", kind=VLN)
+        self._verdict(profile, False, weakest="reset-both",
+                      detail="reset-both by rule rb (critical)")
+        generate_security_profile_findings(self.run)
+        finding = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-VLN-002", security_profile=profile)
+        self.assertIn("does not block the source of brute-force attempts", finding.summary)
+        self.assertNotIn("blocks critical and high threats", finding.summary)
+
+    def test_a_profile_failing_both_questions_says_both(self):
+        profile = self._profile("bf-both", kind=VLN, critical=False)
+        self._verdict(profile, False, weakest="alert", detail="alert by rule a (critical)")
+        generate_security_profile_findings(self.run)
+        summary = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-VLN-002", security_profile=profile).summary
+        self.assertIn("does not block every critical and high threat", summary)
+        self.assertIn("does not block the source of brute-force attempts", summary)
+
+    def test_the_finding_carries_the_CONTROL_severity_not_the_preferred_gap(self):
+        # controls.json carries `preferred_gap_severity: low`, and the checklist is explicit
+        # that it is not something to implement: the control asserts the preferred value and
+        # the finding reports the control's own severity. Seeded at low first, which is the
+        # defect five shipped controls had at the other end.
+        profile = self._profile("bf-sev", kind=VLN)
+        self._verdict(profile, False, detail="no rule covers brute-force for critical")
+        generate_security_profile_findings(self.run)
+        finding = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-VLN-002", security_profile=profile)
+        self.assertEqual(finding.severity, "medium")

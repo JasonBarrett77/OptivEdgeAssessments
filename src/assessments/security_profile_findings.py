@@ -93,9 +93,22 @@ def _subject(obj) -> str:
         return (f"{what} lets malware through ({gaps})" if gaps
                 else f"{what} blocks malware on every decoder")
 
+    # TWO INDEPENDENT QUESTIONS, and a profile can fail either alone. Blocking the threat
+    # (PAN-VLN-001) and blocking its SOURCE (PAN-VLN-002) are different: `reset-both` passes the
+    # first and fails the second. Without the second clause a profile failing only PAN-VLN-002
+    # printed "blocks critical and high threats" ON ITS OWN FINDING - the same reassuring
+    # sentence on a failing profile that `_antivirus_gaps` exists to prevent.
+    clauses = []
     gaps = "; ".join(_gaps(obj))
-    return f"{what} does not block every critical and high threat ({gaps})" if gaps else \
-        f"{what} blocks critical and high threats"
+    if gaps:
+        clauses.append(f"does not block every critical and high threat ({gaps})")
+    # `is False` rather than falsy: None means this kind writes no row and makes no claim.
+    if obj.brute_force_blocked_by_source is False:
+        clauses.append("does not block the source of brute-force attempts"
+                       f" ({obj.brute_force_detail})")
+    if clauses:
+        return f"{what} " + ", and ".join(clauses)
+    return f"{what} blocks critical and high threats"
 
 
 def build_security_profile_finding_summary(obj, matched_queries) -> str:
@@ -113,7 +126,8 @@ SPEC = ObjectFindingSpec(
     # profile per collection.
     queryset=lambda: SecurityProfile.objects.select_related(
         "enforcement_point__appliance_group", "appliance_group").prefetch_related(
-        "decoders", "ml_models", "application_overrides", "severity_verdicts"),
+        "decoders", "ml_models", "application_overrides", "severity_verdicts",
+        "category_verdicts"),
     evaluate=evaluate_security_profile_control_queries,
     summary=build_security_profile_finding_summary,
     subject_name=lambda obj: obj.name,
