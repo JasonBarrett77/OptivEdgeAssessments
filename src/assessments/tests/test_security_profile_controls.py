@@ -24,6 +24,7 @@ from assessments.models import AssessmentRun, Control, ControlQuery, SecurityPro
 from assessments.security_profile_findings import generate_security_profile_findings
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, ManagementStation, PolicyObjectNamespace, SecurityProfile, SecurityProfileCategoryVerdict,
+    SecurityProfileDnsSignatureSource,
     SecurityProfileSeverityVerdict, Snapshot)
 
 SPY = SecurityProfile.KIND_SPYWARE
@@ -274,3 +275,107 @@ class BruteForceSourceBlockingTests(SecurityProfileControlTests):
         finding = SecurityProfileFinding.objects.get(
             control__control_id="PAN-VLN-002", security_profile=profile)
         self.assertEqual(finding.severity, "medium")
+
+
+class DnsSinkholeControlTests(SecurityProfileControlTests):
+    """PAN-SPY-002, including the case the Help says is passing: nothing configured."""
+
+    def setUp(self):
+        super().setUp()
+        spec = {c["control_id"]: c
+                for c in load_seed_payload()["catalogs"][0]["controls"]}["PAN-SPY-002"]
+        control = Control.objects.create(
+            control_id="PAN-SPY-002", name=spec["name"],
+            control_type=Control.ControlType.SECURITY_PROFILE,
+            description=spec["description"], default_severity=spec["default_severity"],
+            target_model=spec["target_model"])
+        for query in spec["queries"]:
+            ControlQuery.objects.create(
+                control=control, name=query["name"], canonical_query=query["canonical_query"],
+                is_baseline=query["is_baseline"], is_active=query["is_active"])
+
+    def _source(self, profile, action, *, name="default-paloalto-dns", content=True,
+                implicit=False):
+        return SecurityProfileDnsSignatureSource.objects.create(
+            security_profile=profile, name=name, is_paloalto_content=content,
+            configured_action="" if implicit else action,
+            effective_action=action, sinkholes=action == "sinkhole",
+            action_is_implicit=implicit)
+
+    def test_a_sinkholing_profile_does_not_fire(self):
+        profile = self._profile("spy-sink", kind=SPY)
+        self._source(profile, "sinkhole")
+        self.assertNotIn(("PAN-SPY-002", "spy-sink"), self._fired())
+
+    def test_an_alerting_profile_fires(self):
+        # The shape the predefined `default` profile actually ships with.
+        profile = self._profile("spy-alert", kind=SPY)
+        self._source(profile, "alert")
+        self.assertIn(("PAN-SPY-002", "spy-alert"), self._fired())
+
+    def test_block_fires_because_it_loses_the_infected_client(self):
+        profile = self._profile("spy-block", kind=SPY)
+        self._source(profile, "block")
+        self.assertIn(("PAN-SPY-002", "spy-block"), self._fired())
+
+    def test_an_unconfigured_profile_does_NOT_fire(self):
+        # Help p.284 says an unconfigured Palo Alto Networks Content list sinkholes. Firing
+        # here would report every profile that never opened the DNS Policies tab.
+        profile = self._profile("spy-bare", kind=SPY)
+        self._source(profile, "sinkhole", implicit=True)
+        self.assertNotIn(("PAN-SPY-002", "spy-bare"), self._fired())
+
+    def test_an_allow_EDL_does_not_fire_the_control(self):
+        # An EDL with allow is the documented way to express a DNS exception. Only the Palo
+        # Alto Networks Content row is asserted.
+        profile = self._profile("spy-edl", kind=SPY)
+        self._source(profile, "sinkhole")
+        self._source(profile, "allow", name="corp-dns-allow", content=False)
+        self.assertNotIn(("PAN-SPY-002", "spy-edl"), self._fired())
+
+    def test_a_vulnerability_profile_matches_neither_value(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        answers = self._profile("spy-answers", kind=SPY)
+        self._source(answers, "alert")
+        silent = self._profile("vln-silent", kind=VLN)
+
+        compile_sink = FIELD_COMPILERS["dns_sinkholes_malicious_queries"]
+        false_match = {row["pk"] for row in compile_sink(
+            {"op": "eq", "value": False, "case_sensitive": False})}
+        true_match = {row["pk"] for row in compile_sink(
+            {"op": "eq", "value": True, "case_sensitive": False})}
+
+        self.assertIn(answers.pk, false_match)
+        self.assertNotIn(silent.pk, false_match,
+                         "a vulnerability profile has no DNS tree and makes no claim")
+        self.assertNotIn(silent.pk, true_match)
+
+    def test_the_implicit_case_is_listable_without_being_asserted(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        bare = self._profile("spy-implicit", kind=SPY)
+        self._source(bare, "sinkhole", implicit=True)
+        explicit = self._profile("spy-explicit", kind=SPY)
+        self._source(explicit, "sinkhole")
+
+        matched = {row["pk"] for row in FIELD_COMPILERS["dns_sinkhole_action_is_implicit"](
+            {"op": "eq", "value": True, "case_sensitive": False})}
+        self.assertEqual(matched, {bare.pk})
+
+    def test_the_subject_names_the_dns_gap_and_not_only_the_severities(self):
+        profile = self._profile("spy-dns-subject", kind=SPY)
+        self._source(profile, "alert")
+        generate_security_profile_findings(self.run)
+        summary = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-SPY-002", security_profile=profile).summary
+        self.assertIn("does not sinkhole malicious DNS queries", summary)
+        self.assertIn("action is alert", summary)
+        self.assertNotIn("blocks critical and high threats", summary)
+
+    def test_the_finding_carries_the_control_severity(self):
+        profile = self._profile("spy-dns-sev", kind=SPY)
+        self._source(profile, "alert")
+        generate_security_profile_findings(self.run)
+        self.assertEqual(SecurityProfileFinding.objects.get(
+            control__control_id="PAN-SPY-002", security_profile=profile).severity, "high")

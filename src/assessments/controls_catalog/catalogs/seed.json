@@ -3813,6 +3813,59 @@
           "target_model": "integrations.WildfireSettings"
         },
         {
+          "control_id": "PAN-SPY-002",
+          "name": "DNS Sinkhole Enabled",
+          "control_type": "security_profile",
+          "description": "Reports an anti-spyware profile whose Palo Alto Networks Content DNS signatures are not sinkholed. Sinkholing forges the answer to a malicious DNS query so the infected client tries to reach the sinkhole address instead, which both breaks command-and-control resolution and identifies the real client behind an internal DNS resolver.\n\nScoped to the Palo Alto Networks Content source. DNS Security categories are a licensed service with a different action set and are PAN-SPY-003's subject; an External Dynamic List with an allow or alert action is the documented way to express a DNS exception and is not reported.",
+          "rationale": "Where the firewall sits north of a local DNS resolver, every malicious lookup appears to come from the resolver, so a blocked or alerted query names the wrong host and the infected client stays hidden. `block` stops the resolution and still loses the client, which is why it does not satisfy this control - the Help offers it only as the fallback when sinkholing is impossible (p.285).\n\nThe shipped profiles disagree with each other, so inheriting one is not a safe default: `strict` sinkholes and `default` only ALERTS, measured on 11.2.3-h3.",
+          "audit": "Objects > Security Profiles > Anti-Spyware > <profile> > DNS Policies. Read the Policy Action on the Palo Alto Networks Content row, and the DNS Sinkhole Settings beneath it for the address. A profile that has never been configured here shows the vendor default.",
+          "remediation": "Set the Policy Action for Palo Alto Networks Content to `sinkhole`.\n\nThe sinkhole address is a PREREQUISITE and must be set first: the action is refused with \"sinkhole IPv4 information is missing\" until botnet-domains/sinkhole/ipv4-address exists, and an IPv6 address alone does not satisfy it. `pan-sinkhole-default-ip` is the vendor's own token and what the predefined `strict` profile carries; an internal address in a monitored zone is better, because sinkhole hits are then visible in traffic logs as incidents to triage.\n\nA predefined profile cannot be edited - point the Security policy rules and Security Profile Groups using it at a custom profile instead.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Anti-spyware profiles that do not sinkhole malicious DNS queries.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "spyware"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "dns_sinkholes_malicious_queries",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
           "control_id": "PAN-SPY-004",
           "name": "Inline Cloud Analysis (Advanced Threat Prevention) Enabled",
           "control_type": "security_profile",

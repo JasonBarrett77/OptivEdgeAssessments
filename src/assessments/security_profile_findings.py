@@ -102,6 +102,11 @@ def _subject(obj) -> str:
     gaps = "; ".join(_gaps(obj))
     if gaps:
         clauses.append(f"does not block every critical and high threat ({gaps})")
+    # ANTI-SPYWARE ANSWERS A QUESTION OF ITS OWN. A profile can block every severity and still
+    # not sinkhole malicious DNS, and the severity sentence would have called it fine - the
+    # same shape as the brute-force clause below, on the other kind.
+    if obj.dns_sinkholes_malicious_queries is False:
+        clauses.append(f"does not sinkhole malicious DNS queries ({obj.dns_sinkhole_detail})")
     # `is False` rather than falsy: None means this kind writes no row and makes no claim.
     if obj.brute_force_blocked_by_source is False:
         clauses.append("does not block the source of brute-force attempts"
@@ -127,7 +132,7 @@ SPEC = ObjectFindingSpec(
     queryset=lambda: SecurityProfile.objects.select_related(
         "enforcement_point__appliance_group", "appliance_group").prefetch_related(
         "decoders", "ml_models", "application_overrides", "severity_verdicts",
-        "category_verdicts"),
+        "category_verdicts", "dns_signature_sources"),
     evaluate=evaluate_security_profile_control_queries,
     summary=build_security_profile_finding_summary,
     subject_name=lambda obj: obj.name,

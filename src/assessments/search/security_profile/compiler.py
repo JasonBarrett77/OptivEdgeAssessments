@@ -317,6 +317,53 @@ def build_category_verdict_detail_compiler(field_name, category):
     return compiler
 
 
+def build_dns_sinkhole_compiler(field_name):
+    """`dns_sinkholes_malicious_queries = true/false`, from the Palo Alto Networks Content row.
+
+    PAN-SPY-002. SCOPED TO THAT ONE SOURCE: `is_paloalto_content` filters out External Dynamic
+    Lists, because Help p.284 makes an EDL with an allow or alert action the documented way to
+    express a DNS exception, and reporting one would call a deliberate allow-list a failure.
+    DNS Security categories are a different node, a different action enum and PAN-SPY-003.
+
+    Every anti-spyware profile has such a row - synthesized when the config is silent - so this
+    does not silently skip a profile that never configured DNS. Every OTHER kind has no row and
+    matches neither value, the same no-claim rule as the verdict fields.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return SecurityProfile.objects.filter(
+            dns_signature_sources__is_paloalto_content=True,
+            dns_signature_sources__sinkholes=value).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
+def build_dns_implicit_compiler(field_name):
+    """`dns_sinkhole_action_is_implicit = true/false` - is the verdict resting on the Help?
+
+    Not asserted by any control. It exists so the undecided case can be LISTED: the implicit
+    action is documented (p.284, twice) and not measured, and if that measurement comes out the
+    other way this field is how the affected profiles are found without a schema change.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return SecurityProfile.objects.filter(
+            dns_signature_sources__is_paloalto_content=True,
+            dns_signature_sources__action_is_implicit=value).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
     "kind": build_text_compiler("kind", "kind"),
@@ -357,6 +404,11 @@ FIELD_COMPILERS = {
         "brute_force_blocked_by_source", "brute-force"),
     "brute_force_detail": build_category_verdict_detail_compiler(
         "brute_force_detail", "brute-force"),
+    "dns_sinkholes_malicious_queries": build_dns_sinkhole_compiler(
+        "dns_sinkholes_malicious_queries"),
+    "dns_sinkhole_action_is_implicit": build_dns_implicit_compiler(
+        "dns_sinkhole_action_is_implicit"),
+    "dns_sinkhole_ipv4": build_text_compiler("dns_sinkhole_ipv4", "dns_sinkhole_ipv4"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),
