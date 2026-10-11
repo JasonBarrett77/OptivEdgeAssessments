@@ -190,6 +190,27 @@ every firewall by re-reading config rather than trusting job status.
       platform before treating it as
       fixed. *`vlan` exists on a PA-5220 and not on a PA-VM.*
 
+- [ ] **When the schema oracle cannot list a name set, try WRITING a name that should not
+      exist.** `→ payload contract` A platform that validates a name as a REFERENCE will refuse
+      an invented one, and a refusal proves non-existence where membership only shows what one
+      sample happens to contain. This turns "we did not find it" into "it is not there", which
+      is the difference between a gap in the measurement and a fact about the product.
+      *The ten DNS Security category names were read off the predefined profiles for two days,
+      because completing the container returns an ENTRY'S CHILDREN rather than the name space -
+      so the record said membership was the only oracle available. It was not: writing
+      `pan-dns-sec-dga` is refused with "'pan-dns-sec-dga' is not a valid reference" (code=12),
+      which settled that the DGA and DNS-tunneling categories PAN-SPY-003's corpus entry asks
+      to sinkhole do not exist, on a licensed device running current content. The same probe
+      showed its "newly-registered" is really `pan-dns-sec-recent` - a naming difference rather
+      than a missing feature, which membership alone could not have distinguished.*
+
+- **A content-supplied name set needs the licence AND the content pinned before absence means
+      anything.** Two devices disagreeing is a result; one device missing something is not.
+      *A PA-VM with a DNS Security licence and no threat content at all shows the same category
+      names as an unlicensed one with current content, which looks like confirmation and is
+      two unrelated states. Installing the content made both devices identical except for the
+      licence, and only then did the comparison say anything.*
+
 
 ### What an absent key means
 
