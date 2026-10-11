@@ -3811,6 +3811,214 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.WildfireSettings"
+        },
+        {
+          "control_id": "PAN-SPY-004",
+          "name": "Inline Cloud Analysis (Advanced Threat Prevention) Enabled",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "description": "An anti-spyware profile whose inline cloud-analysis detectors do not stop the traffic they catch.\n\nAdvanced Threat Prevention's deep-learning engines judge live traffic rather than waiting for a signature to be published, which is what catches unknown command and control - Cobalt Strike and Empire-style beacons among them. FIVE detectors on 11.2: HTTP, HTTP2, SSL, Unknown-TCP and Unknown-UDP Command and Control.\n\nTHE CORPUS POINTS THIS CONTROL AT A NODE THAT DOES NOT EXIST. controls.json names `cloud-inline-analysis/enabled`; writing it is refused with `cloud-inline-analysis is invalid` (code=12) on 11.2.3-h3 WITH an Advanced Threat Prevention licence active - measured 2026-10-10. The engine lives at `mica-engine-{kind}-enabled`, entry-keyed by detector, each carrying `inline-policy-action`. That is what the corpus DESCRIBES, just not where it points, so this is built against the real node and the deviation is recorded in control-changes.json. Jason approved, 2026-10-10.\n\n`alert` RUNS THE DETECTOR AND LETS THE TRAFFIC THROUGH, which is why this asks whether each detector BLOCKS rather than whether it is on. It is the same distinction `enable(alert-only)` forced on PAN-AVW-002: a detector that only watches is not protection, and treating it as enabled would pass a profile that logs the attack and delivers it.\n\nA DETECTOR THE PROFILE NEVER MENTIONS DOES NOT RUN, and has a row saying so. The detector names come from the content release, so nothing is hardcoded in the query - but unlike the antivirus ML models, the catalogue cannot be read from the predefined profiles: all four of them carry ZERO entries for this engine, measured 2026-10-10. A build-derived catalogue would be empty, no rows would be written, and a profile running no inline analysis at all would read as having nothing wrong. The catalogue therefore falls back to the measured key space.\n\nWHAT IT ASSERTS. Every detector set to an action that stops the transfer - drop, reset-client, reset-server or reset-both. The corpus's preferred value is \"yes ... with reset actions on verdicts\", and this asserts that; its minimum is \"not required without an Advanced Threat Prevention subscription\", which is a licensing condition rather than a configuration one.\n\nSCOPE. Custom profiles always; the predefined ones only when something uses them. Same as PAN-SPY-001 and the antivirus controls.",
+          "rationale": "Signature-based detection cannot catch a beacon whose signature does not exist yet, and that is precisely the traffic a live intrusion generates. The inline engine is the part of the profile that looks at behaviour instead - and a detector left on alert turns it into a logging feature.",
+          "audit": "Objects > Security Profiles > Anti-Spyware, the Inline Cloud Analysis tab. Every detector's Action should read a blocking value; `alert` means the detector runs and the traffic passes. A detector absent from the list is not running at all.",
+          "remediation": "Set every inline cloud-analysis detector to reset-both, or another blocking action. The feature requires an active Advanced Threat Prevention licence - without one the configuration is still writable but nothing enforces it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "spyware"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "has_inline_detector_not_blocking",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile"
+        },
+        {
+          "control_id": "PAN-VLN-003",
+          "name": "Inline Cloud Analysis for Exploits Enabled",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "description": "A vulnerability protection profile whose inline cloud-analysis detectors do not stop the traffic they catch.\n\nTWO detectors on 11.2 - SQL Injection and Command Injection - detecting exploit patterns in real time, ahead of signature coverage.\n\nTHE CORPUS POINTS THIS CONTROL AT A NODE THAT DOES NOT EXIST. controls.json names `cloud-inline-analysis/enabled`; writing it is refused with `cloud-inline-analysis is invalid` (code=12) on 11.2.3-h3 WITH an Advanced Threat Prevention licence active - measured 2026-10-10. The engine lives at `mica-engine-{kind}-enabled`, entry-keyed by detector, each carrying `inline-policy-action`. That is what the corpus DESCRIBES, just not where it points, so this is built against the real node and the deviation is recorded in control-changes.json. Jason approved, 2026-10-10.\n\n`alert` RUNS THE DETECTOR AND LETS THE TRAFFIC THROUGH, which is why this asks whether each detector BLOCKS rather than whether it is on. It is the same distinction `enable(alert-only)` forced on PAN-AVW-002: a detector that only watches is not protection, and treating it as enabled would pass a profile that logs the attack and delivers it.\n\nA DETECTOR THE PROFILE NEVER MENTIONS DOES NOT RUN, and has a row saying so. The detector names come from the content release, so nothing is hardcoded in the query - but unlike the antivirus ML models, the catalogue cannot be read from the predefined profiles: all four of them carry ZERO entries for this engine, measured 2026-10-10. A build-derived catalogue would be empty, no rows would be written, and a profile running no inline analysis at all would read as having nothing wrong. The catalogue therefore falls back to the measured key space.\n\nTHE TWO ENGINES ARE NOT ONE SHAPE. The anti-spyware equivalent has five detectors and its action accepts `drop`; this one has two and does not. A shared enum would offer a value the device rejects here, which is why they are measured and held separately.\n\nSCOPE. Custom profiles always; the predefined ones only when something uses them.",
+          "rationale": "An exploit attempt against an unpatched flaw arrives before the signature for it does. Inline analysis is what sees the pattern rather than the signature - and a detector on alert watches the exploit succeed.",
+          "audit": "Objects > Security Profiles > Vulnerability Protection, the Inline Cloud Analysis tab. Both detectors should read a blocking action; `alert` runs the detector and lets the traffic through.",
+          "remediation": "Set both detectors to reset-both or another blocking action. Note this profile's inline action does NOT offer `drop`, unlike the anti-spyware one. Requires an active Advanced Threat Prevention licence.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "vulnerability"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "has_inline_detector_not_blocking",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile"
+        },
+        {
+          "control_id": "PAN-SPY-005",
+          "name": "Threat Exceptions Minimal and Documented (Hygiene)",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "description": "An anti-spyware profile carrying signature exceptions.\n\nEach exception disables a specific protection. They accumulate silently - added during an incident to stop a false positive, and routinely outliving the justification that produced them.\n\nTHE TRIGGER IS PRESENCE, not age. The corpus asks that every exception have an owner, a justification and a review date - none of which is in the configuration, and the corpus marks this control `config_settable: false` and `evidence_source: interview-data` for that reason. So this reports that exceptions EXIST and leaves the recertification judgement to an assessor who can ask. The same resolution PAN-POL-014 took when its corpus wording depended on a grace period nothing records.\n\nEXCEPTIONS HIDE IN MORE THAN ONE PLACE and this counts all of them. An anti-spyware profile has FOUR surfaces - `threat-exception`, `botnet-domains/threat-exception`, `botnet-domains/whitelist`, and the `inline-exception-ip-address` / `inline-exception-edl-url` member lists - and controls.json names only the first. Measured 2026-10-10; before that the count read the first alone, so a profile exempting half an estate from inline analysis counted zero exceptions. The finding names the surface, because the remediation differs: a signature exception is removed in one place, an address exemption in another.\n\nSEVERITY IS NOT SCALED BY COUNT. One exception with no justification is the finding; twenty well-documented ones are not worse in a way the configuration can show. An assessor reading the detail can see the number and where they live.\n\nSCOPE. Custom profiles always; the predefined ones only when something uses them. A predefined profile cannot carry an exception an operator added, so in practice this reports on profiles somebody built.",
+          "rationale": "An exception is a hole with a reason, and the reason expires faster than the hole does. The risk is not that exceptions exist - they are a legitimate tool - but that nobody revisits them, and the configuration cannot tell you which of those two situations an estate is in. Reporting their presence is what puts the question in front of someone who can answer it.",
+          "audit": "Objects > Security Profiles > Anti-Spyware, the Exceptions tab, and also the DNS Policies tab's exceptions and allow-list, and the Inline Cloud Analysis tab's exempt IP addresses and EDLs. For each, ask who added it, why, and when it was last reviewed. An exception scoped to specific source addresses (exempt-ip) is narrower than one that is not.",
+          "remediation": "Remove exceptions whose justification has expired. Where one is still needed, scope it as narrowly as the node allows - `exempt-ip` restricts a signature exception to named sources - and record an owner and a review date outside the configuration, since PAN-OS has nowhere to keep them.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "spyware"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "threat_exception_count",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile"
+        },
+        {
+          "control_id": "PAN-VLN-004",
+          "name": "Vulnerability Exceptions Minimal and Documented (Hygiene)",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "description": "A vulnerability protection profile carrying signature exceptions.\n\nEach one disables exploit blocking for a specific threat ID. Unreviewed exceptions from a past false-positive incident leave a permanent hole against those CVEs.\n\nTHE TRIGGER IS PRESENCE, not age. The corpus asks that every exception have an owner, a justification and a review date - none of which is in the configuration, and the corpus marks this control `config_settable: false` and `evidence_source: interview-data` for that reason. So this reports that exceptions EXIST and leaves the recertification judgement to an assessor who can ask. The same resolution PAN-POL-014 took when its corpus wording depended on a grace period nothing records.\n\nEXCEPTIONS HIDE IN MORE THAN ONE PLACE and this counts all of them. An anti-spyware profile has FOUR surfaces - `threat-exception`, `botnet-domains/threat-exception`, `botnet-domains/whitelist`, and the `inline-exception-ip-address` / `inline-exception-edl-url` member lists - and controls.json names only the first. Measured 2026-10-10; before that the count read the first alone, so a profile exempting half an estate from inline analysis counted zero exceptions. The finding names the surface, because the remediation differs: a signature exception is removed in one place, an address exemption in another.\n\nSEVERITY IS NOT SCALED BY COUNT. One exception with no justification is the finding; twenty well-documented ones are not worse in a way the configuration can show. An assessor reading the detail can see the number and where they live.\n\nFEWER SURFACES THAN THE ANTI-SPYWARE EQUIVALENT. This kind has no botnet tree, so two of the four cannot exist here - `threat-exception` and the two inline-exception lists are all there is. Its exception entry also carries a key the anti-spyware one lacks, `time-attribute`, so PAN-SPY-005's note that it 'applies equally' to this control is true of the intent and not of the node.\n\nSCOPE. Custom profiles always; the predefined ones only when something uses them.",
+          "rationale": "A vulnerability exception is a decision to stop blocking a known exploit. That is sometimes right and always worth revisiting, and nothing in the configuration records whether anyone has.",
+          "audit": "Objects > Security Profiles > Vulnerability Protection, the Exceptions tab, and the Inline Cloud Analysis tab's exempt IP addresses and EDLs. For each, ask who added it, why, and when it was last reviewed.",
+          "remediation": "Remove exceptions whose justification has expired; scope the rest with `exempt-ip` where the signature allows it, and keep the owner and review date outside the configuration.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "vulnerability"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "threat_exception_count",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile"
         }
       ]
     }

@@ -31,6 +31,7 @@ from optivedge_integrations.integrations.models import (
     SecurityProfile,
     SecurityProfileApplicationOverride,
     SecurityProfileDecoder,
+    SecurityProfileInlineDetector,
 )
 
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
@@ -209,6 +210,36 @@ def build_non_blocking_application_override_compiler(field_name):
     return compiler
 
 
+def build_inline_detector_compiler(field_name):
+    """Does this profile leave an inline cloud-analysis detector not blocking?
+
+    PAN-SPY-004 and PAN-VLN-003. Covers both ways of not blocking - a detector the profile
+    never mentions, which does not run, and one set to `alert`, which runs and lets the
+    traffic through. The second is `enable(alert-only)` from PAN-AVW-002 under another name,
+    and reading it as "enabled" would pass a profile that only watches.
+
+    `false` requires at least one detector row. A profile with none is not a profile whose
+    inline analysis blocks everything; it is a kind that has no such engine - antivirus and
+    wildfire-analysis - and it must not read as passing.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        # Row-level, for the reason the override compiler is: a spanning exclude on the
+        # PROFILE would drop a profile for HAVING one blocking detector.
+        permissive = (SecurityProfileInlineDetector.objects.filter(blocks=False)
+                      .values("security_profile"))
+        if value:
+            return SecurityProfile.objects.filter(pk__in=permissive).values("pk")
+        return (SecurityProfile.objects.filter(inline_detectors__isnull=False)
+                .exclude(pk__in=permissive).distinct().values("pk"))
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 def build_verdict_compiler(field_name, severity):
     """`critical_blocked = true/false`, answered from the severity-verdict rows.
 
@@ -276,6 +307,8 @@ FIELD_COMPILERS = {
         "has_non_blocking_mlav_decoder", "mlav_blocks", nullable=True),
     "has_non_blocking_application_override": build_non_blocking_application_override_compiler(
         "has_non_blocking_application_override"),
+    "has_inline_detector_not_blocking": build_inline_detector_compiler(
+        "has_inline_detector_not_blocking"),
     "has_disabled_ml_model": build_ml_model_compiler("has_disabled_ml_model", "enabled"),
     "has_non_blocking_ml_model": build_ml_model_compiler(
         "has_non_blocking_ml_model", "blocks"),
