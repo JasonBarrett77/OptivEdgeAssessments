@@ -379,3 +379,159 @@ class DnsSinkholeControlTests(SecurityProfileControlTests):
         generate_security_profile_findings(self.run)
         self.assertEqual(SecurityProfileFinding.objects.get(
             control__control_id="PAN-SPY-002", security_profile=profile).severity, "high")
+
+
+class DnsSecurityCategoryControlTests(SecurityProfileControlTests):
+    """PAN-SPY-003, and that it does not answer PAN-SPY-002's question or vice versa."""
+
+    CC = "pan-dns-sec-cc"
+    MALWARE = "pan-dns-sec-malware"
+    PHISHING = "pan-dns-sec-phishing"
+
+    def setUp(self):
+        super().setUp()
+        specs = {c["control_id"]: c for c in load_seed_payload()["catalogs"][0]["controls"]}
+        for control_id in ("PAN-SPY-002", "PAN-SPY-003"):
+            spec = specs[control_id]
+            control = Control.objects.create(
+                control_id=control_id, name=spec["name"],
+                control_type=Control.ControlType.SECURITY_PROFILE,
+                description=spec["description"], default_severity=spec["default_severity"],
+                target_model=spec["target_model"])
+            for query in spec["queries"]:
+                ControlQuery.objects.create(
+                    control=control, name=query["name"],
+                    canonical_query=query["canonical_query"],
+                    is_baseline=query["is_baseline"], is_active=query["is_active"])
+
+    def _categories(self, profile, actions, *, implicit=False):
+        source = SecurityProfileDnsSignatureSource
+        for name, action in actions.items():
+            SecurityProfileDnsSignatureSource.objects.create(
+                security_profile=profile, name=name, is_paloalto_content=False,
+                source_type=source.TYPE_DNS_SECURITY,
+                configured_action="" if implicit else action, effective_action=action,
+                sinkholes=action == "sinkhole",
+                enforces=action in source.ENFORCING_ACTIONS,
+                action_is_implicit=implicit)
+
+    def _content_list(self, profile, action):
+        source = SecurityProfileDnsSignatureSource
+        SecurityProfileDnsSignatureSource.objects.create(
+            security_profile=profile, name=source.PALOALTO_CONTENT, is_paloalto_content=True,
+            source_type=source.TYPE_PALOALTO_CONTENT, configured_action=action,
+            effective_action=action, sinkholes=action == "sinkhole",
+            enforces=action in source.ENFORCING_ACTIONS)
+
+    def _all(self, action):
+        return {self.CC: action, self.MALWARE: action, self.PHISHING: action}
+
+    def test_every_malicious_category_sinkholed_does_not_fire(self):
+        profile = self._profile("cat-sink", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("sinkhole"))
+        self.assertNotIn(("PAN-SPY-003", "cat-sink"), self._fired())
+
+    def test_block_satisfies_this_control(self):
+        # controls.json says "must sinkhole/block" here, unlike PAN-SPY-002.
+        profile = self._profile("cat-block", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("block"))
+        self.assertNotIn(("PAN-SPY-003", "cat-block"), self._fired())
+
+    def test_default_fires_which_is_what_the_predefined_profiles_ship(self):
+        profile = self._profile("cat-default", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("default"))
+        self.assertIn(("PAN-SPY-003", "cat-default"), self._fired())
+
+    def test_one_weak_category_among_three_is_enough_to_fire(self):
+        profile = self._profile("cat-partial", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, {self.CC: "sinkhole", self.MALWARE: "sinkhole",
+                                   self.PHISHING: "default"})
+        self.assertIn(("PAN-SPY-003", "cat-partial"), self._fired())
+
+    def test_an_unconfigured_profile_fires_on_the_synthesized_rows(self):
+        # Absence FIRES here and PASSES for the list on the same screen - both from Help p.284.
+        profile = self._profile("cat-bare", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("default"), implicit=True)
+        fired = self._fired()
+        self.assertIn(("PAN-SPY-003", "cat-bare"), fired)
+        self.assertNotIn(("PAN-SPY-002", "cat-bare"), fired,
+                         "the list sinkholes, so the other DNS control stays quiet")
+
+    def test_the_two_dns_controls_answer_different_questions(self):
+        # Sinkholed categories, alerting list: SPY-002 fires and SPY-003 does not.
+        profile = self._profile("cat-vs-list", kind=SPY)
+        self._content_list(profile, "alert")
+        self._categories(profile, self._all("sinkhole"))
+        fired = self._fired()
+        self.assertIn(("PAN-SPY-002", "cat-vs-list"), fired)
+        self.assertNotIn(("PAN-SPY-003", "cat-vs-list"), fired)
+
+    def test_a_profile_with_no_category_rows_matches_neither_value(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        answers = self._profile("cat-answers", kind=SPY)
+        self._categories(answers, self._all("default"))
+        silent = self._profile("cat-silent", kind=VLN)
+
+        compile_cat = FIELD_COMPILERS["dns_security_categories_enforced"]
+        false_match = {row["pk"] for row in compile_cat(
+            {"op": "eq", "value": False, "case_sensitive": False})}
+        true_match = {row["pk"] for row in compile_cat(
+            {"op": "eq", "value": True, "case_sensitive": False})}
+
+        self.assertIn(answers.pk, false_match)
+        self.assertNotIn(silent.pk, false_match)
+        self.assertNotIn(silent.pk, true_match)
+
+    def test_true_requires_every_asserted_category_and_not_merely_one(self):
+        from assessments.search.security_profile.compiler import FIELD_COMPILERS
+
+        mixed = self._profile("cat-mixed", kind=SPY)
+        self._categories(mixed, {self.CC: "sinkhole", self.MALWARE: "default",
+                                 self.PHISHING: "sinkhole"})
+        true_match = {row["pk"] for row in FIELD_COMPILERS[
+            "dns_security_categories_enforced"](
+            {"op": "eq", "value": True, "case_sensitive": False})}
+        self.assertNotIn(mixed.pk, true_match,
+                         "one sinkholing row must not make the profile read as enforced")
+
+    def test_a_non_asserted_category_left_at_default_does_not_fire(self):
+        profile = self._profile("cat-recent", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("sinkhole"))
+        self._categories(profile, {"pan-dns-sec-recent": "default"})
+        self.assertNotIn(("PAN-SPY-003", "cat-recent"), self._fired())
+
+    def test_the_subject_names_the_categories_and_their_actions(self):
+        profile = self._profile("cat-subject", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, {self.CC: "default", self.MALWARE: "allow",
+                                   self.PHISHING: "sinkhole"})
+        generate_security_profile_findings(self.run)
+        summary = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-SPY-003", security_profile=profile).summary
+        self.assertIn("does not enforce malicious DNS Security categories", summary)
+        self.assertIn("cc is default", summary)
+        self.assertIn("malware is allow", summary)
+        self.assertNotIn("phishing", summary)
+
+    def test_the_subject_says_unconfigured_for_a_synthesized_row(self):
+        profile = self._profile("cat-implicit-subject", kind=SPY)
+        self._content_list(profile, "sinkhole")
+        self._categories(profile, self._all("default"), implicit=True)
+        generate_security_profile_findings(self.run)
+        summary = SecurityProfileFinding.objects.get(
+            control__control_id="PAN-SPY-003", security_profile=profile).summary
+        self.assertIn("cc is not configured", summary)
+
+    def test_the_finding_carries_the_control_severity(self):
+        profile = self._profile("cat-sev", kind=SPY)
+        self._categories(profile, self._all("default"))
+        generate_security_profile_findings(self.run)
+        self.assertEqual(SecurityProfileFinding.objects.get(
+            control__control_id="PAN-SPY-003", security_profile=profile).severity, "high")

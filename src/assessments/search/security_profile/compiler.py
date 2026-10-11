@@ -29,6 +29,7 @@ from assessments.search.device_configuration.fields.scalar_text import (
 )
 from optivedge_integrations.integrations.models import (
     SecurityProfile,
+    SecurityProfileDnsSignatureSource,
     SecurityProfileApplicationOverride,
     SecurityProfileDecoder,
     SecurityProfileInlineDetector,
@@ -364,6 +365,46 @@ def build_dns_implicit_compiler(field_name):
     return compiler
 
 
+def build_dns_category_compiler(field_name):
+    """`dns_security_categories_enforced = true/false`, over the asserted malicious categories.
+
+    PAN-SPY-003. `false` means AT LEAST ONE of the asserted categories does not block or
+    sinkhole; `true` means every one of them does. Those are not each other's complement over
+    rows - a profile has three rows and they can disagree - so `true` is expressed as "has a
+    row and has no failing row" rather than as a plain match.
+
+    THE ASSERTED SET IS THREE of ten: C2, malware and phishing. controls.json leaves
+    newly-registered, parked and DGA to "risk tolerance", two of the categories it names do
+    not exist on this content release, and sinkholing `pan-dns-sec-benign` would be a defect
+    rather than a finding. The set lives on the model beside its measurement date.
+
+    `block` PASSES here and reports under PAN-SPY-002, because the two corpus entries differ:
+    this one says "must sinkhole/block", that one asks for sinkhole alone.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        source = SecurityProfileDnsSignatureSource
+        failing = Q(
+            dns_signature_sources__source_type=source.TYPE_DNS_SECURITY,
+            dns_signature_sources__name__in=source.ASSERTED_MALICIOUS_CATEGORIES,
+            dns_signature_sources__enforces=False)
+        if not value:
+            return SecurityProfile.objects.filter(failing).values("pk")
+        # Has the rows at all, and none of them failing. A profile with no rows makes no
+        # claim and must match neither value.
+        return SecurityProfile.objects.filter(
+            dns_signature_sources__source_type=source.TYPE_DNS_SECURITY,
+            dns_signature_sources__name__in=source.ASSERTED_MALICIOUS_CATEGORIES,
+        ).exclude(failing).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
     "kind": build_text_compiler("kind", "kind"),
@@ -408,6 +449,8 @@ FIELD_COMPILERS = {
         "dns_sinkholes_malicious_queries"),
     "dns_sinkhole_action_is_implicit": build_dns_implicit_compiler(
         "dns_sinkhole_action_is_implicit"),
+    "dns_security_categories_enforced": build_dns_category_compiler(
+        "dns_security_categories_enforced"),
     "dns_sinkhole_ipv4": build_text_compiler("dns_sinkhole_ipv4", "dns_sinkhole_ipv4"),
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),

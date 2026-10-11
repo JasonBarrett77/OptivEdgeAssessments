@@ -3866,6 +3866,59 @@
           ]
         },
         {
+          "control_id": "PAN-SPY-003",
+          "name": "DNS Security Categories Enforced",
+          "control_type": "security_profile",
+          "description": "Reports an anti-spyware profile that does not block or sinkhole the malicious DNS Security categories - command-and-control, malware and phishing. Leaving a category at `default` does not enforce it: PAN-OS Web Interface Help 11.2 p.284 says the cloud-based DNS Security is set to allow by default and that sinkholing must be configured explicitly. BOTH PREDEFINED PROFILES leave all ten categories at `default`, so a profile that inherits one reports.\n\nThree of ten categories are asserted. Newly-registered, parked and DGA are a risk-tolerance judgement in the corpus and are not asserted; benign, ad-tracking, grayware, proxy-avoidance and dynamic-DNS are not named by it. `block` satisfies this control, which PAN-SPY-002 does not accept for the signature list - the two corpus entries differ on that point.\n\nAssessed on every firewall regardless of DNS Security licensing. The configuration is accepted without the licence, so the setting is readable everywhere; a profile that passes on an unlicensed device is configured correctly and enforces nothing, because the licence gates the service rather than the config.",
+          "rationale": "DNS Security classifies domains in the cloud in real time, which is what catches infrastructure too new or too short-lived for a downloadable signature list. A category left at `default` lets those lookups resolve, so the firewall holds a subscription whose verdicts change nothing.",
+          "audit": "Objects > Security Profiles > Anti-Spyware > <profile> > DNS Policies, the DNS Security rows. Read the Policy Action on the command-and-control, malware and phishing categories. `default` is a pointer to the per-signature action, not an action - treat it as unconfigured.",
+          "remediation": "Set the Policy Action on the command-and-control, malware and phishing DNS Security categories to `sinkhole`, or to `block` where sinkholing is not wanted. Sinkhole is the better choice for the same reason as PAN-SPY-002: it identifies the infected client behind an internal resolver, and it needs the profile's sinkhole IPv4 address set first.\n\nA predefined profile cannot be edited - point the Security policy rules and Security Profile Groups using it at a custom profile instead.\n\nLeave newly-registered, parked and the grayware-style categories to local risk tolerance; this control does not assert them.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Anti-spyware profiles leaving a malicious DNS Security category unenforced.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "spyware"
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "is_predefined",
+                        "op": "eq",
+                        "value": false
+                      },
+                      {
+                        "field": "is_used",
+                        "op": "eq",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "field": "dns_security_categories_enforced",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
           "control_id": "PAN-SPY-004",
           "name": "Inline Cloud Analysis (Advanced Threat Prevention) Enabled",
           "control_type": "security_profile",

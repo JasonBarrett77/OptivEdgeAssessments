@@ -107,6 +107,12 @@ def _subject(obj) -> str:
     # same shape as the brute-force clause below, on the other kind.
     if obj.dns_sinkholes_malicious_queries is False:
         clauses.append(f"does not sinkhole malicious DNS queries ({obj.dns_sinkhole_detail})")
+    # A SECOND, INDEPENDENT DNS QUESTION. The same screen carries the DNS Security categories,
+    # and a profile can sinkhole the Palo Alto Networks Content list while leaving every
+    # malicious category at `default` - which the predefined profiles both do.
+    if obj.dns_security_categories_enforced is False:
+        clauses.append("does not enforce malicious DNS Security categories "
+                       f"({obj.dns_security_category_detail})")
     # `is False` rather than falsy: None means this kind writes no row and makes no claim.
     if obj.brute_force_blocked_by_source is False:
         clauses.append("does not block the source of brute-force attempts"
