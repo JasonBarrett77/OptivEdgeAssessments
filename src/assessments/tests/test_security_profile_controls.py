@@ -123,16 +123,33 @@ class ThreatProfileRuleControlTests(_LabFixture):
         """A rule plus one verdict row per assertion.
 
         `verdicts` maps an assertion to (satisfied, detail, profile_name). Any assertion left
-        out gets a NULL row, which is what normalization writes when no profile of that kind
-        reaches the rule.
+        out gets a SATISFIED row, so a test is about the one assertion it names.
+
+        It defaulted to NULL until 2026-10-12, when absence became a finding - after which
+        every test here fired all eleven controls and none was about what it said.
+        `_rule_with_no_profiles` is the NULL case, which now has to be asked for explicitly.
         """
         rule = self._bare_rule(name, **kwargs)
         for assertion in dict(V.ASSERTION_CHOICES):
             satisfied, detail, profile_name = verdicts.get(
-                assertion, (None, "no profile is in force on this rule", ""))
+                assertion, (True, "", "a-satisfying-profile"))
             SecurityRuleProfileVerdict.objects.create(
                 security_rule=rule, assertion=assertion, profile_name=profile_name,
                 satisfied=satisfied, detail=detail)
+        return rule
+
+    def _rule_with_no_profiles(self, name, **kwargs):
+        """A rule carrying NO profile of any kind - every verdict NULL.
+
+        What most rules on a real estate look like, and what all eleven controls now report.
+        """
+        rule = self._bare_rule(name, **kwargs)
+        for assertion, _label in V.ASSERTION_CHOICES:
+            kind = ("antivirus" if assertion in V.ANTIVIRUS_ASSERTIONS else
+                    "spyware" if assertion in V.SPYWARE_ASSERTIONS else "vulnerability")
+            SecurityRuleProfileVerdict.objects.create(
+                security_rule=rule, assertion=assertion, profile_name="",
+                satisfied=None, detail=f"no {kind} profile is in force on this rule")
         return rule
 
     def _fired(self):
@@ -148,15 +165,27 @@ class ThreatProfileRuleControlTests(_LabFixture):
         self._rule("good-spy", {V.SPYWARE_SEVERITIES: (True, "", "spy-good")})
         self.assertEqual(self._fired(), [])
 
-    def test_a_rule_with_no_profile_fires_NOTHING(self):
-        """PAN-POL-008's territory, and it says it once.
+    def test_a_rule_with_no_profile_fires_EVERY_control(self):
+        """REVERSED 2026-10-12. Jason: "The absence of a profile should create the finding for
+        that profile. This is a rule across all rule security profiles."
 
-        Matching NULL across nine controls would raise nine findings on every unprotected rule
-        and bury the one that describes the problem.
+        It fired nothing until then, on the argument that eleven controls reporting every
+        unprotected rule would bury PAN-POL-008. That argued volume rather than correctness: a
+        rule with no anti-spyware profile is not getting anti-spyware inspection, so the absence
+        IS each control's finding. PAN-AVW-003 had it this way from the day it was built.
         """
-        self._rule("bare", {})
-        self.assertEqual(self._fired(), [])
+        self._rule_with_no_profiles("bare")
+        self.assertEqual({control_id for control_id, _name in self._fired()},
+                         set(THREAT_CONTROLS))
 
+    def test_the_finding_for_an_absent_profile_says_so_rather_than_naming_one(self):
+        """"is protected by X" reads wrong when there is no X, and the two cases need different
+        fixes - attach a profile, or repair the one that is there."""
+        self._rule_with_no_profiles("bare")
+        generate_rule_findings(self.run)
+        summary = RuleFinding.objects.get(control__control_id="PAN-SPY-002").summary
+        self.assertIn("no spyware profile is in force", summary)
+        self.assertNotIn("is protected by", summary)
     def test_ONE_profile_behind_TWO_rules_is_TWO_findings(self):
         """The whole point of the conversion: each rule is a distinct piece of traffic."""
         shared = {V.SPYWARE_DNS_SINKHOLE: (False, "action is alert", "spy-shared")}
@@ -254,17 +283,13 @@ class ThreatProfileRuleControlTests(_LabFixture):
         self.assertNotIn("vln-p", spy)
         self.assertIn("vln-p", vln)
 
-    def test_an_unresolvable_profile_name_makes_no_claim(self):
-        """A group naming a profile that is not in scope protects nothing - but that is
-        PAN-POL-008's finding, not a false pass or a false fire here."""
+    def test_an_unresolvable_profile_name_FIRES(self):
+        """A group naming a profile that is not in scope protects nothing, so it reports - the
+        same reading as no profile at all, which is what it amounts to. The detail says which,
+        because "attach a profile" and "repair the dangling reference" are different jobs."""
         self._rule("dangling", {V.SPYWARE_DNS_SINKHOLE: (
             None, "names spyware profile 'ghost', which resolves to nothing", "ghost")})
-        self.assertEqual(self._fired(), [])
-
-
-class ProfileVerdictSearchFieldTests(_LabFixture):
-    """`satisfied` is nullable and NULL is neither value, the same rule the profile side uses."""
-
+        self.assertEqual(self._fired(), [("PAN-SPY-002", "dangling")])
     def _rule_with(self, name, assertion, satisfied):
         rule = self._bare_rule(name)
         SecurityRuleProfileVerdict.objects.create(
@@ -272,12 +297,17 @@ class ProfileVerdictSearchFieldTests(_LabFixture):
             satisfied=satisfied, detail="" if satisfied else "because")
         return rule
 
-    def test_a_null_verdict_matches_neither_true_nor_false(self):
+    def test_a_null_verdict_is_on_the_FALSE_side(self):
+        """REVERSED 2026-10-12: absence is a finding, so `false` matches NULL as well.
+
+        The two values still must not both match a row - `true` requires a profile that
+        satisfies the assertion rather than being the complement of `false`.
+        """
         from assessments.search.security_rules.compiler import FIELD_COMPILERS
 
         fails = self._rule_with("fails", V.SPYWARE_DNS_SINKHOLE, False)
         passes = self._rule_with("passes", V.SPYWARE_DNS_SINKHOLE, True)
-        unknown = self._rule_with("unknown", V.SPYWARE_DNS_SINKHOLE, None)
+        absent = self._rule_with("absent", V.SPYWARE_DNS_SINKHOLE, None)
 
         compile_field = FIELD_COMPILERS["spyware_dns_sinkholes"]
         false_match = {r["pk"] for r in compile_field(
@@ -285,10 +315,9 @@ class ProfileVerdictSearchFieldTests(_LabFixture):
         true_match = {r["pk"] for r in compile_field(
             {"op": "eq", "value": True, "case_sensitive": False})}
 
-        self.assertEqual(false_match, {fails.pk})
+        self.assertEqual(false_match, {fails.pk, absent.pk})
         self.assertEqual(true_match, {passes.pk})
-        self.assertNotIn(unknown.pk, false_match)
-        self.assertNotIn(unknown.pk, true_match)
+        self.assertEqual(false_match & true_match, set())
 
     def test_the_detail_is_searchable(self):
         from assessments.search.security_rules.compiler import FIELD_COMPILERS

@@ -125,8 +125,9 @@ def threat_profile_lines(rule, fields=None) -> list[str]:
     profiles resolve to. Printing them nowhere while declaring them presented would make that
     declaration false.
 
-    A None verdict prints nothing: it means no profile of that kind reaches the rule, which is
-    what the "in force" line above already says and what PAN-POL-008 reports.
+    A None verdict PRINTS, because it is a finding: no profile of that kind reaches the rule, so
+    the rule gets none of that inspection (Jason, 2026-10-12). The "in force" line above says
+    which kinds are present; this says what each absence costs, per control.
 
     `fields` narrows it to one kind's assertions, for the per-kind views: on the anti-spyware
     sheet a vulnerability gap is another sheet's subject, and printing it there is the noise
@@ -137,7 +138,8 @@ def threat_profile_lines(rule, fields=None) -> list[str]:
     for field, label in THREAT_VERDICT_LABELS:
         if wanted is not None and field not in wanted:
             continue
-        if getattr(rule, field, None) is not False:
+        # `is True` passes; both False and None are findings since 2026-10-12, so both print.
+        if getattr(rule, field, None) is True:
             continue
         detail = getattr(rule, f"{field}_detail", "")
         lines.append(f"{label}: {detail}" if detail else f"{label}: not satisfied")

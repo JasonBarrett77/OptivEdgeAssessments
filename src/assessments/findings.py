@@ -106,10 +106,16 @@ def _threat_profile_clause(obj, matched_queries) -> str:
         return ""
     parts = []
     for row in obj.profile_verdicts.all():
-        if row.assertion not in assertions or row.satisfied is not False:
+        # `is not True` rather than `is False`: a NULL verdict means no profile of that kind
+        # reaches the rule, which fires these controls (Jason, 2026-10-12) - so the sentence
+        # has to say it, and the row's detail is the only place that distinguishes "no profile"
+        # from "a profile that does not do the job".
+        if row.assertion not in assertions or row.satisfied is True:
             continue
-        where = f"{row.profile_name}" if row.profile_name else "the profile in force"
-        parts.append(f"{where}: {row.detail}" if row.detail else where)
+        if not row.profile_name:
+            parts.append(row.detail or "no profile of this kind is in force")
+            continue
+        parts.append(f"{row.profile_name}: {row.detail}" if row.detail else row.profile_name)
     return "; ".join(sorted(parts))
 
 
@@ -117,7 +123,10 @@ def build_rule_finding_summary(obj, matched_queries) -> str:
     subject = _subject(obj)
     clause = _threat_profile_clause(obj, matched_queries)
     if clause:
-        subject += f" is protected by {clause}"
+        # "is protected by X: <gap>" reads wrong for an ABSENT profile, where the clause is
+        # already a sentence of its own.
+        joiner = " - " if clause.startswith("no ") else " is protected by "
+        subject += f"{joiner}{clause}"
     return matched_query_sentence(subject, matched_queries)
 
 

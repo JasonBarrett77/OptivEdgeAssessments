@@ -9,16 +9,23 @@ uses endangers nothing and a rule is what carries traffic.
 THE VERDICTS LIVE ON A SATELLITE, one row per rule per assertion, and these compilers reach
 into it. The same shape as the security-profile severity and category verdicts.
 
-**`false` DOES NOT MATCH NULL HERE, and that is a deliberate break from PAN-AVW-003.** Its
-compiler matches NULL on `false` so a rule with no WildFire profile reports, which is right for
-one control. For nine it is not: 962 of the lab's 966 allow rules have no anti-spyware profile
-in force, so matching NULL would raise nine findings on each - roughly 8,600 - and bury the one
-finding that describes the actual problem.
+**`false` MATCHES NULL**, so a rule with no profile of that kind reports. Jason, 2026-10-12:
+"The absence of a profile should create the finding for that profile. This is a rule across all
+rule security profiles."
 
-PAN-POL-008 owns "this allow rule has no security profile" and says it once. These own "the
-profile that IS attached is configured correctly". A rule with no profile therefore matches
-neither `true` nor `false` here, which is the same no-claim rule the profile-side verdict
-fields already use.
+These compilers shipped the other way for a few hours, on the argument that nine controls
+matching NULL would raise roughly 8,600 findings on the lab and duplicate PAN-POL-008. That
+argued VOLUME, which is not the same thing as correctness: a rule with no anti-spyware profile
+is not getting anti-spyware inspection, so the absence is this control's finding and not merely
+PAN-POL-008's. PAN-AVW-003 had it right from the day it was built.
+
+So the two overlap deliberately. PAN-POL-008 says "this allow rule carries no security profiles
+at all", once; each of these says "this rule gets no antivirus / anti-spyware / vulnerability
+inspection", and the `detail` on the row says which of the two it is - `no <kind> profile is in
+force on this rule`, or the specific gap in the profile that IS there.
+
+`true` still requires a profile that satisfies the assertion, so the two values are not each
+other's complement and a row is never matched by both.
 """
 
 from __future__ import annotations
@@ -39,16 +46,24 @@ def build_profile_verdict_compiler(field_name, assertion):
     """`<field> = true/false` against one assertion's verdict rows.
 
     `true` is expressed as "has the row and it is satisfied" rather than as the complement of
-    `false`, because a rule can hold a NULL row for this assertion and NULL is neither.
+    `false`, because NULL is on the FALSE side here and the two must not both match a row.
     """
     def compiler(clause):
         op = clause["op"]
         if op not in SUPPORTED_OPERATORS:
             raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
         value = parse_boolean_value(clause["value"], field_name=field_name)
+        if value:
+            return SecurityRule.objects.filter(
+                profile_verdicts__assertion=assertion,
+                profile_verdicts__satisfied=True).values("pk")
+        # NULL FIRES: no profile of this kind reaches the rule, so the rule gets none of this
+        # inspection. The row's `detail` distinguishes that from a profile that is present and
+        # misconfigured, which is a different fix.
         return SecurityRule.objects.filter(
-            profile_verdicts__assertion=assertion,
-            profile_verdicts__satisfied=value).values("pk")
+            Q(profile_verdicts__assertion=assertion)
+            & (Q(profile_verdicts__satisfied=False)
+               | Q(profile_verdicts__satisfied__isnull=True))).values("pk")
     compiler.SUPPORTED_OPERATORS = SUPPORTED_OPERATORS
     return compiler
 
