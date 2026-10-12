@@ -235,6 +235,17 @@ class DeviceSettingSheet:
     #: `Fires when` still shows the whole condition: the control tests what it tests, and dropping
     #: a clause from it would misreport the control.
     hidden_fields: tuple = ()
+    #: Restrict the sheet to these control ids; empty means every control of `control_types`.
+    #:
+    #: Needed from 2026-10-12, when eleven controls about security profiles became rule-based
+    #: (Jason: "present each security profile finding on its own. Separate views for antivirus,
+    #: antispyware, etc. Still rule based."). They share one control TYPE with the twenty-odd
+    #: PAN-POL controls, so a type is no longer fine enough to say what a sheet is about.
+    control_ids: tuple = ()
+    #: Controls to leave OUT, for the sheet that would otherwise carry everything of its type.
+    #: The generic rules sheet names this so a profile control is not reported twice - once
+    #: there and once on its own per-kind view.
+    exclude_control_ids: tuple = ()
 
     def kind_for(self, control_type):
         """The registry's entry for a control type - not restricted to this sheet's own types, so
@@ -746,8 +757,12 @@ def verbatim_payload_paths(kind, spec) -> tuple:
 
 
 def load(spec):
-    controls = list(Control.objects.filter(control_type__in=spec.control_types, is_active=True)
-                    .prefetch_related("queries").order_by("control_id"))
+    selected = Control.objects.filter(control_type__in=spec.control_types, is_active=True)
+    if spec.control_ids:
+        selected = selected.filter(control_id__in=spec.control_ids)
+    if spec.exclude_control_ids:
+        selected = selected.exclude(control_id__in=spec.exclude_control_ids)
+    controls = list(selected.prefetch_related("queries").order_by("control_id"))
     findings = []
     for kind in spec.kinds_for(controls):
         findings += list(

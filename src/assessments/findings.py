@@ -72,6 +72,8 @@ def _subject(obj) -> str:
 #: the profile rather than only which rule matched. Keyed by control id because the sentence is
 #: shared by every security-rule control and the twenty-odd PAN-POL ones must not grow a clause.
 THREAT_PROFILE_CONTROL_ASSERTIONS = {
+    "PAN-AVW-001": SecurityRuleProfileVerdict.ANTIVIRUS_BLOCKS_MALWARE,
+    "PAN-AVW-002": SecurityRuleProfileVerdict.ANTIVIRUS_INLINE_ML,
     "PAN-SPY-001": SecurityRuleProfileVerdict.SPYWARE_SEVERITIES,
     "PAN-SPY-002": SecurityRuleProfileVerdict.SPYWARE_DNS_SINKHOLE,
     "PAN-SPY-003": SecurityRuleProfileVerdict.SPYWARE_DNS_CATEGORIES,

@@ -1,4 +1,6 @@
-"""Compilers for the nine per-rule threat-profile assertions. PAN-SPY-001..005, PAN-VLN-001..004.
+"""Compilers for the eleven per-rule threat-profile assertions.
+
+PAN-AVW-001, PAN-AVW-002, PAN-SPY-001..005 and PAN-VLN-001..004.
 
 These controls were profile-based until 2026-10-12 - one finding per SecurityProfile. Jason
 asked for the whole domain to report per rule, as PAN-AVW-003 does, because a profile nothing
@@ -72,6 +74,8 @@ _V = SecurityRuleProfileVerdict
 #: field name -> assertion. The field names are what control queries say, so they are a
 #: contract; the assertion constants are what the satellite stores.
 VERDICT_FIELDS = {
+    "antivirus_blocks_malware": _V.ANTIVIRUS_BLOCKS_MALWARE,
+    "antivirus_inline_ml_blocks": _V.ANTIVIRUS_INLINE_ML,
     "spyware_blocks_critical_high": _V.SPYWARE_SEVERITIES,
     "spyware_dns_sinkholes": _V.SPYWARE_DNS_SINKHOLE,
     "spyware_dns_categories_enforced": _V.SPYWARE_DNS_CATEGORIES,

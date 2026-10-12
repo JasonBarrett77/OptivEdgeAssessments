@@ -8,6 +8,14 @@ identically, and agreeing with what controls.json says in words about the shippe
 
 So these tests are mostly about the resolution, not the query. A control reading the configured
 literal would find every profile on every estate equally fine.
+
+CONVERTED 2026-10-12. PAN-AVW-001 and PAN-AVW-002 report PER RULE now, like the nine
+anti-spyware and vulnerability controls, so each profile here gets a rule naming it and
+`_fired` runs the REAL coverage pass before generating findings. That keeps every assertion
+below about the decoder resolution - which is the point of the file - while testing the whole
+path the finding now takes, rather than a copy of the verdict logic.
+
+PAN-AVW-006 is NOT converted and cannot be: an unused profile has no rule.
 """
 
 from __future__ import annotations
@@ -15,10 +23,14 @@ from __future__ import annotations
 from django.test import TestCase
 from django.utils import timezone
 
-from assessments.models import AssessmentRun, Control, SecurityProfileFinding
+from assessments.findings import generate_rule_findings
+from assessments.models import AssessmentRun, Control, RuleFinding, SecurityProfileFinding
 from assessments.security_profile_findings import (
     _subject,
     generate_security_profile_findings,
+)
+from optivedge_integrations.integrations.platforms.pan_os.normalization.security_profiles import (
+    normalize_security_rule_profile_coverage,
 )
 from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
@@ -26,8 +38,11 @@ from optivedge_integrations.integrations.models import (
     ApplianceGroup,
     ManagementStation,
     PolicyObjectNamespace,
+    EnforcementPoint,
     SecurityProfile,
     SecurityProfileApplicationOverride,
+    SecurityRule,
+    SecurityRuleProfile,
     SecurityProfileDecoder,
     SecurityProfileMlModel,
     Snapshot,
@@ -44,7 +59,15 @@ MODELS = ("Windows Executables", "PowerShell Script 1", "PowerShell Script 2",
           "Executable Linked Format", "MSOffice", "Shell", "OOXML", "MachO")
 
 
-class AntivirusDecoderControlTests(TestCase):
+class _AntivirusFixture(TestCase):
+    """Station, group, appliance, enforcement point, snapshot, and the profile/rule builders.
+
+    SEPARATE FROM THE TESTS because four classes share it. While they inherited from the test
+    class, every one of them re-ran all of its tests - 46 test methods became 136 runs - and an
+    override of `_fired` in one subclass silently changed which control the base's inherited
+    tests asked about.
+    """
+
     def setUp(self):
         self.station = ManagementStation.objects.create(
             station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.avw")
@@ -57,8 +80,11 @@ class AntivirusDecoderControlTests(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=self.appliance,
             source_type="config_predefined_security_profiles", collected_at=timezone.now())
+        self.point = EnforcementPoint.objects.create(
+            management_station=self.station, appliance_group=self.group,
+            vsys_name="vsys1", vsys_display_name="vsys1")
         seed_controls(["PAN-AVW-001", "PAN-AVW-002"],
-                      control_type=Control.ControlType.SECURITY_PROFILE)
+                      control_type=Control.ControlType.SECURITY_RULE)
         self.rank = 0
 
     def _profile(self, name, effective_by_protocol, *, predefined=False, used=True,
@@ -126,7 +152,33 @@ class AntivirusDecoderControlTests(TestCase):
                 configured_action=action, blocks=blocks)
         return profile
 
-    def _fired(self, control_id="PAN-AVW-001"):
+    #: A rule is named after the profile it carries, so an assertion can stay keyed by profile
+    #: name while the finding's subject is the rule.
+    RULE_PREFIX = "oep-r-"
+
+    def _rule_for(self, profile):
+        """A rule naming `profile` DIRECTLY, so the real coverage pass resolves it."""
+        self.rank += 1
+        rule = SecurityRule.objects.create(
+            management_station=self.station, enforcement_point=self.point,
+            source_snapshot=self.snapshot, config_source=SecurityRule.SOURCE_LOCAL,
+            effective_order=self.rank, rule_position=self.rank,
+            name=f"{self.RULE_PREFIX}{profile.name}", action="allow", rule_type="universal")
+        SecurityRuleProfile.objects.create(
+            security_rule=rule, value=profile.name, prov="test", position=0,
+            profile_type=profile.kind)
+        return rule
+
+    def _fired_profiles(self, control_id="PAN-AVW-006"):
+        """PROFILE findings, for the one control here that cannot be rule-based.
+
+        PAN-AVW-006's subject is a profile NO rule names, so there is no rule to report it on.
+        It is the control the 2026-10-12 conversion could not touch, and the reason the per-kind
+        rule views have no fifth tab.
+
+        A SEPARATE NAME rather than an override: while this shadowed `_fired`, every inherited
+        test in the subclass silently asked about the wrong control.
+        """
         run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
         generate_security_profile_findings(run)
@@ -134,6 +186,35 @@ class AntivirusDecoderControlTests(TestCase):
                 SecurityProfileFinding.objects.filter(
                     control__control_id=control_id, assessment_run=run)
                 .select_related("security_profile")}
+
+    def _fired(self, control_id="PAN-AVW-001"):
+        """{profile name: severity} for the controls, through rules.
+
+        Runs the REAL coverage pass rather than writing verdict rows by hand: that resolves the
+        profile by name and scope the way a collection does, so these tests cover the whole path
+        from a decoder's action to a finding.
+        """
+        # ONLY the profiles the fixture calls used. `used=False` meant "no rule or group names
+        # this profile", which the profile-based control expressed through its in-scope filter
+        # and the rule-based one expresses by there being no rule - so giving every profile a
+        # rule here would quietly delete the distinction those tests exist to pin.
+        for profile in SecurityProfile.objects.filter(
+                kind=SecurityProfile.KIND_VIRUS, is_used=True):
+            if not SecurityRule.objects.filter(
+                    name=f"{self.RULE_PREFIX}{profile.name}").exists():
+                self._rule_for(profile)
+        normalize_security_rule_profile_coverage(self.point)
+        run = AssessmentRun.objects.create(
+            name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
+        generate_rule_findings(run)
+        return {f.security_rule.name.removeprefix(self.RULE_PREFIX): f.severity
+                for f in RuleFinding.objects.filter(
+                    control__control_id=control_id, assessment_run=run)
+                .select_related("security_rule")}
+
+
+class AntivirusDecoderControlTests(_AntivirusFixture):
+    """PAN-AVW-001: the decoder resolution, and the four ways malware gets through."""
 
     def test_the_shipped_default_profile_fires(self):
         """Three of its seven decoders alert. This is the finding the control exists for, and
@@ -418,12 +499,20 @@ class AntivirusDecoderControlTests(TestCase):
 
         self.assertEqual(self._fired(), {})
 
-    def test_an_unused_CUSTOM_profile_still_fires(self):
-        """Somebody built it, so it is estate configuration whether or not a rule names it
-        yet - and attaching it later is one click."""
+    def test_an_unused_CUSTOM_profile_DOES_NOT_fire(self):
+        """REVERSED 2026-10-12 by the conversion to rule-based findings, and deliberately.
+
+        This used to assert the opposite - "somebody built it, so it is estate configuration
+        whether or not a rule names it yet". Under rule-based findings a profile no rule
+        references carries no traffic, so this control says nothing about it: a profile nothing
+        uses endangers nothing.
+
+        The configuration is still reported, by the control whose whole subject it is.
+        PAN-AVW-006 finds an antivirus profile nothing names, and does it from the profile side
+        because there is no rule to hang it on."""
         self._profile("custom-weak", SHIPPED, predefined=False, used=False)
 
-        self.assertEqual(self._fired(), {"custom-weak": "high"})
+        self.assertEqual(self._fired(), {})
 
     def test_a_profile_naming_NO_decoders_is_the_worst_case_not_an_absent_one(self):
         """Corrected 2026-10-08. An absent decoder action is `allow`, not the vendor default -
@@ -450,7 +539,7 @@ class AntivirusDecoderControlTests(TestCase):
         self.assertTrue(profile.has_non_blocking_decoder)
 
 
-class WildFireInlineMlControlTests(AntivirusDecoderControlTests):
+class WildFireInlineMlControlTests(_AntivirusFixture):
     """PAN-AVW-002. The shipped profile PASSES this one and a hand-made profile fails it, which
     is the reverse of the usual direction and the reason the control is worth having."""
 
@@ -506,7 +595,7 @@ class WildFireInlineMlControlTests(AntivirusDecoderControlTests):
         self.assertEqual(self._fired("PAN-AVW-002"), {})
 
 
-class UnusedProfileControlTests(AntivirusDecoderControlTests):
+class UnusedProfileControlTests(_AntivirusFixture):
     """PAN-AVW-006. The finding is that nothing NAMES the profile, not that it is weak.
 
     Its scope decision is the mirror of PAN-SPY-001's: a predefined profile nobody uses says
@@ -518,21 +607,23 @@ class UnusedProfileControlTests(AntivirusDecoderControlTests):
         super().setUp()
         seed_controls(["PAN-AVW-006"], control_type=Control.ControlType.SECURITY_PROFILE)
 
+
+
     def test_an_unreferenced_custom_profile_reports(self):
         self._profile("orphan", ALL_BLOCK, predefined=False, used=False)
 
-        self.assertEqual(self._fired("PAN-AVW-006"), {"orphan": "low"})
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {"orphan": "low"})
 
     def test_a_referenced_custom_profile_is_silent(self):
         self._profile("in-service", ALL_BLOCK, predefined=False, used=True)
 
-        self.assertEqual(self._fired("PAN-AVW-006"), {})
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})
 
     def test_an_unused_PREDEFINED_profile_is_out_of_scope(self):
         """It ships with the device. Nobody chose to leave it there."""
         self._profile("default", SHIPPED, predefined=True, used=False)
 
-        self.assertEqual(self._fired("PAN-AVW-006"), {})
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})
 
     def test_it_says_nothing_about_what_the_profile_would_block(self):
         """An unused profile that blocks everything reports exactly like an unused one that
@@ -540,26 +631,36 @@ class UnusedProfileControlTests(AntivirusDecoderControlTests):
         self._profile("strong-but-idle", ALL_BLOCK, used=False)
         self._profile("weak-but-idle", {p: "allow" for p in SHIPPED}, used=False)
 
-        self.assertEqual(self._fired("PAN-AVW-006"),
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"),
                          {"strong-but-idle": "low", "weak-but-idle": "low"})
 
     def test_a_profile_of_another_kind_is_out_of_scope(self):
         """v1 is antivirus only. An unused anti-spyware profile is nobody's finding yet."""
         self._profile("spy-orphan", {}, kind=SecurityProfile.KIND_SPYWARE, used=False, ml={})
 
-        self.assertEqual(self._fired("PAN-AVW-006"), {})
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})
 
     def test_the_three_antivirus_controls_ask_different_questions(self):
-        """One profile, unattached and wide open: unused, not blocking, and no inline ML."""
+        """Wide open twice over - no decoder blocks and no inline ML runs - and the answers
+        depend entirely on whether a rule names it.
+
+        REWRITTEN 2026-10-12. This used to assert all three firing on ONE unattached profile.
+        Two of them are rule-based now, so an unattached profile is outside both: no rule, no
+        traffic, no claim. Which is the division the conversion was for - PAN-AVW-006 reports
+        that nothing names it, and the other two report what it would do if something did."""
         self._profile("idle-and-open", {p: "allow" for p in SHIPPED}, used=False,
                       ml={m: False for m in MODELS})
+        self._profile("live-and-open", {p: "allow" for p in SHIPPED}, used=True,
+                      ml={m: False for m in MODELS})
 
-        self.assertEqual(self._fired("PAN-AVW-001"), {"idle-and-open": "high"})
-        self.assertEqual(self._fired("PAN-AVW-002"), {"idle-and-open": "medium"})
-        self.assertEqual(self._fired("PAN-AVW-006"), {"idle-and-open": "low"})
+        # Unattached: only the control whose subject is the absence of a reference.
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {"idle-and-open": "low"})
+        # Attached: the two that assess what reaches traffic, and not the unused-profile one.
+        self.assertEqual(self._fired("PAN-AVW-001"), {"live-and-open": "high"})
+        self.assertEqual(self._fired("PAN-AVW-002"), {"live-and-open": "medium"})
 
 
-class WildFireInlineMlAlertOnlyTests(AntivirusDecoderControlTests):
+class WildFireInlineMlAlertOnlyTests(_AntivirusFixture):
     """`enable(alert-only)` - the third value of mlav-policy-action, and the one that makes
     `enabled` and `blocks` different questions.
 

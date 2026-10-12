@@ -28,6 +28,7 @@ from __future__ import annotations
 from assessments.models import Control
 
 from . import findings as findings_sheet
+from . import profile_kinds
 from optivedge_integrations.integrations.presentation import address_breadth_label
 
 from ..layout import NONE, SheetInfo, appliance_names
@@ -70,7 +71,7 @@ PROFILE_TYPE_LABELS = (
 )
 
 
-def profiles_in_force(rule) -> str:
+def profiles_in_force(rule, verdict_fields=None) -> str:
     """What the rule NAMES, what is actually in force, and what WildFire analysis amounts to.
 
     The WildFire line is here rather than in a column of its own because the value is the
@@ -94,7 +95,7 @@ def profiles_in_force(rule) -> str:
         lines.append(f"WildFire analysis: {rule.wildfire_analysis_detail}")
     else:
         lines.append("WildFire analysis: not yet computed - re-normalize")
-    lines.extend(threat_profile_lines(rule))
+    lines.extend(threat_profile_lines(rule, verdict_fields))
     return "\n".join(lines)
 
 
@@ -102,6 +103,8 @@ def profiles_in_force(rule) -> str:
 #: FAILING ones are printed: nine satisfied lines on every healthy rule would bury the one line
 #: that matters, and the finding itself already names which control fired.
 THREAT_VERDICT_LABELS = (
+    ("antivirus_blocks_malware", "antivirus malware"),
+    ("antivirus_inline_ml_blocks", "antivirus inline ML"),
     ("spyware_blocks_critical_high", "anti-spyware severity"),
     ("spyware_dns_sinkholes", "DNS sinkhole"),
     ("spyware_dns_categories_enforced", "DNS Security categories"),
@@ -114,7 +117,7 @@ THREAT_VERDICT_LABELS = (
 )
 
 
-def threat_profile_lines(rule) -> list[str]:
+def threat_profile_lines(rule, fields=None) -> list[str]:
     """One line per FAILING threat-profile assertion, naming the profile and the reason.
 
     These nine fields are listed in `hidden_fields`, which is a statement that another column
@@ -124,9 +127,16 @@ def threat_profile_lines(rule) -> list[str]:
 
     A None verdict prints nothing: it means no profile of that kind reaches the rule, which is
     what the "in force" line above already says and what PAN-POL-008 reports.
+
+    `fields` narrows it to one kind's assertions, for the per-kind views: on the anti-spyware
+    sheet a vulnerability gap is another sheet's subject, and printing it there is the noise
+    those views exist to remove.
     """
+    wanted = set(fields) if fields else None
     lines = []
     for field, label in THREAT_VERDICT_LABELS:
+        if wanted is not None and field not in wanted:
+            continue
         if getattr(rule, field, None) is not False:
             continue
         detail = getattr(rule, f"{field}_detail", "")
@@ -265,6 +275,12 @@ SOURCE_COLUMNS = (
 
 SPEC = findings_sheet.DeviceSettingSheet(
     title="Security Rules",
+    #: The eleven controls about security profiles have their own per-kind views since
+    #: 2026-10-12, so they are excluded here rather than reported twice. The PAN-POL controls
+    #: stay, which is what this sheet has always been about: the rule itself rather than what
+    #: inspects it. The list lives in `profile_kinds`, which neither sheet owns, because
+    #: `profile_rules` builds its specs from this module's columns.
+    exclude_control_ids=profile_kinds.EVERY_PROFILE_CONTROL,
     #: This sheet names its settings itself - Sources, Service, Action - rather than taking a
     #: column per tested field.
     auto_setting_columns=False,
@@ -309,6 +325,10 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    "spyware_exceptions_minimal", "vulnerability_blocks_critical_high",
                    "vulnerability_blocks_brute_force", "vulnerability_inline_analysis_blocks",
                    "vulnerability_exceptions_minimal",
+                   # PAN-AVW-001 and PAN-AVW-002, converted the same day and for the same
+                   # reason. The antivirus profile's four ways of letting malware through, and
+                   # its inline ML models, are facts about what the named profile resolves to.
+                   "antivirus_blocks_malware", "antivirus_inline_ml_blocks",
                    # A SCOPE condition rather than an observation: PAN-POL-002 excludes disabled
                    # rules, so every row on this sheet is an enabled rule by construction. The
                    # Fires when cell states it on the surfaces that carry that block.

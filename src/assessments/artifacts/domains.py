@@ -21,6 +21,7 @@ from django.db.models import Count
 from assessments.models import Control
 
 from .sheets import authentication_settings, management_crypto, objects, password_complexity
+from .sheets import profile_rules
 from .sheets import security_rules
 from .sheets.findings import DeviceSettingSheet
 
@@ -51,7 +52,17 @@ def _object_domain(slug, control_type) -> FindingsDomain:
 #: category's domains follow the order findings are generated in.
 DOMAINS = (
     # Policies
+    #
+    # The generic rules sheet comes first and stays first: `_build_model_index` takes the FIRST
+    # domain claiming a model, so SecurityRule links keep landing here rather than on one of
+    # the per-kind views below.
     FindingsDomain("security-rules", security_rules.SPEC),
+    # One view per security-profile kind, over rules (Jason, 2026-10-12: "present each security
+    # profile finding on its own ... still rule based"). Eleven controls about profiles share
+    # the security_rule type with the PAN-POL controls, so the rules sheet excludes them and
+    # each kind gets a sheet whose Profiles cell names only its own verdicts.
+    *(FindingsDomain(f"{slug}-by-rule", profile_rules.SPEC_BY_KIND[slug])
+      for slug, _title, _ids, _fields in profile_rules.KINDS),
     # Objects
     _object_domain("security-profiles", T.SECURITY_PROFILE),
     # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
