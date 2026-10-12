@@ -94,7 +94,44 @@ def profiles_in_force(rule) -> str:
         lines.append(f"WildFire analysis: {rule.wildfire_analysis_detail}")
     else:
         lines.append("WildFire analysis: not yet computed - re-normalize")
+    lines.extend(threat_profile_lines(rule))
     return "\n".join(lines)
+
+
+#: The nine per-rule threat-profile assertions, with the words that read on a row. Only the
+#: FAILING ones are printed: nine satisfied lines on every healthy rule would bury the one line
+#: that matters, and the finding itself already names which control fired.
+THREAT_VERDICT_LABELS = (
+    ("spyware_blocks_critical_high", "anti-spyware severity"),
+    ("spyware_dns_sinkholes", "DNS sinkhole"),
+    ("spyware_dns_categories_enforced", "DNS Security categories"),
+    ("spyware_inline_analysis_blocks", "anti-spyware inline analysis"),
+    ("spyware_exceptions_minimal", "anti-spyware exceptions"),
+    ("vulnerability_blocks_critical_high", "vulnerability severity"),
+    ("vulnerability_blocks_brute_force", "brute-force source"),
+    ("vulnerability_inline_analysis_blocks", "vulnerability inline analysis"),
+    ("vulnerability_exceptions_minimal", "vulnerability exceptions"),
+)
+
+
+def threat_profile_lines(rule) -> list[str]:
+    """One line per FAILING threat-profile assertion, naming the profile and the reason.
+
+    These nine fields are listed in `hidden_fields`, which is a statement that another column
+    already says them - so they are rendered here, in the cell that carries what the named
+    profiles resolve to. Printing them nowhere while declaring them presented would make that
+    declaration false.
+
+    A None verdict prints nothing: it means no profile of that kind reaches the rule, which is
+    what the "in force" line above already says and what PAN-POL-008 reports.
+    """
+    lines = []
+    for field, label in THREAT_VERDICT_LABELS:
+        if getattr(rule, field, None) is not False:
+            continue
+        detail = getattr(rule, f"{field}_detail", "")
+        lines.append(f"{label}: {detail}" if detail else f"{label}: not satisfied")
+    return lines
 
 
 PROFILES_READER = findings_sheet.ValueReader(
@@ -262,6 +299,16 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    # profiles actually resolve to. A column of its own would also break this
                    # sheet's agreement with the rules page's column set.
                    "wildfire_analysis_submits_all", "wildfire_analysis_detail",
+                   # PAN-SPY-001..005 and PAN-VLN-001..004, converted from profile-based to
+                   # rule-based 2026-10-12. Same reasoning as the WildFire pair above: each is
+                   # a fact about what the named profiles resolve to, so the Profiles column
+                   # carries them as further lines in that cell rather than nine columns the
+                   # rules page would then have to match. `threat_profile_lines` renders them.
+                   "spyware_blocks_critical_high", "spyware_dns_sinkholes",
+                   "spyware_dns_categories_enforced", "spyware_inline_analysis_blocks",
+                   "spyware_exceptions_minimal", "vulnerability_blocks_critical_high",
+                   "vulnerability_blocks_brute_force", "vulnerability_inline_analysis_blocks",
+                   "vulnerability_exceptions_minimal",
                    # A SCOPE condition rather than an observation: PAN-POL-002 excludes disabled
                    # rules, so every row on this sheet is an enabled rule by construction. The
                    # Fires when cell states it on the surfaces that carry that block.

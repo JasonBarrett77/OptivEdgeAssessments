@@ -1,12 +1,22 @@
-"""PAN-SPY-004, PAN-SPY-005, PAN-VLN-003, PAN-VLN-004.
+"""What PAN-SPY-004/005 and PAN-VLN-003/004 read off a profile.
 
-Four controls over two profile kinds that are nearly - but not quite - the same shape, and
-the near-misses are what these tests pin:
+Two profile kinds that are nearly - but not quite - the same shape, and the near-misses are
+what these tests pin:
 
     the inline engines differ        five detectors against two, and spyware's action
                                      accepts `drop` where vulnerability's does not
     the exception surfaces differ    four on anti-spyware, two on vulnerability, because
                                      the latter has no botnet tree
+
+THESE ARE PROFILE SEMANTICS, NOT FINDINGS. The four controls became rule-based on 2026-10-12
+and their findings are tested in test_security_profile_controls.py, which builds rules. What
+stays here is the layer underneath: the properties a per-rule verdict reads to decide whether
+the profile in force satisfies the assertion. They are tested directly because that is where
+the subtlety is - `alert` runs a detector and lets the traffic through, an unmentioned detector
+does not run at all, and an exception on a surface the corpus does not name still counts.
+
+Scope - which profile reaches which rule, and what happens when none does - moved to the rule
+side with the controls, and is not retested here.
 """
 
 from __future__ import annotations
@@ -14,9 +24,6 @@ from __future__ import annotations
 from django.test import TestCase
 from django.utils import timezone
 
-from assessments.models import AssessmentRun, Control, SecurityProfileFinding
-from assessments.security_profile_findings import generate_security_profile_findings
-from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
     Appliance,
     ApplianceGroup,
@@ -33,7 +40,7 @@ DETECTORS = {SPY: SecurityProfileInlineDetector.SPYWARE_DETECTORS,
              VLN: SecurityProfileInlineDetector.VULNERABILITY_DETECTORS}
 
 
-class ThreatProfileControlTests(TestCase):
+class ThreatProfileSemanticsTests(TestCase):
     def setUp(self):
         self.station = ManagementStation.objects.create(
             station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.spy")
@@ -46,8 +53,6 @@ class ThreatProfileControlTests(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=self.appliance,
             source_type="test", collected_at=timezone.now())
-        seed_controls(["PAN-SPY-004", "PAN-SPY-005", "PAN-VLN-003", "PAN-VLN-004"],
-                      control_type=Control.ControlType.SECURITY_PROFILE)
         self.rank = 0
 
     def _profile(self, name, kind, *, actions=None, exceptions=None, predefined=False,
@@ -75,14 +80,9 @@ class ThreatProfileControlTests(TestCase):
                 blocks=action in SecurityProfileInlineDetector.BLOCKING_ACTIONS)
         return profile
 
-    def _fired(self, control_id):
-        run = AssessmentRun.objects.create(
-            name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
-        generate_security_profile_findings(run)
-        return {f.security_profile.name for f in
-                SecurityProfileFinding.objects.filter(
-                    control__control_id=control_id, assessment_run=run)
-                .select_related("security_profile")}
+    def _not_blocking(self, profile):
+        """What PAN-SPY-004 / PAN-VLN-003's verdict reads: detectors that do not stop traffic."""
+        return set(profile.inline_detectors_not_blocking)
 
     # --- inline cloud analysis: PAN-SPY-004 and PAN-VLN-003 ---------------------------------
 
@@ -93,73 +93,75 @@ class ThreatProfileControlTests(TestCase):
         """Every lab profile is in this state: the predefined profiles carry zero entries
         for this engine, so nothing runs. Without a detector row per catalogued detector
         there would be nothing to report and it would read as fine."""
-        self._profile("none-spy", SPY)
-        self._profile("none-vln", VLN)
+        spy = self._profile("none-spy", SPY)
+        vln = self._profile("none-vln", VLN)
 
-        self.assertEqual(self._fired("PAN-SPY-004"), {"none-spy"})
-        self.assertEqual(self._fired("PAN-VLN-003"), {"none-vln"})
+        self.assertEqual(len(self._not_blocking(spy)), 5)
+        self.assertEqual(len(self._not_blocking(vln)), 2)
 
     def test_every_detector_blocking_is_silent(self):
-        self._profile("hard-spy", SPY, actions=self._all(SPY, "reset-both"))
-        self._profile("hard-vln", VLN, actions=self._all(VLN, "reset-both"))
+        spy = self._profile("hard-spy", SPY, actions=self._all(SPY, "reset-both"))
+        vln = self._profile("hard-vln", VLN, actions=self._all(VLN, "reset-both"))
 
-        self.assertEqual(self._fired("PAN-SPY-004"), set())
-        self.assertEqual(self._fired("PAN-VLN-003"), set())
+        self.assertEqual(self._not_blocking(spy), set())
+        self.assertEqual(self._not_blocking(vln), set())
 
     def test_alert_runs_and_still_fires(self):
         """`enable(alert-only)` from PAN-AVW-002 under another name: the detector runs, the
         traffic passes. Reading it as enabled would pass a profile that only watches."""
-        self._profile("alert-spy", SPY, actions=self._all(SPY, "alert"))
+        profile = self._profile("alert-spy", SPY, actions=self._all(SPY, "alert"))
 
-        self.assertEqual(self._fired("PAN-SPY-004"), {"alert-spy"})
+        self.assertEqual(len(self._not_blocking(profile)), 5)
+        self.assertTrue(all(d.enabled for d in profile.inline_detectors.all()),
+                        "alert RUNS the detector - enabled and blocks are two facts")
 
     def test_one_detector_left_behind_is_enough(self):
         actions = self._all(SPY, "reset-both")
         actions["SSL Command and Control detector"] = "alert"
-        self._profile("almost", SPY, actions=actions)
+        profile = self._profile("almost", SPY, actions=actions)
 
-        self.assertEqual(self._fired("PAN-SPY-004"), {"almost"})
+        self.assertEqual(self._not_blocking(profile), {"SSL Command and Control detector"})
 
     def test_drop_blocks_on_spyware(self):
         """Spyware's action accepts `drop`; vulnerability's does not. Treating the two
         engines as one enum would offer a value the device rejects."""
-        self._profile("drops", SPY, actions=self._all(SPY, "drop"))
+        profile = self._profile("drops", SPY, actions=self._all(SPY, "drop"))
 
-        self.assertEqual(self._fired("PAN-SPY-004"), set())
+        self.assertEqual(self._not_blocking(profile), set())
 
-    def test_the_two_controls_do_not_report_each_others_profiles(self):
-        self._profile("spy-bad", SPY)
-        self._profile("vln-bad", VLN)
+    def test_each_kind_carries_only_its_own_detectors(self):
+        """Treating the two engines as one catalogue would give a vulnerability profile the
+        five C2 detectors and report every one of them as missing."""
+        spy = self._profile("spy-bad", SPY)
+        vln = self._profile("vln-bad", VLN)
 
-        self.assertEqual(self._fired("PAN-SPY-004"), {"spy-bad"})
-        self.assertEqual(self._fired("PAN-VLN-003"), {"vln-bad"})
-
-    def test_an_unused_predefined_profile_is_out_of_scope(self):
-        self._profile("shelf", SPY, predefined=True, used=False)
-
-        self.assertEqual(self._fired("PAN-SPY-004"), set())
+        self.assertEqual({d.name for d in spy.inline_detectors.all()},
+                         set(DETECTORS[SPY]))
+        self.assertEqual({d.name for d in vln.inline_detectors.all()},
+                         set(DETECTORS[VLN]))
 
     # --- exception hygiene: PAN-SPY-005 and PAN-VLN-004 -------------------------------------
 
     def test_a_profile_with_no_exceptions_is_silent(self):
-        self._profile("clean-spy", SPY, actions=self._all(SPY, "reset-both"))
-        self._profile("clean-vln", VLN, actions=self._all(VLN, "reset-both"))
+        spy = self._profile("clean-spy", SPY, actions=self._all(SPY, "reset-both"))
+        vln = self._profile("clean-vln", VLN, actions=self._all(VLN, "reset-both"))
 
-        self.assertEqual(self._fired("PAN-SPY-005"), set())
-        self.assertEqual(self._fired("PAN-VLN-004"), set())
+        self.assertEqual((spy.threat_exception_count, vln.threat_exception_count), (0, 0))
 
     def test_one_signature_exception_fires(self):
-        self._profile("one", SPY, exceptions={"threat-exception": 1})
+        profile = self._profile("one", SPY, exceptions={"threat-exception": 1})
 
-        self.assertEqual(self._fired("PAN-SPY-005"), {"one"})
+        self.assertEqual(profile.threat_exception_count, 1)
+        self.assertEqual(profile.exception_detail, "1 in threat-exception")
 
     def test_an_exception_on_a_surface_the_corpus_does_NOT_name_fires(self):
         """The reason the count was widened. Before 2026-10-10 only `threat-exception` was
         counted, so a profile exempting addresses from inline analysis counted zero."""
-        self._profile("inline-exempt", SPY,
-                      exceptions={"inline-exception-ip-address": 12})
+        profile = self._profile("inline-exempt", SPY,
+                                exceptions={"inline-exception-ip-address": 12})
 
-        self.assertEqual(self._fired("PAN-SPY-005"), {"inline-exempt"})
+        self.assertEqual(profile.threat_exception_count, 12)
+        self.assertEqual(profile.exception_detail, "12 in inline-exception-ip-address")
 
     def test_the_detail_names_the_surface_because_the_fix_differs(self):
         profile = self._profile("spread", SPY, exceptions={
@@ -171,9 +173,11 @@ class ThreatProfileControlTests(TestCase):
             profile.exception_detail,
             "1 in botnet-whitelist, 3 in inline-exception-ip-address, 2 in threat-exception")
 
-    def test_the_two_hygiene_controls_stay_on_their_own_kind(self):
-        self._profile("spy-exc", SPY, exceptions={"threat-exception": 1})
-        self._profile("vln-exc", VLN, exceptions={"threat-exception": 1})
+    def test_both_kinds_count_exceptions_the_same_way(self):
+        """The two hygiene controls are separate because the NODES differ - the vulnerability
+        exception entry carries `time-attribute` and there is no botnet tree - but the count
+        they read is one column with one meaning."""
+        spy = self._profile("spy-exc", SPY, exceptions={"threat-exception": 1})
+        vln = self._profile("vln-exc", VLN, exceptions={"threat-exception": 1})
 
-        self.assertEqual(self._fired("PAN-SPY-005"), {"spy-exc"})
-        self.assertEqual(self._fired("PAN-VLN-004"), {"vln-exc"})
+        self.assertEqual((spy.threat_exception_count, vln.threat_exception_count), (1, 1))

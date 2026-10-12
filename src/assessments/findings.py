@@ -26,7 +26,10 @@ from assessments.object_findings import (
     matched_query_sentence,
     regenerate_object_findings,
 )
-from optivedge_integrations.integrations.models import SecurityRule
+from optivedge_integrations.integrations.models import (
+    SecurityRule,
+    SecurityRuleProfileVerdict,
+)
 
 #: How a rule's config source reads in prose. The stored values are storage, not English.
 RULEBASE_LABEL = {
@@ -65,8 +68,55 @@ def _subject(obj) -> str:
     return subject
 
 
+#: Which assertion each threat-profile control reads, so a finding can say what is wrong with
+#: the profile rather than only which rule matched. Keyed by control id because the sentence is
+#: shared by every security-rule control and the twenty-odd PAN-POL ones must not grow a clause.
+THREAT_PROFILE_CONTROL_ASSERTIONS = {
+    "PAN-SPY-001": SecurityRuleProfileVerdict.SPYWARE_SEVERITIES,
+    "PAN-SPY-002": SecurityRuleProfileVerdict.SPYWARE_DNS_SINKHOLE,
+    "PAN-SPY-003": SecurityRuleProfileVerdict.SPYWARE_DNS_CATEGORIES,
+    "PAN-SPY-004": SecurityRuleProfileVerdict.SPYWARE_INLINE,
+    "PAN-SPY-005": SecurityRuleProfileVerdict.SPYWARE_EXCEPTIONS,
+    "PAN-VLN-001": SecurityRuleProfileVerdict.VULNERABILITY_SEVERITIES,
+    "PAN-VLN-002": SecurityRuleProfileVerdict.VULNERABILITY_BRUTE_FORCE,
+    "PAN-VLN-003": SecurityRuleProfileVerdict.VULNERABILITY_INLINE,
+    "PAN-VLN-004": SecurityRuleProfileVerdict.VULNERABILITY_EXCEPTIONS,
+}
+
+
+def _threat_profile_clause(obj, matched_queries) -> str:
+    """What is wrong with the profile in force, for the controls that ask about one.
+
+    A rule finding says which rule, where, and that a query matched. For the nine controls
+    converted from profile-based to rule-based on 2026-10-12 that is not enough on its own:
+    the thing to go and fix is a PROFILE, and without naming it the finding sends a reader to
+    the rule, where there is nothing to change.
+
+    Varies by WHICH control matched, read off the matched queries, because this sentence is
+    shared with every PAN-POL control and those should read exactly as they did before.
+    """
+    assertions = {
+        THREAT_PROFILE_CONTROL_ASSERTIONS[query.control.control_id]
+        for query in matched_queries
+        if query.control.control_id in THREAT_PROFILE_CONTROL_ASSERTIONS
+    }
+    if not assertions:
+        return ""
+    parts = []
+    for row in obj.profile_verdicts.all():
+        if row.assertion not in assertions or row.satisfied is not False:
+            continue
+        where = f"{row.profile_name}" if row.profile_name else "the profile in force"
+        parts.append(f"{where}: {row.detail}" if row.detail else where)
+    return "; ".join(sorted(parts))
+
+
 def build_rule_finding_summary(obj, matched_queries) -> str:
-    return matched_query_sentence(_subject(obj), matched_queries)
+    subject = _subject(obj)
+    clause = _threat_profile_clause(obj, matched_queries)
+    if clause:
+        subject += f" is protected by {clause}"
+    return matched_query_sentence(subject, matched_queries)
 
 
 SPEC = ObjectFindingSpec(
@@ -76,7 +126,10 @@ SPEC = ObjectFindingSpec(
     link_model=RuleFindingControlQuery,
     subject_fk="security_rule",
     link_fk="rule_finding",
-    queryset=lambda: SecurityRule.objects.select_related("enforcement_point"),
+    # `profile_verdicts` is prefetched because the subject sentence reads it for the
+    # nine threat-profile controls; without it this is a query per rule per finding.
+    queryset=lambda: SecurityRule.objects.select_related(
+        "enforcement_point").prefetch_related("profile_verdicts"),
     evaluate=evaluate_control_queries,
     summary=build_rule_finding_summary,
     #: PAN-OS caps a rule name at 63 characters and the model allows 255; truncate rather than

@@ -58,15 +58,21 @@ class QueryDestinationTests(TestCase):
                     else:
                         self.assertEqual(obj.search_model, model)
 
-    def test_the_two_security_profile_pages_each_take_their_own_control(self):
+    def test_the_two_security_profile_pages_each_take_their_own_query(self):
         """One model, two rail items, split by `kind` - the case that makes this a rule rather
         than a lookup. Sent to the wrong one the page returns nothing, because the scope filters
-        the rows before the query does, and empty reads as "no profile is like this"."""
-        by_id = {c["control_id"]: c for c in _seeded_controls()}
-        for control_id, expected_slug in (("PAN-SPY-001", "anti-spyware"),
-                                          ("PAN-VLN-001", "vulnerability-protection")):
-            query = by_id[control_id]["queries"][0]["canonical_query"]
-            self.assertEqual(object_for_canonical_query(query).slug, expected_slug, control_id)
+        the rows before the query does, and empty reads as "no profile is like this".
+
+        CONSTRUCTED QUERIES rather than seeded ones since 2026-10-12: the anti-spyware and
+        vulnerability controls became rule-based, so no shipped control queries SecurityProfile
+        with a `kind` clause any more. The routing rule they exercised is still live - every
+        profile page link depends on it - so it is still tested, just not through a control."""
+        for kind, expected_slug in (("spyware", "anti-spyware"),
+                                    ("vulnerability", "vulnerability-protection")):
+            query = {"model": "integrations.SecurityProfile", "operator": "and",
+                     "clauses": [{"field": "kind", "op": "eq", "value": kind},
+                                 {"field": "critical_blocked", "op": "eq", "value": False}]}
+            self.assertEqual(object_for_canonical_query(query).slug, expected_slug, kind)
 
     def test_an_ambiguous_query_gets_no_link_rather_than_a_plausible_one(self):
         shared = {"model": "integrations.SecurityProfile", "operator": "and",

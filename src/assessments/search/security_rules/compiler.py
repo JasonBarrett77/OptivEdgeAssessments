@@ -33,6 +33,9 @@ from assessments.search.security_rules.fields.name import compile_name_clause
 from assessments.search.security_rules.fields.negate_destination import compile_negate_destination_clause
 from assessments.search.security_rules.fields.negate_source import compile_negate_source_clause
 from assessments.search.security_rules.fields.provenance import compile_provenance_clause
+from assessments.search.security_rules.fields.profile_verdicts import (
+    PROFILE_VERDICT_COMPILERS,
+)
 from assessments.search.security_rules.fields.profile_coverage import (
     compile_has_antivirus_profile_clause,
     compile_wildfire_analysis_submits_all_clause,
@@ -87,6 +90,8 @@ FIELD_COMPILERS = {
     "to_zone": compile_to_zone_clause,
     "vsys_display_name": compile_vsys_display_name_clause,
     "vsys_name": compile_vsys_name_clause,
+    # The nine per-rule threat-profile assertions, plus a detail field each.
+    **PROFILE_VERDICT_COMPILERS,
 }
 FIELD_OPERATOR_REGISTRY = {
     "action": compile_action_clause.SUPPORTED_OPERATORS,
@@ -121,6 +126,8 @@ FIELD_OPERATOR_REGISTRY = {
     "to_zone": compile_to_zone_clause.SUPPORTED_OPERATORS,
     "vsys_display_name": compile_vsys_display_name_clause.SUPPORTED_OPERATORS,
     "vsys_name": compile_vsys_name_clause.SUPPORTED_OPERATORS,
+    **{field: compiler.SUPPORTED_OPERATORS
+       for field, compiler in PROFILE_VERDICT_COMPILERS.items()},
 }
 
 def compile_security_rule_search_node(node):
