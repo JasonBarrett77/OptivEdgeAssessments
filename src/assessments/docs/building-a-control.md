@@ -499,6 +499,36 @@ every firewall by re-reading config rather than trusting job status.
       service is a value on it. An unused profile has no surface, which is why the profile
       needed a model of its own.*
 
+- [ ] **When a setting protects TRAFFIC, ask whether the finding should name the setting or
+      the traffic.** `→ control-changes.json` A reusable object - a profile, a profile group, a
+      log-forwarding profile - is a definition; what carries risk is the thing pointing at it.
+      The two give different answers in both directions: one definition behind forty references
+      is one finding that understates it, and a definition nothing references is a finding about
+      nothing. Reporting per reference needs the reference RESOLVED, not merely noted, because a
+      group naming nothing protects nothing.
+      *Nine anti-spyware and vulnerability controls shipped reporting per profile, then were
+      converted to report per rule (Jason, 2026-10-12: "convert the whole domain now"). On the
+      lab one profile sat behind sixteen rules and reported once, while every built subject
+      profile - which no rule referenced - reported as though it were exposure. PAN-AVW-003 had
+      been built the other way a month earlier, for the reason now written into the rules model:
+      a profile nothing uses endangers nothing, and a rule is what carries traffic.*
+
+- [ ] **If a control changes which object it names, re-check its lab subjects before trusting
+      the next quiet run.** `→ reproductions.json` A subject built for the old subject type can
+      become invisible to the new one, and the control then passes everything for a reason that
+      has nothing to do with the estate.
+      *Immediately after that conversion all nine controls were correct and five had no firing
+      case at all: every subject was a profile, and no rule referenced any of them. The fix was
+      twenty narrow rules, one per subject - narrow because twenty any/any rules would have
+      sprayed findings across the policy domain instead.*
+
+- **A control that moves to a new subject does not automatically inherit the old one's NULL
+      semantics.** Ask again what "no claim" should do, because the answer depends on how many
+      controls share the subject. *PAN-AVW-003 matches NULL on `false`, so a rule with no
+      WildFire profile reports - right for one control. The nine converted controls do not: 1004
+      of the lab's rules have no anti-spyware profile, and nine controls matching NULL would
+      raise roughly 8,600 findings and bury PAN-POL-008, which says it once.*
+
 - [ ] **Scope it by where the config lives, not by how the documentation groups it.** The
       two disagree. *PAN-OS: `vsys/entry/…` → `EnforcementPoint`, everything else →
       `Appliance`. `Zone` is a network-plane concept that scopes like policy because it lives
