@@ -13,8 +13,10 @@ tests pin what the conversion changed and would be easy to get wrong:
 
 - one profile behind two rules is TWO findings, because it is two pieces of traffic;
 - a profile NO rule uses is no finding at all, where the profile-based version reported it;
-- a rule with no profile of that kind fires NOTHING - PAN-POL-008 owns that and says it once,
-  where matching NULL across nine controls would raise nine findings on each of 962 rules;
+- a rule with no profile of that kind fires EVERY control - reversed 2026-10-12, see
+  `test_a_rule_with_no_profile_fires_EVERY_control`;
+- only ALLOW rules that are not the predefined defaults are subjects - a rule that blocks
+  passes nothing to inspect - while a DISABLED allow rule still is (Jason, 2026-10-14);
 - the finding has to name the PROFILE, because that is the thing to go and fix, and a rule
   finding naming only the rule would send a reader somewhere with nothing to change.
 
@@ -258,6 +260,30 @@ class ThreatProfileRuleControlTests(_LabFixture):
         generate_rule_findings(self.run)
         summary = RuleFinding.objects.get(control__control_id="PAN-SPY-002").summary
         self.assertIn("DISABLED", summary)
+
+    def test_a_rule_that_does_not_allow_is_not_a_subject(self):
+        """Added 2026-10-14. The baselines tested only the verdict, so every deny rule on the
+        lab - 42 of them - fired all eleven controls for a profile that could inspect nothing.
+        Every non-allow action is checked, because PAN-OS has five and `allow` is the one
+        that passes traffic."""
+        for action in ("deny", "drop", "reset-client", "reset-server", "reset-both"):
+            self._rule_with_no_profiles(f"blocks-{action}", action=action)
+            self._rule(f"weak-{action}", {V.SPYWARE_SEVERITIES: (False, "alert", "p")},
+                       action=action)
+        self.assertEqual(self._fired(), [])
+
+    def test_the_predefined_default_rules_are_not_subjects(self):
+        """The same exclusion PAN-AVW-003 and PAN-POL-008 make. `intrazone-default` is an
+        allow rule, so the action clause alone would not keep it out."""
+        self._rule_with_no_profiles("intrazone-default", config_source=SecurityRule.SOURCE_DEFAULT)
+        self.assertEqual(self._fired(), [])
+
+    def test_a_disabled_allow_rule_with_no_profile_fires_every_control(self):
+        """Scoped like PAN-AVW-003 in all but this, on purpose (Jason, 2026-10-14): a
+        disabled rule is one click from live. The scope must not drift into excluding it."""
+        self._rule_with_no_profiles("off", disabled=True)
+        self.assertEqual({control_id for control_id, _name in self._fired()},
+                         set(THREAT_CONTROLS))
 
     def test_a_pushed_rule_is_a_subject_and_says_which_rulebase(self):
         """The scope PAN-SPY-002 had never fired on while it was profile-based."""
