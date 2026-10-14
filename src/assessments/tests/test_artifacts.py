@@ -560,6 +560,87 @@ class DeferredPayloadTests(TestCase):
                     f"field it declines to fetch")
 
 
+class RuleTabsDoNotQueryPerRowTests(TestCase):
+    """The rule tabs cost the same number of queries for one rule as for three.
+
+    Every threat-profile property on `SecurityRule` - `antivirus_blocks_malware` and its
+    twenty-one siblings - walks `profile_verdicts`, and the rules spec did not prefetch it. So
+    each one a cell read was a query: 134k across the five rule tabs on the lab, 2026-10-14,
+    and 58 of the workbook's 61 seconds. Nothing failed, because `test_deferring_adds_no_queries`
+    compares two builds of the SAME rows, and an N+1 both of them pay looks like agreement.
+
+    A rule with NO profiles is the subject because every verdict is then NULL, which fires all
+    eleven threat-profile controls and prints a line for each - every property is read.
+    """
+
+    def setUp(self):
+        from optivedge_integrations.integrations.models import (
+            EnforcementNode, EnforcementPoint, SecurityRule, SecurityRuleProfileVerdict)
+        from assessments.models import Control
+        from assessments.tests._seed import seed_specs
+
+        seed_controls([cid for cid, spec in seed_specs().items()
+                       if spec["control_type"] == Control.ControlType.SECURITY_RULE])
+        station = ManagementStation.objects.create(
+            station_type=ManagementStation.StationType.PAN_PANORAMA, hostname="pano.n1")
+        group = ApplianceGroup.objects.create(
+            management_station=station, name="g-n1", group_type=ApplianceGroup.TYPE_STANDALONE)
+        appliance = Appliance.objects.create(
+            management_station=station, appliance_group=group,
+            serial_number="S-n1", hostname="fw-n1")
+        self.point = EnforcementPoint.objects.create(
+            management_station=station, appliance_group=group,
+            vsys_name="vsys1", vsys_display_name="vsys1")
+        EnforcementNode.objects.create(
+            management_station=station, appliance=appliance, enforcement_point=self.point)
+        self.snapshot = Snapshot.objects.create(
+            management_station=station, appliance=appliance,
+            source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        self.station = station
+        self.SecurityRule, self.Verdict = SecurityRule, SecurityRuleProfileVerdict
+
+    def add_rules(self, count):
+        start = self.SecurityRule.objects.count()
+        for order in range(start + 1, start + count + 1):
+            rule = self.SecurityRule.objects.create(
+                management_station=self.station, enforcement_point=self.point,
+                source_snapshot=self.snapshot, config_source=self.SecurityRule.SOURCE_LOCAL,
+                effective_order=order, rule_position=order, name=f"bare-{order}",
+                action="allow", rule_type="universal")
+            for assertion, _label in self.Verdict.ASSERTION_CHOICES:
+                self.Verdict.objects.create(
+                    security_rule=rule, assertion=assertion, profile_name="",
+                    satisfied=None, detail="no profile is in force on this rule")
+        regenerate_findings()
+
+    def queries(self, spec):
+        from assessments.artifacts import ALL_TESTED_COLUMNS, build_findings_table
+
+        build_findings_table(spec, tested=ALL_TESTED_COLUMNS)  # warm the per-process caches
+        with CaptureQueriesContext(connection) as captured:
+            table = build_findings_table(spec, tested=ALL_TESTED_COLUMNS)
+        return len(captured), len(table.rows)
+
+    def test_query_count_does_not_grow_with_rules(self):
+        from assessments.artifacts.domains import DOMAINS
+
+        rule_domains = [domain for domain in DOMAINS
+                        if domain.slug == "security-rules" or domain.slug.endswith("-by-rule")]
+        self.assertEqual(len(rule_domains), 5)
+
+        self.add_rules(1)
+        one = {domain.slug: self.queries(domain.spec) for domain in rule_domains}
+        self.add_rules(2)
+        for domain in rule_domains:
+            with self.subTest(domain.slug):
+                (one_queries, one_rows) = one[domain.slug]
+                three_queries, three_rows = self.queries(domain.spec)
+                # Guards the comparison: tabs with no rows would agree on any code.
+                self.assertGreater(three_rows, one_rows)
+                self.assertEqual(three_queries, one_queries,
+                                 f"{domain.slug} costs a query per row")
+
+
 class BulkProvenanceTests(TestCase):
     """Provenance is read from an index built up front, never per object in a row loop.
 

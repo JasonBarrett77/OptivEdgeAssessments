@@ -346,7 +346,11 @@ SPEC = findings_sheet.DeviceSettingSheet(
                       "securityrulefromzones", "securityruletozones",
                       "securityruleservices", "securityruleapplications",
                       "source_address_refs", "destination_address_refs",
-                      "enforcement_point__appliance_group__appliances"),
+                      "enforcement_point__appliance_group__appliances",
+                      # Every threat-profile property (`antivirus_blocks_malware` and its
+                      # twenty-one siblings) walks this set, so without it each one is a query:
+                      # 134k on the lab across the five rule tabs, 58 of the build's 61s.
+                      "profile_verdicts"),
     description=("The security policy each firewall enforces: what the rules allow, how tightly "
                  "they are scoped, and where each rule comes from."),
 )
