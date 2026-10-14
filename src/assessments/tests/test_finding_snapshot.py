@@ -109,6 +109,24 @@ class FindingSnapshotTests(TestCase):
 
         self.assertIsNone(LoginBannerFinding.objects.get().snapshot)
 
+    def test_recording_it_does_not_load_the_configuration(self):
+        """The ID is copied, never the relation. Reading `obj.source_snapshot` fetches the
+        Snapshot with its `payload` - the raw merged config, decoded on fetch - once per
+        FINDING, because nothing shares the instance. On the lab, 2026-10-14, that was 194s and
+        3.6 GB for security rules alone and a MemoryError from Run Findings; copying the ID
+        made it 9s and 144 MB. A test estate's `payload={}` costs nothing, so the timing would
+        never show it here: the query is the signal."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as captured:
+            regenerate_findings()
+
+        payload_reads = [q["sql"] for q in captured.captured_queries
+                         if '"integrations_snapshot"."payload"' in q["sql"]]
+        self.assertEqual(payload_reads, [])
+        self.assertEqual(LoginBannerFinding.objects.get().snapshot_id, self.snapshot.pk)
+
 
 class EveryFindingModelCarriesItTests(TestCase):
     def test_the_field_is_on_every_finding_model(self):

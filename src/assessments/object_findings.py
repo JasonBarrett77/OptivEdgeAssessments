@@ -122,7 +122,14 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
                     # Every subject model carries `source_snapshot`, checked across all 24
                     # finding kinds, so `getattr` is for the one that eventually does not
                     # rather than for the ones that do.
-                    "snapshot": getattr(obj, "source_snapshot", None),
+                    #
+                    # The ID, never the relation. `obj.source_snapshot` is a lazy fetch of the
+                    # whole Snapshot, `payload` included and decoded, and `objects` is rebuilt
+                    # per control so no instance is shared: on the lab that was one 0.1-1.3 MB
+                    # JSON decode per finding, 13,635 of them, 194s and 3.6 GB for security
+                    # rules alone, and a MemoryError on a full run. Same bug as the workbook's
+                    # Config collected column - see `collected_at_by_snapshot`.
+                    "snapshot_id": getattr(obj, "source_snapshot_id", None),
                 }
                 if spec.subject_scope is not None:
                     fields["subject_scope"] = spec.subject_scope(obj)
