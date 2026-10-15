@@ -28,6 +28,11 @@ from django.utils import timezone
 from assessments.models import AssessmentRun, Control
 
 
+#: Rows per INSERT. Bounded because SQLite caps the parameters in one statement, and a finding
+#: carries about fifteen.
+BATCH_SIZE = 500
+
+
 @dataclass(frozen=True)
 class ObjectFindingSpec:
     #: Singular and lowercase, for the run name and prose: "certificate profile".
@@ -76,6 +81,7 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
         .order_by("control_id")
     )
     base_queryset = spec.queryset()
+    objects = {}
     findings_created = query_links_created = skipped_queries = 0
 
     with transaction.atomic():
@@ -91,7 +97,12 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
             ) = spec.evaluate(base_queryset, control)
             skipped_queries += control_skipped_queries
 
-            objects = {obj.pk: obj for obj in base_queryset.filter(pk__in=matched_by_object)}
+            # Loaded once across controls, not per control. Eighteen security-rule controls
+            # matching most of the lab's rules re-fetched each rule and its eleven prefetched
+            # verdicts eighteen times - 200k model instances to build 13k findings.
+            missing = [pk for pk in matched_by_object if pk not in objects]
+            if missing:
+                objects.update((obj.pk, obj) for obj in base_queryset.filter(pk__in=missing))
 
             # Findings are created - and so numbered - in a stable order: by subject, as a reader
             # of any presentation sorted by control then object would expect.
@@ -100,10 +111,14 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
                 scope = spec.subject_scope(obj) if spec.subject_scope is not None else ""
                 return (spec.subject_name(obj), scope, object_id)
 
+            pending = []
             for object_id in sorted(matched_by_object, key=by_subject):
                 matched_queries = matched_by_object[object_id]
                 obj = objects[object_id]
                 fields = {
+                    # Allocated here because `bulk_create` skips `FindingBase.save`, which is
+                    # the only other place a number is handed out. Same counter, same order.
+                    "reference_number": assessment_run.next_reference_number(),
                     "assessment_run": assessment_run,
                     "control": control,
                     spec.subject_fk: obj,
@@ -124,23 +139,41 @@ def generate_object_findings(spec: ObjectFindingSpec, assessment_run) -> tuple[i
                     # rather than for the ones that do.
                     #
                     # The ID, never the relation. `obj.source_snapshot` is a lazy fetch of the
-                    # whole Snapshot, `payload` included and decoded, and `objects` is rebuilt
-                    # per control so no instance is shared: on the lab that was one 0.1-1.3 MB
-                    # JSON decode per finding, 13,635 of them, 194s and 3.6 GB for security
-                    # rules alone, and a MemoryError on a full run. Same bug as the workbook's
-                    # Config collected column - see `collected_at_by_snapshot`.
+                    # whole Snapshot, `payload` included and decoded. While `objects` was
+                    # rebuilt per control no instance was shared, and on the lab that was one
+                    # 0.1-1.3 MB JSON decode per finding, 13,635 of them, 194s and 3.6 GB for
+                    # security rules alone, and a MemoryError on a full run. Shared now, it
+                    # would still hold one decoded payload per subject for the whole run. Same
+                    # bug as the workbook's Config collected column - see
+                    # `collected_at_by_snapshot`.
                     "snapshot_id": getattr(obj, "source_snapshot_id", None),
                 }
                 if spec.subject_scope is not None:
                     fields["subject_scope"] = spec.subject_scope(obj)
-                finding = spec.finding_model.objects.create(**fields)
-                findings_created += 1
-                links = [
-                    spec.link_model(**{spec.link_fk: finding, "control_query": control_query})
-                    for control_query in matched_queries
-                ]
-                spec.link_model.objects.bulk_create(links)
-                query_links_created += len(links)
+                pending.append((spec.finding_model(**fields), matched_queries))
+
+            # IN BATCHES, not a row at a time. Two INSERTs per finding was 26k statements for
+            # the lab's 13k rule findings - most of what was left of Run Findings once the
+            # snapshot fetch went, and the part that grows worst on slower disks.
+            spec.finding_model.objects.bulk_create(
+                [finding for finding, _queries in pending], batch_size=BATCH_SIZE)
+            # The key comes back from `bulk_create` on SQLite and PostgreSQL but not on every
+            # backend, so it is read back rather than trusted to have been set - keyed by
+            # reference number, which is unique per run, over this run's rows for this control,
+            # which are exactly the ones just written.
+            pk_by_reference = dict(
+                spec.finding_model.objects
+                .filter(assessment_run=assessment_run, control=control)
+                .values_list("reference_number", "pk"))
+            links = [
+                spec.link_model(**{f"{spec.link_fk}_id": pk_by_reference[finding.reference_number],
+                                   "control_query": control_query})
+                for finding, matched_queries in pending
+                for control_query in matched_queries
+            ]
+            spec.link_model.objects.bulk_create(links, batch_size=BATCH_SIZE)
+            findings_created += len(pending)
+            query_links_created += len(links)
 
     return len(controls), findings_created, query_links_created, skipped_queries
 

@@ -139,8 +139,11 @@ SPEC = ObjectFindingSpec(
     link_fk="rule_finding",
     # `profile_verdicts` is prefetched because the subject sentence reads it for the
     # nine threat-profile controls; without it this is a query per rule per finding.
+    # The point's owner is joined because the sentence prints the point, and its `__str__`
+    # reads `appliance_group or appliance` - a query per FINDING otherwise, 13,162 on the lab.
     queryset=lambda: SecurityRule.objects.select_related(
-        "enforcement_point").prefetch_related("profile_verdicts"),
+        "enforcement_point__appliance_group", "enforcement_point__appliance",
+    ).prefetch_related("profile_verdicts"),
     evaluate=evaluate_control_queries,
     summary=build_rule_finding_summary,
     #: PAN-OS caps a rule name at 63 characters and the model allows 255; truncate rather than
