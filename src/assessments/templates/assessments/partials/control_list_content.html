@@ -44,10 +44,16 @@
             </div>
             {% if findings_run %}
             {% comment %}
-            The run is on a background thread, so this page is the only thing reporting it.
-            Reloading every five seconds is the same mechanism the management station's details
-            tab uses for a collection, and for the same reason: there is no request left to
-            report to. `data-findings-run-in-progress` is what a test can find.
+            The run is on a background thread, so this page is the only thing reporting it: there
+            is no request left to report to. `data-findings-run-in-progress` is what a test can
+            find.
+
+            It POLLS rather than reloading itself (2026-10-14). It reloaded every five seconds,
+            the mechanism the management station's details tab uses for a collection, and one
+            reload answered with a 500 - "database is locked" on SQLite while the run held the
+            write lock - replaced this page with an error page carrying no script, so the refresh
+            stopped for good. A failed poll is tried again; the page reloads once, when the run
+            it shows is no longer the one in progress.
             {% endcomment %}
             <div data-findings-run-in-progress="{{ findings_run.pk }}"
                  class="flex items-center gap-2 border-y border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
@@ -61,7 +67,28 @@
             <script>
                 // Only while a run is in progress: the block this sits in is not rendered
                 // otherwise, so an idle page never reloads under the reader.
-                setTimeout(function () { window.location.reload(); }, 5000);
+                (function () {
+                    var statusUrl = "{% url 'assessment_control_run_findings_status' %}";
+                    var shownRun = {{ findings_run.pk }};
+                    function poll() {
+                        fetch(statusUrl, {cache: "no-store", headers: {"Accept": "application/json"}})
+                            .then(function (response) {
+                                if (!response.ok) { throw new Error(response.status); }
+                                return response.json();
+                            })
+                            .then(function (status) {
+                                if (status.run === shownRun) {
+                                    setTimeout(poll, 5000);
+                                } else {
+                                    window.location.reload();
+                                }
+                            })
+                            // Any failure - a 500, a dropped connection, a body that is not
+                            // JSON - is a missed poll, not the end of polling.
+                            .catch(function () { setTimeout(poll, 5000); });
+                    }
+                    setTimeout(poll, 5000);
+                })();
             </script>
             {% endif %}
             {% if not findings_run and latest_findings_run %}

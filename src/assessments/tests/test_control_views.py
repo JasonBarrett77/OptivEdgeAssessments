@@ -948,12 +948,30 @@ class BackgroundFindingsRunTests(TestCase):
 
     def test_the_page_reports_the_run_and_refreshes_itself(self):
         self.post()
+        run = AssessmentRun.objects.get()
 
         response = self.client.get(self.list_url)
 
         self.assertContains(response, "data-findings-run-in-progress")
         self.assertContains(response, "window.location.reload()")
         self.assertContains(response, "you can browse away without")
+        # It polls the status for THIS run rather than reloading on a timer.
+        self.assertContains(response, reverse("assessment_control_run_findings_status"))
+        self.assertContains(response, f"var shownRun = {run.pk};")
+
+    def test_a_failed_poll_is_retried_rather_than_ending_the_refresh(self):
+        """The reason it polls. A timed reload that hit a 500 - "database is locked" while the
+        run held SQLite's write lock - replaced the page with an error page with no script on
+        it, and the refresh stopped for good. Static, because nothing here runs JavaScript:
+        the failure path must schedule the next poll, and nothing may reload on a timer."""
+        self.post()
+
+        content = self.client.get(self.list_url).content.decode()
+        script = content[content.index("var shownRun"):]
+        script = script[:script.index("</script>")]
+
+        self.assertRegex(script, r"\.catch\(function \(\) \{ setTimeout\(poll, 5000\); \}\)")
+        self.assertNotRegex(script, r"setTimeout\(function \(\) \{ window\.location\.reload")
 
     def test_an_idle_page_does_not_refresh_itself(self):
         """A page that reloads under a reader who is halfway through something is worse than
@@ -962,6 +980,38 @@ class BackgroundFindingsRunTests(TestCase):
 
         self.assertNotContains(response, "window.location.reload()")
         self.assertNotContains(response, "data-findings-run-in-progress")
+        self.assertNotContains(response, reverse("assessment_control_run_findings_status"))
+
+    def test_the_status_names_the_run_in_progress(self):
+        self.post()
+        run = AssessmentRun.objects.get()
+
+        response = self.client.get(reverse("assessment_control_run_findings_status"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"run": run.pk})
+
+    def test_the_status_is_null_once_the_run_finishes(self):
+        """What makes the page reload: the run it shows is no longer the one in progress."""
+        self.post()
+        run = AssessmentRun.objects.get()
+        run.mark_completed()
+        run.save(update_fields=["status", "completed_at"])
+
+        response = self.client.get(reverse("assessment_control_run_findings_status"))
+
+        self.assertEqual(response.json(), {"run": None})
+
+    def test_the_status_ignores_an_orphaned_run(self):
+        """Same age limit as the button: a run left RUNNING by a restart is not in progress,
+        or a page showing it would poll for ever."""
+        self.post()
+        AssessmentRun.objects.update(
+            started_at=timezone.now() - FINDINGS_LOCK_MAX_AGE - timedelta(minutes=1))
+
+        response = self.client.get(reverse("assessment_control_run_findings_status"))
+
+        self.assertEqual(response.json(), {"run": None})
 
     def test_a_finished_run_reports_what_it_did(self):
         """The counts were a Django message from the view, and the view no longer waits for the

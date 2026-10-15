@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %} | Downloads{% endblock %}
+
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
+{% comment %}
+Every built deliverable, kept until somebody deletes it. Jason, 2026-10-14: build the workbook
+in the background, and retrieve it from a view that lists the files available for download.
+A file built from an older findings run is flagged, not refused - the engineer decides what
+leaves the machine, and the flag is there so the decision is made knowingly.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
+                <h1 class="text-sm font-semibold text-slate-900">Downloads</h1>
+                <form method="post" action="{% url 'assessment_workbook_build' %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            {% if building %}disabled title="A workbook is already being built."{% endif %}
+                            class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        Build Workbook
+                    </button>
+                </form>
+            </div>
+
+            {% if messages %}
+            {% comment %}
+            base.html does not render messages - each page does its own. Every refusal lands
+            here: a findings run in progress, a build already running, no MEDIA_ROOT.
+            {% endcomment %}
+            <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-2">
+                <div class="flex flex-col gap-2">
+                    {% for message in messages %}
+                    <div class="border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% elif message.tags == 'warning' %}border-amber-200 bg-amber-50 text-amber-800{% else %}border-slate-200 bg-white text-slate-700{% endif %}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if building %}
+            <div data-artifact-build-in-progress="{{ building.pk }}"
+                 class="flex shrink-0 items-center gap-2 border-y border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+                <span class="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-500"></span>
+                <span>
+                    Building the workbook, started {{ building.requested_at|date:"H:i:s" }} UTC.
+                    This page updates when it finishes - you can browse away without stopping it.
+                </span>
+            </div>
+            <script>
+                // Polls rather than reloading on a timer, for the reason the controls page does:
+                // one reload answered with an error replaces the page with one that has no
+                // script, and the refresh stops for good. A failed poll is tried again.
+                (function () {
+                    var statusUrl = "{% url 'assessment_downloads_status' %}";
+                    var shownBuild = {{ building.pk }};
+                    function poll() {
+                        fetch(statusUrl, {cache: "no-store", headers: {"Accept": "application/json"}})
+                            .then(function (response) {
+                                if (!response.ok) { throw new Error(response.status); }
+                                return response.json();
+                            })
+                            .then(function (status) {
+                                if (status.building === shownBuild) {
+                                    setTimeout(poll, 3000);
+                                } else {
+                                    window.location.reload();
+                                }
+                            })
+                            .catch(function () { setTimeout(poll, 3000); });
+                    }
+                    setTimeout(poll, 3000);
+                })();
+            </script>
+            {% endif %}
+
+            <div class="min-h-0 flex-1 overflow-auto">
+                {% if rows %}
+                <table class="oea-table min-w-full border-separate border-spacing-0">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">File</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Status</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Requested (UTC)</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600">Findings Run</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-right text-xs font-medium uppercase tracking-wide text-slate-600">Size</th>
+                            <th class="sticky top-0 z-10 h-9 border-b border-slate-200 bg-slate-50 px-3 text-left text-xs font-medium uppercase tracking-wide text-slate-600"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        {% with artifact=row.artifact %}
+                        <tr data-artifact="{{ artifact.pk }}">
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-900">
+                                {% if artifact.status == "ready" %}
+                                <a href="{% url 'assessment_artifact_download' artifact.pk %}" class="text-blue-700 hover:underline">{{ artifact.filename }}</a>
+                                {% else %}
+                                {{ artifact.filename }}
+                                {% endif %}
+                            </td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">
+                                {% if row.orphaned %}
+                                <span class="text-red-700">Interrupted</span>
+                                {% elif artifact.status == "failed" %}
+                                <span class="text-red-700">Failed</span>
+                                {% else %}
+                                {{ artifact.get_status_display }}
+                                {% endif %}
+                                {% if row.stale %}
+                                <span data-artifact-stale
+                                      title="A newer findings run has completed since this was built, or its run was discarded. It does not show what the findings pages show now."
+                                      class="ml-1.5 inline-flex items-center border border-amber-200 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800">Stale</span>
+                                {% endif %}
+                            </td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ artifact.requested_at|date:"Y-m-d H:i:s" }}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">
+                                {% if artifact.assessment_run %}Run {{ artifact.assessment_run.pk }}{% if artifact.assessment_run.completed_at %} · {{ artifact.assessment_run.completed_at|date:"Y-m-d H:i" }}{% endif %}{% else %}<span class="text-slate-500">none recorded</span>{% endif %}
+                            </td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-right text-sm text-slate-800">{% if artifact.size is not None %}{{ artifact.size|filesizeformat }}{% endif %}</td>
+                            <td class="h-9 border-b border-slate-200 px-3 py-2 text-right text-sm">
+                                {% if artifact.status != "building" or row.orphaned %}
+                                <form method="post" action="{% url 'assessment_artifact_delete' artifact.pk %}"
+                                      onsubmit="return confirm('Delete {{ artifact.filename|escapejs }}? The file is removed from disk.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-[12px] font-medium text-red-700 hover:underline">Delete</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if artifact.error %}
+                        <tr>
+                            <td colspan="6" class="oea-prose border-b border-slate-200 bg-red-50 px-3 py-2 text-sm text-red-800">{{ artifact.error }}</td>
+                        </tr>
+                        {% endif %}
+                        {% endwith %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="px-4 py-6 text-sm text-slate-500">Nothing has been built yet. Build Workbook makes the engineer-detail workbook from the current findings.</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</section>
+{% endblock %}

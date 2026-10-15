@@ -20,11 +20,29 @@ database.
 | Routes | mounted at `/assessments/` by OptivEdge's plugin registry, via `assessments/app_meta.py` |
 | Navigation | the "Assessments" and "Experimental" sidebar sections, via the same `app_meta.py` |
 | Migrations | the `assessments` app's own |
+| Host settings it needs | `MEDIA_ROOT` - where built workbooks are kept; see below |
 
 It contributes **no** shell, base templates, context processors, template libraries, or root URL patterns —
 those come from OptivEdge, and this package's templates `{% extends "base.html" %}` and `{% load lucide %}`
 out of it. Splice `OPTIVEDGE_ASSESSMENTS_APPS` **after** `OPTIVEDGE_APPS` and `OPTIVEDGE_INTEGRATIONS_APPS`, as
 `deployment_template` does; see the ordering note in `OptivEdge/DEPLOYMENT.md` before changing that.
+
+### `MEDIA_ROOT`: where built workbooks are kept
+
+Build Workbook runs in the background and keeps the file under `MEDIA_ROOT/assessments/artifacts/`
+until someone deletes it from the Downloads page. `MEDIA_ROOT` belongs to the host project, so set it
+in its `settings.py`:
+
+```python
+# Generated client deliverables. A file rather than a database blob, so the database can be
+# copied without the deliverables riding along. Client-sensitive: keep it out of version
+# control and off anything shared.
+MEDIA_ROOT = BASE_DIR / 'media'
+```
+
+Unset, Django's storage would write to the server process's working directory, so the build refuses
+instead and says so on the Downloads page. `MEDIA_URL` is not needed and need not be served: files are
+downloaded through an `assessments` view, never from a media URL, because they are client-sensitive.
 
 ## Version requirements and dependencies
 
@@ -141,6 +159,9 @@ package cannot resolve a single control target without it.
 
 **`NoReverseMatch` for an `assessment_*` URL name** — `assessments` is missing from `INSTALLED_APPS`, so
 OptivEdge's registry never found its `app_meta.py` and never mounted `/assessments/`.
+
+**Build Workbook says "MEDIA_ROOT is not set"** — the host project's `settings.py` has no `MEDIA_ROOT`. See
+"`MEDIA_ROOT`: where built workbooks are kept" above.
 
 **Sidebar item stops highlighting on a page** — a route name was added to `assessments/urls.py` without being
 added to the matching `active_names` set in `assessments/app_meta.py`.

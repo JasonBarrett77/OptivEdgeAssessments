@@ -444,19 +444,43 @@ decision about that TAB, not about the data - so a surface passing `ALL_TESTED_C
 the provenance and the firing condition anyway (Jason, 2026-09-25: "can we add the provenance
 data, even if both presentation surfaces don't use it?").
 
-**The workbook is downloadable from the findings summary**, `findings/workbook/`, as of
-2026-09-28. It builds ON THE REQUEST - Jason: "synchronously is fine for now" - measured at
-10.2s for the lab's 153 KB file. Two things follow from that number rather than from taste: the
-browser shows nothing while it builds, so a second click starts a second build, and when this
-stops being tolerable the answer is a stored artifact and a job, not a longer timeout.
+**The workbook is built in the background and collected from Downloads** (2026-10-14).
+It built ON THE REQUEST from 2026-09-28 - Jason: "synchronously is fine for now" - and the
+note here said that when it stopped being tolerable the answer was a stored artifact and a
+job, not a longer timeout. It stopped being tolerable on the VDI an engagement actually runs
+on, which is far slower than the lab's machine. Jason, 2026-10-14: a background process, and a
+view listing the files available for download.
 
-The route sits BEFORE `findings/<slug:slug>/`, which would otherwise match `workbook` and 404.
+`artifact_store.py` is the stored-artifact caller `build_workbook()` was always written for:
+Build Workbook (on the findings summary and on Downloads) opens a `GeneratedArtifact` row,
+builds on a daemon thread the way Run Findings does, writes the file under
+`MEDIA_ROOT/assessments/artifacts/` and records READY or FAILED on the row. `/assessments/
+downloads/` lists every build. Three decisions, each pinned by `test_downloads`:
 
-**A refused build redirects to the summary carrying the guard's message.** That is the whole
-point of `ArtifactBuildError` deriving from `Exception`: a guard refusing means the workbook
-would have been wrong, and the reader has to be told which guard and why. `base.html` does not
-render messages - each page does its own - so the summary template grew a messages block,
-without which the redirect would have said nothing at all.
+* **Kept until deleted.** Nothing prunes. Deleting the row deletes the file - Django does not,
+  and a client deliverable nothing lists any more is the worst of both. A run discarded by a
+  reseed leaves its builds in place (`SET_NULL`), stale rather than gone.
+* **Stale is flagged, not refused.** A build from an older findings run, or from a discarded
+  one, carries a Stale badge and still downloads. What leaves the machine is the engineer's call.
+* **A build and a findings run refuse each other, both ways.** The build reads some thirty
+  tables one after another and every generator replaces its whole table, so a run landing
+  mid-build gives the later tabs another run's findings. One read transaction would fix that,
+  but the engagement settings' `transaction_mode: IMMEDIATE` makes every transaction take the
+  WRITE lock, which would hold Run Findings off for the whole build.
+
+**A refused build is a FAILED row carrying the guard's message**, shown on Downloads. That is
+still the point of `ArtifactBuildError` deriving from `Exception`; it is caught on the thread
+now rather than in a view.
+
+**The file is served by a view, not `MEDIA_URL`** - client-sensitive, and a media URL serves
+to anybody who can reach the server. **No `MEDIA_ROOT`, no build**: unset, storage writes to
+the server's working directory, so the build is refused with a message instead.
+
+**Both pages that wait on background work POLL rather than reload.** The controls page used to
+reload itself every five seconds during Run Findings, and one reload answered with a 500 -
+SQLite "database is locked" before the engagement settings carried WAL - replaced the page
+with an error page that had no script on it, so the refresh stopped for good. Each now polls a
+small JSON status view, retries a failed poll, and reloads once, when the work it shows is done.
 
 **The filename is `artifacts/naming.py`**, not the view's: a name is not a path, so it does not
 break the "nothing here knows about the filesystem" rule, and the docx will want the same
@@ -465,7 +489,8 @@ date is the BUILD date, deliberately not a collection window: the Summary tab ca
 window, and a filename that looked like one would be read as authoritative. Each part is
 slugified because client names are free text on their way into a `Content-Disposition` header,
 and a deployment with no `ApplicationEnvironment` drops those parts rather than refusing the
-download.
+build. The name on disk can differ - storage suffixes a name already taken, and two builds on
+one day share one - so the download name is kept on the row.
 
 **A joined row arrives whole, and that is how one timestamp cost 1.75 GB** (2026-10-05). Every
 findings tab read its Config collected column through `subject.source_snapshot.collected_at`, so

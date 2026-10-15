@@ -1794,3 +1794,50 @@ class SystemIdentityFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.system_identity_finding_id} <- {self.control_query_id}"
+
+
+class GeneratedArtifact(models.Model):
+    """A client deliverable built in the background and kept until somebody deletes it.
+
+    The workbook was built on the request until 2026-10-14, and the browser showed nothing for
+    however long that took - longer on the VDI an engagement runs on than on the lab. Jason,
+    2026-10-14: build it in the background, and retrieve it from a view that lists the files
+    available for download. Kept until deleted, never pruned: what leaves the machine is the
+    engineer's call.
+
+    The FILE lives under MEDIA_ROOT rather than in a column, for the reason the lab's settings
+    give: the database gets snapshotted and copied, and a deliverable stored in it would ride
+    along in every copy. Deleting the row deletes the file (`artifact_store`), because Django
+    does not, and an orphaned client deliverable is exactly the file nobody remembers is there.
+    """
+
+    class Kind(models.TextChoices):
+        WORKBOOK = "workbook", "Engineer-detail workbook"
+
+    class Status(models.TextChoices):
+        BUILDING = "building", "Building"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Failed"
+
+    kind = models.CharField(max_length=32, choices=Kind.choices)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.BUILDING)
+    #: The findings run the file was built FROM. SET_NULL rather than CASCADE: a reseed
+    #: discards runs, and a kept deliverable must not vanish with them - it becomes stale, and
+    #: says so, instead.
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="artifacts")
+    #: What the browser is told to call it - `artifacts.naming`. The stored name can differ:
+    #: storage suffixes a name that is already taken, and two builds on one day share one.
+    filename = models.CharField(max_length=255, blank=True)
+    file = models.FileField(upload_to="assessments/artifacts/", blank=True)
+    size = models.PositiveBigIntegerField(null=True, blank=True)
+    requested_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    #: Why a build FAILED, in words - usually the guard that refused it. Empty otherwise.
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_at", "-pk"]
+
+    def __str__(self) -> str:
+        return self.filename or f"{self.get_kind_display()} {self.pk}"

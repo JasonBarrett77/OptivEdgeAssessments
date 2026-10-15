@@ -22,14 +22,19 @@ NON_PAGE_URL_NAMES = {
     # Downloads: return a file and no HTML.
     "assessment_catalog_download",
     "assessment_catalog_seed_download",
-    # Offered by the Findings summary, which it also redirects to when a guard refuses the
-    # build - a sidebar item for it would be a second door into the same page's button.
-    "assessment_findings_workbook",
+    # A built deliverable, served from the Downloads page that lists it.
+    "assessment_artifact_download",
+    # JSON a page polls while background work runs - a findings run, a workbook build.
+    # Nobody navigates to them.
+    "assessment_control_run_findings_status",
+    "assessment_downloads_status",
     # POST actions: mutate, then redirect to a page that IS covered.
     "assessment_catalog_apply",
     "assessment_catalog_create_from_current",
     "assessment_catalog_refresh_seed",
     "assessment_control_run_findings",
+    "assessment_workbook_build",
+    "assessment_artifact_delete",
     "assessment_control_create",
     "assessment_control_update",
     "assessment_control_delete",

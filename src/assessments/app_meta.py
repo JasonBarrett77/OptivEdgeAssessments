@@ -19,6 +19,7 @@ SIDEBAR_SECTION = [
         "active_names": {
             "assessment_findings_summary",
             "assessment_findings_domain",
+            "assessment_downloads",
             "assessment_catalog_list",
             "assessment_catalog_apply",
             "assessment_catalog_create_from_current",
@@ -90,6 +91,19 @@ SIDEBAR_SECTION = [
                 "active_names": {
                     "assessment_findings_summary",
                     "assessment_findings_domain",
+                },
+            },
+            {
+                #: Built deliverables, kept until deleted. Its own item because a build runs in
+                #: the background and is collected later, from anywhere - not only from the
+                #: Findings page that offers the button.
+                "label": "Downloads",
+                "href": "/assessments/downloads/",
+                #: Not "download": OptivEdge ships a fixed set of icons and that is not among
+                #: them, and an icon it cannot find breaks every page drawing the sidebar.
+                "icon": "book-marked",
+                "active_names": {
+                    "assessment_downloads",
                 },
             },
         ],

@@ -78,7 +78,8 @@ class RenderedPageTests(TestCase):
 
     def test_every_table_page_carries_the_stylesheet(self):
         for name in ("assessment_control_list", "assessment_catalog_list",
-                     "assessment_findings_summary", "assessment_configuration_index"):
+                     "assessment_findings_summary", "assessment_configuration_index",
+                     "assessment_downloads"):
             with self.subTest(name):
                 response = self.client.get(reverse(name))
                 self.assertContains(response, "white-space: nowrap")

@@ -16,9 +16,8 @@ from assessments.artifacts import (
     ALL_TESTED_COLUMNS,
     ArtifactBuildError,
     build_findings_table,
-    build_workbook,
-    workbook_filename,
 )
+from assessments import artifact_store
 from assessments.artifacts import domains as artifact_domains
 from assessments.artifacts.layout import category_of as artifact_category_of
 from assessments.environment import get_application_environment
@@ -56,6 +55,7 @@ from assessments.search.management_interface.fields.exposure import (
 )
 from assessments.models import (
     AssessmentRun,
+    GeneratedArtifact,
     AuthenticationProfileFinding,
     AuthenticationSequenceFinding,
     AdminUserFinding,
@@ -93,10 +93,11 @@ from assessments.security_rule_queries import (
     get_cached_security_rule_pks,
 )
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import connections
 from django.db.models import Count
-from django.http import Http404, HttpResponse, HttpResponseRedirect
+from django.http import (
+    FileResponse, Http404, HttpResponse, HttpResponseRedirect, JsonResponse)
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
@@ -568,6 +569,14 @@ class ControlRunFindingsView(View):
         if findings_run_in_progress() is not None:
             messages.error(request, "A findings run is already in progress.")
             return HttpResponseRedirect(control_list_url)
+        # The other half of `artifact_store`'s rule: a run replacing findings under a build
+        # in progress would give the workbook tabs from two different runs.
+        if artifact_store.build_in_progress() is not None:
+            messages.error(
+                request,
+                "A workbook is being built from the current findings. Run findings once it "
+                "finishes - see Downloads.")
+            return HttpResponseRedirect(control_list_url)
 
         # Opened HERE, not on the thread: the page this redirects to has to find the run
         # already in progress, or it renders as idle and never refreshes.
@@ -585,6 +594,21 @@ class ControlRunFindingsView(View):
             "finishes, and you can browse away without stopping it.",
         )
         return HttpResponseRedirect(control_list_url)
+
+
+class ControlRunFindingsStatusView(View):
+    """`{"run": <pk>}` while a findings run is in progress, `{"run": null}` when none is.
+
+    What the controls page polls instead of reloading itself. It reloaded every five seconds
+    until 2026-10-14, and a reload that hit a 500 - SQLite's "database is locked" while the
+    run held the write lock - replaced the page with an error page that carried no reload
+    script, so the refresh stopped for good on one bad response. A poll that fails is just
+    tried again; the page reloads once, when the run it is showing has finished.
+    """
+
+    def get(self, request, *args, **kwargs):
+        run = findings_run_in_progress()
+        return JsonResponse({"run": run.pk if run is not None else None})
 
 
 class ControlDetailView(DetailView):
@@ -968,33 +992,119 @@ class FindingsDomainView(TemplateView):
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-class FindingsWorkbookView(View):
-    """The engineer-detail workbook, as a download.
+class WorkbookBuildView(View):
+    """Start building the workbook in the background, then go to Downloads to collect it.
 
-    Built on the request, synchronously - Jason, 2026-09-28: "synchronously is fine for now".
-    MEASURED at 10.2s for the lab's 153 KB workbook, which is longer than it sounds when a
-    browser gives no sign that anything is happening; a second click starts a second build.
-    The build is one query per finding model per tab, so on a real estate the fix is a stored
-    artifact and a job rather than a longer timeout.
+    It was built on the request until 2026-10-14 - 10.2s on the lab, with nothing on screen and
+    a second click starting a second build, and slower on the VDI an engagement actually runs
+    on. Jason, 2026-10-14: a background process, and a view listing the files to download.
+    See `artifact_store` for why a build and a findings run refuse each other.
+    """
 
-    `build_workbook()` returns bytes and knows nothing about the filesystem, which is exactly
-    what makes this fifteen lines. The guard path is the part worth having: `ArtifactBuildError`
-    derives from `Exception` rather than `SystemExit` so a web worker can CATCH it - a guard
-    refusing means the workbook would have been wrong, and the reader needs to be told which
-    guard and why, not handed a 500 or, worse, the wrong file.
+    def post(self, request, *args, **kwargs):
+        downloads_url = reverse("assessment_downloads")
+        try:
+            artifact_store.require_media_root()
+        except ImproperlyConfigured as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(downloads_url)
+        if findings_run_in_progress() is not None:
+            messages.error(
+                request,
+                "A findings run is in progress. Build the workbook once it finishes - built "
+                "now, its tabs could come from two different runs.")
+            return HttpResponseRedirect(downloads_url)
+        if artifact_store.build_in_progress() is not None:
+            messages.error(request, "A workbook is already being built.")
+            return HttpResponseRedirect(downloads_url)
+
+        # Opened HERE, not on the thread, so the page this redirects to already lists it.
+        artifact = artifact_store.open_workbook_build()
+        threading.Thread(
+            target=artifact_store.build_workbook_in_background,
+            args=(artifact.pk,),
+            name=f"workbook-build-{artifact.pk}",
+            daemon=True,
+        ).start()
+        messages.success(
+            request,
+            "Building the workbook in the background. It appears here when it is ready, and "
+            "you can browse away without stopping it.")
+        return HttpResponseRedirect(downloads_url)
+
+
+class DownloadsView(TemplateView):
+    """Every built deliverable, kept until somebody deletes it (Jason, 2026-10-14)."""
+
+    template_name = "assessments/downloads.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        latest_run = (AssessmentRun.objects.filter(status=AssessmentRun.Status.COMPLETED)
+                      .order_by("-pk").first())
+        rows = []
+        for artifact in GeneratedArtifact.objects.select_related("assessment_run"):
+            rows.append({
+                "artifact": artifact,
+                "orphaned": artifact_store.is_orphaned(artifact),
+                # FLAGGED, not refused (Jason, 2026-10-14). A file from an older run, or from a
+                # run a reseed has since discarded, is not what the findings pages now show -
+                # which matters most when the file is about to be sent to a client.
+                "stale": (artifact.status == GeneratedArtifact.Status.READY
+                          and (artifact.assessment_run_id is None
+                               or (latest_run is not None
+                                   and artifact.assessment_run_id < latest_run.pk))),
+            })
+        context["rows"] = rows
+        context["building"] = artifact_store.build_in_progress()
+        return context
+
+
+class ArtifactDownloadView(View):
+    """The stored file, through Django rather than MEDIA_URL.
+
+    These are client-sensitive. A media URL would serve them to anybody who can reach the
+    server, and needs the host to configure file serving besides.
+    """
+
+    def get(self, request, pk, *args, **kwargs):
+        artifact = get_object_or_404(
+            GeneratedArtifact, pk=pk, status=GeneratedArtifact.Status.READY)
+        if not artifact.file:
+            raise Http404("this build has no file")
+        try:
+            handle = artifact.file.open("rb")
+        except FileNotFoundError:
+            raise Http404("the file for this build is no longer on disk")
+        return FileResponse(handle, as_attachment=True, filename=artifact.filename,
+                            content_type=XLSX_CONTENT_TYPE)
+
+
+class ArtifactDeleteView(View):
+    """Delete a build and its file. A build still running is refused: its thread would write
+    the file after the row was gone, and nothing would list it."""
+
+    def post(self, request, pk, *args, **kwargs):
+        artifact = get_object_or_404(GeneratedArtifact, pk=pk)
+        if (artifact.status == GeneratedArtifact.Status.BUILDING
+                and not artifact_store.is_orphaned(artifact)):
+            messages.error(request, "That workbook is still being built.")
+        else:
+            artifact.delete()
+            messages.success(request, f"Deleted {artifact.filename or 'the build'}.")
+        return HttpResponseRedirect(reverse("assessment_downloads"))
+
+
+class ArtifactBuildStatusView(View):
+    """`{"building": <pk>}` while a build is running, `{"building": null}` when none is.
+
+    What Downloads polls, for the reason `ControlRunFindingsStatusView` gives: a page that
+    reloads itself on a timer stops for good the first time a reload is answered with an error.
     """
 
     def get(self, request, *args, **kwargs):
-        try:
-            content, _reports = build_workbook()
-        except ArtifactBuildError as exc:
-            messages.error(request, f"The workbook was not built: {exc}")
-            return HttpResponseRedirect(reverse("assessment_findings_summary"))
-
-        filename = workbook_filename(get_application_environment())
-        response = HttpResponse(content, content_type=XLSX_CONTENT_TYPE)
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+        artifact = artifact_store.build_in_progress()
+        return JsonResponse({"building": artifact.pk if artifact is not None else None})
 
 
 def findings_href_for(config_object) -> str:

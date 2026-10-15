@@ -17,11 +17,16 @@ from assessments.views import (
     ControlListView,
     FindingsDomainView,
     FindingsSummaryView,
-    FindingsWorkbookView,
+    WorkbookBuildView,
+    DownloadsView,
+    ArtifactDownloadView,
+    ArtifactDeleteView,
+    ArtifactBuildStatusView,
     ControlQueryCreateView,
     ControlQueryDeleteView,
     ControlQueryUpdateView,
     ControlRunFindingsView,
+    ControlRunFindingsStatusView,
     ControlUpdateView,
     ConfigurationObjectView,
     ConfigurationIndexView,
@@ -34,12 +39,12 @@ urlpatterns = [
         FindingsSummaryView.as_view(),
         name="assessment_findings_summary",
     ),
-    # Before the slug route, which would otherwise swallow "workbook" and 404 on a domain
-    # that does not exist.
+    # Two segments, so `findings/<slug:slug>/` cannot swallow it. The single-segment
+    # `findings/workbook/` it replaced had to be ordered before the slug route to avoid that.
     path(
-        "findings/workbook/",
-        FindingsWorkbookView.as_view(),
-        name="assessment_findings_workbook",
+        "findings/workbook/build/",
+        WorkbookBuildView.as_view(),
+        name="assessment_workbook_build",
     ),
     path(
         "findings/<slug:slug>/",
@@ -90,6 +95,33 @@ urlpatterns = [
         "controls/run-findings/",
         ControlRunFindingsView.as_view(),
         name="assessment_control_run_findings",
+    ),
+    path(
+        "controls/run-findings/status/",
+        ControlRunFindingsStatusView.as_view(),
+        name="assessment_control_run_findings_status",
+    ),
+    # Built deliverables. Its own prefix rather than under findings/, whose `<slug>` would
+    # otherwise have to be kept clear of every name used here.
+    path(
+        "downloads/",
+        DownloadsView.as_view(),
+        name="assessment_downloads",
+    ),
+    path(
+        "downloads/status/",
+        ArtifactBuildStatusView.as_view(),
+        name="assessment_downloads_status",
+    ),
+    path(
+        "downloads/<int:pk>/",
+        ArtifactDownloadView.as_view(),
+        name="assessment_artifact_download",
+    ),
+    path(
+        "downloads/<int:pk>/delete/",
+        ArtifactDeleteView.as_view(),
+        name="assessment_artifact_delete",
     ),
     path(
         "system/",

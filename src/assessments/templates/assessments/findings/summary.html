@@ -30,23 +30,28 @@ grouped by the product's own categories rather than by anything invented here.
                     <span>Run {{ run.pk }}{% if run.completed_at %} · {{ run.completed_at|date:"Y-m-d H:i" }} UTC{% endif %}</span>
                     {% endif %}
                     {% comment %}
-                    The whole workbook, from the page that is its Summary tab. It builds on the
-                    request - 10.2s on the lab - and the browser shows nothing while it does,
-                    so the wait is said in the title rather than left as an unexplained pause.
+                    The whole workbook, from the page that is its Summary tab. Built in the
+                    background since 2026-10-14 and collected from Downloads - it was built on
+                    the request, and the browser showed nothing for as long as that took.
                     {% endcomment %}
-                    <a href="{% url 'assessment_findings_workbook' %}"
-                       title="Builds the workbook now. The lab takes about ten seconds; there is no progress indicator, so give it a moment rather than clicking again."
-                       class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
-                        Download Workbook
-                    </a>
+                    <a href="{% url 'assessment_downloads' %}"
+                       class="text-[12px] font-medium text-blue-700 hover:underline">Downloads</a>
+                    <form method="post" action="{% url 'assessment_workbook_build' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                title="Builds the workbook in the background. It is listed on Downloads when it is ready."
+                                class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                            Build Workbook
+                        </button>
+                    </form>
                 </div>
             </div>
 
             {% if messages %}
             {% comment %}
-            base.html does not render messages - each page does its own - so without this block
-            a guard refusing to build the workbook would redirect here and say NOTHING, which
-            is the failure the guards exist to prevent.
+            base.html does not render messages - each page does its own. A refused workbook
+            build used to redirect here; since 2026-10-14 builds report on Downloads, and this
+            block stays for any message left pending when the reader arrives.
             {% endcomment %}
             <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-2">
                 <div class="flex flex-col gap-2">
