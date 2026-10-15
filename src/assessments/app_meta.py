@@ -99,9 +99,10 @@ SIDEBAR_SECTION = [
                 #: Findings page that offers the button.
                 "label": "Downloads",
                 "href": "/assessments/downloads/",
-                #: Not "download": OptivEdge ships a fixed set of icons and that is not among
-                #: them, and an icon it cannot find breaks every page drawing the sidebar.
-                "icon": "book-marked",
+                #: Shipped by OptivEdge from 01ad75d. An older OptivEdge lacks it, and an icon the
+                #: lucide tag cannot find breaks every page drawing the sidebar - so this needs
+                #: that OptivEdge or later, which `@main` provides.
+                "icon": "download",
                 "active_names": {
                     "assessment_downloads",
                 },
