@@ -46,7 +46,7 @@ from django.db.models import JSONField
 
 from assessments import finding_registry
 from assessments.control_queries import SEVERITY_RANK
-from assessments.models import Control
+from assessments.models import AssessmentRun, Control
 from optivedge_integrations.integrations.models import Appliance, FieldProvenance, Snapshot
 
 from ..layout import (
@@ -627,6 +627,11 @@ def build_rows(spec, findings, controls, settings, tested=None):
     collected = collected_at_by_snapshot(findings)
     #: (row index, column index) of every cell holding a value the row's control tests.
     implicated = []
+    #: The subject and setting cells, per subject. They read the subject and nothing about the
+    #: finding - `provenance_of` is bound to the subject too - so a rule with findings under ten
+    #: controls drew the same cells ten times. Production, 2026-10-15: 126k rule findings on
+    #: 12k rules, and the Profiles cell alone walked each rule's verdicts 22 times per row.
+    cells_by_subject = {}
 
     rows = []
     for row_index, finding in enumerate(findings):
@@ -678,9 +683,13 @@ def build_rows(spec, findings, controls, settings, tested=None):
         else:
             prov = "\n".join(p for p, _ in cells)
 
-        subject_cells = [read(policy, provenance_of)
-                         for _h, _w, _wrap, read, _f in map(as_column, spec.subject_columns)]
-        setting_cells = [read(policy, provenance_of) for _h, _w, _wrap, read, _f in settings]
+        subject_key = (type(policy), policy.pk)
+        if subject_key not in cells_by_subject:
+            cells_by_subject[subject_key] = (
+                [read(policy, provenance_of)
+                 for _h, _w, _wrap, read, _f in map(as_column, spec.subject_columns)],
+                [read(policy, provenance_of) for _h, _w, _wrap, read, _f in settings])
+        subject_cells, setting_cells = cells_by_subject[subject_key]
 
         tested_cell_values = tested_cells(spec, finding, policy, shown, prov, tested)
         source_cells = [read(policy, remediation_of, shown)
@@ -756,7 +765,15 @@ def verbatim_payload_paths(kind, spec) -> tuple:
     return tuple(deferred)
 
 
-def load(spec):
+def load(spec, subjects=None):
+    """A domain's controls and findings, each finding carrying its control and its subject.
+
+    `subjects` is a build's cache (`WorkbookBuild.subjects`): pass it and a subject another tab
+    already loaded THE SAME WAY - same model, same joins, same prefetches - is reused rather
+    than loaded again. Six tabs report on security rules; production, 2026-10-15, loaded its
+    12,188 rules and their ten member sets six times over, and most of the build's 3.3 million
+    model instances were those copies. A live page passes nothing and loads its own.
+    """
     selected = Control.objects.filter(control_type__in=spec.control_types, is_active=True)
     if spec.control_ids:
         selected = selected.filter(control_id__in=spec.control_ids)
@@ -772,18 +789,24 @@ def load(spec):
     # 6s, with no query to show for it. So the subjects are loaded once, by id, and the control
     # each finding names is the one already loaded above with its queries.
     for kind in spec.kinds_for(controls):
-        rows = list(
-            kind.model.objects
-            .filter(control__in=controls)
-            .select_related("assessment_run"))
+        # No `select_related("assessment_run")`: a join builds a run per FINDING. One run is
+        # shared instead, below, the same way the control is.
+        rows = list(kind.model.objects.filter(control__in=controls))
         prefix = f"{kind.subject_field}__"
         subject_model = kind.model._meta.get_field(kind.subject_field).related_model
+        deferred = tuple(path.removeprefix(prefix) for path in verbatim_payload_paths(kind, spec)
+                         if path.startswith(prefix))
         subject_ids = {getattr(row, f"{kind.subject_field}_id") for row in rows}
-        subjects = subject_model.objects.filter(pk__in=subject_ids).select_related(
-            *spec.subject_select_related).prefetch_related(*spec.subject_prefetch).defer(
-            *(path.removeprefix(prefix) for path in verbatim_payload_paths(kind, spec)
-              if path.startswith(prefix)))
-        subject_by_id = {subject.pk: subject for subject in subjects}
+        cache_key = (subject_model, tuple(spec.subject_select_related),
+                     tuple(spec.subject_prefetch), deferred)
+        subject_by_id = {} if subjects is None else subjects.setdefault(cache_key, {})
+        missing = subject_ids - subject_by_id.keys()
+        if missing:
+            subject_by_id.update(
+                (subject.pk, subject) for subject in
+                subject_model.objects.filter(pk__in=missing).select_related(
+                    *spec.subject_select_related).prefetch_related(
+                    *spec.subject_prefetch).defer(*deferred))
         for row in rows:
             row.control = control_by_id[row.control_id]
             setattr(row, kind.subject_field,
@@ -796,6 +819,10 @@ def load(spec):
     runs = {f.assessment_run_id for f in findings}
     if len(runs) > 1:
         raise ArtifactBuildError(f"{spec.sheet_title}: rows span runs {sorted(runs)}; refusing to merge")
+    if runs:
+        run = AssessmentRun.objects.get(pk=runs.pop())
+        for finding in findings:
+            finding.assessment_run = run
     return controls, findings
 
 
@@ -856,12 +883,13 @@ class FindingsTable:
         return [header for header, _width, _wrap in self.columns]
 
 
-def build_findings_table(spec, *, tested=None) -> FindingsTable:
+def build_findings_table(spec, *, tested=None, subjects=None) -> FindingsTable:
     """Load a domain's findings and lay them out. No workbook, no request, no template.
 
     `tested` is how a surface asks for more than the spec's tab carries - see `tested_cells`.
+    `subjects` is the build's subject cache - see `load`.
     """
-    controls, findings = load(spec)
+    controls, findings = load(spec, subjects)
     settings = setting_columns(spec, controls)
     check_every_tested_field_is_presented(spec, controls, settings)
     rows, implicated = build_rows(spec, findings, controls, settings, tested)
@@ -899,7 +927,7 @@ def build_findings_table(spec, *, tested=None) -> FindingsTable:
 
 def write_sheet(build, spec) -> SheetInfo:
     workbook = build.workbook
-    table = build_findings_table(spec)
+    table = build_findings_table(spec, subjects=build.subjects)
     controls, findings = table.controls, table.findings
     rows, implicated = table.rows, table.implicated
     columns, title, category = table.columns, table.title, table.category

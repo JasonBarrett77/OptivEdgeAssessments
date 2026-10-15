@@ -640,6 +640,49 @@ class RuleTabsDoNotQueryPerRowTests(TestCase):
                 self.assertEqual(three_queries, one_queries,
                                  f"{domain.slug} costs a query per row")
 
+    def rule_domains(self):
+        from assessments.artifacts.domains import DOMAINS
+
+        return [domain for domain in DOMAINS
+                if domain.slug == "security-rules" or domain.slug.endswith("-by-rule")]
+
+    def test_the_rule_tabs_of_one_build_load_the_rules_once(self):
+        """Six tabs report on security rules and each loaded every rule and its ten member sets
+        again. Production, 2026-10-15: 12,188 rules, and most of the build's 3.3 million model
+        instances were those copies - the queries were constant, so only time showed it."""
+        from assessments.artifacts import build_findings_table
+
+        self.add_rules(3)
+        rule_table = re.compile(r'FROM "integrations_securityrule"(?:\s|$)')
+        shared = WorkbookBuild(workbook=None).subjects
+        loads = []
+        for domain in self.rule_domains():
+            with CaptureQueriesContext(connection) as captured:
+                table = build_findings_table(domain.spec, subjects=shared)
+            self.assertTrue(table.rows, domain.slug)
+            loads.append(sum(bool(rule_table.search(q["sql"])) for q in captured))
+
+        self.assertEqual(loads, [1] + [0] * (len(loads) - 1))
+
+    def test_a_rule_is_drawn_once_per_tab_however_many_findings_it_has(self):
+        """The subject cells read the rule and nothing about the finding, and were drawn per
+        ROW: ten controls firing on one rule drew its Profiles cell ten times, each walking the
+        rule's verdicts twenty-two times. That was the largest single cost in production."""
+        from unittest import mock
+
+        from assessments.artifacts import build_findings_table
+        from assessments.artifacts.sheets import security_rules
+
+        self.add_rules(2)
+        domain = max(self.rule_domains(),
+                     key=lambda d: len(build_findings_table(d.spec).rows))
+        with mock.patch.object(security_rules, "profiles_in_force",
+                               wraps=security_rules.profiles_in_force) as drawn:
+            table = build_findings_table(domain.spec)
+
+        self.assertGreater(len(table.rows), 2, "a rule must carry several findings here")
+        self.assertEqual(drawn.call_count, 2)
+
 
 class BulkProvenanceTests(TestCase):
     """Provenance is read from an index built up front, never per object in a row loop.

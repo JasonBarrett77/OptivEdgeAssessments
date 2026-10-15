@@ -551,6 +551,22 @@ stayed invisible - 0.026s on the lab. `test_artifacts` now refuses any `provenan
 under `artifacts/`, parsed with `ast` rather than grepped, because the docstrings there NAME the
 call they replaced and a text match cannot tell an explanation from a reintroduction.
 
+**A rule is loaded once per build and drawn once per tab** (2026-10-15). Production, measured
+with `profile_assessment_workbook`: 12,188 rules, 126k rule findings, 150s, of which the six
+rule tabs were 134s - with constant query counts throughout, so nothing but time showed it. Two
+repetitions, both per-row work on a per-RULE answer:
+
+* every rule tab loaded every rule and its ten member sets again. `WorkbookBuild.subjects`
+  shares them: `load` reuses a subject another tab loaded with the same model, joins,
+  prefetches and deferrals. It is per build for the reason `ANCHORS` is.
+* the subject and setting cells read the subject and nothing about the finding, and were drawn
+  per finding. `build_rows` draws them once per subject - ten controls on one rule drew its
+  Profiles cell ten times, each walking the rule's verdicts twenty-two times.
+
+The `select_related("assessment_run")` went with them: it built a run per finding, and one run
+is now shared. Lab: 7.2s to 3.1s, workbook identical but for the build timestamp.
+`test_artifacts.RuleTabsDoNotQueryPerRowTests` pins both.
+
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
 the state's lifetime equal to the file's.

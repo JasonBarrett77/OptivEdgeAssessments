@@ -122,7 +122,7 @@ def notes_for(members, values) -> str:
 def write_sheet(build) -> SheetInfo:
     workbook = build.workbook
     spec = security_rules_sheet.SPEC
-    controls, findings = load(spec)
+    controls, findings = load(spec, build.subjects)
     # FIELD_BY_COLUMN is hand-kept, so it goes stale silently: a control testing a field no column
     # here presents would fold into a row that says nothing about why it fired.
     presented = set(FIELD_BY_COLUMN.values()) | set(spec.hidden_fields)

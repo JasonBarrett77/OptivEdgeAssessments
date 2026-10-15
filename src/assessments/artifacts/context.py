@@ -38,6 +38,12 @@ class WorkbookBuild:
     #: Formats are registered with one workbook and cannot be used with another.
     formats: dict[Any, Any] = field(default_factory=dict)
 
+    #: Subjects already loaded, shared by every tab that loads them the same way - see
+    #: `findings.load`. Six tabs report on security rules, and each loaded every rule and its
+    #: ten member sets again. Per build, for the reason above: a later build must read the
+    #: database, not an earlier build's objects.
+    subjects: dict[Any, dict] = field(default_factory=dict)
+
     def format(self, key, properties):
         """A format made once per workbook, by key."""
         if key not in self.formats:
