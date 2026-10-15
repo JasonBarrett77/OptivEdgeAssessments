@@ -18,14 +18,12 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
 from django.contrib.messages import get_messages
 from django.test import TestCase, override_settings
 from django.urls import reverse
-from django.utils import timezone
 
 from assessments import artifact_store
 from assessments.artifacts import ArtifactBuildError
@@ -153,20 +151,38 @@ class BuildViewTests(_MediaRoot):
             status=AssessmentRun.Status.RUNNING).count(), 0)
         self.assertIn("workbook is being built", self.last_message(response))
 
-    def test_an_orphaned_build_blocks_nothing(self):
-        """A restart kills the daemon thread and leaves the row BUILDING. Without the age limit
-        that would disable both buttons for good."""
+    def test_a_restart_closes_the_build_it_killed(self):
+        """A restart kills the daemon thread and leaves the row BUILDING, which would disable
+        both buttons for good. The next server process closes it, and says why on the row."""
+        from optivedge.lifecycle import server_started
+
         self.post()
-        GeneratedArtifact.objects.update(
-            requested_at=timezone.now() - artifact_store.BUILD_LOCK_MAX_AGE - timedelta(minutes=1))
+        server_started.send(sender=None)
 
         orphan = GeneratedArtifact.objects.get()
-
+        self.assertEqual(orphan.status, GeneratedArtifact.Status.FAILED)
+        self.assertIn("server restarted", orphan.error)
+        self.assertIsNone(artifact_store.build_in_progress())
         _response, thread = self.post()
-
         thread.assert_called_once()
-        self.assertEqual(GeneratedArtifact.objects.count(), 2)
-        self.assertNotEqual(artifact_store.build_in_progress(), orphan)
+
+    def test_a_build_is_refused_while_the_configuration_is_being_replaced(self):
+        with mock.patch("assessments.views.integration_work_in_progress", return_value=True):
+            response, thread = self.post()
+
+        thread.assert_not_called()
+        self.assertFalse(GeneratedArtifact.objects.exists())
+        self.assertIn("collection or normalization is running", self.last_message(response))
+
+    def test_without_a_findings_run_nothing_is_built(self):
+        """Every tab would be empty: a clean estate, on a deliverable, that nothing assessed."""
+        AssessmentRun.objects.all().delete()
+
+        response, thread = self.post()
+
+        thread.assert_not_called()
+        self.assertFalse(GeneratedArtifact.objects.exists())
+        self.assertIn("No findings run", self.last_message(response))
 
     @override_settings(MEDIA_ROOT="")
     def test_without_a_media_root_nothing_is_built(self):
@@ -227,9 +243,10 @@ class KeepingTests(_MediaRoot):
         self.assertTrue(GeneratedArtifact.objects.filter(pk=artifact.pk).exists())
 
     def test_an_interrupted_build_can_be_deleted(self):
+        from optivedge.lifecycle import server_started
+
         artifact = artifact_store.open_workbook_build()
-        GeneratedArtifact.objects.update(
-            requested_at=timezone.now() - artifact_store.BUILD_LOCK_MAX_AGE - timedelta(minutes=1))
+        server_started.send(sender=None)
 
         self.client.post(reverse("assessment_artifact_delete", args=[artifact.pk]))
 

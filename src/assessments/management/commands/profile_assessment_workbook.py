@@ -4,8 +4,10 @@ Built for an environment nobody can attach a profiler to: production, reached on
 `pip install`, where Build Workbook took about three minutes against 7.6s on the lab
 (2026-10-14). The file is meant to be read off a screen, so it is short and fixed-width.
 
-It builds the workbook exactly as Build Workbook does, and keeps nothing: no file is stored, no
-row is written, so it is safe to run against a live engagement. Run it while nothing else is
+It builds the workbook exactly as Build Workbook does, and keeps no workbook: no file is stored
+and nothing appears on Downloads, so it is safe to run against a live engagement. Like any
+build, it stores the findings tables it had to rebuild (`artifacts/stored.py`) - so a second
+run measures the build as a reader after Run Findings sees it. Run it while nothing else is
 writing - a findings run mid-way would hand later sheets a different run's findings, which is
 what `artifact_store` refuses to let a real build do.
 

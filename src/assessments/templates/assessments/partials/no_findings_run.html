@@ -1,0 +1,10 @@
+{% comment %}
+No run to show: an empty findings page reads as a clean estate otherwise. A normalization
+discards every run (lifecycle.py), and so does applying a catalog - so this is the page's
+state after either, until Run Findings fills it again.
+{% endcomment %}
+{% if no_findings_run %}
+<div data-no-findings-run class="shrink-0 border-y border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+    {{ no_findings_run }}
+</div>
+{% endif %}

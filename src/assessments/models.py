@@ -1841,3 +1841,41 @@ class GeneratedArtifact(models.Model):
 
     def __str__(self) -> str:
         return self.filename or f"{self.get_kind_display()} {self.pk}"
+
+
+class PresentedTable(models.Model):
+    """A findings table as the pages and the workbook draw it, kept for the run it describes.
+
+    Every page load and every workbook build rebuilt each table from the findings, their
+    subjects and the subjects' members - 136k rows on production, most of a 81s build, and a
+    domain page that took as long to open as its tab took to write. What a row says is a
+    function of the run, the catalog and the presentation code, and nothing else, because a run
+    does not outlive the configuration it was computed from (`lifecycle.py`). So it is kept:
+
+    * **with the run** - CASCADE, so a discarded run takes its tables, and a reseed or a
+      normalization needs nothing of its own to invalidate them
+    * **under a fingerprint** of the catalog this table reads and the code that lays it out - a
+      control edited after the run, or a package upgrade, misses and rebuilds instead of
+      showing the old layout
+
+    `artifacts/stored.py` is the only reader and writer.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="presented_tables")
+    #: A domain slug, or another table's own name - see `artifacts/stored.py`.
+    key = models.CharField(max_length=100)
+    fingerprint = models.CharField(max_length=64)
+    #: zlib-compressed JSON. The cells repeat heavily - a rule's columns appear once per finding
+    #: on it - so this is a tenth of its text.
+    payload = models.BinaryField()
+    created_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["assessment_run", "key"],
+                                    name="assessments_presented_table_unique_per_run"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.key} for run {self.assessment_run_id}"

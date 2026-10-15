@@ -47,6 +47,8 @@ grouped by the product's own categories rather than by anything invented here.
                 </div>
             </div>
 
+            {% include "assessments/partials/no_findings_run.html" %}
+
             {% if messages %}
             {% comment %}
             base.html does not render messages - each page does its own. A refused workbook

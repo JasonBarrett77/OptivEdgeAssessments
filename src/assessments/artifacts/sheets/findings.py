@@ -765,6 +765,16 @@ def verbatim_payload_paths(kind, spec) -> tuple:
     return tuple(deferred)
 
 
+def selected_controls(spec):
+    """The controls a table reports on: active, of its types, narrowed by its id lists."""
+    selected = Control.objects.filter(control_type__in=spec.control_types, is_active=True)
+    if spec.control_ids:
+        selected = selected.filter(control_id__in=spec.control_ids)
+    if spec.exclude_control_ids:
+        selected = selected.exclude(control_id__in=spec.exclude_control_ids)
+    return selected
+
+
 def load(spec, subjects=None):
     """A domain's controls and findings, each finding carrying its control and its subject.
 
@@ -774,12 +784,7 @@ def load(spec, subjects=None):
     12,188 rules and their ten member sets six times over, and most of the build's 3.3 million
     model instances were those copies. A live page passes nothing and loads its own.
     """
-    selected = Control.objects.filter(control_type__in=spec.control_types, is_active=True)
-    if spec.control_ids:
-        selected = selected.filter(control_id__in=spec.control_ids)
-    if spec.exclude_control_ids:
-        selected = selected.exclude(control_id__in=spec.exclude_control_ids)
-    controls = list(selected.prefetch_related("queries").order_by("control_id"))
+    controls = list(selected_controls(spec).prefetch_related("queries").order_by("control_id"))
     control_by_id = {control.pk: control for control in controls}
     findings = []
     # SHARED, NOT JOINED. A subject with findings under several controls is ONE object, and
@@ -877,6 +882,10 @@ class FindingsTable:
     controls: list
     by_severity: dict
     runs: set
+    #: Per row, what a surface needs beyond the cells: the finding's severity, its control's
+    #: pk and its subject's appliance pk, or None. A STORED table (`artifacts/stored.py`) has
+    #: no finding objects, so the surfaces read these rather than `findings`.
+    row_meta: list = field(default_factory=list)
 
     @property
     def headers(self):
@@ -907,6 +916,12 @@ def build_findings_table(spec, *, tested=None, subjects=None) -> FindingsTable:
             f"{spec.sheet_title}: built {len(rows)} rows but {expected} findings exist for its "
             f"controls")
 
+    row_meta = []
+    for finding in findings:
+        appliance = spec.appliance_of(spec.kind_for(finding.control.control_type).subject_of(finding))
+        row_meta.append({"severity": finding.severity, "control": finding.control_id,
+                         "appliance": appliance.pk if appliance is not None else None})
+
     return FindingsTable(
         spec=spec,
         title=spec.sheet_title,
@@ -922,13 +937,16 @@ def build_findings_table(spec, *, tested=None, subjects=None) -> FindingsTable:
         controls=controls,
         by_severity=dict(by_severity),
         runs={f.assessment_run_id for f in findings},
+        row_meta=row_meta,
     )
 
 
 def write_sheet(build, spec) -> SheetInfo:
     workbook = build.workbook
-    table = build_findings_table(spec, subjects=build.subjects)
-    controls, findings = table.controls, table.findings
+    from ..stored import stored_findings_table
+
+    table = stored_findings_table(spec, subjects=build.subjects)
+    controls = table.controls
     rows, implicated = table.rows, table.implicated
     columns, title, category = table.columns, table.title, table.category
     by_severity = table.by_severity
@@ -941,7 +959,7 @@ def write_sheet(build, spec) -> SheetInfo:
         count_groups=[
             [(len(controls), plural(len(controls), "active control"), None),
              (appliances, plural(appliances, "appliance"), None),
-             (len(findings), plural(len(findings), "finding"), None)],
+             (len(rows), plural(len(rows), "finding"), None)],
             severity_group(by_severity),
         ],
         rationale=rationales.pop() if len(rationales) == 1 else None)
@@ -959,20 +977,18 @@ def write_sheet(build, spec) -> SheetInfo:
     # The Control ID cell opens that control's row on the Controls tab, where its remediation,
     # audit path and firing condition are written once instead of down every row.
     control_col = headers.index("Control ID")
-    for i, finding in enumerate(findings):
-        write_link(build, sheet, top + 1 + i, control_col, "control", finding.control_id,
+    for i, meta in enumerate(table.row_meta):
+        write_link(build, sheet, top + 1 + i, control_col, "control", meta["control"],
                    rows[i][control_col])
 
     # The Appliance cell opens that appliance's row on the Appliances tab, where the subject has
     # one appliance to open.
     if "Appliance" in headers:
         appliance_col = headers.index("Appliance")
-        for i, finding in enumerate(findings):
-            subject = spec.kind_for(finding.control.control_type).subject_of(finding)
-            appliance = spec.appliance_of(subject)
-            if appliance is not None:
-                write_link(build, sheet, top + 1 + i, appliance_col, "appliance", appliance.pk,
-                           rows[i][appliance_col])
+        for i, meta in enumerate(table.row_meta):
+            if meta["appliance"] is not None:
+                write_link(build, sheet, top + 1 + i, appliance_col, "appliance",
+                           meta["appliance"], rows[i][appliance_col])
 
     severity_col = headers.index("Severity")
     for text, colour in SEVERITY_FILL.items():

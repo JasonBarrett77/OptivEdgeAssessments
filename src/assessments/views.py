@@ -15,7 +15,7 @@ from collections import defaultdict
 from assessments.artifacts import (
     ALL_TESTED_COLUMNS,
     ArtifactBuildError,
-    build_findings_table,
+    stored_findings_table,
 )
 from assessments import artifact_store
 from assessments.artifacts import domains as artifact_domains
@@ -29,6 +29,7 @@ from assessments.control_queries import (
     evaluate_queryset_control_queries,
     severity_label,
 )
+from assessments.lifecycle import NO_FINDINGS_RUN
 from assessments.finding_run import (
     findings_run_in_progress,
     open_findings_run,
@@ -107,6 +108,7 @@ from django.views import View
 
 logger = logging.getLogger(__name__)
 
+from optivedge_integrations.integrations.lifecycle import integration_work_in_progress
 from optivedge_integrations.integrations.presentation import (
     entry_device_group_name,
     listed_address_ref_values,
@@ -577,6 +579,13 @@ class ControlRunFindingsView(View):
                 "A workbook is being built from the current findings. Run findings once it "
                 "finishes - see Downloads.")
             return HttpResponseRedirect(control_list_url)
+        # Collection and renormalize rewrite the configuration a run reads - see lifecycle.py.
+        if integration_work_in_progress():
+            messages.error(
+                request,
+                "A collection or normalization is running. Run findings once it finishes - "
+                "until then the configuration is being replaced.")
+            return HttpResponseRedirect(control_list_url)
 
         # Opened HERE, not on the thread: the page this redirects to has to find the run
         # already in progress, or it renders as idle and never refreshes.
@@ -926,7 +935,14 @@ class FindingsSummaryView(TemplateView):
         # the heading above them cannot fall out of step.
         context["severity_headers"] = severity_cells({})
         context["run"] = AssessmentRun.objects.order_by("-pk").first()
+        context["no_findings_run"] = (
+            NO_FINDINGS_RUN if artifact_store.findings_run_of_record() is None else "")
         return context
+
+
+#: Rows per findings page. Enough that most domains are one page; few enough that the largest
+#: renders without the browser stalling.
+FINDINGS_PAGE_SIZE = 500
 
 
 class FindingsDomainView(TemplateView):
@@ -951,9 +967,11 @@ class FindingsDomainView(TemplateView):
         domain = self.get_domain()
         context["domain"] = domain
         context["domains"] = artifact_domains.DOMAINS
+        context["no_findings_run"] = (
+            NO_FINDINGS_RUN if artifact_store.findings_run_of_record() is None else "")
 
         try:
-            table = build_findings_table(domain.spec, tested=ALL_TESTED_COLUMNS)
+            table = stored_findings_table(domain.spec, tested=ALL_TESTED_COLUMNS)
         except ArtifactBuildError as exc:
             # A guard refused - a control testing a field no column presents, or a row count
             # that does not match the findings. Saying so beats a 500 and beats a page that
@@ -966,8 +984,14 @@ class FindingsDomainView(TemplateView):
         controls_by_id = {c.control_id: c for c in table.controls}
         implicated = set(table.implicated)
 
+        # Paged: the anti-spyware domain is 43,805 rows on production, and a page holding all
+        # of them is slow in the browser whatever the server does. The counts above the table
+        # still cover the whole domain.
+        page_obj = Paginator(range(len(table.rows)), FINDINGS_PAGE_SIZE).get_page(
+            self.request.GET.get("page"))
         rows = []
-        for index, (row, finding) in enumerate(zip(table.rows, table.findings)):
+        for index in page_obj.object_list:
+            row, meta = table.rows[index], table.row_meta[index]
             cells = []
             for column, value in enumerate(row):
                 control = controls_by_id.get(value) if column == control_column else None
@@ -976,13 +1000,16 @@ class FindingsDomainView(TemplateView):
                     "implicated": (index, column) in implicated,
                     "control_url": (reverse("assessment_control_detail",
                                             kwargs={"pk": control.pk}) if control else ""),
-                    "severity_classes": (_SEVERITY_BADGE_CLASSES.get(finding.severity, "")
+                    "severity_classes": (_SEVERITY_BADGE_CLASSES.get(meta["severity"], "")
                                          if column == severity_column else ""),
                 })
             rows.append(cells)
 
         context["table"] = table
         context["rows"] = rows
+        context["finding_count"] = len(table.rows)
+        context["page_obj"] = page_obj
+        context["page_range"] = pagination_range(page_obj)
         context["severities"] = severity_breakdown(table.by_severity)
         return context
 
@@ -1017,6 +1044,17 @@ class WorkbookBuildView(View):
         if artifact_store.build_in_progress() is not None:
             messages.error(request, "A workbook is already being built.")
             return HttpResponseRedirect(downloads_url)
+        if integration_work_in_progress():
+            messages.error(
+                request,
+                "A collection or normalization is running. Build the workbook once it "
+                "finishes, and after running findings on what it collected.")
+            return HttpResponseRedirect(downloads_url)
+        # Without a run the workbook would be every domain empty - a clean estate, on a
+        # deliverable, about one nothing has assessed.
+        if artifact_store.findings_run_of_record() is None:
+            messages.error(request, NO_FINDINGS_RUN)
+            return HttpResponseRedirect(downloads_url)
 
         # Opened HERE, not on the thread, so the page this redirects to already lists it.
         artifact = artifact_store.open_workbook_build()
@@ -1046,7 +1084,6 @@ class DownloadsView(TemplateView):
         for artifact in GeneratedArtifact.objects.select_related("assessment_run"):
             rows.append({
                 "artifact": artifact,
-                "orphaned": artifact_store.is_orphaned(artifact),
                 # FLAGGED, not refused (Jason, 2026-10-14). A file from an older run, or from a
                 # run a reseed has since discarded, is not what the findings pages now show -
                 # which matters most when the file is about to be sent to a client.
@@ -1086,8 +1123,7 @@ class ArtifactDeleteView(View):
 
     def post(self, request, pk, *args, **kwargs):
         artifact = get_object_or_404(GeneratedArtifact, pk=pk)
-        if (artifact.status == GeneratedArtifact.Status.BUILDING
-                and not artifact_store.is_orphaned(artifact)):
+        if artifact.status == GeneratedArtifact.Status.BUILDING:
             messages.error(request, "That workbook is still being built.")
         else:
             artifact.delete()

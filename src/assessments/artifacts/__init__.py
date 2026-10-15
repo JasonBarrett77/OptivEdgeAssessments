@@ -13,6 +13,7 @@ from __future__ import annotations
 from .errors import ArtifactBuildError
 from .naming import workbook_filename
 from .sheets.findings import ALL_TESTED_COLUMNS, FindingsTable, build_findings_table
+from .stored import stored_findings_table
 from .workbook import build_workbook
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "FindingsTable",
     "build_findings_table",
     "build_workbook",
+    "stored_findings_table",
     "workbook_filename",
 ]

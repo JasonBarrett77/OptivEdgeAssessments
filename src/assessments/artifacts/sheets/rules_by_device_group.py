@@ -119,10 +119,14 @@ def notes_for(members, values) -> str:
             f"{', '.join(differs)} differ between them")
 
 
-def write_sheet(build) -> SheetInfo:
-    workbook = build.workbook
+def fold(subjects=None) -> dict:
+    """The tab's rows, and what it reports about them - everything that reads the database.
+
+    A plain dict because it is what `stored.stored_payload` keeps: "count" is the number of
+    findings the rows account for, which is what a stored copy is checked against.
+    """
     spec = security_rules_sheet.SPEC
-    controls, findings = load(spec, build.subjects)
+    controls, findings = load(spec, subjects)
     # FIELD_BY_COLUMN is hand-kept, so it goes stale silently: a control testing a field no column
     # here presents would fold into a row that says nothing about why it fired.
     presented = set(FIELD_BY_COLUMN.values()) | set(spec.hidden_fields)
@@ -196,15 +200,38 @@ def write_sheet(build) -> SheetInfo:
         ])
     assert all(len(r) == len(COLUMNS) for r in rows), "row/column mismatch"
 
-    sheet = workbook.add_worksheet(TITLE)
     by_severity = defaultdict(int)
     for finding in findings:
         by_severity[finding.severity] += 1
+    return {"count": len(findings), "rows": rows, "implicated": [list(c) for c in implicated],
+            "by_severity": dict(by_severity),
+            "runs": sorted({f.assessment_run_id for f in findings})}
+
+
+def stored_fold(subjects=None, *, allow_running=False) -> dict:
+    """`fold()`, read from storage where the run's copy is current - see `artifacts/stored.py`."""
+    from ..stored import stored_payload
+
+    compute = lambda: fold(subjects)  # noqa: E731
+    return (stored_payload("RulesByDeviceGroup", security_rules_sheet.SPEC, compute,
+                           allow_running=allow_running)
+            or compute())
+
+
+def write_sheet(build) -> SheetInfo:
+    workbook = build.workbook
+    folded = stored_fold(build.subjects)
+    rows = folded["rows"]
+    implicated = [tuple(cell) for cell in folded["implicated"]]
+    by_severity = folded["by_severity"]
+    finding_count = folded["count"]
+
+    sheet = workbook.add_worksheet(TITLE)
     top = write_header_block(build, sheet, title=TITLE, last_col=len(COLUMNS) - 1,
         tab_colour=TAB_COLOURS["Policies"],
         count_groups=[
             [(len(rows), plural(len(rows), "rule to fix", "rules to fix"), None),
-             (len(findings), plural(len(findings), "finding"), None)],
+             (finding_count, plural(finding_count, "finding"), None)],
             severity_group(by_severity),
         ])
     write_table(build, sheet, top=top, name="RulesByDeviceGroup", columns=COLUMNS, rows=rows,
@@ -226,8 +253,8 @@ def write_sheet(build) -> SheetInfo:
 
     # Every finding must reach a row: the fold may make rows fewer, never findings.
     counted = sum(row[0] for row in rows)
-    if counted != len(findings):
-        raise ArtifactBuildError(f"{TITLE}: rows account for {counted} findings but {len(findings)} exist")
+    if counted != finding_count:
+        raise ArtifactBuildError(f"{TITLE}: rows account for {counted} findings but {finding_count} exist")
     return SheetInfo(
         title=TITLE,
         description="The same policy findings, one row per rule as it is FIXED - by device group "
@@ -235,6 +262,6 @@ def write_sheet(build) -> SheetInfo:
         count=f"{len(rows)} {plural(len(rows), 'rule')}",
         category="Policies",
         secondary=True,
-        report=f"{TITLE}: {len(rows)} rows from {len(findings)} findings "
-               f"({len(findings) - len(rows)} folded)",
-        runs={f.assessment_run_id for f in findings})
+        report=f"{TITLE}: {len(rows)} rows from {finding_count} findings "
+               f"({finding_count - len(rows)} folded)",
+        runs=set(folded["runs"]))

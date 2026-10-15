@@ -35,7 +35,7 @@ wrapping it), so every cell runs through `linebreaksbr` and device-supplied text
                     </span>
                     {% endfor %}
                     <span class="text-[10px] uppercase tracking-wide text-slate-500">
-                        {{ rows|length }} finding{{ rows|length|pluralize }}
+                        {{ finding_count }} finding{{ finding_count|pluralize }}
                     </span>
                 </div>
             </div>
@@ -43,6 +43,8 @@ wrapping it), so every cell runs through `linebreaksbr` and device-supplied text
             <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] text-slate-600">
                 {{ domain.description }}
             </div>
+
+            {% include "assessments/partials/no_findings_run.html" %}
 
             {% if build_error %}
             <div class="m-4 border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
@@ -90,6 +92,29 @@ wrapping it), so every cell runs through `linebreaksbr` and device-supplied text
                     </tbody>
                 </table>
             </div>
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div data-findings-pager class="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-2 text-[12px] text-slate-600">
+                <span>{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ finding_count }}</span>
+                <div class="flex items-center gap-1">
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Prev</a>
+                    {% endif %}
+                    {% for page_number in page_range %}
+                    {% if page_number == page_obj.number %}
+                    <span class="inline-flex h-8 items-center border border-slate-400 bg-slate-100 px-2 text-[12px] font-medium text-slate-900">{{ page_number }}</span>
+                    {% else %}
+                    <a href="?page={{ page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             {% endif %}
 
         </div>

@@ -24,7 +24,6 @@ build would hold Run Findings off for its whole length instead. Refusing is the 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -41,12 +40,6 @@ from assessments.models import AssessmentRun, GeneratedArtifact
 
 logger = logging.getLogger(__name__)
 
-#: A BUILDING row younger than this blocks another build, and a findings run. Older ones are
-#: orphans: the worker is a daemon thread, so a server restart mid-build kills it and leaves the
-#: row BUILDING for ever. Same reasoning and figure as `finding_run.FINDINGS_LOCK_MAX_AGE`.
-BUILD_LOCK_MAX_AGE = timedelta(hours=2)
-
-
 def require_media_root() -> None:
     """Refuse rather than write a client deliverable somewhere nobody chose.
 
@@ -61,17 +54,12 @@ def require_media_root() -> None:
 
 
 def build_in_progress() -> GeneratedArtifact | None:
-    """The build currently running, or None. Orphans are ignored, not resumed."""
-    return (GeneratedArtifact.objects
-            .filter(status=GeneratedArtifact.Status.BUILDING,
-                    requested_at__gte=timezone.now() - BUILD_LOCK_MAX_AGE)
-            .first())
+    """The build currently running, or None.
 
-
-def is_orphaned(artifact: GeneratedArtifact) -> bool:
-    """A BUILDING row its worker will never finish - see BUILD_LOCK_MAX_AGE."""
-    return (artifact.status == GeneratedArtifact.Status.BUILDING
-            and artifact.requested_at < timezone.now() - BUILD_LOCK_MAX_AGE)
+    A BUILDING row is a live one: a restart that killed its thread closes it - see
+    `lifecycle.close_interrupted_work`.
+    """
+    return GeneratedArtifact.objects.filter(status=GeneratedArtifact.Status.BUILDING).first()
 
 
 def findings_run_of_record() -> AssessmentRun | None:

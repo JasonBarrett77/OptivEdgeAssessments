@@ -105,9 +105,7 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                                 {% endif %}
                             </td>
                             <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">
-                                {% if row.orphaned %}
-                                <span class="text-red-700">Interrupted</span>
-                                {% elif artifact.status == "failed" %}
+                                {% if artifact.status == "failed" %}
                                 <span class="text-red-700">Failed</span>
                                 {% else %}
                                 {{ artifact.get_status_display }}
@@ -124,7 +122,7 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                             </td>
                             <td class="h-9 border-b border-slate-200 px-3 py-2 text-right text-sm text-slate-800">{% if artifact.size is not None %}{{ artifact.size|filesizeformat }}{% endif %}</td>
                             <td class="h-9 border-b border-slate-200 px-3 py-2 text-right text-sm">
-                                {% if artifact.status != "building" or row.orphaned %}
+                                {% if artifact.status != "building" %}
                                 <form method="post" action="{% url 'assessment_artifact_delete' artifact.pk %}"
                                       onsubmit="return confirm('Delete {{ artifact.filename|escapejs }}? The file is removed from disk.');">
                                     {% csrf_token %}

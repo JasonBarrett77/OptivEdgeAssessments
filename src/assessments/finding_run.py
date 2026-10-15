@@ -15,7 +15,6 @@ asking, not about how many models back the answer.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 
 from django.utils import timezone
 
@@ -136,18 +135,14 @@ def open_findings_run() -> AssessmentRun:
     )
 
 
-#: A RUNNING run younger than this blocks starting another. Older ones are taken to be orphans:
-#: the worker thread is a daemon, so a server restart mid-run kills it and leaves the row
-#: RUNNING for ever, which without an age limit would disable the button permanently. The same
-#: reasoning and the same figure as Integrations' COLLECTION_LOCK_MAX_AGE.
-FINDINGS_LOCK_MAX_AGE = timedelta(hours=2)
-
-
 def findings_run_in_progress() -> AssessmentRun | None:
-    """The findings run currently filling, or None. Orphans are ignored, not resumed."""
+    """The findings run currently filling, or None.
+
+    A RUNNING run is a live one: a restart that killed its thread closes it - see
+    `lifecycle.close_interrupted_work`. There was a two-hour age limit here until 2026-10-15.
+    """
     return (AssessmentRun.objects
-            .filter(status=AssessmentRun.Status.RUNNING,
-                    started_at__gte=timezone.now() - FINDINGS_LOCK_MAX_AGE)
+            .filter(status=AssessmentRun.Status.RUNNING)
             .order_by("-started_at")
             .first())
 
@@ -169,6 +164,13 @@ def regenerate_findings(assessment_run: AssessmentRun | None = None) -> FindingR
         assessment_run.notes = f"Run failed: {type(exc).__name__}: {exc}"[:2000]
         assessment_run.save(update_fields=["status", "completed_at", "notes"])
         raise
+
+    # The tables the findings pages and the workbook draw, stored while the run still holds
+    # off builds and normalization - so the first reader does not wait for them. It cannot fail
+    # the run: a table that will not build is logged, and its page reports why.
+    from assessments.artifacts.stored import store_run_tables
+
+    store_run_tables(assessment_run)
 
     assessment_run.mark_completed()
     # THE RUN REPORTS ITSELF. The outcome used to be a Django message written by the view, and

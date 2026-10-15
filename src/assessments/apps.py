@@ -8,3 +8,5 @@ class AssessmentsConfig(AppConfig):
     def ready(self):
         # Connects the receiver that deletes a stored artifact's file with its row.
         from assessments import artifact_store  # noqa: F401
+        # Receivers for `server_started` and `normalization_starting` - see lifecycle.py.
+        from assessments import lifecycle  # noqa: F401

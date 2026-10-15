@@ -1,6 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
 from unittest import mock
-from datetime import timedelta
 
 from django.test import TestCase
 from django.contrib import messages
@@ -9,7 +8,7 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from assessments.finding_run import FINDINGS_LOCK_MAX_AGE, regenerate_findings
+from assessments.finding_run import regenerate_findings
 from assessments.models import (
     AssessmentRun,
     Control,
@@ -934,17 +933,30 @@ class BackgroundFindingsRunTests(TestCase):
         self.assertIn("already in progress",
                       str(list(get_messages(response.wsgi_request))[-1]))
 
-    def test_an_orphaned_run_does_not_disable_the_button_for_ever(self):
+    def test_a_restart_closes_the_run_it_killed(self):
         """The worker is a daemon, so a server restart mid-run kills it and leaves the row
-        RUNNING. Without an age limit that would refuse every later run."""
+        RUNNING. The next server process closes it, and says why on the run."""
+        from optivedge.lifecycle import server_started
+
         self.post()
-        AssessmentRun.objects.update(
-            started_at=timezone.now() - FINDINGS_LOCK_MAX_AGE - timedelta(minutes=1))
 
+        server_started.send(sender=None)
+
+        run = AssessmentRun.objects.get()
+        self.assertEqual(run.status, AssessmentRun.Status.FAILED)
+        self.assertIn("server restarted", run.notes)
         _response, thread = self.post()
-
         thread.assert_called_once()
-        self.assertEqual(AssessmentRun.objects.count(), 2)
+
+    def test_findings_are_refused_while_the_configuration_is_being_replaced(self):
+        """A collection or renormalize rewrites what a run reads - see lifecycle.py."""
+        with mock.patch("assessments.views.integration_work_in_progress", return_value=True):
+            response, thread = self.post()
+
+        thread.assert_not_called()
+        self.assertFalse(AssessmentRun.objects.exists())
+        self.assertIn("collection or normalization is running",
+                      str(list(get_messages(response.wsgi_request))[-1]))
 
     def test_the_page_reports_the_run_and_refreshes_itself(self):
         self.post()
@@ -1002,12 +1014,12 @@ class BackgroundFindingsRunTests(TestCase):
 
         self.assertEqual(response.json(), {"run": None})
 
-    def test_the_status_ignores_an_orphaned_run(self):
-        """Same age limit as the button: a run left RUNNING by a restart is not in progress,
-        or a page showing it would poll for ever."""
+    def test_the_status_ignores_a_run_a_restart_closed(self):
+        """A page showing it would otherwise poll for ever."""
+        from optivedge.lifecycle import server_started
+
         self.post()
-        AssessmentRun.objects.update(
-            started_at=timezone.now() - FINDINGS_LOCK_MAX_AGE - timedelta(minutes=1))
+        server_started.send(sender=None)
 
         response = self.client.get(reverse("assessment_control_run_findings_status"))
 

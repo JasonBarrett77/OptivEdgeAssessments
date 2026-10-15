@@ -468,6 +468,25 @@ downloads/` lists every build. Three decisions, each pinned by `test_downloads`:
   but the engagement settings' `transaction_mode: IMMEDIATE` makes every transaction take the
   WRITE lock, which would hold Run Findings off for the whole build.
 
+**A run lives as long as the normalization it was computed from** (2026-10-15, `lifecycle.py`).
+OptivEdgeIntegrations sends `normalization_starting` before any normalization; the receiver
+here refuses it while a findings run or a build is in progress, and otherwise discards every run
+- the rule a catalog reseed already followed, so changing either input to a run discards it.
+Normalization deletes and recreates rules, which cascaded their findings away, and updates
+device-wide settings in place, which left findings describing values that had changed; a
+partial run presented as complete was the result either way. The reverse refusal is in the
+views: Run Findings and Build Workbook refuse while `integration_work_in_progress()`.
+
+**No run is not a clean estate.** With no run the findings pages were a grid of dashes and a
+total of 0. They now say nothing was assessed (`NO_FINDINGS_RUN`), and Build Workbook refuses
+rather than ship a deliverable of empty tabs.
+
+**A RUNNING run, or a BUILDING build, is a live one.** A two-hour age limit used to tell a
+restart's dead rows from live ones, which locked both buttons for up to two hours after a crash
+and would have mistaken a genuine build longer than that for a dead one. OptivEdge's
+`server_started`, sent once on a server process's first request, closes them instead - correct
+because an engagement runs one server process.
+
 **A refused build is a FAILED row carrying the guard's message**, shown on Downloads. That is
 still the point of `ArtifactBuildError` deriving from `Exception`; it is caught on the thread
 now rather than in a view.
@@ -566,6 +585,24 @@ repetitions, both per-row work on a per-RULE answer:
 The `select_related("assessment_run")` went with them: it built a run per finding, and one run
 is now shared. Lab: 7.2s to 3.1s, workbook identical but for the build timestamp.
 `test_artifacts.RuleTabsDoNotQueryPerRowTests` pins both.
+
+**Tables are kept for their run** (2026-10-15, `artifacts/stored.py`, `PresentedTable`). Jason:
+the findings are stored, and the pages only ever show the latest run - so why derive every row
+again on every read? A table is a function of the run, the catalog and the presentation code,
+and nothing else, because a run cannot outlive the configuration it came from (`lifecycle.py`).
+So it is stored with the run (CASCADE - a discarded run takes its tables, nothing else
+invalidates them) under a fingerprint of the catalog it reads and a hash of the code that lays
+it out (`layout_version`, read off the source rather than a number somebody bumps). A miss on
+either rebuilds and stores; a row count that disagrees rebuilds; a run still filling is never
+stored except by itself. Run Findings stores every table as its last step, so nobody waits.
+
+One table per domain, the pages' version: the workbook's tab is the same table with tested
+columns removed by position (`narrow`). Rules by Device Group stores its fold the same way.
+`test_stored_tables` compares a stored table with a fresh build for every domain, both versions.
+
+Lab: workbook 3.1s to 2.3s, Anti-Spyware's page 0.15s, 477 KB stored for 13k findings. The
+findings pages are paged at 500 rows, with counts over the whole domain - production's
+anti-spyware domain was 43,805 rows in one page.
 
 **Every layout helper takes the `build`, not the workbook.** A sheet writer is
 `write_sheet(build)` and reads `build.workbook` for the xlsxwriter calls. That is what keeps
