@@ -763,18 +763,32 @@ def load(spec):
     if spec.exclude_control_ids:
         selected = selected.exclude(control_id__in=spec.exclude_control_ids)
     controls = list(selected.prefetch_related("queries").order_by("control_id"))
+    control_by_id = {control.pk: control for control in controls}
     findings = []
+    # SHARED, NOT JOINED. A subject with findings under several controls is ONE object, and
+    # loading it through each finding made a copy per finding - with every prefetch set up again
+    # on every copy. On the lab, 2026-10-14, the anti-spyware tab's 4,841 findings carried 965
+    # distinct rules and Django built eleven prefetches for each of the 4,841: 4s of the tab's
+    # 6s, with no query to show for it. So the subjects are loaded once, by id, and the control
+    # each finding names is the one already loaded above with its queries.
     for kind in spec.kinds_for(controls):
-        findings += list(
+        rows = list(
             kind.model.objects
             .filter(control__in=controls)
-            .select_related("control", "assessment_run",
-                            *(f"{kind.subject_field}__{path}"
-                              for path in spec.subject_select_related))
-            .prefetch_related("control__queries",
-                              *(f"{kind.subject_field}__{path}"
-                                for path in spec.subject_prefetch))
-            .defer(*verbatim_payload_paths(kind, spec)))
+            .select_related("assessment_run"))
+        prefix = f"{kind.subject_field}__"
+        subject_model = kind.model._meta.get_field(kind.subject_field).related_model
+        subject_ids = {getattr(row, f"{kind.subject_field}_id") for row in rows}
+        subjects = subject_model.objects.filter(pk__in=subject_ids).select_related(
+            *spec.subject_select_related).prefetch_related(*spec.subject_prefetch).defer(
+            *(path.removeprefix(prefix) for path in verbatim_payload_paths(kind, spec)
+              if path.startswith(prefix)))
+        subject_by_id = {subject.pk: subject for subject in subjects}
+        for row in rows:
+            row.control = control_by_id[row.control_id]
+            setattr(row, kind.subject_field,
+                    subject_by_id[getattr(row, f"{kind.subject_field}_id")])
+        findings += rows
     # Reference order: the run allocates by generator, then control, then subject, so this is
     # also control-then-appliance within a kind - and every tab's numbers read upward.
     findings.sort(key=lambda f: f.reference_number)
