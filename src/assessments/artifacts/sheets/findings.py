@@ -188,6 +188,18 @@ class DeviceSettingSheet:
     control_types: tuple
     description: str
     title: str = ""
+    #: Which PAN-OS category this tab belongs to, where the subject is not on the configuration
+    #: rail and so `layout.category_of` cannot derive it. Empty means derive, which is right for
+    #: every tab whose subject IS a configuration object: deriving it means the workbook cannot
+    #: disagree with the app about where an object lives.
+    #:
+    #: `category_of` has offered this escape hatch in its own error text since it was written -
+    #: "Add it there, or give the sheet an explicit category" - and nothing implemented the
+    #: second half until the normalization coverage tab needed it. Its subject is OUR OWN record
+    #: of a failed normalization, which has no rail entry and should not have one: the rail is
+    #: "the promise about what can be asked" of a device, and this is not a device object. The
+    #: alternative was inventing a fifth member of `CATEGORIES`, which is PAN-OS's own four.
+    category: str = ""
     #: The columns naming the subject, between Status and the tested value. The default suits an
     #: appliance-scoped settings row; a named object declares its own - a rule needs its name, its
     #: vsys and its rulebase, and an appliance column would be wrong for it (a rule belongs to a
@@ -929,7 +941,8 @@ def build_findings_table(spec, *, tested=None, subjects=None) -> FindingsTable:
         # From the SPEC's control type rather than from the controls that were loaded: a type
         # whose controls are all inactive loads none, and indexing the empty result raised
         # IndexError instead of drawing an empty tab. Deactivating one control was enough.
-        category=category_of(spec.subject_model(spec.kind_for(spec.control_types[0]))),
+        category=spec.category or category_of(
+            spec.subject_model(spec.kind_for(spec.control_types[0]))),
         columns=columns_for(spec, settings, tested),
         rows=rows,
         implicated=implicated,

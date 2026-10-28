@@ -98,6 +98,11 @@ class Control(models.Model):
         NTP_SETTINGS = "ntp_settings", "NTP"
         SNMP_SETTINGS = "snmp_settings", "SNMP"
         SYSTEM_IDENTITY = "system_identity", "System Identity"
+        #: Coverage over OUR OWN record of a failed normalization rather than over a device
+        #: object. A separate type from COVERAGE because `_CONTROL_TYPE_TARGET_MODEL` is
+        #: one-to-one and that map's own comment says so: "a coverage control over another
+        #: model needs its own control_type".
+        NORMALIZATION = "normalization", "Normalization Coverage"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -169,6 +174,8 @@ class Control(models.Model):
         "ntp_settings": "integrations.NtpSettings",
         "snmp_settings": "integrations.SnmpSettings",
         "system_identity": "integrations.SystemIdentity",
+        # The subject is the issue record, which exists precisely when the object does not.
+        "normalization": "integrations.NormalizationIssue",
         "config": "",
     }
 
@@ -212,6 +219,7 @@ class Control(models.Model):
         "integrations.NtpSettings": "NTP",
         "integrations.SnmpSettings": "SNMP",
         "integrations.SystemIdentity": "System Identity",
+        "integrations.NormalizationIssue": "Normalization Issue",
     }
 
     @property
@@ -923,6 +931,64 @@ class CoverageFindingControlQuery(FindingControlQueryBase):
         CoverageFinding, on_delete=models.CASCADE, related_name="query_links")
     control_query = models.ForeignKey(
         ControlQuery, on_delete=models.CASCADE, related_name="coverage_finding_links")
+
+
+class NormalizationFinding(ObjectFindingBase):
+    """A finding whose subject is an object this assessment could not build.
+
+    `CoverageFinding` above reports a gap in what we know ABOUT an object that normalized. This
+    reports the gap `CoverageFinding` structurally cannot: its `address_object` foreign key is
+    non-null, and `NormalizationIssue.disposition` has a member meaning the object does not
+    exist downstream at all - so the objects that failed worst have no row to point at. The
+    issue record is the only row that exists in that case, which is why it is the subject here.
+
+    This is the branch `CoverageFinding`'s own docstring describes: "a coverage control about
+    something that is NOT an address object [...] cannot use this model, because control_type
+    maps to exactly one target model. That control needs its own, and the question of a truly
+    subject-less finding should be reopened then, with a real case rather than a hypothetical."
+    The case arrived; the finding is not subject-less after all, because the issue row IS a
+    subject. So this stays on `ObjectFindingBase` with every convergence invariant satisfied
+    rather than excepted, and `FindingBase` keeps its property of having no direct subclasses.
+
+    TWO FIELD-WIDTH FACTS DECIDE THE `subject_name` CALLABLE, and both cut the wrong way here.
+    `ObjectFindingBase.subject_name` is 64 characters while `NormalizationIssue.name` is 255,
+    which is harmless for every other finding model and is not harmless for this one - the rows
+    that exist are the ones whose payload was malformed. And `name` is legitimately EMPTY on
+    some of them ("Empty when the entry had no @name; that is itself the problem"), so the
+    callable needs a fallback or the worst rows arrive with a blank subject. See
+    `normalization_findings.SPEC`.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="normalization_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="normalization_findings")
+    normalization_issue = models.ForeignKey(
+        "integrations.NormalizationIssue", on_delete=models.CASCADE,
+        related_name="normalization_findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="NormalizationFindingControlQuery",
+        related_name="normalization_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["normalization_issue"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "normalization_issue"],
+                name="unique_normalization_finding_per_run_control_issue"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} normalization: {self.subject_name}"
+
+
+class NormalizationFindingControlQuery(FindingControlQueryBase):
+    normalization_finding = models.ForeignKey(
+        NormalizationFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="normalization_finding_links")
 
 
 class CertificateFindingControlQuery(FindingControlQueryBase):

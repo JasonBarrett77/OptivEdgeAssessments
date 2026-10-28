@@ -61,6 +61,27 @@ COVERAGE_SUBJECT = (
     ("Type", 18, False, lambda s, _p: s.get_address_type_display()),
     ("Where", 24, False, lambda s, _p: str(s.enforcement_point or s.appliance_group or NONE)),
 )
+#: A normalization issue names OUR OWN RECORD of an object that failed, so three of its columns
+#: differ from every other subject here. "Object" falls back to a placeholder because the name is
+#: legitimately empty on the worst rows - the model says "Empty when the entry had no @name; that
+#: is itself the problem" - and a blank cell would hide exactly those. "Kind" is free text rather
+#: than a choices display, so a new kind of failure needs no migration and no change here. And
+#: "Cause" carries root-versus-consequence, which is load-bearing: every one of these controls
+#: reports at `informational` (Jason, 2026-10-28), so severity no longer separates the one fault
+#: from the thousand rules that fell with it. This column does.
+NORMALIZATION_SUBJECT = (
+    ("Object", None, False,
+     lambda s, _p: (s.name or f"<unnamed {s.kind or 'object'}>"), "name"),
+    ("Kind", 20, False, lambda s, _p: s.kind or NONE, "kind"),
+    ("Where", 24, False,
+     lambda s, _p: str(s.enforcement_point or s.appliance_group or s.appliance or NONE)),
+    ("Disposition", 14, False, lambda s, _p: s.get_disposition_display(), "disposition"),
+    ("Cause", 26, False,
+     lambda s, _p: (f"Consequence of {s.related_object_name}"
+                    if s.is_consequent and s.related_object_name
+                    else ("Consequence" if s.is_consequent else "Root")),
+     "is_consequent"),
+)
 SCOPE = (("Scope", 12, False, lambda s, _p: scope_of(s), "scope"),)
 KIND = (("Kind", 22, False, lambda s, _p: s.get_kind_display(), "kind"),)
 
@@ -211,6 +232,26 @@ SPECS = (
          # cost a query per row.
          subject_prefetch=("securityrulesourceaddressref_set",
                            "securityruledestinationaddressref_set")),
+    # Beside Coverage and for the same reason, but a SEPARATE tab because the subject differs:
+    # Coverage names an address object that normalized, this names our record of one that did
+    # not. Jason, 2026-10-28: "a separate location/tab for COV like controls. If we can separate
+    # it by subject, that's better." It sits under Objects rather than in a category of its own
+    # because `CATEGORIES` is PAN-OS's own four and `check_tabs_follow_the_summary` indexes into
+    # it - a fifth category would be product structure invented here. Adjacent to Coverage is
+    # what that answer gets without inventing one.
+    spec(T.NORMALIZATION,
+         "Objects this assessment could not build, and what fell with them. Like Coverage "
+         "these are gaps in the measurement rather than faults on the device - but a step "
+         "further back: the object did not normalize at all, so no control in this report has "
+         "looked at it. A row with Cause 'Root' is the fault to fix; the Consequence rows are "
+         "what it took down. An object nobody could build must not read as an object with "
+         "nothing wrong, which is what these exist to prevent.",
+         title="Normalization Coverage", subject=NORMALIZATION_SUBJECT,
+         category="Objects",
+         appliance_of=lambda obj: obj.appliance,
+         subject_select_related=("enforcement_point__appliance_group",
+                                 "enforcement_point__appliance", "appliance_group",
+                                 "appliance")),
     spec(T.LOGIN_BANNER,
          "The banner shown before an administrator logs in, and whether they must acknowledge it."),
     spec(T.MASTER_KEY,

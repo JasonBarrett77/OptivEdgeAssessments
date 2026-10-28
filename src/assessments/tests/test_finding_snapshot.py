@@ -147,12 +147,47 @@ class EveryFindingModelCarriesItTests(TestCase):
 
         self.assertEqual(accessors, [])
 
+    #: Subject models with no `source_snapshot`, each with the reason the field's purpose
+    #: cannot apply to it. The field exists to catch ONE thing - see the module docstring - a
+    #: finding that has gone stale against a newer collection. An exemption has to show that
+    #: divergence is impossible for the subject, not merely inconvenient to record.
+    SUBJECTS_WITH_NO_SNAPSHOT_TO_COPY = {
+        "NormalizationIssue": (
+            "It is not normalized FROM a snapshot - it is the normalizer's record of what it "
+            "could not normalize, and `models/normalization.py` says it 'records what is "
+            "currently wrong, and is replaced on every run exactly like the objects it "
+            "describes'. So a row cannot survive into a newer collection, which is the "
+            "divergence this field detects. And NormalizationFinding's subject FK is CASCADE, "
+            "so a fault that gets fixed takes its finding with the row rather than leaving a "
+            "stale one behind. Both halves are needed: replace-per-run alone would leave an "
+            "orphaned finding, and CASCADE alone would not stop a row being rewritten in "
+            "place. Added 2026-10-28 with the normalization coverage framework."
+        ),
+    }
+
     def test_every_subject_model_can_supply_one(self):
         """The copy reads `source_snapshot` off the subject. A subject model without it would
-        silently record None for every finding of that kind."""
+        silently record None for every finding of that kind - unless the staleness this field
+        detects cannot arise for that subject, which is what the exemption above has to argue."""
         for kind in FINDING_KINDS:
             with self.subTest(kind.model.__name__):
                 subject = kind.model._meta.get_field(kind.subject_field).related_model
+                if subject.__name__ in self.SUBJECTS_WITH_NO_SNAPSHOT_TO_COPY:
+                    self.assertFalse(
+                        any(f.name == "source_snapshot" for f in subject._meta.get_fields()),
+                        f"{subject.__name__} now HAS source_snapshot - drop its exemption "
+                        f"rather than leaving a stale reason in this file")
+                    continue
                 self.assertTrue(
                     any(f.name == "source_snapshot" for f in subject._meta.get_fields()),
                     f"{subject.__name__} has no source_snapshot to copy")
+
+    def test_the_exemptions_name_a_registered_subject_and_carry_a_reason(self):
+        """An exemption for a model nobody registers is a reason nobody can check, and the
+        mechanism would then hide the next real gap instead of documenting this one."""
+        subjects = {kind.model._meta.get_field(kind.subject_field).related_model.__name__
+                    for kind in FINDING_KINDS}
+        for name, reason in self.SUBJECTS_WITH_NO_SNAPSHOT_TO_COPY.items():
+            with self.subTest(name):
+                self.assertIn(name, subjects)
+                self.assertGreater(len(reason), 120)

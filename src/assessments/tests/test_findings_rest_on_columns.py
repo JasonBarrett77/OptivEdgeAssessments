@@ -58,6 +58,8 @@ PROBE_VALUES = (
     "10.0.0.1",         # a parseable IPv4 for the address compilers
     "10.0.0.0/24",
     "local",            # a real config_source choice
+    "error",            # a real NormalizationIssue.severity choice
+    "skipped",          # a real NormalizationIssue.disposition choice
 )
 
 

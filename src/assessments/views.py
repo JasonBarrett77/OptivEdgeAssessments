@@ -1156,7 +1156,11 @@ def findings_href_for(config_object) -> str:
 def findings_domain_category(domain) -> str:
     """The PAN-OS category a domain belongs to - the same answer the workbook's tab colour uses."""
     spec = domain.spec
-    return artifact_category_of(spec.subject_model(spec.kind_for(spec.control_types[0])))
+    # `spec.category` first, for a tab whose subject is not on the configuration rail - see
+    # `DeviceSettingSheet.category`. The app and the workbook have to answer this the same
+    # way or a domain sorts into one category in the rail and another on the tab strip.
+    return spec.category or artifact_category_of(
+        spec.subject_model(spec.kind_for(spec.control_types[0])))
 
 
 def severity_breakdown(by_severity):

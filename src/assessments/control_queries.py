@@ -258,6 +258,11 @@ def evaluate_coverage_control_queries(queryset, control):
         queryset, control, model_name="integrations.AddressObject")
 
 
+def evaluate_normalization_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset, control, model_name="integrations.NormalizationIssue")
+
+
 def evaluate_certificate_control_queries(queryset, control):
     return evaluate_queryset_control_queries(
         queryset,

@@ -25,6 +25,7 @@ from assessments.authentication_settings_findings import generate_authentication
 from assessments.findings import generate_rule_findings
 from assessments.certificate_findings import generate_certificate_findings
 from assessments.coverage_findings import generate_coverage_findings
+from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
@@ -87,6 +88,9 @@ GENERATORS = (
     # Last on purpose: it reports what the run could NOT establish, so it reads as the
     # footnote to everything above rather than as another finding family.
     ("coverage", T.COVERAGE, generate_coverage_findings),
+    # Beside coverage, for the same reason: it reports what the run could not establish. The
+    # two differ only in which gap they can reach - see `normalization_findings`.
+    ("normalization", T.NORMALIZATION, generate_normalization_findings),
     ("authentication profile", T.AUTHENTICATION_PROFILE, generate_authentication_profile_findings),
     ("authentication sequence", T.AUTHENTICATION_SEQUENCE, generate_authentication_sequence_findings),
     ("password profile", T.PASSWORD_PROFILE, generate_password_profile_findings),

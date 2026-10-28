@@ -161,6 +161,11 @@ from assessments.search.certificate_profile.compiler import (
     CERTIFICATE_PROFILE_MODEL,
     compile_certificate_profile_search_node,
 )
+from assessments.search.normalization_issue.compiler import (
+    FIELD_OPERATOR_REGISTRY as NORMALIZATION_ISSUE_FIELD_OPERATOR_REGISTRY,
+    NORMALIZATION_ISSUE_MODEL,
+    compile_normalization_issue_search_node,
+)
 from assessments.search.authentication_sequence.compiler import (
     AUTHENTICATION_SEQUENCE_MODEL,
     FIELD_OPERATOR_REGISTRY as AUTHENTICATION_SEQUENCE_FIELD_OPERATOR_REGISTRY,
@@ -168,6 +173,7 @@ from assessments.search.authentication_sequence.compiler import (
 )
 from optivedge_integrations.integrations.models import (
     AddressObject,
+    NormalizationIssue,
     AdminUser,
     ServerProfile,
     AuthenticationProfile,
@@ -320,6 +326,13 @@ MODEL_REGISTRY = {
         "model_class": Certificate,
         "field_operators": CERTIFICATE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_certificate_search_node,
+    },
+    # Our own record of what could not be normalized. The only entry here whose model is not
+    # device configuration - see the compiler's module docstring.
+    NORMALIZATION_ISSUE_MODEL: {
+        "model_class": NormalizationIssue,
+        "field_operators": NORMALIZATION_ISSUE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_normalization_issue_search_node,
     },
 }
 

@@ -47,6 +47,8 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.SECURITY_RULE, "security rule"),
     FindingKind(m.CoverageFinding, "address_object",
                 m.Control.ControlType.COVERAGE, "coverage"),
+    FindingKind(m.NormalizationFinding, "normalization_issue",
+                m.Control.ControlType.NORMALIZATION, "normalization issue"),
     FindingKind(m.ManagementInterfaceFinding, "management_interface",
                 m.Control.ControlType.MANAGEMENT_INTERFACE, "management interface"),
     FindingKind(m.InterfaceManagementProfileFinding, "interface_management_profile",

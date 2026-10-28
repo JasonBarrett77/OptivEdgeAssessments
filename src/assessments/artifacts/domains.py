@@ -70,6 +70,9 @@ DOMAINS = (
     # coverage categorises as Objects because its subject is an address object. The product's
     # own ordering wins over the editorial preference.
     _object_domain("coverage", T.COVERAGE),
+    # Objects, beside coverage: same family, different subject. See the sheet spec for why it
+    # claims the Objects category rather than one of its own.
+    _object_domain("normalization-coverage", T.NORMALIZATION),
     # Network
     _object_domain("interface-management-profiles", T.INTERFACE_MANAGEMENT_PROFILE),
     # Device
