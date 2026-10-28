@@ -4045,6 +4045,615 @@
           "implementation_version": "v3",
           "is_active": true,
           "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-IKE-001",
+          "name": "IKEv2 Required on IKE Gateways",
+          "control_type": "ike_gateway",
+          "default_severity": "high",
+          "description": "Requires every IKE gateway to be configured for IKE version 2 only. IKEv2 binds the identity to the key exchange, offers a DoS-resistant cookie exchange and protects the identities; IKEv1 does neither, and its aggressive mode transmits an identity hash that can be cracked offline against a pre-shared key.\n\nWRITTEN AS A NEGATED EQUALITY, NOT AS A LIST OF BAD VALUES, and that is load-bearing. The protocol/version key CAN BE ABSENT on a committed gateway - proved by deleting it and committing, job 6876 OK - and the normalized column holds the empty string in that state. A positive test (`version is ikev1 or ikev2-preferred`) would pass a gateway whose version nobody read; the negation reports it. What the device does with the key absent is UNMEASURED and the two available readings disagree: the schema default reads `ikev2` on one lab release, while an ikemgr phase-1 commit abort on a keyless gateway names the IKEv1 section. So a gateway with no version key is reported at this control's own severity, and the finding says the version is not established rather than naming one.\n\nTHE CONFIGURED VERSION IS NOT THE NEGOTIATED VERSION. On `ikev2-preferred` the gateway negotiates version 2 with any peer that supports it and completes a version 1 exchange with one that declines, so that state carries a lower band rather than none. The operational read that would say which a tunnel is actually running - `show vpn ike-sa` - is not available to this assessment, so nothing here claims it.\n\nA DISABLED GATEWAY IS OUT OF SCOPE AND NOT COMPLIANT. Every query carries `gateway_is_active`, because a finding on a gateway the device has switched off is a finding about a negotiation that cannot happen. The clause is on the derived column and never on the device's own `disabled` key, which is nullable: an applicability clause over a null drops the row and would suppress the control on every gateway nobody read.",
+          "rationale": "IKEv1 lacks the cryptographic binding between identity and key exchange that IKEv2 provides, has no cookie mechanism against half-open-exchange flooding, and in aggressive mode leaks an offline-crackable identity hash.",
+          "audit": "Network > Network Profiles > IKE Gateways > (gateway) > General: IKE Version. A gateway with no version selection stored is the state this control reports as unestablished.",
+          "remediation": "Set each gateway's IKE version to IKEv2 only. Where a named legacy peer genuinely cannot do IKEv2, record the exception against that gateway and leave it at IKEv2-preferred knowingly; the control will continue to report it at the lower band.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The gateway is not configured for IKE version 2 only, or its version was not read.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev2",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "IKEv2 preferred with IKEv1 fallback",
+              "short_description": "The gateway prefers IKEv2 and still completes an IKEv1 exchange with a peer that declines.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev2-preferred",
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-IKE-002",
+          "name": "IKE Diffie-Hellman Group Strength",
+          "control_type": "ike_crypto_profile",
+          "default_severity": "high",
+          "description": "Requires every key-agreement group an IKE crypto profile OFFERS to be a 2048-bit finite field or an elliptic curve. The profile offers the whole list and takes the first group a peer accepts, so the weakest member on the list is the group an exchange can be driven down to - a weak group left in place is a live option, not a lower preference.\n\nTHE ASSERTION IS OVER THE WHOLE SET, which is why it rests on a derived verdict column rather than on a list test: a clause has one field slot and this is a universal quantifier. The verdict's finding side is also its stored default, so a profile nobody has recomputed is reported rather than passing.\n\nTHE VALUE SET IS MUCH LARGER THAN THE CONTROL'S OWN LIST AND IT GREW BETWEEN RELEASES. Nine members on one lab build, twenty-eight on another: the eighteen additions are post-quantum key-encapsulation names, which no severity band here ranks. A profile whose weakest member is one of those is reported at this control's own severity and the finding says the group is unranked, because reporting it at a graded severity would attribute a judgement nobody made.\n\nAND `none` IS NOT A WEAK GROUP. It is a member - present on the newer lab builds and absent from the older - that can take the key agreement OUT of the proposal entirely; the device's own help string for it is \"Make this round optional\". It ranks with the broken groups rather than below them.",
+          "rationale": "Finite-field groups at 768, 1024 and 1536 bits fall to precomputation attacks of the Logjam family; 2048 bits is the current floor and the elliptic-curve groups give equivalent strength at far lower cost. A member that removes the key agreement altogether removes the forward secrecy the exchange exists to provide.",
+          "audit": "Network > Network Profiles > IKE Crypto > (profile): DH Group. Read the whole list, not the first entry - the list is an offer set tried in order until one succeeds.",
+          "remediation": "Remove every finite-field group below 2048 bits and the `none` member from each profile's DH Group list, leaving group19, group20 or group21 where the peers support them and group14 or above otherwise.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The profile offers a key-agreement group below the 2048-bit floor, a non-elliptic-curve member, or a group no ordering places.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dh_group_floor_met",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Weakest group is the 1536-bit finite field",
+              "short_description": "Group 5 is the weakest member still offered.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dh_group_floor_met",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_dh_group",
+                    "op": "eq",
+                    "value": "group5",
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeCryptoProfile"
+        },
+        {
+          "control_id": "PAN-IKE-003",
+          "name": "IKE Encryption Algorithm Strength",
+          "control_type": "ike_crypto_profile",
+          "default_severity": "high",
+          "description": "Requires every cipher an IKE crypto profile OFFERS to be AES. As with the key-agreement list, the profile offers the whole set and a peer takes the first member that succeeds, so one weak cipher left in place is negotiable.\n\nTHE VENDOR'S ONLY ADVICE HERE IS ABOUT ORDER, AND FOLLOWING IT TO THE LETTER LEAVES THE WEAK CIPHER NEGOTIABLE. One page says to change the order of the list top to bottom; another says the list is tried top to bottom until an attempt succeeds. A profile ordered exactly as recommended still offers 3DES to a peer that offers nothing else, which is why this control is a floor over the whole set rather than a check on the first member.\n\n`des` IS NOT A MEMBER AT THIS POSITION ON ANY MEASURED APPLIANCE, though the control it came from ranks it bottom. The real floor of this field is 3DES; `des` lives on a manual-key tunnel's ESP leaf, which runs no key exchange at all. Nothing is lost by the control not reaching it, and a reader expecting `des` in a finding here will not see it.",
+          "rationale": "3DES has a 64-bit block and is attackable by collision at feasible data volumes; AES at 128 bits or more is the floor for key-management traffic, and AES-256 is the target.",
+          "audit": "Network > Network Profiles > IKE Crypto > (profile): Encryption. Read the whole list.",
+          "remediation": "Remove 3DES from each profile's encryption list and leave aes-256-cbc, or aes-256-gcm where every peer on that profile supports authenticated encryption and negotiates IKEv2.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The profile offers 3DES, or its cipher list was not read.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "encryption_floor_met",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeCryptoProfile"
+        },
+        {
+          "control_id": "PAN-IKE-004",
+          "name": "IKE Integrity (Hash) Algorithm Strength",
+          "control_type": "ike_crypto_profile",
+          "default_severity": "high",
+          "description": "Requires every integrity algorithm an IKE crypto profile OFFERS to be from the SHA-2 family, with one exception the vendor itself mandates.\n\nTHE EXCEPTION IS WHY THIS CANNOT BE A TEST ON ONE LIST. Where a profile offers an AES-GCM cipher, the vendor's own instruction is to select the no-integrity member alongside it, because the integrity comes from the cipher's own construction. A one-list test would therefore fire on exactly the configuration a customer was told to make, and would spend their remediation budget on it. So the assertion is a predicate over TWO member lists and rests on a derived verdict column.\n\nTHE SAME LITERAL MEANS OPPOSITE THINGS ON TWO PROFILES. On a profile offering no authenticated-encryption cipher, the no-integrity member is not a weak hash - it is no integrity algorithm at all, and an exchange can be driven down to it. THE DEVICE DOES NOT ENFORCE THE PAIRING IN THAT DIRECTION: a profile offering {sha256, non-auth} with a CBC cipher and no AEAD cipher anywhere was accepted at the write and committed without complaint, so nothing on the firewall reports it and the constraint is entirely this assessment's to compute.\n\nAND THE MIXED CASE: a profile offering both an AEAD cipher and a non-AEAD one needs the no-integrity member for the first AND a SHA-2 member for the second. An AEAD-justified no-integrity member on its own is not enough there.",
+          "rationale": "MD5 is collision-broken and unfit for key-management traffic; SHA-1 is deprecated with practical collisions demonstrated. A profile with no integrity algorithm and no authenticated-encryption cipher protects the exchange's integrity with nothing.",
+          "audit": "Network > Network Profiles > IKE Crypto > (profile): Authentication. Read it together with the Encryption list - the no-integrity member is correct beside an AES-GCM cipher and is a defect without one.",
+          "remediation": "Leave sha384 or sha512 in each profile's authentication list, removing md5 and sha1. Keep the no-integrity member only on a profile whose encryption list is AES-GCM only; where the profile also offers a CBC cipher, a SHA-2 member must stay beside it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The profile offers an integrity algorithm outside SHA-2, or the no-integrity member with no authenticated-encryption cipher to justify it.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "hash_floor_met",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Weakest integrity algorithm is SHA-1",
+              "short_description": "SHA-1 is the weakest integrity algorithm still offered.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "hash_floor_met",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_hash_algorithm",
+                    "op": "eq",
+                    "value": "sha1",
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeCryptoProfile"
+        },
+        {
+          "control_id": "PAN-IKE-005",
+          "name": "IKE SA Lifetime and Re-authentication Interval Bounded",
+          "control_type": "ike_crypto_profile",
+          "default_severity": "medium",
+          "description": "Bounds two quantities on one profile: how long a single IKE SA key stays in service, and the IKEv2 re-authentication interval that key lifetime feeds.\n\nTHE LIFETIME IS A CHOICE NODE WHOSE FOUR CHILDREN ARE THE UNITS, and the element that EXISTS is what says the unit. A comparison on the hours leaf alone misses a lifetime written in days, minutes or seconds entirely - and a comparison on the raw number without the unit reads a 1800-second lifetime as the worst in the estate. The normalized column coalesces all four branches into hours and rounds UP, so a sub-hour lifetime stores one hour and never zero. WRITING ONE BRANCH SILENTLY DESTROYS ANOTHER, measured: with an hours value stored, a write of seconds at the same container was accepted, the read-back carried only seconds, and the commit returned OK. Nothing reports the discard.\n\nA PROFILE WHOSE LIFETIME NOBODY COULD READ IS REPORTED, NOT PASSED. The lifetime container is this object's only optional choice container and a committed profile can carry none. A threshold over a null integer matches nothing, so such a profile would pass a bound it was never compared against; a separate query reports exactly those rows, and the finding says the lifetime was not established rather than that it is too long.\n\nZERO IS NOT A SMALL RE-AUTHENTICATION INTERVAL. The authentication multiple is a multiplier on the key lifetime, and the device's own words are that 0 means re-authentication disabled - the UNBOUNDED end of the axis while sorting as the smallest number, so every numeric comparison reads it as the strictest setting available. The device's stated range for the key EXCLUDES zero (writing 51 is refused with a 1-to-50 message) and zero is accepted and stored anyway. The verdict column special-cases it before comparing.",
+          "rationale": "An excessive IKE SA lifetime extends the value of any single compromised key, and an unbounded re-authentication interval lets a tunnel stay up indefinitely on an identity that has not been re-proved.",
+          "audit": "Network > Network Profiles > IKE Crypto > (profile): Key Lifetime, and IKEv2 Authentication Multiple. Read which unit the lifetime is written in, not only the number.",
+          "remediation": "Set each profile's key lifetime to 8 hours or less. Set the IKEv2 authentication multiple so that multiple times lifetime stays within 24 hours, and do not leave it at 0, which disables re-authentication rather than tightening it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The profile's key lifetime is more than 24 hours.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "key_lifetime_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "key_lifetime_hours",
+                    "op": "gt",
+                    "value": 24,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Key lifetime between one day and one week",
+              "short_description": "More than 24 hours and up to 168 hours on one key.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "key_lifetime_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "key_lifetime_hours",
+                    "op": "gt",
+                    "value": 24,
+                    "negated": false
+                  },
+                  {
+                    "field": "key_lifetime_hours",
+                    "op": "lte",
+                    "value": 168,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Key lifetime not established",
+              "short_description": "No key lifetime was read on this profile, so no bound was applied to it.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "key_lifetime_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "IKEv2 re-authentication interval not bounded",
+              "short_description": "On a profile a version-2 gateway uses, the re-authentication interval exceeds 24 hours, is switched off by a zero multiplier, or could not be computed.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "used_by_ikev2_gateway",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "reauth_interval_bounded",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeCryptoProfile"
+        },
+        {
+          "control_id": "PAN-IKE-006",
+          "name": "Certificate Authentication Preferred over Pre-Shared Keys",
+          "control_type": "ike_gateway",
+          "default_severity": "medium",
+          "description": "Requires each IKE gateway to authenticate its peer with a certificate AND to name a certificate profile that constrains how that certificate is validated.\n\nTHERE IS NO METHOD FIELD AND NO ENUMERATION ON THE DEVICE. The choice is expressed by WHICH OF TWO SUBTREES EXISTS beneath the gateway's authentication node, and the profile pointer is a separate leaf from the branch - which is what makes a certificate gateway with no validation profile distinguishable from one with it. The normalized column resolves three states over those two presence tests.\n\nTHE TWO BRANCHES ARE EXCLUSIVE AND THE EXCLUSION IS ENFORCED BY SILENT REPLACEMENT AT THE WRITE. Staging a certificate profile over a committed pre-shared key DELETES the shared-secret branch from the candidate configuration without comment, while the running configuration still shows the key. So for the duration of a staging the two views disagree about how the gateway authenticates. This assessment reads the candidate, so a finding here reports the STAGED answer and says so.\n\nA CERTIFICATE GATEWAY WITH NO VALIDATION PROFILE RANKS WITH THE SHARED-SECRET STATE RATHER THAN BELOW IT: the shared secret is gone and nothing is configured to constrain validation of the credential that replaced it, so the gateway has given up the secret without gaining the ability to stop trusting a credential. Whether the named profile actually CHECKS revocation is a separate control's claim, not this one's.\n\nWHAT THIS CONTROL CANNOT SAY: anything about a pre-shared key's strength, length or reuse. A 31-character plaintext reads back as a 77-character ciphertext, so a length comparison on the stored value measures the encoding and would pass a four-character key. The presence of a shared secret is all the configuration holds.",
+          "rationale": "Certificate authentication removes the shared-secret distribution problem and makes revocation possible. A gateway on a shared secret has a credential that cannot be revoked and whose strength nothing on the device records.",
+          "audit": "Network > Network Profiles > IKE Gateways > (gateway) > Authentication: the Certificate / Pre-Shared Key choice, and the Certificate Profile beside it.",
+          "remediation": "Move each gateway to certificate authentication and name a certificate profile on it. Where a shared secret must remain for a named peer, record the exception and vault the secret - its strength is not assessable from the configuration.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The gateway is not on certificate authentication with a validation profile named, or its authentication was not read.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "peer_authentication",
+                    "op": "eq",
+                    "value": "certificate-with-profile",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-IKE-007",
+          "name": "No IKEv1 Aggressive Mode",
+          "control_type": "ike_gateway",
+          "default_severity": "high",
+          "description": "Requires any gateway that can still complete an IKE version 1 exchange to negotiate in main mode.\n\nTHE SHIPPED DEFAULT IS NEITHER OF THE TWO VALUES THE CONTROL NAMES, AND IT BEHAVES LIKE THE FORBIDDEN ONE. The exchange-mode key has three members - auto, main and aggressive - and `auto` is the schema default on every measured appliance. The vendor's own description of it: \"In auto mode (default), the device can accept both main mode and aggressive mode negotiation requests.\" A gateway left at `auto` therefore completes the exposing exchange whenever the peer initiates it, so `auto` ranks with `aggressive` and not between it and `main`. A control written as a two-state main-versus-aggressive comparison passes every default gateway in an estate.\n\nTHE KEY LIVES UNDER THE VERSION 1 BRANCH, so the population is the gateways configured for version 1 or for version-2-preferred, written as a negated equality against version 2 - which also leaves a gateway whose version nobody read IN scope rather than silently excusing it. An absent exchange-mode key on such a gateway is reported, because both of the vendor's own statements read the absence as `auto`.",
+          "rationale": "IKEv1 aggressive mode transmits an identity hash in the clear, which can be cracked offline against the pre-shared key. Main mode protects the identities.",
+          "audit": "Network > Network Profiles > IKE Gateways > (gateway) > Advanced Options > IKEv1: Exchange Mode. A gateway with no selection stored is at `auto`, which accepts aggressive mode.",
+          "remediation": "Set Exchange Mode to Main on every gateway that can still complete an IKEv1 exchange. `Auto` is not an acceptable intermediate setting. Moving the gateway to IKEv2 only removes the node altogether.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A gateway that can complete an IKEv1 exchange is not in main mode - aggressive, auto, or no mode stored.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev2",
+                    "negated": true
+                  },
+                  {
+                    "field": "ikev1_exchange_mode",
+                    "op": "eq",
+                    "value": "main",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-IKE-008",
+          "name": "Dead Peer Detection and IKEv2 Liveness Probing Enabled",
+          "control_type": "ike_gateway",
+          "default_severity": "low",
+          "description": "Requires the dead-peer-detection switch on a gateway's version 1 branch and the idle liveness probe on its version 2 branch.\n\nTHESE ARE TWO NODES AND NOT EQUIVALENTS, and a control written once against either answers for half an estate. The two branches differ STRUCTURALLY: the version 1 subtree has three children - enable, interval and retry - and the version 2 subtree has two, measured on every appliance, so a reading written once for both loses the retry count. A GATEWAY SET TO VERSION-2-PREFERRED IS IN BOTH POPULATIONS AND CAN HOLD BOTH SUBTREES.\n\nTHE CLAIM A FINDING MAY MAKE ON THE VERSION 2 BRANCH IS NARROWER, and the vendor says so in the same paragraph as the field: \"The IKEv2 Liveness Check is always on; all IKEv2 packets serve the purpose of a liveness check.\" So a finding saying an IKEv2 gateway cannot detect a dead peer would be false. What is true is that it sends no probe while the tunnel is IDLE.\n\nA SWITCH NOBODY COULD READ IS REPORTED AND NOT PASSED. Both switches are nullable, and `equals false` over a null matches nothing - so a gateway whose switch was never read would pass a test it was never subjected to. A separate query per branch reports exactly those rows, and the finding says the switch was not established.\n\nTHE INTERVAL AND THE ENABLE ARE TWO KEYS. A gateway can carry an interval with no enable, in which case the interval describes a probe that may not be being sent; a finding quoting the interval without the switch would describe a configuration that does nothing.",
+          "rationale": "Without dead-peer detection a stale security association is not torn down, so traffic to a peer that has gone away is black-holed and failover is delayed until the SA expires on its own.",
+          "audit": "Network > Network Profiles > IKE Gateways > (gateway) > Advanced Options: IKEv1 Dead Peer Detection, and IKEv2 Liveness Check beside it. Read the enable, not only the interval.",
+          "remediation": "Enable dead-peer detection on the IKEv1 branch of every gateway that has one, and set an IKEv2 liveness-check interval on every gateway with a version 2 branch. Tune the interval and retry count to the failover objective the tunnel is expected to meet.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A gateway that can complete an IKEv1 exchange has dead-peer detection switched off.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev2",
+                    "negated": true
+                  },
+                  {
+                    "field": "ikev1_dpd_enabled_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ikev1_dpd_enabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "IKEv2 idle liveness probe switched off",
+              "short_description": "A gateway with a version 2 branch sends no liveness probe while the tunnel is idle.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev1",
+                    "negated": true
+                  },
+                  {
+                    "field": "ikev2_dpd_enabled_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ikev2_dpd_enabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "IKEv1 dead-peer-detection switch not established",
+              "short_description": "The version 1 dead-peer-detection switch could not be read on this gateway.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev2",
+                    "negated": true
+                  },
+                  {
+                    "field": "ikev1_dpd_enabled_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "IKEv2 liveness-check switch not established",
+              "short_description": "The version 2 liveness-check switch could not be read on this gateway.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ike_version",
+                    "op": "eq",
+                    "value": "ikev1",
+                    "negated": true
+                  },
+                  {
+                    "field": "ikev2_dpd_enabled_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-IKE-009",
+          "name": "No Gateway Relies on a Factory-Shipped IKE Crypto Profile",
+          "control_type": "ike_gateway",
+          "default_severity": "low",
+          "description": "Requires every gateway to name a crypto profile that was defined for this estate, rather than relying on one that arrived with the firewall.\n\nBOTH POINTERS, NOT ONE. A gateway has a crypto-profile pointer under EACH protocol version's branch and the vendor states they can name different profiles. A control reading one pointer answers for half the references in an estate and reports the other half as absent.\n\nALL THREE FACTORY NAMES, NOT ONLY `default`. A firewall ships three such entries, and they are ORDINARY WRITABLE, DELETABLE CONFIGURATION at the same path as a custom entry - no template marker, no predefined counterpart, nothing that distinguishes them but the name. That is what makes removal possible at all, and it is also why the assertion is about PROVENANCE AND OWNERSHIP rather than about algorithms: a proposal nobody chose is a proposal nobody owns. One lab appliance's `default` profile does offer 3DES, SHA-1 and Group 2 - measured - but an estate may equally have hardened it in place, and the strength controls assert over every profile regardless of its name.\n\nAND A GATEWAY WITH NEITHER POINTER SET IS REPORTED TOO. Such a gateway still CONSUMES a proposal set - an ikemgr phase-1 commit abort proves the version 1 section demands algorithms with no pointer present - and nothing stored says which one. A gateway whose proposal nothing records is a gateway secured by something nobody has identified, so it is reported rather than passed. The finding distinguishes the two cases, because their remediations differ.",
+          "rationale": "A proposal set nobody selected for this estate is a proposal set nobody owns or reviews, and its contents can change under a release upgrade with no local change to show for it.",
+          "audit": "Network > Network Profiles > IKE Gateways > (gateway) > Advanced Options: the IKE Crypto Profile under IKEv1 and the one under IKEv2. Check both, and check for a gateway with neither set.",
+          "remediation": "Point each gateway at a named, reviewed crypto profile under every protocol-version branch it uses, and then delete the factory-shipped entries no gateway names.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The gateway names a factory-shipped crypto profile from either pointer, or names none at all.",
+              "canonical_query": {
+                "model": "integrations.IkeGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gateway_is_active",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "relies_on_factory_named_proposal",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeGateway"
         }
       ]
     }

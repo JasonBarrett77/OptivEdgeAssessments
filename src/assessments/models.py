@@ -33,6 +33,8 @@ from optivedge_integrations.integrations.models import (
     CertificateProfile,
     SslTlsServiceProfile,
     InterfaceManagementProfile,
+    IkeCryptoProfile,
+    IkeGateway,
     ManagementInterface,
     SecurityRule,
     Snapshot,
@@ -103,6 +105,12 @@ class Control(models.Model):
         #: one-to-one and that map's own comment says so: "a coverage control over another
         #: model needs its own control_type".
         NORMALIZATION = "normalization", "Normalization Coverage"
+        #: The two IKE objects are SEPARATE types because `_CONTROL_TYPE_TARGET_MODEL` is
+        #: one-to-one. PAN-IKE-002 to 005 assert over the proposal set; PAN-IKE-001 and 006
+        #: to 008 over the peer binding; PAN-IKE-009 asserts over BOTH and so cannot be one
+        #: control - see the stage 8 artifact for `ike-crypto`.
+        IKE_CRYPTO_PROFILE = "ike_crypto_profile", "IKE Crypto Profile"
+        IKE_GATEWAY = "ike_gateway", "IKE Gateway"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -174,6 +182,9 @@ class Control(models.Model):
         "ntp_settings": "integrations.NtpSettings",
         "snmp_settings": "integrations.SnmpSettings",
         "system_identity": "integrations.SystemIdentity",
+        # Device-wide network objects: one row per named entry per appliance, no vsys axis.
+        "ike_crypto_profile": "integrations.IkeCryptoProfile",
+        "ike_gateway": "integrations.IkeGateway",
         # The subject is the issue record, which exists precisely when the object does not.
         "normalization": "integrations.NormalizationIssue",
         "config": "",
@@ -220,6 +231,8 @@ class Control(models.Model):
         "integrations.SnmpSettings": "SNMP",
         "integrations.SystemIdentity": "System Identity",
         "integrations.NormalizationIssue": "Normalization Issue",
+        "integrations.IkeCryptoProfile": "IKE Crypto Profile",
+        "integrations.IkeGateway": "IKE Gateway",
     }
 
     @property
@@ -1156,6 +1169,115 @@ class ManagementSshFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.management_ssh_finding_id} <- {self.control_query_id}"
+
+
+class IkeCryptoProfileFinding(ObjectFindingBase):
+    """A finding against one named IKE crypto profile. PAN-IKE-002 to 005.
+
+    One row per named entry per appliance. The object is DEVICE-WIDE - stage 4 of the
+    `ike-crypto` pipeline domain found exactly one firewall-local scope, neither shared nor
+    under a vsys - so `subject_scope` is NOT declared: a profile name is unique per appliance
+    and there is no second scope for it to collide across. On an HA pair the same real profile
+    yields two rows and so two findings, which nothing deduplicates.
+
+    THE SUBJECT NAME IS NOT EVIDENCE OF STRENGTH. `default` on one lab appliance offers 3DES,
+    SHA-1 and Group 2 - measured - but an estate may equally have hardened it in place, so every
+    assertion here reads the derived columns and none reads the name.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ike_crypto_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ike_crypto_profile_findings")
+    ike_crypto_profile = models.ForeignKey(
+        IkeCryptoProfile, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="IkeCryptoProfileFindingControlQuery",
+        related_name="ike_crypto_profile_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ike_crypto_profile"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ike_crypto_profile"],
+                name="unique_ikecp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on IKE crypto profile {self.subject_name}"
+
+
+class IkeCryptoProfileFindingControlQuery(FindingControlQueryBase):
+    ike_crypto_profile_finding = models.ForeignKey(
+        IkeCryptoProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ike_crypto_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ike_crypto_profile_finding", "control_query"],
+                name="unique_ikecp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ike_crypto_profile_finding_id} <- {self.control_query_id}"
+
+
+class IkeGatewayFinding(ObjectFindingBase):
+    """A finding against one named IKE gateway. PAN-IKE-001, 006, 007, 008 and 009.
+
+    One row per named entry per appliance, device-wide like the sibling object, so no
+    `subject_scope`.
+
+    EVERY CONTROL ON THIS SUBJECT CARRIES `gateway_is_active` AS APPLICABILITY, so a gateway
+    switched off produces no finding at all rather than a passing one. That suppression is
+    deliberate - a disabled gateway negotiates nothing - and it is why the absence of a finding
+    on a gateway is not a statement that the gateway is sound.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ike_gateway_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ike_gateway_findings")
+    ike_gateway = models.ForeignKey(
+        IkeGateway, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="IkeGatewayFindingControlQuery",
+        related_name="ike_gateway_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ike_gateway"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ike_gateway"],
+                name="unique_ikegw_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on IKE gateway {self.subject_name}"
+
+
+class IkeGatewayFindingControlQuery(FindingControlQueryBase):
+    ike_gateway_finding = models.ForeignKey(
+        IkeGatewayFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="ike_gateway_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ike_gateway_finding", "control_query"],
+                name="unique_ikegw_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ike_gateway_finding_id} <- {self.control_query_id}"
 
 
 class ManagementTlsFinding(ObjectFindingBase):

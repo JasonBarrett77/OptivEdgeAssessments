@@ -166,6 +166,16 @@ from assessments.search.normalization_issue.compiler import (
     NORMALIZATION_ISSUE_MODEL,
     compile_normalization_issue_search_node,
 )
+from assessments.search.ike_crypto_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as IKE_CRYPTO_PROFILE_FIELD_OPERATOR_REGISTRY,
+    IKE_CRYPTO_PROFILE_MODEL,
+    compile_ike_crypto_profile_search_node,
+)
+from assessments.search.ike_gateway.compiler import (
+    FIELD_OPERATOR_REGISTRY as IKE_GATEWAY_FIELD_OPERATOR_REGISTRY,
+    IKE_GATEWAY_MODEL,
+    compile_ike_gateway_search_node,
+)
 from assessments.search.authentication_sequence.compiler import (
     AUTHENTICATION_SEQUENCE_MODEL,
     FIELD_OPERATOR_REGISTRY as AUTHENTICATION_SEQUENCE_FIELD_OPERATOR_REGISTRY,
@@ -195,6 +205,8 @@ from optivedge_integrations.integrations.models import (
     SecurityProfile,
     CertificateProfile,
     InterfaceManagementProfile,
+    IkeCryptoProfile,
+    IkeGateway,
     SslTlsServiceProfile,
     ManagementInterface,
     SecurityRule,
@@ -326,6 +338,16 @@ MODEL_REGISTRY = {
         "model_class": Certificate,
         "field_operators": CERTIFICATE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_certificate_search_node,
+    },
+    IKE_CRYPTO_PROFILE_MODEL: {
+        "model_class": IkeCryptoProfile,
+        "field_operators": IKE_CRYPTO_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ike_crypto_profile_search_node,
+    },
+    IKE_GATEWAY_MODEL: {
+        "model_class": IkeGateway,
+        "field_operators": IKE_GATEWAY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ike_gateway_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

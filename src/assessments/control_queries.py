@@ -31,6 +31,8 @@ SERVER_PROFILE_MODEL = "integrations.ServerProfile"
 NTP_SETTINGS_MODEL = "integrations.NtpSettings"
 SNMP_SETTINGS_MODEL = "integrations.SnmpSettings"
 SYSTEM_IDENTITY_MODEL = "integrations.SystemIdentity"
+IKE_CRYPTO_PROFILE_MODEL = "integrations.IkeCryptoProfile"
+IKE_GATEWAY_MODEL = "integrations.IkeGateway"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -316,4 +318,20 @@ def evaluate_system_identity_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or SYSTEM_IDENTITY_MODEL,
+    )
+
+
+def evaluate_ike_crypto_profile_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or IKE_CRYPTO_PROFILE_MODEL,
+    )
+
+
+def evaluate_ike_gateway_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or IKE_GATEWAY_MODEL,
     )

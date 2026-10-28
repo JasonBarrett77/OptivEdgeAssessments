@@ -27,6 +27,8 @@ from assessments.certificate_findings import generate_certificate_findings
 from assessments.coverage_findings import generate_coverage_findings
 from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
+from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
+from assessments.ike_gateway_findings import generate_ike_gateway_findings
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
 )
@@ -85,6 +87,10 @@ GENERATORS = (
     ("ssl/tls service profile", T.SSL_TLS_SERVICE_PROFILE, generate_ssl_tls_service_profile_findings),
     ("certificate profile", T.CERTIFICATE_PROFILE, generate_certificate_profile_findings),
     ("certificate", T.CERTIFICATE, generate_certificate_findings),
+    # The two IKE objects, gateway after proposal set: a gateway's finding names the profile it
+    # points at, so a reader meets the proposal before the binding that chooses it.
+    ("ike crypto profile", T.IKE_CRYPTO_PROFILE, generate_ike_crypto_profile_findings),
+    ("ike gateway", T.IKE_GATEWAY, generate_ike_gateway_findings),
     # Last on purpose: it reports what the run could NOT establish, so it reads as the
     # footnote to everything above rather than as another finding family.
     ("coverage", T.COVERAGE, generate_coverage_findings),
