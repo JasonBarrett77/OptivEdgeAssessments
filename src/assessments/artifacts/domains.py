@@ -75,6 +75,12 @@ DOMAINS = (
     _object_domain("normalization-coverage", T.NORMALIZATION),
     # Network
     _object_domain("interface-management-profiles", T.INTERFACE_MANAGEMENT_PROFILE),
+    # Network > Network Profiles, 2026-10-28. Both after the interface-management profiles,
+    # which is this category's order in `finding_run.GENERATORS` - and the proposal set before
+    # the gateway, which is that tuple's own reasoning: a gateway's finding names the profile it
+    # points at, so a reader meets the proposal before the binding that chooses it.
+    _object_domain("ike-crypto-profiles", T.IKE_CRYPTO_PROFILE),
+    _object_domain("ike-gateways", T.IKE_GATEWAY),
     # Device
     FindingsDomain("password-complexity", password_complexity.SPEC),
     FindingsDomain("authentication-settings", authentication_settings.SPEC),

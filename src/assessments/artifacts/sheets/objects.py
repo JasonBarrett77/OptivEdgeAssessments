@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from assessments.models import Control
 
+from assessments import ike_presentation as ike
+
 from . import findings as findings_sheet
 from ..layout import NONE, SheetInfo, appliance_names, ha_role
 
@@ -81,6 +83,59 @@ NORMALIZATION_SUBJECT = (
                     if s.is_consequent and s.related_object_name
                     else ("Consequence" if s.is_consequent else "Root")),
      "is_consequent"),
+)
+#: An IKE crypto profile. The three algorithm columns show the OFFER SET with the graded member
+#: marked, because the profile offers every member and takes the first a peer accepts - the
+#: weakest alone hides what a remediation has to delete. None of them declares a `field`: the
+#: verdict each control asserts on (`*_floor_met`) gets a derived settings column of its own and
+#: is the cell that should be marked, so declaring one here would move the mark off the verdict
+#: and onto a list that is evidence rather than fault.
+#:
+#: "Key lifetime (as set)" exists BESIDE the derived `key_lifetime_hours` column and does not
+#: replace it: the unit is which child element exists rather than a value on the device, so it
+#: cannot be a column a reader compares - and it is what a remediation needs, since writing one
+#: branch silently destroys another with nothing reporting the discard.
+#:
+#: "IKEv2 re-authentication" carries its own verdict in the cell. PAN-IKE-005's second record
+#: asserts on `reauth_interval_bounded` from a NON-BASELINE query, and `tested_fields` reads the
+#: baseline only, so nothing derives a column for it - without this the two rows that finding
+#: produces would show no cell explaining themselves.
+#: Both IKE models name their entry `entry_name` and have NO `name` field at all, so `NAME` above
+#: - which reads `s.name` - does not apply to either. They are the first subjects here in that
+#: position: every other named object on this page inherits `ApplianceScopedObject`, and these two
+#: deliberately do not (they are `network/` objects with one firewall-local scope, like
+#: `InterfaceManagementProfile`). The `field` is the column's own name so that a control testing
+#: `entry_name` would mark this cell rather than adding a second column headed the same way.
+IKE_ENTRY_NAME = (("Object", None, False, lambda s, _p: s.entry_name or NONE, "entry_name"),)
+
+IKE_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
+    ("DH groups offered", 22, True,
+     lambda s, _p: ike.offer_set(s.dh_groups, s.weakest_dh_group)),
+    ("Encryption offered", 22, True,
+     lambda s, _p: ike.offer_set(s.encryption_ciphers, s.weakest_encryption_cipher)),
+    ("Integrity offered", 24, True, lambda s, _p: ike.integrity_offer(s)),
+    ("Key lifetime (as set)", 20, False, lambda s, _p: ike.key_lifetime(s)),
+    ("IKEv2 re-authentication", 26, True, lambda s, _p: ike.reauth_interval(s)),
+    ("Named by a gateway here", 16, False,
+     lambda s, _p: ("Yes" if s.referenced_by_gateway_on_this_appliance else "No"),
+     "referenced_by_gateway_on_this_appliance"),
+)
+
+#: An IKE gateway. "Status" presents `gateway_is_active` and declares NO field, which is why that
+#: column is named in `hidden_fields` instead - see the spec. The remaining four carry the keys
+#: stage 5 declared presented that no baseline query names, so no settings column is derived for
+#: them: the IKEv2 liveness branch, its retry sibling on the IKEv1 branch, how the peer
+#: authenticates in the parts an engineer can act on, and the two crypto-profile pointers.
+IKE_GATEWAY_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
+    # "Gateway state" and NOT "Status": `HEAD_COLUMNS` already carries a Status column - the
+    # FINDING's status - and a table with a duplicate header is rejected by Excel, which
+    # xlsxwriter drops with a warning, leaving a sheet of stray cells where the table should be.
+    ("Gateway state", 14, False, lambda s, _p: ike.gateway_status(s)),
+    ("Peer authentication detail", 28, True,
+     lambda s, _p: ike.peer_authentication_detail(s)),
+    ("IKEv2 liveness check", 24, True, lambda s, _p: ike.ikev2_liveness(s)),
+    ("IKEv1 DPD retry", 14, False, lambda s, _p: ike.ikev1_dpd_retry(s), "ikev1_dpd_retry"),
+    ("IKE crypto profile named", 24, True, lambda s, _p: ike.named_crypto_profiles(s)),
 )
 SCOPE = (("Scope", 12, False, lambda s, _p: scope_of(s), "scope"),)
 KIND = (("Kind", 22, False, lambda s, _p: s.get_kind_display(), "kind"),)
@@ -295,6 +350,39 @@ SPECS = (
          ),
          value_readers={"service_enabled": SERVICES_ENABLED, "exposure": PERMITTED_SOURCES},
          subject_prefetch=("services", "permitted_sources")),
+    # Network > Network Profiles > IKE Crypto and > IKE Gateways, 2026-10-28. TWO TABS AND NOT
+    # ONE, for the reason they are two models and two rail items: a gateway names a profile, and
+    # an engineer fixes one or the other. Both subjects are DEVICE-WIDE - stage 4 of the
+    # `ike-crypto` domain found exactly one firewall-local scope for each, neither shared nor
+    # under a vsys - so neither carries a Scope column: `scope` reads `device-local` on every row
+    # in this lab and `vsys_name` is structurally empty, and a column that says the same word
+    # everywhere teaches a reader nothing.
+    #
+    # ON AN HA PAIR each of these yields two rows for one real configuration and nothing
+    # deduplicates them. Appliance and HA role are the first two columns precisely so a reader
+    # can reconcile the count against the device list; the deduplication itself is not something
+    # presentation can do, since the findings exist per appliance row.
+    spec(T.IKE_CRYPTO_PROFILE,
+         "The IKE proposal sets a gateway can offer in phase 1 of an IPSec VPN: which "
+         "key-agreement groups, ciphers and integrity algorithms each profile still offers, how "
+         "long a key lives, and whether any gateway on the same firewall names it. A profile "
+         "offers every member of each list and takes the first a peer accepts, so what is "
+         "assessed is the WEAKEST member on offer - the one an exchange can be driven down to.",
+         title="IKE Crypto", subject=IKE_CRYPTO_PROFILE_SUBJECT),
+    spec(T.IKE_GATEWAY,
+         "The peer gateways this firewall negotiates IKE with: which protocol version, how the "
+         "peer is authenticated, the IKEv1 exchange mode, whether a dead peer is detected, and "
+         "which crypto profile each branch names. THE CONFIGURED VERSION IS NOT THE NEGOTIATED "
+         "ONE - `IKEv2 preferred` resolves to IKEv2 with an IKEv1 fallback the peer can elect - "
+         "and no column here can say which a running tunnel uses.",
+         title="IKE Gateways", subject=IKE_GATEWAY_SUBJECT,
+         # `gateway_is_active` is the clause EVERY control in this domain carries and none of
+         # them names: it is an APPLICABILITY clause, so the value is what brings the row into
+         # scope rather than the value at fault. Presented by the Status column, and hidden here
+         # so no settings column is derived for it - a cell reading "Active" with the amber
+         # value-at-fault fill on every single row is the shape Jason caught twice, where the
+         # most reassuring cell on the row was the finding.
+         hidden_fields=("gateway_is_active",)),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
          "interfaces carry them.",

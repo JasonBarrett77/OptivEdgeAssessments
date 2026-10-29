@@ -13,11 +13,15 @@ rather than a plausible wrong one.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.test import TestCase
 from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
 from assessments.configuration_results import (
+    AWAITING_PRESENTATION,
+    LEGACY_SURFACE,
     RESULTS,
     object_for_canonical_query,
     query_results_url,
@@ -31,6 +35,19 @@ def _seeded_controls():
     return [c for cat in load_seed_payload()["catalogs"] for c in cat["controls"]]
 
 
+def _awaiting(control_id):
+    """The stage 9 artifact that owes this control a page, or "" if nothing does.
+
+    See `configuration_results.AWAITING_PRESENTATION`. The pipeline builds the control and its
+    page in separate stages, so between the two a homeless query is the correct state of a domain
+    in flight rather than a defect - and the debt is declared with the artifact that clears it.
+    """
+    for prefix, artifact in AWAITING_PRESENTATION.items():
+        if str(control_id).startswith(prefix):
+            return artifact
+    return ""
+
+
 class QueryDestinationTests(TestCase):
     def test_every_query_in_the_shipped_catalog_has_somewhere_to_go(self):
         """The whole point. A control whose link goes nowhere is one an assessor cannot check."""
@@ -39,6 +56,7 @@ class QueryDestinationTests(TestCase):
             for control in _seeded_controls()
             for query in control["queries"]
             if not query_results_url(query["canonical_query"])
+            and not _awaiting(control["control_id"])
         ]
         self.assertEqual(homeless, [], f"queries with no results page: {homeless}")
 
@@ -51,12 +69,37 @@ class QueryDestinationTests(TestCase):
                 obj = object_for_canonical_query(query["canonical_query"])
                 with self.subTest(control=control["control_id"], query=query["name"]):
                     if obj is None:
-                        # Only an object with no rail item yet may fall through, and only to the
-                        # page that presents it in the meantime.
-                        from assessments.configuration_results import LEGACY_SURFACE
+                        # Two ways to fall through, and no third. An object with no rail item yet
+                        # goes to the page presenting it in the meantime; a control whose domain
+                        # is between stage 8 and stage 9 is OWED a page and says which artifact
+                        # clears the debt.
+                        if _awaiting(control["control_id"]):
+                            continue
                         self.assertIn(model, LEGACY_SURFACE)
                     else:
                         self.assertEqual(obj.search_model, model)
+
+    def test_no_prefix_outlives_its_stage_9_artifact(self):
+        """An exemption that survives the work it was waiting for is a permanent hole.
+
+        Each entry names the stage 9 artifact that removes it. Once that artifact exists the
+        domain has been presented, so the entry has to go - and this fails until it does. The
+        artifacts live in OptivEdgeProbe, which this repo does not depend on, so a missing
+        checkout is not a failure: the check runs where it can and says nothing where it cannot.
+        """
+        artifacts = (Path(__file__).resolve().parents[4]
+                     / "OptivEdgeProbe" / "pipeline" / "artifacts")
+        if not artifacts.is_dir():
+            self.skipTest("OptivEdgeProbe is not beside this checkout")
+        stale = [f"{prefix} -> {name}" for prefix, name in AWAITING_PRESENTATION.items()
+                 if (artifacts / name).exists()]
+        self.assertEqual(stale, [], f"presented, so the exemption must be removed: {stale}")
+
+    def test_every_awaiting_prefix_names_a_stage_9_artifact(self):
+        """A debt with no named artifact is a waiver. The value is the thing that clears it."""
+        for prefix, name in AWAITING_PRESENTATION.items():
+            with self.subTest(prefix=prefix):
+                self.assertTrue(name.startswith("stage9-") and name.endswith(".json"))
 
     def test_the_two_security_profile_pages_each_take_their_own_query(self):
         """One model, two rail items, split by `kind` - the case that makes this a rule rather

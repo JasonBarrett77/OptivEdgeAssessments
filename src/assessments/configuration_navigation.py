@@ -193,7 +193,22 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",
                  search_model="integrations.MasterKey"),
-    # Network > Network Profiles.
+    # Network > Network Profiles. The rail order inside this group is the PRODUCT's, taken
+    # from the vendor's own help, whose Network Profiles sections run GlobalProtect IPSec
+    # Crypto, IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt, Zone Protection
+    # (help 11.2 p.635-650) - so both IKE items sit ABOVE Interface Mgmt rather than after it,
+    # which is where build order would have put them.
+    #
+    # Turned on 2026-10-28 for the nine PAN-IKE controls, which query both objects: every
+    # control query must have a results page, and a query with nowhere to go is one an assessor
+    # cannot check. Two rail items and not one, because PAN-OS lists them as two and because
+    # they are two models - a gateway names a profile, and an engineer fixes one or the other.
+    ConfigObject("ike-gateways", "IKE Gateways", "Network", "Network Profiles", "server",
+                 where="Network > Network Profiles > IKE Gateways",
+                 search_model="integrations.IkeGateway"),
+    ConfigObject("ike-crypto", "IKE Crypto", "Network", "Network Profiles", "shield",
+                 where="Network > Network Profiles > IKE Crypto",
+                 search_model="integrations.IkeCryptoProfile"),
     ConfigObject("interface-mgmt", "Interface Mgmt", "Network", "Network Profiles",
                  "list-checks", where="Network > Network Profiles > Interface Mgmt",
                  search_model="integrations.InterfaceManagementProfile"),

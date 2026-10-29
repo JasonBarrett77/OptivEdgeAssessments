@@ -25,6 +25,7 @@ from typing import Callable, NamedTuple
 from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
+from assessments import ike_presentation as ike
 from assessments.security_rule_queries import build_security_rule_display_queryset
 from optivedge_integrations.integrations.presentation import (
     address_breadth_label,
@@ -41,6 +42,8 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSequence,
     Certificate,
     CertificateProfile,
+    IkeCryptoProfile,
+    IkeGateway,
     InterfaceManagementProfile,
     ManagementInterface,
     AuthenticationSettings,
@@ -781,6 +784,61 @@ RESULTS = {
         ),
     ),
     # --- Network > Network Profiles -------------------------------------------------------
+    # The two IKE objects, 2026-10-28, for the nine PAN-IKE controls. In the rail's order, which
+    # is the product's: IKE Gateways above IKE Crypto above Interface Mgmt.
+    #
+    # EACH ALGORITHM CELL IS ITS VERDICT FIELD, the way the management-SSH page's are: the cell
+    # shows the offer set and marks the member being graded, and `query_fields` points the
+    # "build a query from these rows" button at the verdict column the controls actually assert
+    # on. The member lists are JSONFields and are deliberately unreachable from a query, so
+    # mapping a heading to one would be mapping it to a lookup that silently matches nothing.
+    "ike-gateways": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Gateway": "entry_name",
+                      "Status": "gateway_is_active", "Version": "ike_version",
+                      "Peer Authentication": "peer_authentication",
+                      "Exchange Mode": "ikev1_exchange_mode"},
+        columns=("Appliance", "Gateway", "Status", "Version", "Peer Authentication",
+                 "Exchange Mode", "Dead Peer Detection", "IKE Crypto Profile"),
+        base_queryset=_ordered(IkeGateway, "appliance__hostname", "entry_name"),
+        row=lambda g: (
+            str(g.appliance),
+            g.entry_name,
+            ike.gateway_status(g),
+            g.get_ike_version_display() or ike.NOT_READ,
+            g.get_peer_authentication_display() or "Not established",
+            ike.exchange_mode(g),
+            # One cell for the pair here, where the workbook's wider row splits them: this page
+            # answers "which gateways look like this" and has eight columns to do it in.
+            ike.dead_peer_detection(g),
+            ike.named_crypto_profiles(g),
+        ),
+    ),
+    "ike-crypto": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Profile": "entry_name",
+                      "DH Group": "dh_group_floor_met", "Encryption": "encryption_floor_met",
+                      "Authentication": "hash_floor_met",
+                      "Key Lifetime": "key_lifetime_hours",
+                      "Named by a gateway": "referenced_by_gateway_on_this_appliance"},
+        columns=("Appliance", "Profile", "DH Group", "Encryption", "Authentication",
+                 "Key Lifetime", "IKEv2 Re-authentication", "Named by a gateway"),
+        base_queryset=_ordered(IkeCryptoProfile, "appliance__hostname", "entry_name"),
+        row=lambda p: (
+            str(p.appliance),
+            p.entry_name,
+            ike.offer_set(p.dh_groups, p.weakest_dh_group),
+            ike.offer_set(p.encryption_ciphers, p.weakest_encryption_cipher),
+            ike.integrity_offer(p),
+            ike.key_lifetime(p),
+            ike.reauth_interval(p),
+            # NARROWER THAN "Referenced", which is what the addresses page calls its own
+            # version of this question - hence the heading. This says whether a gateway ON THIS
+            # APPLIANCE names the profile from one of its two explicit pointer leaves. A
+            # gateway with NEITHER pointer set still consumes a profile, so the entry
+            # named `default` reads "no" on exactly the estates where every unpointed gateway
+            # uses it.
+            _yes_no(p.referenced_by_gateway_on_this_appliance),
+        ),
+    ),
     "interface-mgmt": ResultsSpec(
         query_fields={"Appliance": "hostname", "Profile": "name",
                       "Bound To": "binding_count"},
@@ -801,6 +859,35 @@ RESULTS = {
 #: the next object to be presented before it is placed will need it, and because an empty map
 #: states that nothing is currently in that position.
 LEGACY_SURFACE: dict[str, str] = {}
+
+
+#: Control id prefixes whose domain has reached stage 8 and not yet stage 9, so their queries are
+#: OWED a results page rather than missing one. Each entry is a debt with a name on it.
+#:
+#: WHY THIS IS NOT THE SAME HOLE THE TEST EXISTS TO CLOSE. A control whose link goes nowhere is
+#: one an assessor cannot check, and that is true whoever's fault it is. What changed is that the
+#: pipeline now builds the control and the page in SEPARATE stages, by Jason's decision of
+#: 2026-10-22 - stage 8 writes the control seed and its queries, stage 9 writes the live view -
+#: and stage 8's contract forbids it to build a page. So between the two, a homeless query is the
+#: correct state of a domain in flight, and a suite that is red for every such domain stops being
+#: a signal: over 28 domains that is most of the time.
+#:
+#: WHAT KEEPS IT HONEST, because a declared exemption can rot into a permanent one:
+#:   - an entry names the stage 9 artifact that removes it, so the debt has an owner
+#:   - `probe/validate_stage9.py` refuses a stage 9 artifact that gives a model no page, so the
+#:     obligation is enforced from the other side rather than merely waived here
+#:   - `test_no_prefix_outlives_its_stage_9_artifact` fails once that artifact exists, so an
+#:     entry cannot survive the work that was supposed to clear it
+#:
+#: `LEGACY_SURFACE` above is the precedent for the shape and for the lifecycle: it held one entry,
+#: the entry was cleared when the rail item landed, and the empty map now states that nothing is
+#: in that position.
+#:
+#: EMPTY since 2026-10-28, when the first stage 9 run presented `ike-crypto` - the `PAN-IKE`
+#: entry, which is the only one this ever held, was cleared by the work it named. The empty map
+#: states that no domain is currently in that position, exactly as `LEGACY_SURFACE` does.
+AWAITING_PRESENTATION: dict[str, str] = {}
+
 
 
 def _clause_key(clause):

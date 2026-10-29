@@ -65,7 +65,8 @@ class WorkbookBuildTests(TestCase):
         self.assertTrue(content.startswith(b"PK"))
         # 33 since 2026-10-12: the four per-kind security-profile views.
         # 34 since 2026-10-28, when the normalization coverage tab was added beside Coverage.
-        self.assertIn("Summary: 34 tabs linked, 0 findings in total", reports[0])
+        # 36 later the same day: IKE Crypto and IKE Gateways, under Network > Network Profiles.
+        self.assertIn("Summary: 36 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -75,7 +76,8 @@ class WorkbookBuildTests(TestCase):
         # WildFire settings on 2026-10-09.
         # 34 since 2026-10-12: Summary plus the four per-kind profile views.
         # 35 since 2026-10-28, when the normalization coverage tab was added beside Coverage.
-        self.assertEqual(len(names), 35)
+        # 37 later the same day: IKE Crypto and IKE Gateways.
+        self.assertEqual(len(names), 37)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
