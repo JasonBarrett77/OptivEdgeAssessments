@@ -69,6 +69,10 @@ def _validate_query_payload(query_payload: dict, *, control_id: str) -> dict:
             "is_baseline",
             context=f"Control '{control_id}' query '{name}'",
         ),
+        "asserted_fields": [
+            str(field) for field in (query_payload.get("asserted_fields") or [])
+            if str(field).strip()
+        ],
         "adjusted_severity": query_payload.get("adjusted_severity"),
         "is_active": _require_bool(
             query_payload,

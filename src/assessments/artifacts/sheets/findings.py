@@ -351,10 +351,20 @@ def tested_fields(subject_model, control, readers=()) -> list[tuple[str, bool]]:
     `stored` is False for a field the model does not store: `ManagementTlsBinding.min_version` is a
     property reading through the SSL/TLS profile, and a value resolved from another object has no
     provenance of its own to show."""
+    # THE BASELINE FIRST, THEN EVERY OTHER ACTIVE QUERY. It read the baseline alone until
+    # 2026-10-28, so a field asserted on by only a non-baseline query got NO COLUMN: on the IKE
+    # gateways tab `ikev2_dpd_enabled` was the thing a control reported and the row did not show
+    # it. The baseline leads so the established order is unchanged for every control whose
+    # calibration queries add no new field, which is most of them - the 80 single-record controls
+    # measured across the pipeline's 28 stage 5 artifacts are byte-identical either way.
     names = []
     for clause in clauses(baseline_query(control).canonical_query):
         if clause["field"] not in names:
             names.append(clause["field"])
+    for query in control.queries.filter(is_active=True).order_by("-is_baseline", "name", "pk"):
+        for clause in clauses(query.canonical_query):
+            if clause["field"] not in names:
+                names.append(clause["field"])
     fields = []
     for name in names:
         if name in readers:
@@ -633,6 +643,13 @@ def build_rows(spec, findings, controls, settings, tested=None):
         c.pk: tested_fields(spec.subject_model(spec.kind_for(c.control_type)), c,
                             spec.value_readers)
         for c in controls}
+    # {control: {query name: the fields that query ASSERTS on}}, built from the queries already
+    # prefetched for `controls` rather than read per finding - `test_query_count_does_not_grow_
+    # with_rules` catches the N+1 that reading `finding.control_queries` per row produces, which
+    # is how the first version of this was written.
+    asserted_by_control = {
+        c.pk: {q.name: list(q.asserted_fields or []) for q in c.queries.all()}
+        for c in controls}
     columns = columns_for(spec, settings, tested)
     #: Seeded once per build from the distinct snapshots these findings name, the way
     #: `AssessmentRun.next_reference_number` seeds its counter once per run.
@@ -707,7 +724,25 @@ def build_rows(spec, findings, controls, settings, tested=None):
         source_cells = [read(policy, remediation_of, shown)
                         for _h, _w, _wrap, read, _f in map(as_column, spec.source_columns)]
 
-        tested_names = {field for field, _ in fields}
+        # WHAT THE FILL MARKS: the fields the MATCHED queries assert on, where they say. Until
+        # 2026-10-28 this was every field in `fields` - the baseline's clauses, whichever query
+        # matched and including the ones that merely SCOPE the control. Measured across the
+        # pipeline's 28 stage 5 artifacts: 107 of 220 controls carry a non-assertion clause in
+        # their baseline, so nearly half the catalogue marked at least one cell that was not the
+        # fault. The worst shape, on one IKE gateway: the matched query was "IKEv2 idle liveness
+        # probe switched off" and the marked cell read `ike_version = ikev2`, which the baseline
+        # clause EXCLUDES and the matched query REQUIRES - the row named as the fault the single
+        # setting that gateway had right, while the cell at fault carried no mark at all.
+        #
+        # EMPTY `asserted_fields` FALLS BACK, and that is not a hedge: a control whose queries
+        # predate the pipeline has no role recorded anywhere, 71 of 249 such fields resolving to
+        # nothing stage 5 declares, so the old behaviour is the best available for it. Those rows
+        # stay imperfect instead of breaking, and they become correct when their domain's stage 8
+        # run rewrites the entry.
+        by_name = asserted_by_control.get(finding.control_id, {})
+        asserted = {field for name in (finding.matched_query_names or [])
+                    for field in by_name.get(name, ())}
+        tested_names = asserted or {field for field, _ in fields}
         offset = len(HEAD_COLUMNS)
         for i, column in enumerate(map(as_column, spec.subject_columns)):
             if column[4] in tested_names:

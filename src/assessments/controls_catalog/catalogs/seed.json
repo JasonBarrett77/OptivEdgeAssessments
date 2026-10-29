@@ -4077,6 +4077,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ike_version"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4102,6 +4105,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ike_version"
+              ],
               "is_baseline": false,
               "adjusted_severity": "medium",
               "is_active": true
@@ -4136,6 +4142,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "dh_group_floor_met"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4161,6 +4170,10 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "dh_group_floor_met",
+                "weakest_dh_group"
+              ],
               "is_baseline": false,
               "adjusted_severity": "medium",
               "is_active": true
@@ -4195,6 +4208,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "encryption_floor_met"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4229,6 +4245,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "hash_floor_met"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4254,6 +4273,10 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "hash_floor_met",
+                "weakest_hash_algorithm"
+              ],
               "is_baseline": false,
               "adjusted_severity": "medium",
               "is_active": true
@@ -4294,6 +4317,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "key_lifetime_hours"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4325,6 +4351,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "key_lifetime_hours"
+              ],
               "is_baseline": false,
               "adjusted_severity": "low",
               "is_active": true
@@ -4344,6 +4373,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "key_lifetime_known"
+              ],
               "is_baseline": false,
               "adjusted_severity": "medium",
               "is_active": true
@@ -4369,6 +4401,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "reauth_interval_bounded"
+              ],
               "is_baseline": false,
               "adjusted_severity": "medium",
               "is_active": true
@@ -4409,6 +4444,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "peer_authentication"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4455,6 +4493,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ikev1_exchange_mode"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4507,6 +4548,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ikev1_dpd_enabled"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -4544,6 +4588,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ikev2_dpd_enabled"
+              ],
               "is_baseline": false,
               "adjusted_severity": "low",
               "is_active": true
@@ -4575,6 +4622,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ikev1_dpd_enabled_known"
+              ],
               "is_baseline": false,
               "adjusted_severity": "low",
               "is_active": true
@@ -4606,6 +4656,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ikev2_dpd_enabled_known"
+              ],
               "is_baseline": false,
               "adjusted_severity": "low",
               "is_active": true
@@ -4646,6 +4699,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "relies_on_factory_named_proposal"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true

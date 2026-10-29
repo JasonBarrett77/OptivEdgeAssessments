@@ -315,6 +315,25 @@ class ControlQuery(models.Model):
     name = models.CharField(max_length=255)
     short_description = models.CharField(max_length=255, blank=True)
     canonical_query = models.JSONField(default=dict)
+    #: The fields this query ASSERTS on, as distinct from the ones that scope it. Stage 5 of the
+    #: pipeline gives every clause a `role` - assertion, applicability or scope - and
+    #: `validate_search_clause` whitelists clause keys and rebuilds the dict from them, so the
+    #: role cannot ride on the clause and has to be carried beside it.
+    #:
+    #: WHY IT MATTERS: `findings.build_rows` draws the value-at-fault fill, and without this it
+    #: marks every field the BASELINE query clauses on - whichever query actually matched, and
+    #: including the clauses that merely scope the control. Measured across the 28 pipeline
+    #: artifacts: 107 of 220 controls have a non-assertion clause in their baseline record, so
+    #: nearly half the catalogue marks at least one cell that is not the fault. On one IKE gateway
+    #: the marked cell was `ike_version = ikev2` - which the baseline EXCLUDES and the matched
+    #: query REQUIRES, so the row named as the fault the one setting that gateway had right.
+    #:
+    #: EMPTY MEANS "NOT STATED" AND FALLS BACK TO THE OLD BEHAVIOUR, deliberately. Controls that
+    #: predate the pipeline have hand-written queries whose fields correspond to nothing stage 5
+    #: declares - 71 of 249 such fields resolve to no role - so they cannot be backfilled and get
+    #: this only when their domain's stage 8 run rewrites the entry. Until then their rows stay
+    #: imperfect rather than breaking.
+    asserted_fields = models.JSONField(default=list, blank=True)
     is_baseline = models.BooleanField(default=False)
     adjusted_severity = models.CharField(
         max_length=32,

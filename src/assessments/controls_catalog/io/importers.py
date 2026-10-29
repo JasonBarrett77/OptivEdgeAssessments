@@ -164,6 +164,7 @@ def apply_catalog(*, catalog: Catalog, application_environment) -> CatalogApplyR
                     name=query_payload["name"],
                     short_description=query_payload["short_description"],
                     canonical_query=query_payload["canonical_query"],
+                    asserted_fields=query_payload.get("asserted_fields") or [],
                     is_baseline=query_payload["is_baseline"],
                     adjusted_severity=query_payload["adjusted_severity"],
                     is_active=query_payload["is_active"],
