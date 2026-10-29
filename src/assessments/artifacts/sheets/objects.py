@@ -108,6 +108,37 @@ NORMALIZATION_SUBJECT = (
 #: `entry_name` would mark this cell rather than adding a second column headed the same way.
 IKE_ENTRY_NAME = (("Object", None, False, lambda s, _p: s.entry_name or NONE, "entry_name"),)
 
+#: What to head the derived setting columns on the two IKE tabs - see
+#: `DeviceSettingSheet.setting_labels`. Written rather than derived because every heading here is
+#: an acronym this subject matter is made of, and a mechanical title-case gets all of them wrong.
+#: The `_known` flags are headed as the QUESTION they answer, because that is what a false means:
+#: not "the switch is off" but "no switch is set", which is a different thing on a device.
+IKE_CRYPTO_PROFILE_SETTING_LABELS = {
+    "dh_group_floor_met": "DH group meets the floor",
+    "weakest_dh_group": "Weakest DH group",
+    "encryption_floor_met": "Encryption meets the floor",
+    "weakest_encryption_cipher": "Weakest cipher",
+    "hash_floor_met": "Integrity meets the floor",
+    "weakest_hash_algorithm": "Weakest integrity algorithm",
+    "key_lifetime_known": "Key lifetime set?",
+    "key_lifetime_hours": "Key lifetime (hours)",
+    "used_by_ikev2_gateway": "Named by an IKEv2 gateway",
+    "reauth_interval_bounded": "IKEv2 re-authentication bounded",
+    "referenced_by_gateway_on_this_appliance": "Named by a gateway here",
+}
+
+IKE_GATEWAY_SETTING_LABELS = {
+    "ike_version": "IKE version configured",
+    "peer_authentication": "Peer authentication",
+    "ikev1_exchange_mode": "IKEv1 exchange mode",
+    "ikev1_dpd_enabled_known": "IKEv1 DPD set?",
+    "ikev1_dpd_enabled": "IKEv1 DPD enabled",
+    "ikev2_dpd_enabled_known": "IKEv2 idle probe set?",
+    "ikev2_dpd_enabled": "IKEv2 idle probe enabled",
+    "relies_on_factory_named_proposal": "Names a factory proposal",
+    "gateway_is_active": "Gateway state",
+}
+
 IKE_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
     ("DH groups offered", 22, True,
      lambda s, _p: ike.offer_set(s.dh_groups, s.weakest_dh_group)),
@@ -115,7 +146,15 @@ IKE_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
      lambda s, _p: ike.offer_set(s.encryption_ciphers, s.weakest_encryption_cipher)),
     ("Integrity offered", 24, True, lambda s, _p: ike.integrity_offer(s)),
     ("Key lifetime (as set)", 20, False, lambda s, _p: ike.key_lifetime(s)),
-    ("IKEv2 re-authentication", 26, True, lambda s, _p: ike.reauth_interval(s)),
+    # NAMES `reauth_interval_bounded`, which is what PAN-IKE-005's second record asserts. Until
+    # 2026-10-28 `tested_fields` read the baseline alone, nothing derived a column for that field,
+    # and this column existed to compensate - unmarkable, because it named no field. The union
+    # over active queries landed that day and the raw column started deriving BESIDE this one,
+    # two columns for one setting. Naming the field here is better than either: the raw duplicate
+    # is suppressed, the mark lands on the cell a reader can act on, and the cell still shows the
+    # computed interval in hours, which no stored column holds.
+    ("IKEv2 re-authentication", 26, True, lambda s, _p: ike.reauth_interval(s),
+     "reauth_interval_bounded"),
     ("Named by a gateway here", 16, False,
      lambda s, _p: ("Yes" if s.referenced_by_gateway_on_this_appliance else "No"),
      "referenced_by_gateway_on_this_appliance"),
@@ -130,10 +169,15 @@ IKE_GATEWAY_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
     # "Gateway state" and NOT "Status": `HEAD_COLUMNS` already carries a Status column - the
     # FINDING's status - and a table with a duplicate header is rejected by Excel, which
     # xlsxwriter drops with a warning, leaving a sheet of stray cells where the table should be.
-    ("Gateway state", 14, False, lambda s, _p: ike.gateway_status(s)),
+    ("Gateway state", 14, False, lambda s, _p: ike.gateway_status(s), "gateway_is_active"),
     ("Peer authentication detail", 28, True,
      lambda s, _p: ike.peer_authentication_detail(s)),
-    ("IKEv2 liveness check", 24, True, lambda s, _p: ike.ikev2_liveness(s)),
+    # NAMES `ikev2_dpd_enabled` for the same reason as the crypto tab's re-authentication column.
+    # The companion flag `ikev2_dpd_enabled_known` keeps its own derived column: it is what the
+    # "switch not established" query asserts on, a column can name only one field, and the two
+    # are separately markable states.
+    ("IKEv2 liveness check", 24, True, lambda s, _p: ike.ikev2_liveness(s),
+     "ikev2_dpd_enabled"),
     ("IKEv1 DPD retry", 14, False, lambda s, _p: ike.ikev1_dpd_retry(s), "ikev1_dpd_retry"),
     ("IKE crypto profile named", 24, True, lambda s, _p: ike.named_crypto_profiles(s)),
 )
@@ -368,7 +412,8 @@ SPECS = (
          "long a key lives, and whether any gateway on the same firewall names it. A profile "
          "offers every member of each list and takes the first a peer accepts, so what is "
          "assessed is the WEAKEST member on offer - the one an exchange can be driven down to.",
-         title="IKE Crypto", subject=IKE_CRYPTO_PROFILE_SUBJECT),
+         title="IKE Crypto", subject=IKE_CRYPTO_PROFILE_SUBJECT,
+         setting_labels=IKE_CRYPTO_PROFILE_SETTING_LABELS),
     spec(T.IKE_GATEWAY,
          "The peer gateways this firewall negotiates IKE with: which protocol version, how the "
          "peer is authenticated, the IKEv1 exchange mode, whether a dead peer is detected, and "
@@ -376,13 +421,16 @@ SPECS = (
          "ONE - `IKEv2 preferred` resolves to IKEv2 with an IKEv1 fallback the peer can elect - "
          "and no column here can say which a running tunnel uses.",
          title="IKE Gateways", subject=IKE_GATEWAY_SUBJECT,
-         # `gateway_is_active` is the clause EVERY control in this domain carries and none of
-         # them names: it is an APPLICABILITY clause, so the value is what brings the row into
-         # scope rather than the value at fault. Presented by the Status column, and hidden here
-         # so no settings column is derived for it - a cell reading "Active" with the amber
-         # value-at-fault fill on every single row is the shape Jason caught twice, where the
-         # most reassuring cell on the row was the finding.
-         hidden_fields=("gateway_is_active",)),
+         # `gateway_is_active` IS NOW NAMED ON THE "Gateway state" COLUMN rather than hidden.
+         # It was hidden because it is the APPLICABILITY clause every control in this domain
+         # carries - the value that brings the row into scope rather than the value at fault -
+         # and as a derived column it read "Active" with the amber value-at-fault fill on every
+         # row, which is the shape Jason caught twice: the most reassuring cell on the row was
+         # the finding. `ControlQuery.asserted_fields` fixed the fill itself on 2026-10-28, so
+         # the column no longer needs hiding to stay honest. Naming the field is better than
+         # either: no second column derives, and the cell becomes markable if a control ever
+         # does assert on it.
+         setting_labels=IKE_GATEWAY_SETTING_LABELS),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
          "interfaces carry them.",

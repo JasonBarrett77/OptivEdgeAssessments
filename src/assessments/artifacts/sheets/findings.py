@@ -247,6 +247,22 @@ class DeviceSettingSheet:
     #: `Fires when` still shows the whole condition: the control tests what it tests, and dropping
     #: a clause from it would misreport the control.
     hidden_fields: tuple = ()
+    #: What to HEAD a derived setting column, where the field name is not what a customer should
+    #: read. `setting_columns` is derived on purpose - a control added to the catalog brings its
+    #: setting with it - and the price has always been that the heading is the raw field name.
+    #: Measured 2026-10-28: 23 of 31 findings tabs carry at least one, and `password-complexity`
+    #: carries twelve, so `minimum_uppercase` and `ikev1_dpd_enabled_known` are headings a
+    #: customer reads today.
+    #:
+    #: NOT DERIVED BY TITLE-CASING THE FIELD NAME, which was the first thing tried and is worse
+    #: than leaving it alone: `ikev1_dpd_enabled_known` becomes "Ikev1 Dpd Enabled Known", and
+    #: every acronym this subject matter is made of - DPD, DH, IKEv1, SHA, MFA, LDAP, OCSP - comes
+    #: out wrong. A map is typed per sheet, so a heading is written by somebody who knows what the
+    #: setting is, and a field with no entry keeps its own name rather than being mangled.
+    #:
+    #: A sheet is not obliged to name every field. This is a presentation nicety and an absent
+    #: entry is not a defect, which is why nothing checks the map for completeness.
+    setting_labels: dict = field(default_factory=dict)
     #: Restrict the sheet to these control ids; empty means every control of `control_types`.
     #:
     #: Needed from 2026-10-12, when eleven controls about security profiles became rule-based
@@ -618,7 +634,7 @@ def setting_columns(spec, controls):
             def read(subject, _p, _field=field, _model=model):
                 return read_value(spec, subject, _field) if isinstance(subject, _model) else NONE
 
-            columns.append((field, None, False, read, field))
+            columns.append((spec.setting_labels.get(field, field), None, False, read, field))
     return columns
 
 
