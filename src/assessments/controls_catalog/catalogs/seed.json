@@ -1918,15 +1918,24 @@
               "short_description": "No time-based rekey interval is set.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
-                "operator": "and",
+                "operator": "or",
                 "clauses": [
                   {
                     "field": "rekey_interval_seconds",
                     "op": "eq",
                     "value": 0
+                  },
+                  {
+                    "field": "rekey_interval_known",
+                    "op": "eq",
+                    "value": false
                   }
                 ]
               },
+              "asserted_fields": [
+                "rekey_interval_seconds",
+                "rekey_interval_known"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true

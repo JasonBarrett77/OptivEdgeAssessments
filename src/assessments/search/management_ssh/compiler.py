@@ -38,14 +38,19 @@ def build_text_compiler(field_name, lookup_field):
     return compiler
 
 
-def build_boolean_compiler(field_name, lookup_field):
+def build_boolean_compiler(field_name, lookup_field, *, invert=False):
+    """`invert` is for a field that answers whether something is KNOWN, over a column that stores
+    the absence - `rekey_interval_seconds__isnull` answers the opposite of `rekey_interval_known`.
+    Copied from `address_object`'s builder of the same name, which took it for `size_known` first;
+    the two differ only in the model they filter."""
     def compiler(clause):
         op, value = clause["op"], clause["value"]
         if op != "eq":
             raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
         if not isinstance(value, bool):
             raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
-        return ManagementSshSettings.objects.filter(**{lookup_field: value}).values("pk")
+        return ManagementSshSettings.objects.filter(
+            **{lookup_field: (not value) if invert else value}).values("pk")
     compiler.SUPPORTED_OPERATORS = {"eq"}
     return compiler
 
@@ -86,6 +91,14 @@ FIELD_COMPILERS = {
     "host_key_bits": build_integer_compiler("host_key_bits", "host_key_bits"),
     "rekey_interval_seconds": build_integer_compiler(
         "rekey_interval_seconds", "rekey_interval_seconds"),
+    #: Was a time-based rekey interval established at all. NULL means nobody configured one,
+    #: never zero - a configured 0 means "no time limit" and is a different statement. Inverted
+    #: because the column stores the absence, not the knowledge. Same shape and same reason as
+    #: `address_object`'s `size_known`, and PAN-MCR-005 needs it because `eq 0` over a NULL
+    #: matches nothing: the control reported silence on exactly the appliances it is about,
+    #: from 2026-10-20 until this field existed.
+    "rekey_interval_known": build_boolean_compiler(
+        "rekey_interval_known", "rekey_interval_seconds__isnull", invert=True),
 }
 
 FIELD_OPERATOR_REGISTRY = {
