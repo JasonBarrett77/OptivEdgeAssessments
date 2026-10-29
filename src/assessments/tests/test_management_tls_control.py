@@ -189,11 +189,13 @@ class ManagementTlsControlTests(TestCase):
             "a dangling binding must say why it could not be resolved")
 
     def test_a_profile_without_protocol_settings_is_reported_not_passed(self):
-        """Resolved, but silent about its floor.
+        """Resolved, and no longer silent about its floor.
 
-        What an absent protocol-settings node means for a profile that exists has never been
-        measured, so it is reported rather than assumed benign. If it is ever measured, this
-        test is the place the assumption is recorded.
+        IT WAS MEASURED, 2026-10-29 — which this docstring asked for in as many words. An absent
+        `protocol-settings` node on a profile that exists means PAN-OS supplies `tls1-2`, and one
+        lab profile omits the node. So the floor materialises, and this is the place that is
+        recorded. The blank this used to assert was the absence of a MEASUREMENT, not the absence
+        of a floor.
         """
         profile = self._profile(
             "fw-silent", bound="bare",
@@ -201,8 +203,12 @@ class ManagementTlsControlTests(TestCase):
         self.assertEqual(
             profile.profile_scope,
             ManagementTlsBinding.SCOPE_SHARED)
-        self.assertEqual(profile.min_version, "")
-        self.assertIn("fw-silent", self._findings())
+        self.assertEqual(profile.min_version, "tls1-2")
+        # AND SO THE CONTROL NO LONGER FIRES HERE, which is the point. It was firing because the
+        # floor was UNKNOWN; the floor is now known and meets the bar. A profile whose floor is
+        # genuinely below it still reports - `test_a_weak_floor_is_reported` covers that - and
+        # this test now pins the half that was a false finding.
+        self.assertNotIn("fw-silent", self._findings())
 
 
 class ManagementCertificateControlTests(ManagementTlsControlTests):
@@ -272,7 +278,11 @@ class ManagementCertificateControlTests(ManagementTlsControlTests):
         banner exists.
         """
         profile = self._profile("fw-none")
-        self.assertEqual(profile.certificate_trust, "")
+        # `self_signed` RATHER THAN BLANK since 2026-10-29. Both stage 5 and stage 6 named the
+        # blank as the repair owed, stage 6 in these words: "the right repair is in normalisation
+        # - classify it as `self_signed` with the evidence." The gap this test is about is
+        # unchanged and still reports; the row now SAYS what the device serves.
+        self.assertEqual(profile.certificate_trust, "self_signed")
         self.assertIn("fw-none", self._findings(CERT_CONTROL_ID))
 
     def test_a_certificate_that_resolves_nowhere_is_undetermined_not_passed(self):

@@ -24,7 +24,13 @@ from optivedge_integrations.integrations.models import AuthenticationSettings
 def _subject(obj) -> str:
     attempts = ("unlimited attempts" if not obj.lockout_failed_attempts
                 else f"{obj.lockout_failed_attempts} failed attempts")
-    held = ("held until released" if not obj.lockout_time_minutes
+    # NULL IS NOT ZERO HERE, and the difference is the whole cell. `lockout_time_minutes`
+    # became nullable on 2026-10-29: an absent `setting/management` node now stores NOTHING
+    # rather than 0, because 0 is a CONFIGURED value meaning "held until released" and storing
+    # it for an unread device asserted the strictest reading of a setting nobody measured. A
+    # falsiness test could not tell the two apart and printed the strict one for both.
+    held = ("lockout duration not established" if obj.lockout_time_minutes is None
+            else "held until released" if not obj.lockout_time_minutes
             else f"held {obj.lockout_time_minutes} min")
     idle = "no idle timeout" if not obj.idle_timeout_minutes else f"{obj.idle_timeout_minutes} min idle"
     return f"Authentication settings on {obj.appliance}: {attempts}, {held}, {idle}"

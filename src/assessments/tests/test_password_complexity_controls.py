@@ -185,10 +185,17 @@ class PasswordComplexityControlTests(TestCase):
         self.assertIn("PAN-AUTH-002", findings)
 
     def test_absent_keys_normalize_to_the_measured_defaults(self):
-        """PAN-OS writes only the flag; the zeros on the form are never stored."""
+        """PAN-OS writes only the flag; the zeros on the form are never stored.
+
+        AND SINCE 2026-10-29 THIS TEST'S OWN SENTENCE IS TAKEN LITERALLY for the two
+        post-expiration keys: they store NOTHING rather than 0, because reading an unconfigured
+        form establishes what the UI renders and not that PAN-OS supplies the value. The clause
+        is `gt 0`, which a NULL fails as a 0 does, so no control's population moved. The keys that
+        still store 0 are the ones whose form default was measured as the value PAN-OS applies.
+        """
         policy = self._profile("fw-flag-only", {"enabled": "yes"})
         self.assertTrue(policy.enabled)
         self.assertEqual(policy.minimum_length, 0)
         self.assertEqual(policy.history_count, 0)
-        self.assertEqual(policy.post_expiration_grace_period, 0)
+        self.assertIsNone(policy.post_expiration_grace_period)
         self.assertFalse(policy.block_username_inclusion)

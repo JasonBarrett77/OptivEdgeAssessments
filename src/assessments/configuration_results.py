@@ -468,7 +468,11 @@ RESULTS = {
             "never" if not p.idle_timeout_minutes else f"{p.idle_timeout_minutes} min",
             ("unlimited attempts" if not p.lockout_failed_attempts
              else f"{p.lockout_failed_attempts} attempts"),
-            ("until released" if not p.lockout_time_minutes
+            # And NULL is not 0 on this one. The column became nullable on 2026-10-29 so an
+            # unread node stores nothing; a falsiness test printed "until released" - the strict
+            # reading - for a device nobody had measured.
+            ("not established" if p.lockout_time_minutes is None
+             else "until released" if not p.lockout_time_minutes
              else f"{p.lockout_time_minutes} min"),
             "never" if not p.api_key_lifetime_minutes else f"{p.api_key_lifetime_minutes} min",
         ),

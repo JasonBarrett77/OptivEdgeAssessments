@@ -72,10 +72,18 @@ class AdminSessionControlTests(TestCase):
     # --- implicit values -------------------------------------------------------------
 
     def test_an_untouched_device_reports_three_of_the_four(self):
-        """The whole setting/management node absent. 015 must NOT fire: its zero is compliant."""
+        """The whole setting/management node absent. 015 must NOT fire: its zero is compliant.
+
+        `lockout_time_minutes` STORES NOTHING HERE, not 0, since 2026-10-29. 0 is a configured
+        value on that key - it means held until released - so storing it for a node nobody read
+        asserted the strictest reading of an unmeasured setting. The control is unaffected either
+        way: its clause is `gt 0 AND lt 30`, which a NULL fails exactly as a 0 does, and the
+        finding set asserted below is unchanged. The other three keys still store their measured
+        form defaults, where 0 is the COMPLIANT reading rather than the strict one.
+        """
         settings = self._profile("fw-bare")
         self.assertEqual(settings.lockout_failed_attempts, 0)
-        self.assertEqual(settings.lockout_time_minutes, 0)
+        self.assertIsNone(settings.lockout_time_minutes)
         self.assertEqual(settings.api_key_lifetime_minutes, 0)
         self.assertEqual(settings.idle_timeout_minutes, 60)
         self.assertEqual(set(self._findings("fw-bare")), UNCONFIGURED)

@@ -132,14 +132,18 @@ class CertificateObjectControlTests(TestCase):
         self.assertEqual(self._tls_findings(), {("legacy", "shared")})
 
     def test_a_profile_with_no_protocol_settings_is_reported_not_passed(self):
-        """An unknown floor is not evidence of an acceptable one.
+        """An unknown floor is not evidence of an acceptable one — but the floor is now KNOWN.
 
-        What an absent min-version means was never measured - no lab profile omits it - so it
-        is reported rather than assumed benign.
+        MEASURED 2026-10-29, and BOTH halves of this test's old premise were false. What an absent
+        `min-version` means WAS measured - PAN-OS supplies `tls1-2` - and one lab profile DOES
+        omit it (`oep-crt6-34`, vsys1). So the control was reporting a defect on a profile whose
+        floor the platform supplies, and materialising the measured implicit turns that false
+        finding off. The control still fires on a floor genuinely below the bar; what it no longer
+        does is fire on silence.
         """
         self._appliance("fw-silent", shared={"ssl-tls-service-profile": {"entry": [
             {"@name": "bare", "certificate": "c"}]}})
-        self.assertEqual(self._tls_findings(), {("bare", "shared")})
+        self.assertEqual(self._tls_findings(), set())
 
     def test_absent_algorithm_keys_are_stored_as_ENABLED(self):
         """The measurement that made the key-set correction matter.
@@ -257,16 +261,31 @@ class WeakTlsAlgorithmControlTests(CertificateObjectControlTests):
         """The vendor's own TLSv1.3_Default must not be reported.
 
         TLS 1.3 removed CBC, static RSA and SHA-1 from its cipher suites, so these settings
-        cannot apply to a 1.3-only handshake. The profile still STORES sha1 as enabled,
-        because absent means enabled and that is what the config says - the exclusion belongs
-        to the control, not to the data.
+        cannot apply to a 1.3-only handshake.
+
+        A DESIGN DECISION MOVED HERE ON 2026-10-29, AND REVERSING IT IS ONE LINE. This test used
+        to assert the profile STORES sha1 as ENABLED - "absent means enabled and that is what the
+        config says - the exclusion belongs to the control, not to the data". It now stores False.
+
+        THE QUESTION IS WHICH OF TWO TRUE THINGS THE CELL SHOULD SAY. The configuration says sha1
+        is enabled, because an absent key means enabled. The wire says it is off, because a
+        1.3-only range excludes it and the device refuses the write inside that range. The
+        normaliser now records the wire; the old design recorded the configuration.
+
+        Both readings exclude the profile, so THE CUSTOMER OUTCOME IS IDENTICAL - the second
+        assertion is unchanged and is the one that matters. To restore the old design, drop
+        `auth-algo-sha1` from the range exclusion in
+        `normalization/certificates.py::_excluded_by_range` and change `assertFalse` back to
+        `assertTrue`. Note that `allows_sha1`, the column a control does assert, is computed from
+        this map and reads a null as True - the firing side - so this key is deliberately never
+        null at any range.
         """
         self._appliance("fw-13", shared={"ssl-tls-service-profile": {"entry": [
             {"@name": "TLSv1.3_Default", "certificate": "c",
              "protocol-settings": {"min-version": "tls1-3", "max-version": "tls1-3"}}]}})
         profile = SslTlsServiceProfile.objects.get(name="TLSv1.3_Default")
-        self.assertTrue(profile.protocol_algorithms["auth-algo-sha1"],
-                        "the data records what the config says")
+        self.assertFalse(profile.protocol_algorithms["auth-algo-sha1"],
+                         "a 1.3-only range excludes sha1 on the wire, whatever the config says")
         self.assertEqual(self._tls_findings(self.NINE), set(),
                          "the control excludes it")
 
