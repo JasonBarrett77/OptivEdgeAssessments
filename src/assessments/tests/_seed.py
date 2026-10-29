@@ -8,6 +8,12 @@ at its default severity and four tests that had been asserting real band severit
 failing. The tests were right; their seeder had never been.
 
 So there is one seeder, and it takes its field list from the same place the importer does.
+
+AND IT HAND-LISTS THEM ANYWAY, WHICH IS THE SAME DEFECT ONE LAYER UP. `asserted_fields` landed on
+2026-10-28 and was missed here, so every control test in the repo ran with it empty and took the
+fallback path - 840 tests passing said nothing about the behaviour the field exists for. Found by
+printing one row by hand. `test_the_seeder_sets_every_field_the_importer_sets` now compares the two
+call sites field by field, so the next field cannot be missed the same way.
 """
 
 from __future__ import annotations
@@ -29,6 +35,13 @@ def seed_control(spec, *, control_type=None, **overrides):
         "name": spec["name"],
         "control_type": control_type or spec["control_type"],
         "description": spec["description"],
+        # THE PROSE THE REPORT CARRIES, which the importer has always set and this never did, so
+        # every control test ran with all three empty - including the ones over the remediation
+        # walk, which reads `Control.remediation` as its last resort. Added 2026-10-28 with
+        # `asserted_fields` and for the same reason.
+        "rationale": spec["rationale"],
+        "audit": spec["audit"],
+        "remediation": spec["remediation"],
         "default_severity": spec["default_severity"],
         "target_model": spec.get("target_model", ""),
         "is_active": spec.get("is_active", True),
@@ -41,6 +54,7 @@ def seed_control(spec, *, control_type=None, **overrides):
             name=query["name"],
             short_description=query.get("short_description", ""),
             canonical_query=query["canonical_query"],
+            asserted_fields=query.get("asserted_fields") or [],
             is_baseline=query["is_baseline"],
             adjusted_severity=query.get("adjusted_severity"),
             is_active=query["is_active"],
