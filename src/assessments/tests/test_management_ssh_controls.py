@@ -163,9 +163,23 @@ class ManagementSshControlTests(TestCase):
         self.assertIn("host key type All", found["PAN-MCR-004"].summary)
 
     def test_no_rekey_interval_fires_only_005(self):
+        """THE NULL ARM. An absent `session-rekey` key stores NULL since integrations migration
+        0089 (2026-10-20), and from that day until 2026-10-29 the control's single clause
+        `rekey_interval_seconds eq 0` matched nothing here - so this test and the two beside it
+        were red for nine days and were read as a marker that mgmt-crypto owed a stage 7 and 8.
+        They were the regression. The baseline is now an OR and this arm is
+        `rekey_interval_known eq false`."""
         found = self._findings(self._preferred(**{"session-rekey": None}))
         self.assertEqual(set(found), {"PAN-MCR-005"})
         self.assertIn("no time-based rekey interval", found["PAN-MCR-005"].summary)
+
+    def test_an_explicitly_configured_zero_also_fires_005(self):
+        """THE OTHER ARM, and the reason the baseline is an OR rather than one is-null reading.
+        0 is a settable value and what it means is documented - no time limit, Help p.905 - so a
+        deliberate 0 and an unconfigured trigger are different statements about the device that
+        happen to deserve the same finding. Nothing exercised this arm until the OR existed."""
+        found = self._findings(self._preferred(**{"session-rekey": {"interval": "0"}}))
+        self.assertEqual(set(found), {"PAN-MCR-005"})
 
     def test_a_shorter_rekey_interval_passes(self):
         """The preferred 3600 is a ceiling - the range is 10 to 3600 and rekeying more often is
