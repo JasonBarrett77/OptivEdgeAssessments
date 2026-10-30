@@ -29,6 +29,10 @@ from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
 from assessments.ike_gateway_findings import generate_ike_gateway_findings
+from assessments.high_availability_findings import generate_high_availability_findings
+from assessments.panorama_registration_findings import (
+    generate_panorama_registration_findings,
+)
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
 )
@@ -81,6 +85,12 @@ GENERATORS = (
     ("NTP", T.NTP_SETTINGS, generate_ntp_settings_findings),
     ("SNMP", T.SNMP_SETTINGS, generate_snmp_settings_findings),
     ("system identity", T.SYSTEM_IDENTITY, generate_system_identity_findings),
+    # Device-wide management-plane settings, so they sit with the settings above: one row per
+    # appliance. High availability first, because PAN-HAP-005's applicability turns on whether
+    # the MANAGEMENT estate is a pair and a reader meets the firewall's own pair first.
+    ("high availability", T.HIGH_AVAILABILITY, generate_high_availability_findings),
+    ("panorama registration", T.PANORAMA_REGISTRATION,
+     generate_panorama_registration_findings),
     ("management interface", T.MANAGEMENT_INTERFACE, generate_management_interface_findings),
     ("interface management profile", T.INTERFACE_MANAGEMENT_PROFILE,
      generate_interface_management_profile_findings),

@@ -176,6 +176,16 @@ from assessments.search.ike_gateway.compiler import (
     IKE_GATEWAY_MODEL,
     compile_ike_gateway_search_node,
 )
+from assessments.search.high_availability_config.compiler import (
+    FIELD_OPERATOR_REGISTRY as HIGH_AVAILABILITY_CONFIG_FIELD_OPERATOR_REGISTRY,
+    HIGH_AVAILABILITY_CONFIG_MODEL,
+    compile_high_availability_config_search_node,
+)
+from assessments.search.panorama_registration.compiler import (
+    FIELD_OPERATOR_REGISTRY as PANORAMA_REGISTRATION_FIELD_OPERATOR_REGISTRY,
+    PANORAMA_REGISTRATION_MODEL,
+    compile_panorama_registration_search_node,
+)
 from assessments.search.authentication_sequence.compiler import (
     AUTHENTICATION_SEQUENCE_MODEL,
     FIELD_OPERATOR_REGISTRY as AUTHENTICATION_SEQUENCE_FIELD_OPERATOR_REGISTRY,
@@ -183,6 +193,8 @@ from assessments.search.authentication_sequence.compiler import (
 )
 from optivedge_integrations.integrations.models import (
     AddressObject,
+    HighAvailabilityConfig,
+    PanoramaRegistration,
     NormalizationIssue,
     AdminUser,
     ServerProfile,
@@ -348,6 +360,18 @@ MODEL_REGISTRY = {
         "model_class": IkeGateway,
         "field_operators": IKE_GATEWAY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_ike_gateway_search_node,
+    },
+    # Device-wide management-plane settings: one row per appliance, no vsys axis and no entry
+    # name. The HA row is NOT expected to agree with its pair member's; the registration row is.
+    HIGH_AVAILABILITY_CONFIG_MODEL: {
+        "model_class": HighAvailabilityConfig,
+        "field_operators": HIGH_AVAILABILITY_CONFIG_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_high_availability_config_search_node,
+    },
+    PANORAMA_REGISTRATION_MODEL: {
+        "model_class": PanoramaRegistration,
+        "field_operators": PANORAMA_REGISTRATION_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_panorama_registration_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

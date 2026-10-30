@@ -887,10 +887,17 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: the entry was cleared when the rail item landed, and the empty map now states that nothing is
 #: in that position.
 #:
-#: EMPTY since 2026-10-28, when the first stage 9 run presented `ike-crypto` - the `PAN-IKE`
-#: entry, which is the only one this ever held, was cleared by the work it named. The empty map
-#: states that no domain is currently in that position, exactly as `LEGACY_SURFACE` does.
-AWAITING_PRESENTATION: dict[str, str] = {}
+#: It was EMPTY from 2026-10-28, when the first stage 9 run presented `ike-crypto` and cleared
+#: the `PAN-IKE` entry - the only one it had ever held - until stage 8 of `ha-panorama` on
+#: 2026-10-30 put the second one in. So the lifecycle has now run a full cycle: filled by a
+#: stage 8, emptied by the stage 9 it named, filled again.
+AWAITING_PRESENTATION: dict[str, str] = {
+    # PAN-HAP-001 to 005 target two device-wide management-plane models that no rail item
+    # reaches yet. PAN-HAP-006 and 007 have no entry in the catalog at all - they assert over
+    # Panorama's own configuration, which is out of assessment scope - so this debt is for five
+    # controls and not seven.
+    "PAN-HAP": "stage9-ha-panorama.json",
+}
 
 
 

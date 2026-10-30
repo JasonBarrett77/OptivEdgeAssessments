@@ -103,6 +103,12 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.IKE_CRYPTO_PROFILE, "IKE crypto profile"),
     FindingKind(m.IkeGatewayFinding, "ike_gateway",
                 m.Control.ControlType.IKE_GATEWAY, "IKE gateway"),
+    # "high availability" rather than "high availability configuration": the label goes into
+    # prose and the subject is the relationship, not the node that describes it.
+    FindingKind(m.HighAvailabilityFinding, "high_availability_config",
+                m.Control.ControlType.HIGH_AVAILABILITY, "high availability"),
+    FindingKind(m.PanoramaRegistrationFinding, "panorama_registration",
+                m.Control.ControlType.PANORAMA_REGISTRATION, "panorama registration"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
