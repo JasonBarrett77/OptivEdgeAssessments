@@ -1437,79 +1437,109 @@
           ]
         },
         {
+          "control_id": "PAN-CRT-001",
+          "name": "No Expired Certificates In Use (Hygiene)",
+          "control_type": "certificate",
+          "description": "A certificate whose validity period has already ended, where nothing establishes that nothing on the device depends on it. An expired certificate a live service presents causes silent authentication failures and trains administrators and users to click through warnings, which is the reflex every certificate warning afterwards depends on.\n\nTHE EXPIRY IS DECODED FROM THE CERTIFICATE AND NOT READ FROM A FIELD, which matters because the device offers three renderings of one expiry and they are not established to agree: the operational read returned the SAME WRONG DATE for three different certificates on one appliance. The decoded certificate is the authority on itself, and `not_valid_after` is reported beside the verdict as the evidence a reader checks.\n\nTHE VERDICT IS A SNAPSHOT AGAINST A CLOCK. It was computed when the configuration was normalised and it goes stale between passes - a certificate that expires tomorrow reads as current today and as expired after the next collection. That is a real property of any stored verdict about time rather than a defect, and it is the reason the date is kept beside it.\n\nWHAT THE FINDING DOES AND DOES NOT CLAIM. It says the certificate has expired and that nothing establishes that nothing depends on it. It does NOT say the certificate is in use. The reference map behind that distinction is a FLOOR and not a census: of 69 known locations on this platform where a certificate can be referenced, 65 are covered by no collected model at all, so the walk can prove a certificate IS referenced and can never prove that it is not. A certificate whose reference map was never walked therefore REPORTS here rather than passing, which is the direction that errs toward telling a customer to look.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED. The corpus also asks that the firewall raise its own warning as its certificates approach expiry, which is a single device-wide setting rather than a property of a certificate. A control reports against one subject, and this control's subject is the certificate; the device-wide setting is collected and is asserted by no control in this catalogue.",
+          "rationale": "An expired certificate does not fail safely. The service keeps running, the warning lands on whoever is using it, and the habit of dismissing it is what a man-in-the-middle later depends on. Remediation is also not instant - a certificate has to be reissued, redistributed and rebound - so the warning is worth having before the expiry rather than after.",
+          "audit": "Device > Certificate Management > Certificates: read the Expires column on every scope, including the predefined entries. Then check the Certificate Profile and SSL/TLS Service Profile grids, GlobalProtect portal and gateway, decryption settings and the syslog server profiles for a reference to each expired entry - and read its Issuer against the other certificates' Subjects, because an authority that nothing NAMES is still in use if it signed something the device holds.",
+          "remediation": "Reissue the certificate, import the replacement, and repoint every profile and service that names the old one before deleting it. A PREDEFINED entry reported here cannot be remediated on the device at all - it is the vendor's and is read-only - and the action is to stop referencing it. Where the certificate is an authority, reissue the authority and re-sign what it issued rather than deleting it: a delete refused for references answers with the referrer's name, which is itself the cheapest reference test.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Expired, and nothing establishes that nothing depends on it",
+              "short_description": "Default baseline query: the decoded validity end is in the past, and the reference walk has not shown the certificate to be unused.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_expired",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "not_relied_on",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "is_expired",
+                "not_relied_on"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
+        },
+        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",
-          "description": "Every certificate on the device must meet RSA 2048 or ECDSA P-256 as a floor. Remediation is REISSUANCE, not a configuration write - a weak key cannot be strengthened in place.\n\nNeither the key size nor the algorithm exists in any PAN-OS configuration field. The `algorithm` field reports RSA or EC - the key algorithm, not its size - and no operational command carries the bit length either. Both are decoded from the X.509 blob PAN-OS stores under the misleadingly named `public-key`, which holds the entire certificate.\n\nThe threshold is per ALGORITHM and cannot be a single number. 256-bit EC is strong and 256-bit RSA is broken, so `key_size_bits < 2048` would flag the vendor's own TLSv1.3_Default - which is EC secp256r1 - while passing a hypothetical RSA 512. The query pairs each algorithm with its own floor.\n\nA certificate that could not be decoded is reported, not passed. An unreadable certificate is not a compliant one.",
+          "description": "Every certificate on the device must meet RSA 2048 or ECDSA P-256 as a floor. Remediation is REISSUANCE, not a configuration write - a weak key cannot be strengthened in place.\n\nNeither the key size nor the algorithm exists in any PAN-OS configuration field. The `algorithm` field reports RSA or EC - the key algorithm, not its size - and no operational command carries the bit length either. Both are decoded from the X.509 blob PAN-OS stores under the misleadingly named `public-key`, which holds the entire certificate.\n\nThe threshold is per ALGORITHM and cannot be a single number. 256-bit EC is strong and 256-bit RSA is broken, so `key_size_bits < 2048` would flag the vendor's own TLSv1.3_Default - which is EC secp256r1 - while passing a hypothetical RSA 512. So the verdict is computed per certificate into one column, `key_strength_band`, and the query rests on that column.\n\nTHE PAIRED FORM THIS REPLACES WAS MEASURED WRONG. It was an OR of three algorithm-and-size groups plus a parse-error group, and a certificate whose algorithm matches none of the three literals has NO size recorded: the integer comparison drops a null from both sides of an inequality, the parse error is empty, and the certificate passed every threshold in silence. An Ed25519 certificate is that case today, and so is any key family the vendor adds next. The band has a member for it - `algorithm_has_no_floor` - and that member is on the FIRING side, so an algorithm this assessment carries no floor for is reported rather than passed.\n\nA certificate that could not be decoded is reported, not passed. An unreadable certificate is not a compliant one.\n\nA key below HALF the floor for its own algorithm is reported at critical rather than high. RSA 512 against a 2048-bit floor is not the same finding as RSA 1024, and the two are told apart by the band rather than by a threshold.",
           "rationale": "A weak key undermines every certificate that chains to it, and unlike most findings this one cannot be fixed by editing configuration - the certificate has to be reissued and redistributed, which makes early detection worth more than usual.",
-          "audit": "Device > Certificate Management > Certificates shows each certificate; the key size is visible in the certificate detail. Confirm RSA is 2048 or above and EC is P-256 or above.",
+          "audit": "Device > Certificate Management > Certificates shows each certificate; the key size is visible in the certificate detail. Confirm RSA is 2048 or above and EC is P-256 or above. A certificate reported here whose detail shows NO key size at all is the unreadable case and is reported deliberately - it has not been shown to meet any floor.",
           "remediation": "Reissue the certificate with a compliant key and replace it wherever it is referenced. For CAs and long-lived certificates the corpus prefers RSA 3072 or ECDSA P-384.",
           "default_severity": "high",
           "implementation_version": "v1",
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "The key is below the strength floor carried for its own algorithm",
+              "short_description": "Any band other than at-or-above-floor: below, far below, undecodable, or an algorithm this assessment carries no floor for.",
               "canonical_query": {
                 "model": "integrations.Certificate",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "key_algorithm",
-                        "op": "contains",
-                        "value": "RSA"
-                      },
-                      {
-                        "field": "key_size_bits",
-                        "op": "lt",
-                        "value": 2048
-                      }
-                    ]
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "key_algorithm",
-                        "op": "contains",
-                        "value": "EC"
-                      },
-                      {
-                        "field": "key_size_bits",
-                        "op": "lt",
-                        "value": 256
-                      }
-                    ]
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "key_algorithm",
-                        "op": "contains",
-                        "value": "DSA"
-                      },
-                      {
-                        "field": "key_size_bits",
-                        "op": "lt",
-                        "value": 2048
-                      }
-                    ]
-                  },
-                  {
-                    "field": "parse_error",
-                    "op": "is_empty",
-                    "value": "",
+                    "field": "key_strength_band",
+                    "op": "eq",
+                    "value": "at_or_above_floor",
                     "negated": true
                   }
                 ]
               },
+              "asserted_fields": [
+                "key_strength_band"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The key is far below the floor for its algorithm",
+              "short_description": "Below HALF the floor - RSA 512 against a 2048-bit floor. Reported critical.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "key_strength_band",
+                    "op": "eq",
+                    "value": "at_or_above_floor",
+                    "negated": true
+                  },
+                  {
+                    "field": "key_strength_band",
+                    "op": "eq",
+                    "value": "far_below_floor",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "key_strength_band"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "critical",
               "is_active": true
             }
           ],
@@ -1519,41 +1549,63 @@
           "control_id": "PAN-CRT-003",
           "name": "No Weak Signature Algorithms (SHA-1/MD5)",
           "control_type": "certificate",
-          "description": "A certificate signed with MD5 or SHA-1 inherits the weakness of that hash: both have practical collision attacks, and a collision is a forged certificate.\n\nLike the key size, the signature algorithm exists in NO PAN-OS field - `algorithm` reports the key algorithm - and is decoded from the certificate itself.\n\nMD5 is the floor and SHA-1 is reported alongside it, because the control is named for both. The corpus allows SHA-1 \"only for internal legacy with a documented expiry\", which is an organisational exception this cannot see: a SHA-1 finding may legitimately be closed as accepted, an MD5 finding should not be. The preferred state is SHA-256 or stronger exclusively.",
+          "description": "A certificate signed with MD5 or SHA-1 inherits the weakness of that hash: both have practical collision attacks, and a collision is a forged certificate.\n\nLike the key size, the signature algorithm exists in NO PAN-OS field - `algorithm` reports the key algorithm - and is decoded from the certificate itself.\n\nMD5 is the floor and SHA-1 is reported alongside it, because the control is named for both. The corpus allows SHA-1 \"only for internal legacy with a documented expiry\", which is an organisational exception this cannot see: a SHA-1 finding may legitimately be closed as accepted, an MD5 finding should not be. The preferred state is SHA-256 or stronger exclusively. MD5 is reported at this control's own severity and SHA-1 one band below it, which is the distinction those two sentences describe.\n\nTHE HASH IS RESOLVED RATHER THAN MATCHED, and the query rests on the resolved name. Reading the signature algorithm's identifier for the substrings `md5` and `sha1` was measured wrong: an RSASSA-PSS certificate stores the identifier `rsassaPss`, which names NO hash at all - for PSS the hash lives in the signature parameters - so a PSS certificate signed with SHA-1 matched neither substring, carried no parse error, and passed. Every SHA-3 variant has the same shape. The hash is therefore decoded to a bare name in its own column, and a hash that could not be resolved is reported rather than passed.",
           "rationale": "A signature is the only thing binding a certificate's identity to its key. A hash with practical collisions makes that binding forgeable, so the certificate proves nothing about who holds the key.",
-          "audit": "Read the signature algorithm on each certificate. Anything naming md5 or sha1 reports; sha256WithRSAEncryption and ecdsa-with-SHA256 or stronger pass.",
+          "audit": "Read the signature algorithm on each certificate. Anything whose signing hash resolves to md5 or sha1 reports; sha256WithRSAEncryption and ecdsa-with-SHA256 or stronger pass. A certificate reported here whose algorithm cell reads `rsassaPss` or an unfamiliar identifier is the unresolved case: the identifier does not name the hash, so the hash has to be read out of the certificate itself before the finding can be accepted or dismissed.",
           "remediation": "Reissue with a SHA-256 or stronger signature. Where a SHA-1 certificate is a documented legacy exception, record the expiry it was accepted until and close the finding against that, rather than leaving it open indefinitely.",
           "default_severity": "high",
           "implementation_version": "v1",
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "The signing hash has a practical collision attack, or could not be resolved",
+              "short_description": "md5, sha1, or a signature identifier that names no hash at all.",
               "canonical_query": {
                 "model": "integrations.Certificate",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
-                    "field": "signature_algorithm",
-                    "op": "contains",
-                    "value": "md5"
-                  },
-                  {
-                    "field": "signature_algorithm",
-                    "op": "contains",
-                    "value": "sha1"
-                  },
-                  {
-                    "field": "parse_error",
-                    "op": "is_empty",
-                    "value": "",
-                    "negated": true
+                    "field": "weak_signature_hash",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
                   }
                 ]
               },
+              "asserted_fields": [
+                "weak_signature_hash"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The signing hash is SHA-1",
+              "short_description": "SHA-1 rather than MD5 or an unresolved hash. Reported medium.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "weak_signature_hash",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "signature_hash",
+                    "op": "eq",
+                    "value": "sha1",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weak_signature_hash",
+                "signature_hash"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
               "is_active": true
             }
           ],
@@ -1563,17 +1615,17 @@
           "control_id": "PAN-CRT-004",
           "name": "Certificate Profiles Enforce Revocation Checking",
           "control_type": "certificate_profile",
-          "description": "Certificate profiles govern how the firewall validates peer certificates - admin certificate authentication, GlobalProtect client certificates, SAML, syslog TLS. CRL or OCSP checking must be enabled, or a revoked credential keeps working until it expires.\\n\\nEither leaf satisfies the floor. Measured 2026-09-02 from the blank Add Certificate Profile form: use-crl and use-ocsp both default to DISABLED, as do all four block-* options, so a profile that sets nothing performs no revocation checking at all. That uniformity is worth knowing rather than assuming - on the management plane, server-verification absent means ENABLED while its neighbour means disabled.",
+          "description": "Certificate profiles govern how the firewall validates peer certificates - admin certificate authentication, GlobalProtect client certificates, SAML, syslog TLS. CRL or OCSP checking must be enabled, or a revoked credential keeps working until it expires.\\n\\nEither leaf satisfies the floor. Measured 2026-09-02 from the blank Add Certificate Profile form: use-crl and use-ocsp both default to DISABLED, as do all four block-* options, so a profile that sets nothing performs no revocation checking at all. That uniformity is worth knowing rather than assuming - on the management plane, server-verification absent means ENABLED while its neighbour means disabled.\\n\\nTHE CONTROL HAS A SECOND HALF AND IT ONLY APPLIES WHERE THE FIRST PASSES: where revocation IS checked, a check that cannot reach an answer must stop the session rather than let it through. The two blocking settings decide that, and a profile is reported where EITHER inconclusive outcome is still allowed - an unknown status or a timed-out one - not only where both are. A profile that blocks on an unknown status and not on a timeout is the reachable attack: an adversary who can delay or drop the path to the responder gets the same result as a revoked certificate being accepted, and needs no access to the firewall to do it.\\n\\nThe fail-closed half is deliberately SILENT on a profile that checks no revocation at all. Those blocking settings have no check to fail closed on, so a finding there would name a consequence that cannot arise - and nothing is hidden by the silence, because the profile is already reported by this control's first half at the same severity.\\n\\nFAILING CLOSED CAN LOCK ADMINISTRATORS OUT OF THE DEVICE, which is the vendor's own warning. Before enforcing it on an administrative path, establish which access paths the customer accepts being blocked when the responder cannot be reached.\\n\\nNO INTERVAL IS ASSERTED. Three timeout leaves sit on this screen - CRL receive, OCSP receive and certificate status - with no stated precedence between them and no vendor default for any of them, so which one governs the blocking decision is not establishable and a number asserted here would be one nothing states.",
           "rationale": "Revocation is the only mechanism that withdraws trust from a credential before it expires. Without it, a compromised administrator certificate remains valid for its full lifetime no matter how quickly the compromise is detected.",
-          "audit": "At Device > Certificate Management > Certificate Profile, confirm each profile has Use CRL or Use OCSP ticked. Note that OCSP takes precedence over CRL where both are on, as the dialog states.",
+          "audit": "At Device > Certificate Management > Certificate Profile, confirm each profile has Use CRL or Use OCSP ticked. Note that OCSP takes precedence over CRL where both are on, as the dialog states. On every profile that has one ticked, also read the two blocking checkboxes below: both must be ticked, and either one left clear is reported. A profile with NEITHER revocation method ticked is reported for that instead, and its blocking settings are not assessed.",
           "remediation": "Enable Use OCSP with Use CRL as fallback, and set Block session if certificate status is unknown and Block session if certificate status cannot be retrieved within timeout - without those, a failed check is indistinguishable from a passed one.",
           "default_severity": "high",
           "implementation_version": "v1",
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "Neither revocation method is in use",
+              "short_description": "Default baseline query: no CRL and no OCSP, so nothing withdraws trust from a credential before it expires.",
               "canonical_query": {
                 "model": "integrations.CertificateProfile",
                 "operator": "and",
@@ -1590,8 +1642,40 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "use_crl",
+                "use_ocsp"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Revocation is checked and an inconclusive answer is let through",
+              "short_description": "The profile checks revocation and still allows an unknown status, a timed-out one, or both. Reported at this control's own severity.",
+              "canonical_query": {
+                "model": "integrations.CertificateProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "checks_revocation",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "fail_open_mode",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fail_open_mode"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
               "is_active": true
             }
           ],
@@ -1601,38 +1685,32 @@
           "control_id": "PAN-CRT-005",
           "name": "SSL/TLS Service Profiles Enforce TLS 1.2 Minimum",
           "control_type": "ssl_tls_service_profile",
-          "description": "SSL/TLS service profiles set the protocol floor for every service terminating TLS on the device: management UI, GlobalProtect portal and gateway, Captive Portal, syslog. TLS 1.0 and 1.1 are formally deprecated by RFC 8996.\\n\\nThis control asserts the FLOOR and nothing else, which is what the corpus specifies. It is worth being explicit about what that leaves out: measured 2026-09-02, an absent algorithm key means ENABLED, so a profile carrying only a version range permits SHA-1 authentication and CBC encryption. Every profile in the lab does. Those settings are collected and shown beside the floor so an engineer can see them, and no control fires on them yet.\\n\\nAssessed per profile per appliance per SCOPE. A name is not unique on a device - TLSv1.3_Default exists as both a predefined and a shared entry - and the predefined definition is the one in force.",
+          "description": "SSL/TLS service profiles set the protocol floor for every service terminating TLS on the device: management UI, GlobalProtect portal and gateway, Captive Portal, syslog. TLS 1.0 and 1.1 are formally deprecated by RFC 8996.\\n\\nThis control asserts the FLOOR and nothing else, which is what the corpus specifies. It is worth being explicit about what that leaves out: measured 2026-09-02, an absent algorithm key means ENABLED, so a profile carrying only a version range permits SHA-1 authentication and CBC encryption. Every profile in the lab does. Those settings are collected and shown beside the floor so an engineer can see them; PAN-CRT-009 asserts the SHA-1 authentication setting and nothing fires on the CBC or key-exchange ones.\\n\\nTHE FLOOR IS ASSERTED AS A PROPERTY AND NOT AS A LIST OF FORBIDDEN VALUES, which is a correction to how this control used to be queried. The old form enumerated tls1-0, tls1-1 and an empty floor; both halves of it were measured wrong. A stored token that is none of the four the device offers read as COMPLIANT under an enumeration, because it matched no forbidden literal - so a value nobody recognises passed. And an EMPTY floor is not a real state on a profile that exists: measured 2026-10-25 on pan-fw-201, a profile that omits min-version enforces a TLS 1.2 floor and therefore MEETS this control, so firing on the empty string reported every profile in the estate that simply does not write the key. The floor is now ranked against the device's own order and the assertion is 'below the rank of TLS 1.2', with an unrecognised token ranked BELOW tls1-0 so that it fires.\\n\\nAssessed per profile per appliance per SCOPE. A name is not unique on a device - TLSv1.3_Default exists as both a predefined and a shared entry - and the predefined definition is the one in force.",
           "rationale": "A profile is reusable by design, so a weak floor set once is inherited by every service that binds it. Auditing the bound profile alone misses the profile that is about to be bound.",
           "audit": "At Device > Certificate Management > SSL/TLS Service Profile, confirm Min Version is TLSv1.2 or higher on every profile, not only the one bound to the management interface.",
-          "remediation": "Set Min Version to TLSv1.2 on each profile, or TLSv1.3 where every client supports it. Consider also unticking SHA1 and the CBC encryption algorithms, which are enabled by default and are not covered by this control.",
+          "remediation": "Set Min Version to TLSv1.2 on each profile, or TLSv1.3 where every client supports it. A profile reported here whose Min Version cell is EMPTY in the dialog has not failed this control for being empty - read the running configuration, because an unrecognised stored token renders the same way and is what fires. Consider also unticking SHA1, which PAN-CRT-009 asserts, and the CBC encryption algorithms, which are enabled by default and are not covered by either control.",
           "default_severity": "high",
           "implementation_version": "v1",
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "The protocol floor is below TLS 1.2, or is a version this assessment does not recognise",
+              "short_description": "Default baseline query: the floor's rank in the device's own version order is below TLS 1.2's, which an unrecognised token also is.",
               "canonical_query": {
                 "model": "integrations.SslTlsServiceProfile",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
-                    "field": "min_version",
-                    "op": "eq",
-                    "value": "tls1-0"
-                  },
-                  {
-                    "field": "min_version",
-                    "op": "eq",
-                    "value": "tls1-1"
-                  },
-                  {
-                    "field": "min_version",
-                    "op": "is_empty",
-                    "value": ""
+                    "field": "min_version_rank",
+                    "op": "lt",
+                    "value": 2,
+                    "negated": false
                   }
                 ]
               },
+              "asserted_fields": [
+                "min_version_rank"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -1653,11 +1731,11 @@
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "The management certificate's issuer chain is not CA-issued",
+              "short_description": "Default baseline query: self-signed, a private CA on this device, undetermined, or nothing bound at all.",
               "canonical_query": {
                 "model": "integrations.ManagementTlsBinding",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
                     "field": "certificate_trust",
@@ -1667,24 +1745,37 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "certificate_trust"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
             },
             {
-              "name": "Severity: private_ca",
-              "short_description": "issuer chain of the management certificate private_ca \u2014 reported low.",
+              "name": "The management certificate was issued by a private CA on this device",
+              "short_description": "A chain terminating at a self-signed CA held on the appliance. Reported low: the remediation is to distribute the root or move to a public CA, not to stop using self-signed certificates.",
               "canonical_query": {
                 "model": "integrations.ManagementTlsBinding",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
                     "field": "certificate_trust",
                     "op": "eq",
-                    "value": "private_ca"
+                    "value": "ca_issued",
+                    "negated": true
+                  },
+                  {
+                    "field": "certificate_trust",
+                    "op": "eq",
+                    "value": "private_ca",
+                    "negated": false
                   }
                 ]
               },
+              "asserted_fields": [
+                "certificate_trust"
+              ],
               "is_baseline": false,
               "adjusted_severity": "low",
               "is_active": true
@@ -1705,11 +1796,11 @@
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "No master key has been set, or it could not be established that one has",
+              "short_description": "Default baseline query: the factory default is still in use, or the reading that would have said otherwise was never taken.",
               "canonical_query": {
                 "model": "integrations.MasterKey",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
                     "field": "state",
@@ -1719,12 +1810,58 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "state"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
             }
           ],
           "target_model": "integrations.MasterKey"
+        },
+        {
+          "control_id": "PAN-CRT-008",
+          "name": "Unused Certificates and Profiles Removed (Hygiene)",
+          "control_type": "certificate",
+          "description": "A certificate AUTHORITY certificate the device still holds where the reference walk ran and found nothing relying on it. An authority is not an ordinary unused object: while it sits in the store it extends trust to everything it ever signed, and a key nobody is watching is a key nobody notices the loss of.\n\nRELIANCE IS NOT A NAME COUNT. Within one configuration surface a certificate's issuer hash equals its issuer's subject hash, which is how a chain is read without parsing anything - so an authority that NO object names is still in use when it signed a certificate the device holds. Both edges count here, and a control written on name references alone would propose deleting authorities that are still issuing. The chain is also SURFACE-LOCAL: it cannot be followed from the firewall's own store into the vendor's predefined namespace, and the subject and issuer STRINGS cannot be compared instead, because the device formats one name five different ways depending on where it is read.\n\nTHIS CONTROL IS DELIBERATELY SILENT WHERE THE REFERENCE WALK HAS NOT RUN, and that is the opposite of how the rest of this catalogue treats a missing reading. The reason is the remediation: the finding says to review an authority for removal, the action is a DELETE, and an authority whose private key is held nowhere else cannot be recreated. The map behind the walk is a FLOOR and not a census - of 69 known reference locations on this platform, 65 are covered by no collected model - so firing on an incomplete walk would advise deleting the most sensitive key in an estate on the strength of not having looked. The opposite direction is covered rather than ignored: PAN-CRT-001 reads the same column in the other sense, so an EXPIRED certificate whose reliance is unknown does fire, and no customer is told an expired certificate is safe.\n\nA CERTIFICATE'S OWN FORWARD-TRUST FLAG IS ITSELF A FORM OF RELIANCE, so an authority carrying it is not orphaned however few objects name it.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED, and it is not reportable. The corpus also asks that every certificate, validation profile and service profile be accounted for against something that uses it, with the unused ones reviewed. The assertion there is that somebody has LOOKED, and an item kept for a stated reason meets it - configuration cannot show intent, so that half is an engineer's question rather than a query, and it reaches three subjects where a control reports against one.",
+          "rationale": "Every certificate an authority signed remains verifiable while the authority is trusted, so an authority kept past its purpose is a standing grant of trust with no owner. Unlike an unused policy object, the cost of leaving it is not clutter.",
+          "audit": "Device > Certificate Management > Certificates: for each entry whose CA flag is set, look for its name in the Certificate Profile CA lists and in the SSL/TLS Service Profile, GlobalProtect portal and gateway, decryption and syslog configurations - then read every other certificate's Issuer against this one's Subject, because a signed certificate is reliance even where no object names the issuer. An entry reported here is a candidate for review, not a confirmed orphan.",
+          "remediation": "Establish what the authority was for before removing it. Where it is genuinely finished, delete it and record that the key is gone - the delete is irreversible and the key is not recoverable from a configuration backup. Attempting the delete is itself a reference test: a refusal answers with the name of the object that still points at it. Where the authority is still issuing, leave it and record the decision, because the next assessment will raise it again.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "An authority certificate the reference walk found nothing relying on",
+              "short_description": "Default baseline query: the entry is a CA, and the walk completed and found no name reference and no signed certificate.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_ca",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "not_relied_on",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "not_relied_on"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
         },
         {
           "control_id": "PAN-CRT-009",
@@ -1739,8 +1876,8 @@
           "is_active": true,
           "queries": [
             {
-              "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "name": "The profile selects SHA-1 among its authentication algorithms",
+              "short_description": "Default baseline query: SHA-1 is selected, either written on or left absent at a version range that renders it.",
               "canonical_query": {
                 "model": "integrations.SslTlsServiceProfile",
                 "operator": "and",
@@ -1752,6 +1889,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "allows_sha1"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true

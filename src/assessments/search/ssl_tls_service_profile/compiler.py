@@ -24,6 +24,7 @@ from assessments.search.device_configuration.fields.scalar_text import (
 from optivedge_integrations.integrations.models import SslTlsServiceProfile
 
 SSL_TLS_SERVICE_PROFILE_MODEL = "integrations.SslTlsServiceProfile"
+INTEGER_OPERATORS = {"eq", "gt", "gte", "lt", "lte"}
 
 
 def build_text_compiler(field_name, lookup_field):
@@ -56,6 +57,23 @@ def build_boolean_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_integer_compiler(field_name, lookup_field):
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op not in INTEGER_OPERATORS:
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise SearchSyntaxError(f"{field_name} search value must be an integer.")
+        suffix = {"eq": "exact"}.get(op, op)
+        # No null exclusion, and the difference from the certificate compiler's integer builder
+        # is the column rather than an oversight: `min_version_rank` is NOT NULL with the
+        # sentinel as its migration default, so there is no null for an inequality to drop.
+        return SslTlsServiceProfile.objects.filter(
+            **{f"{lookup_field}__{suffix}": value}).values("pk")
+    compiler.SUPPORTED_OPERATORS = INTEGER_OPERATORS
+    return compiler
+
+
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
     "scope": build_text_compiler("scope", "scope"),
@@ -69,6 +87,12 @@ FIELD_COMPILERS = {
     # CBC and key-exchange settings are deliberately not searchable because no control asserts
     # them - they are readable in protocol_algorithms for display.
     "allows_sha1": build_boolean_compiler("allows_sha1", "allows_sha1"),
+    # THE FLOOR AS AN ORDER, which is the only shape "at or above TLS 1.2" can be written in:
+    # the grammar has no ordering over text, no `in` and no `between`, and a clause list is one
+    # conjunction. The sentinel -1 sorts BELOW tls1-0, so a token outside the four FIRES on
+    # `lt 2` - which is the direction stage 0 measured the enumerated form gets wrong, since a
+    # list of the forbidden values reads an unrecognised token as compliant.
+    "min_version_rank": build_integer_compiler("min_version_rank", "min_version_rank"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

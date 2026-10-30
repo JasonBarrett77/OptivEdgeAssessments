@@ -83,6 +83,15 @@ FIELD_COMPILERS = {
     "crl_receive_timeout": build_integer_compiler("crl_receive_timeout", "crl_receive_timeout"),
     "ocsp_receive_timeout": build_integer_compiler("ocsp_receive_timeout", "ocsp_receive_timeout"),
     "cert_status_timeout": build_integer_compiler("cert_status_timeout", "cert_status_timeout"),
+    # THE DISJUNCTION, as a column. `use_crl eq false AND use_ocsp eq false` states the failing
+    # condition and a clause list is ONE conjunction, so "revocation IS checked" - the positive
+    # sense PAN-CRT-004's fail-closed half needs for its applicability - cannot be written over
+    # the two booleans at all.
+    "checks_revocation": build_boolean_compiler("checks_revocation", "checks_revocation"),
+    # ONE COLUMN OVER TWO MEASURED BOOLEANS, because a grading names ONE column and stage 3
+    # grades the two inconclusive outcomes separately. Four values, and `both_allowed` is both
+    # the worst and the migration default.
+    "fail_open_mode": build_text_compiler("fail_open_mode", "fail_open_mode"),
 }
 
 FIELD_OPERATOR_REGISTRY = {
