@@ -890,7 +890,16 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: EMPTY since 2026-10-28, when the first stage 9 run presented `ike-crypto` - the `PAN-IKE`
 #: entry, which is the only one this ever held, was cleared by the work it named. The empty map
 #: states that no domain is currently in that position, exactly as `LEGACY_SURFACE` does.
-AWAITING_PRESENTATION: dict[str, str] = {}
+#:
+#: `PAN-NET` ADDED 2026-10-30 by the stage 8 run on `network-hardening`. Six models reached
+#: stage 8 together - `Interface`, `PanOsSessionSettings`, `PanOsLldpGlobalSettings`,
+#: `PanOsDhcpInterfaceConfig`, `PanOsTunnelInspectionCoverage` and `PanOsRoutingAdjacency` - and
+#: none has a rail item, because a rail item is a page and that stage forbids building one. The
+#: stage 9 artifact named below is what clears this entry, and the two tests above fail the
+#: moment it exists.
+AWAITING_PRESENTATION: dict[str, str] = {
+    "PAN-NET": "stage9-network-hardening.json",
+}
 
 
 

@@ -33,6 +33,12 @@ SNMP_SETTINGS_MODEL = "integrations.SnmpSettings"
 SYSTEM_IDENTITY_MODEL = "integrations.SystemIdentity"
 IKE_CRYPTO_PROFILE_MODEL = "integrations.IkeCryptoProfile"
 IKE_GATEWAY_MODEL = "integrations.IkeGateway"
+INTERFACE_MODEL = "integrations.Interface"
+SESSION_SETTINGS_MODEL = "integrations.PanOsSessionSettings"
+LLDP_GLOBAL_MODEL = "integrations.PanOsLldpGlobalSettings"
+DHCP_INTERFACE_CONFIG_MODEL = "integrations.PanOsDhcpInterfaceConfig"
+TUNNEL_INSPECTION_MODEL = "integrations.PanOsTunnelInspectionCoverage"
+ROUTING_ADJACENCY_MODEL = "integrations.PanOsRoutingAdjacency"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -334,4 +340,61 @@ def evaluate_ike_gateway_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or IKE_GATEWAY_MODEL,
+    )
+
+
+# Network hardening. PAN-NET-001 to 007, six models.
+#
+# TWO CONTROLS SHARE `Interface` AND TWO SHARE `PanOsSessionSettings`, which is safe and worth
+# saying out loud because the union in `evaluate_queryset_control_queries` makes sharing look
+# dangerous: the union is taken over ONE control's active queries, so two controls on one model
+# never widen each other and never calibrate each other's severity. They produce two findings on
+# the same row, which is correct - they assert unrelated things.
+
+
+def evaluate_interface_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or INTERFACE_MODEL,
+    )
+
+
+def evaluate_session_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SESSION_SETTINGS_MODEL,
+    )
+
+
+def evaluate_lldp_global_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LLDP_GLOBAL_MODEL,
+    )
+
+
+def evaluate_dhcp_interface_config_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DHCP_INTERFACE_CONFIG_MODEL,
+    )
+
+
+def evaluate_tunnel_inspection_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or TUNNEL_INSPECTION_MODEL,
+    )
+
+
+def evaluate_routing_adjacency_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or ROUTING_ADJACENCY_MODEL,
     )

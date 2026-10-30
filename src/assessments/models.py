@@ -35,6 +35,12 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     IkeCryptoProfile,
     IkeGateway,
+    Interface,
+    PanOsSessionSettings,
+    PanOsLldpGlobalSettings,
+    PanOsDhcpInterfaceConfig,
+    PanOsTunnelInspectionCoverage,
+    PanOsRoutingAdjacency,
     ManagementInterface,
     SecurityRule,
     Snapshot,
@@ -111,6 +117,30 @@ class Control(models.Model):
         #: control - see the stage 8 artifact for `ike-crypto`.
         IKE_CRYPTO_PROFILE = "ike_crypto_profile", "IKE Crypto Profile"
         IKE_GATEWAY = "ike_gateway", "IKE Gateway"
+        #: NETWORK HARDENING - SIX SUBJECTS AND SO SIX TYPES, for the one-to-one reason above
+        #: and for no other: two of them are device-wide singleton nodes, which would otherwise
+        #: have been tempting to fold together.
+        #:
+        #: NONE OF THESE CARRIES THE `PanOs` PREFIX ITS INTEGRATIONS MODEL DOES. Five of the six
+        #: models are named `PanOs*` and `Interface` is not; that prefix appears on exactly five
+        #: of 138 model classes in OptivEdgeIntegrations, all five in one file added on
+        #: 2026-10-29, while four other model files added the SAME day used no vendor prefix. No
+        #: comment or document in either repo gives a reason. So it is a one-file local choice
+        #: rather than a convention, and the types here follow the 28 that shipped before them,
+        #: none of which carries a vendor prefix.
+        #:
+        #: PAN-NET-001 and PAN-NET-003 SHARE `firewall_interface`: a type maps to one model, and
+        #: many controls may share a type. PAN-NET-002 and PAN-NET-005 share `session_settings`
+        #: the same way - two config nodes on one vendor screen, one row.
+        FIREWALL_INTERFACE = "firewall_interface", "Interface"
+        SESSION_SETTINGS = "session_settings", "Session Settings"
+        #: Registered with NO shipped control. PAN-NET-003 asserts over this subject and over
+        #: `Interface`, and one control cannot hold both; splitting the catalogue id is a
+        #: product decision. See the stage 8 artifact for `network-hardening`.
+        LLDP_GLOBAL = "lldp_global", "Global LLDP"
+        DHCP_INTERFACE_CONFIG = "dhcp_interface_config", "DHCP Interface Configuration"
+        TUNNEL_INSPECTION = "tunnel_inspection", "Tunnel Inspection Coverage"
+        ROUTING_ADJACENCY = "routing_adjacency", "Routing Adjacency"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -187,6 +217,16 @@ class Control(models.Model):
         "ike_gateway": "integrations.IkeGateway",
         # The subject is the issue record, which exists precisely when the object does not.
         "normalization": "integrations.NormalizationIssue",
+        # Network hardening. `Interface` is device-wide with no vsys axis; the two settings
+        # models are singleton nodes, one row per appliance; the DHCP row EXISTS only where DHCP
+        # is configured, so that control's passing state is the absence of the row; the tunnel
+        # row is a verdict over one enforcement point's rulebase.
+        "firewall_interface": "integrations.Interface",
+        "session_settings": "integrations.PanOsSessionSettings",
+        "lldp_global": "integrations.PanOsLldpGlobalSettings",
+        "dhcp_interface_config": "integrations.PanOsDhcpInterfaceConfig",
+        "tunnel_inspection": "integrations.PanOsTunnelInspectionCoverage",
+        "routing_adjacency": "integrations.PanOsRoutingAdjacency",
         "config": "",
     }
 
@@ -233,6 +273,12 @@ class Control(models.Model):
         "integrations.NormalizationIssue": "Normalization Issue",
         "integrations.IkeCryptoProfile": "IKE Crypto Profile",
         "integrations.IkeGateway": "IKE Gateway",
+        "integrations.Interface": "Interface",
+        "integrations.PanOsSessionSettings": "Session Settings",
+        "integrations.PanOsLldpGlobalSettings": "Global LLDP",
+        "integrations.PanOsDhcpInterfaceConfig": "DHCP Interface Configuration",
+        "integrations.PanOsTunnelInspectionCoverage": "Tunnel Inspection Coverage",
+        "integrations.PanOsRoutingAdjacency": "Routing Adjacency",
     }
 
     @property
@@ -1297,6 +1343,386 @@ class IkeGatewayFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.ike_gateway_finding_id} <- {self.control_query_id}"
+
+
+# ---------------------------------------------------------------------------
+# Network hardening - PAN-NET-001 to PAN-NET-007. Six subjects, four grains.
+#
+# ALL SIX PRODUCE A ROW PER HA NODE, not per pair. The merged configuration is read per
+# appliance and the pair is synchronised, so two rows describe one real configuration and two
+# findings report one condition. Nothing deduplicates them - the integrations models say so and
+# say why: they have no appliance-group bridge, so "this peer holds nothing" would be
+# indistinguishable from "this peer was never normalized".
+#
+# NO `subject_scope` ON FIVE OF THE SIX. An interface name, a DHCP entry name and a routing
+# adjacency are unique per appliance, and the two settings models have one row per appliance
+# with no name at all. Only the tunnel verdict can collide: one vsys's coverage can come from
+# its own rulebase or from a Panorama device group, which are two different answers about the
+# same vsys, so that one carries the scope.
+# ---------------------------------------------------------------------------
+
+
+class InterfaceFinding(ObjectFindingBase):
+    """A finding against one interface or subinterface. PAN-NET-001 and PAN-NET-003.
+
+    TWO CONTROLS, ONE SUBJECT, AND THEY ASK UNRELATED QUESTIONS: what an out-of-service port is
+    left holding, and what a port announces to whatever is plugged into it. They share this model
+    because they share the row, not because they share a reading - `PARTS_BY_CONTROL` in
+    `interface_findings.py` is what keeps each finding's sentence to its own control's assertion.
+
+    THE ABSENCE OF A FINDING HERE IS NOT A STATEMENT THAT THE PORT IS IN SERVICE. PAN-NET-001's
+    scope - "every interface the customer confirms is not in service" - is deliberately NOT a
+    clause, because no column can hold it: a port carrying an address and a zone may be a spare
+    built in advance of a project, and a port carrying nothing may be a live uplink waiting on
+    the far end. So the control reports every port whose stored configuration and administrative
+    state disagree, and the customer's list narrows which of those rows are called findings at
+    presentation time. The same is true of PAN-NET-003's "facing an untrusted network".
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="interface_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="interface_findings")
+    interface = models.ForeignKey(
+        Interface, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="InterfaceFindingControlQuery",
+        related_name="interface_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["interface"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "interface"],
+                name="unique_iface_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on interface {self.subject_name}"
+
+
+class InterfaceFindingControlQuery(FindingControlQueryBase):
+    interface_finding = models.ForeignKey(
+        InterfaceFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="interface_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["interface_finding", "control_query"],
+                name="unique_iface_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.interface_finding_id} <- {self.control_query_id}"
+
+
+class SessionSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's Session settings. PAN-NET-002 and PAN-NET-005.
+
+    One row per appliance, two controls that fail independently and in opposite evidential
+    positions - which is the thing worth knowing before reading one of these findings:
+
+    * PAN-NET-002 rests on `session_rematch`, where NOTHING is stored for an absent key. The
+      vendor says the capability is on by default and says so twice; no oracle on the appliance
+      moves for it, so the value remains a guess. The finding therefore reports "nobody has
+      established this" as well as "this is switched off", and says which.
+    * PAN-NET-005 rests on `ipv6_firewalling`, where the default IS measured - the device's own
+      dataplane reports it on with the key absent, paid in both directions on a committed state.
+      So an absent key here is COMPLIANT, and the naive reading of the same absence would have
+      raised a finding on every appliance in this estate.
+
+    `subject_name` is the appliance, because the subject has no name of its own.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="session_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="session_settings_findings")
+    session_settings = models.ForeignKey(
+        PanOsSessionSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SessionSettingsFindingControlQuery",
+        related_name="session_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["session_settings"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "session_settings"],
+                name="unique_sess_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on session settings {self.subject_name}"
+
+
+class SessionSettingsFindingControlQuery(FindingControlQueryBase):
+    session_settings_finding = models.ForeignKey(
+        SessionSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="session_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session_settings_finding", "control_query"],
+                name="unique_sess_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.session_settings_finding_id} <- {self.control_query_id}"
+
+
+class LldpGlobalFinding(ObjectFindingBase):
+    """A finding against one appliance's device-wide LLDP enable.
+
+    NO CONTROL PRODUCES ONE OF THESE TODAY, and that is recorded rather than accidental.
+    PAN-NET-003's second half asserts over this subject and its first half over `Interface`;
+    `_CONTROL_TYPE_TARGET_MODEL` is one-to-one and `ControlQuery.clean()` refuses a query whose
+    model differs from its control's target, so one catalogue control cannot hold both. The
+    per-interface half took the id. Splitting PAN-NET-003 into two catalogue ids changes what a
+    customer's report contains and is Jason's decision; this model exists so that the half he
+    may decide to build has somewhere to land, and so that nothing silently narrows the report
+    when it does.
+
+    WHAT IT WOULD SAY. The node is absent on every appliance measured, and what the absence
+    MEANS is unestablished in both directions - globally enabled by default, in which case the
+    preferred value is unmet everywhere, or globally disabled, in which case the per-interface
+    keys are moot. So the finding this model carries is "the firewall-wide state was never
+    established", not "LLDP is on".
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="lldp_global_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="lldp_global_findings")
+    lldp_global_settings = models.ForeignKey(
+        PanOsLldpGlobalSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LldpGlobalFindingControlQuery",
+        related_name="lldp_global_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["lldp_global_settings"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "lldp_global_settings"],
+                name="unique_lldpg_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on global LLDP {self.subject_name}"
+
+
+class LldpGlobalFindingControlQuery(FindingControlQueryBase):
+    lldp_global_finding = models.ForeignKey(
+        LldpGlobalFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="lldp_global_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["lldp_global_finding", "control_query"],
+                name="unique_lldpg_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.lldp_global_finding_id} <- {self.control_query_id}"
+
+
+class DhcpInterfaceConfigFinding(ObjectFindingBase):
+    """A finding against one interface's DHCP configuration. PAN-NET-004.
+
+    THE SUBJECT IS THE CONFIGURATION THAT SHOULD NOT BE THERE, not the port. A row exists only
+    where `network/dhcp/interface` carries an entry, so this control's passing state for its
+    server half is the ABSENCE of the row and needs no representation at all - and the finding
+    names the DHCP configuration rather than the interface, which is what an engineer deletes.
+
+    TWO HALVES THAT FAIL INDEPENDENTLY, server and relay, which are independent siblings in the
+    configuration: the absence of one asserts nothing about the other. One row can violate both,
+    and then there is still one finding, reported at the worse of the two severities.
+
+    WHAT NO FINDING HERE PROVES, and it is the one gap in this domain that fails quiet: an
+    appliance with no DHCP and a collector that skipped `network/dhcp` both produce no rows, and
+    no column on this model can tell them apart, because a reading about whether the container
+    was fetched has no row to live on when no row exists.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="dhcp_interface_config_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="dhcp_interface_config_findings")
+    dhcp_interface_config = models.ForeignKey(
+        PanOsDhcpInterfaceConfig, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DhcpInterfaceConfigFindingControlQuery",
+        related_name="dhcp_interface_config_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["dhcp_interface_config"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "dhcp_interface_config"],
+                name="unique_dhcp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on DHCP configuration {self.subject_name}"
+
+
+class DhcpInterfaceConfigFindingControlQuery(FindingControlQueryBase):
+    dhcp_interface_config_finding = models.ForeignKey(
+        DhcpInterfaceConfigFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="dhcp_interface_config_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dhcp_interface_config_finding", "control_query"],
+                name="unique_dhcp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dhcp_interface_config_finding_id} <- {self.control_query_id}"
+
+
+class TunnelInspectionFinding(ObjectFindingBase):
+    """A finding against one enforcement point's tunnel inspection coverage. PAN-NET-006.
+
+    THE SUBJECT IS A VERDICT OVER A RULEBASE AND NOT A RULE, because the commonest failing state
+    is that NO RULE EXISTS and a per-rule finding cannot report it. An engineer fixing it does
+    not open a rule either; the rule they need does not exist.
+
+    `subject_scope` IS DECLARED HERE AND NOWHERE ELSE IN THIS DOMAIN. A vsys's coverage can come
+    from its own rulebase or from a Panorama device group, so the same vsys name legitimately
+    carries two rows with two different answers, and a reader has to be able to tell which copy
+    a finding is about. The scope says which config subtree the rules came from and NOT who owns
+    them.
+
+    WHAT THIS FINDING CANNOT SAY: whether any tunnel actually transits this firewall. That is
+    traffic and not configuration, so the verdict fires on a vsys with no policy whether or not
+    a tunnel has ever crossed it, and four of the eight ranks cannot be computed from
+    configuration at all. The finding says which, rather than reporting a rank nobody measured.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="tunnel_inspection_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="tunnel_inspection_findings")
+    tunnel_inspection_coverage = models.ForeignKey(
+        PanOsTunnelInspectionCoverage, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="TunnelInspectionFindingControlQuery",
+        related_name="tunnel_inspection_findings", blank=True)
+    #: Which config subtree the counted rules came from - `vsys` or `device-group`. See the class
+    #: docstring; this is the one subject in the domain whose name can collide.
+    subject_scope = models.CharField(max_length=32, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["tunnel_inspection_coverage"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "tunnel_inspection_coverage"],
+                name="unique_tunnel_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on tunnel inspection {self.subject_name}"
+
+
+class TunnelInspectionFindingControlQuery(FindingControlQueryBase):
+    tunnel_inspection_finding = models.ForeignKey(
+        TunnelInspectionFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="tunnel_inspection_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tunnel_inspection_finding", "control_query"],
+                name="unique_tunnel_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tunnel_inspection_finding_id} <- {self.control_query_id}"
+
+
+class RoutingAdjacencyFinding(ObjectFindingBase):
+    """A finding against one dynamic routing adjacency. PAN-NET-007.
+
+    THE SUBJECT IS THE ADJACENCY AND NOT THE AUTHENTICATION PROFILE. A profile is reusable, so
+    reporting it once would understate how many adjacencies are unauthenticated - and the
+    adjacency is what an engineer opens to attach authentication or a prefix ceiling.
+
+    THE ROW'S EXISTENCE IS THE APPLICABILITY TEST, so the absence of a finding on an appliance
+    means either that every adjacency is sound or that the firewall forms none. Those are
+    different facts and this model cannot tell them apart; a firewall routing only on static
+    entries produces no row.
+
+    WHAT THE FINDING MAY NOT SAY, from the standing ruling on stored secrets: nothing about the
+    key itself. The authentication secret and the OSPF password are encrypted-text and cannot be
+    read back from the firewall at all, so whether a key is unique to an adjacency or shared
+    across sites is an engineer's question. The finding reports the STRENGTH the attachment
+    amounts to, which is computed from which child the profile carries and never from a value.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="routing_adjacency_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="routing_adjacency_findings")
+    routing_adjacency = models.ForeignKey(
+        PanOsRoutingAdjacency, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="RoutingAdjacencyFindingControlQuery",
+        related_name="routing_adjacency_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["routing_adjacency"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "routing_adjacency"],
+                name="unique_radj_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on routing adjacency {self.subject_name}"
+
+
+class RoutingAdjacencyFindingControlQuery(FindingControlQueryBase):
+    routing_adjacency_finding = models.ForeignKey(
+        RoutingAdjacencyFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="routing_adjacency_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["routing_adjacency_finding", "control_query"],
+                name="unique_radj_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.routing_adjacency_finding_id} <- {self.control_query_id}"
 
 
 class ManagementTlsFinding(ObjectFindingBase):

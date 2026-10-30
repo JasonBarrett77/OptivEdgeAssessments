@@ -103,6 +103,22 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.IKE_CRYPTO_PROFILE, "IKE crypto profile"),
     FindingKind(m.IkeGatewayFinding, "ike_gateway",
                 m.Control.ControlType.IKE_GATEWAY, "IKE gateway"),
+    # Network hardening. Six kinds, and `global LLDP setting` is registered with no shipped
+    # control over it - PAN-NET-003 asserts across two models and one control cannot hold both.
+    # Registered anyway, because this tuple falling behind is exactly how five models once
+    # dropped 22 findings out of the client deliverable with nothing failing.
+    FindingKind(m.InterfaceFinding, "interface",
+                m.Control.ControlType.FIREWALL_INTERFACE, "interface"),
+    FindingKind(m.SessionSettingsFinding, "session_settings",
+                m.Control.ControlType.SESSION_SETTINGS, "session settings"),
+    FindingKind(m.LldpGlobalFinding, "lldp_global_settings",
+                m.Control.ControlType.LLDP_GLOBAL, "global LLDP setting"),
+    FindingKind(m.DhcpInterfaceConfigFinding, "dhcp_interface_config",
+                m.Control.ControlType.DHCP_INTERFACE_CONFIG, "DHCP interface configuration"),
+    FindingKind(m.TunnelInspectionFinding, "tunnel_inspection_coverage",
+                m.Control.ControlType.TUNNEL_INSPECTION, "tunnel inspection coverage"),
+    FindingKind(m.RoutingAdjacencyFinding, "routing_adjacency",
+                m.Control.ControlType.ROUTING_ADJACENCY, "routing adjacency"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
