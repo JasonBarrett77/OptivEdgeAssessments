@@ -54,6 +54,10 @@ class FindingRegistryTests(TestCase):
         # Device > Setup > WildFire. "wildfire setting" names nothing either - the screen is
         # a cluster of settings and the finding is about the cluster.
         "wildfire settings",
+        # Device > Setup > Session. Two sibling config nodes - `setting/config/rematch` and
+        # `setting/session/ipv6-firewalling` - on the one panel an engineer opens, so "session
+        # setting" would name neither of them and the finding is about the panel.
+        "session settings",
     }
 
     def test_labels_are_unique_and_prose_shaped(self):

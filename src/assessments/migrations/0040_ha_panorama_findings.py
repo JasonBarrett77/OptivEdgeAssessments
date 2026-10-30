@@ -10,6 +10,16 @@ to be rewritten.
 NOTHING HERE TOUCHES A DEVICE MODEL. `HighAvailabilityConfig` and `PanoramaRegistration` are
 OptivEdgeIntegrations', built by stage 7 and migrated there (`integrations.0094_ha_panorama`);
 this adds only the assessment-side finding rows that point at them.
+
+RE-CHAINED AT MERGE, FROM `0037_controlquery_asserted_fields` TO
+`0039_network_hardening_findings`. All four stage 8 runs of this wave read `0037` as the head in
+their own OptivEdgeAssessments worktree and wrote it as their dependency, which is correct for
+each of them alone and is three leaves together - Django refuses that. The wave was landed as
+0039 network-hardening, 0040 here, 0041 saas-security, and this file's dependency is the only
+thing about it the merge changed. **0038 IS DELIBERATELY UNUSED**: it was assigned to
+`certificates`, whose run needed no new finding model - registering a control type with no
+control id to use it would ship a finding kind that can never fire, and `test_finding_registry`
+would then require it for ever. The gap is that result, not a lost file.
 """
 
 import django.db.models.deletion
@@ -19,7 +29,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('assessments', '0037_controlquery_asserted_fields'),
+        ('assessments', '0039_network_hardening_findings'),
         ('integrations', '0110_wildfire_rule_absence_is_null'),
     ]
 

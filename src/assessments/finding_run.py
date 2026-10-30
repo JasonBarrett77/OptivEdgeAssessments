@@ -25,6 +25,14 @@ from assessments.authentication_settings_findings import generate_authentication
 from assessments.findings import generate_rule_findings
 from assessments.certificate_findings import generate_certificate_findings
 from assessments.coverage_findings import generate_coverage_findings
+from assessments.dhcp_interface_config_findings import (
+    generate_dhcp_interface_config_findings,
+)
+from assessments.interface_findings import generate_interface_findings
+from assessments.lldp_global_findings import generate_lldp_global_findings
+from assessments.routing_adjacency_findings import generate_routing_adjacency_findings
+from assessments.session_settings_findings import generate_session_settings_findings
+from assessments.tunnel_inspection_findings import generate_tunnel_inspection_findings
 from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
@@ -113,6 +121,17 @@ GENERATORS = (
     ("security profile", T.SECURITY_PROFILE, generate_security_profile_findings),
     ("administrator", T.ADMIN_USER, generate_admin_user_findings),
     ("aaa server profile", T.SERVER_PROFILE, generate_server_profile_findings),
+    # Network hardening, device-wide settings first and then the per-surface objects, which is
+    # this tuple's own ordering rule. `global LLDP` writes nothing today - no shipped control
+    # targets it, because PAN-NET-003 asserts across two models and one control cannot hold
+    # both - and it is here so the entry cannot be the thing that is forgotten later.
+    ("session settings", T.SESSION_SETTINGS, generate_session_settings_findings),
+    ("global LLDP", T.LLDP_GLOBAL, generate_lldp_global_findings),
+    ("interface", T.FIREWALL_INTERFACE, generate_interface_findings),
+    ("dhcp interface configuration", T.DHCP_INTERFACE_CONFIG,
+     generate_dhcp_interface_config_findings),
+    ("tunnel inspection coverage", T.TUNNEL_INSPECTION, generate_tunnel_inspection_findings),
+    ("routing adjacency", T.ROUTING_ADJACENCY, generate_routing_adjacency_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

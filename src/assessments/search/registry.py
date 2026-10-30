@@ -191,6 +191,37 @@ from assessments.search.authentication_sequence.compiler import (
     FIELD_OPERATOR_REGISTRY as AUTHENTICATION_SEQUENCE_FIELD_OPERATOR_REGISTRY,
     compile_authentication_sequence_search_node,
 )
+# The six network-hardening subjects. PAN-NET-001 to 007.
+from assessments.search.interface.compiler import (
+    FIELD_OPERATOR_REGISTRY as INTERFACE_FIELD_OPERATOR_REGISTRY,
+    INTERFACE_MODEL,
+    compile_interface_search_node,
+)
+from assessments.search.session_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as SESSION_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    SESSION_SETTINGS_MODEL,
+    compile_session_settings_search_node,
+)
+from assessments.search.lldp_global.compiler import (
+    FIELD_OPERATOR_REGISTRY as LLDP_GLOBAL_FIELD_OPERATOR_REGISTRY,
+    LLDP_GLOBAL_MODEL,
+    compile_lldp_global_search_node,
+)
+from assessments.search.dhcp_interface_config.compiler import (
+    FIELD_OPERATOR_REGISTRY as DHCP_INTERFACE_CONFIG_FIELD_OPERATOR_REGISTRY,
+    DHCP_INTERFACE_CONFIG_MODEL,
+    compile_dhcp_interface_config_search_node,
+)
+from assessments.search.tunnel_inspection.compiler import (
+    FIELD_OPERATOR_REGISTRY as TUNNEL_INSPECTION_FIELD_OPERATOR_REGISTRY,
+    TUNNEL_INSPECTION_MODEL,
+    compile_tunnel_inspection_search_node,
+)
+from assessments.search.routing_adjacency.compiler import (
+    FIELD_OPERATOR_REGISTRY as ROUTING_ADJACENCY_FIELD_OPERATOR_REGISTRY,
+    ROUTING_ADJACENCY_MODEL,
+    compile_routing_adjacency_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
     HighAvailabilityConfig,
@@ -222,6 +253,12 @@ from optivedge_integrations.integrations.models import (
     SslTlsServiceProfile,
     ManagementInterface,
     SecurityRule,
+    Interface,
+    PanOsSessionSettings,
+    PanOsLldpGlobalSettings,
+    PanOsDhcpInterfaceConfig,
+    PanOsTunnelInspectionCoverage,
+    PanOsRoutingAdjacency,
 )
 
 
@@ -372,6 +409,41 @@ MODEL_REGISTRY = {
         "model_class": PanoramaRegistration,
         "field_operators": PANORAMA_REGISTRATION_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_panorama_registration_search_node,
+    },
+    # Network hardening. Six subjects, four grains: a port, a DHCP configuration attached to a
+    # port, two device-wide singleton nodes, a verdict over one enforcement point's tunnel
+    # rulebase, and one dynamic routing adjacency.
+    INTERFACE_MODEL: {
+        "model_class": Interface,
+        "field_operators": INTERFACE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_interface_search_node,
+    },
+    SESSION_SETTINGS_MODEL: {
+        "model_class": PanOsSessionSettings,
+        "field_operators": SESSION_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_session_settings_search_node,
+    },
+    # Registered with no shipped control over it: PAN-NET-003's assertions name two models and
+    # one catalogue control cannot hold both. See that compiler's docstring.
+    LLDP_GLOBAL_MODEL: {
+        "model_class": PanOsLldpGlobalSettings,
+        "field_operators": LLDP_GLOBAL_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_lldp_global_search_node,
+    },
+    DHCP_INTERFACE_CONFIG_MODEL: {
+        "model_class": PanOsDhcpInterfaceConfig,
+        "field_operators": DHCP_INTERFACE_CONFIG_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_dhcp_interface_config_search_node,
+    },
+    TUNNEL_INSPECTION_MODEL: {
+        "model_class": PanOsTunnelInspectionCoverage,
+        "field_operators": TUNNEL_INSPECTION_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_tunnel_inspection_search_node,
+    },
+    ROUTING_ADJACENCY_MODEL: {
+        "model_class": PanOsRoutingAdjacency,
+        "field_operators": ROUTING_ADJACENCY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_routing_adjacency_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

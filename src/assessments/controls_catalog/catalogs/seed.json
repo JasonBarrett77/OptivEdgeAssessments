@@ -1437,50 +1437,6 @@
           ]
         },
         {
-          "control_id": "PAN-CRT-001",
-          "name": "No Expired Certificates In Use (Hygiene)",
-          "control_type": "certificate",
-          "description": "A certificate whose validity period has already ended, where nothing establishes that nothing on the device depends on it. An expired certificate a live service presents causes silent authentication failures and trains administrators and users to click through warnings, which is the reflex every certificate warning afterwards depends on.\n\nTHE EXPIRY IS DECODED FROM THE CERTIFICATE AND NOT READ FROM A FIELD, which matters because the device offers three renderings of one expiry and they are not established to agree: the operational read returned the SAME WRONG DATE for three different certificates on one appliance. The decoded certificate is the authority on itself, and `not_valid_after` is reported beside the verdict as the evidence a reader checks.\n\nTHE VERDICT IS A SNAPSHOT AGAINST A CLOCK. It was computed when the configuration was normalised and it goes stale between passes - a certificate that expires tomorrow reads as current today and as expired after the next collection. That is a real property of any stored verdict about time rather than a defect, and it is the reason the date is kept beside it.\n\nWHAT THE FINDING DOES AND DOES NOT CLAIM. It says the certificate has expired and that nothing establishes that nothing depends on it. It does NOT say the certificate is in use. The reference map behind that distinction is a FLOOR and not a census: of 69 known locations on this platform where a certificate can be referenced, 65 are covered by no collected model at all, so the walk can prove a certificate IS referenced and can never prove that it is not. A certificate whose reference map was never walked therefore REPORTS here rather than passing, which is the direction that errs toward telling a customer to look.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED. The corpus also asks that the firewall raise its own warning as its certificates approach expiry, which is a single device-wide setting rather than a property of a certificate. A control reports against one subject, and this control's subject is the certificate; the device-wide setting is collected and is asserted by no control in this catalogue.",
-          "rationale": "An expired certificate does not fail safely. The service keeps running, the warning lands on whoever is using it, and the habit of dismissing it is what a man-in-the-middle later depends on. Remediation is also not instant - a certificate has to be reissued, redistributed and rebound - so the warning is worth having before the expiry rather than after.",
-          "audit": "Device > Certificate Management > Certificates: read the Expires column on every scope, including the predefined entries. Then check the Certificate Profile and SSL/TLS Service Profile grids, GlobalProtect portal and gateway, decryption settings and the syslog server profiles for a reference to each expired entry - and read its Issuer against the other certificates' Subjects, because an authority that nothing NAMES is still in use if it signed something the device holds.",
-          "remediation": "Reissue the certificate, import the replacement, and repoint every profile and service that names the old one before deleting it. A PREDEFINED entry reported here cannot be remediated on the device at all - it is the vendor's and is read-only - and the action is to stop referencing it. Where the certificate is an authority, reissue the authority and re-sign what it issued rather than deleting it: a delete refused for references answers with the referrer's name, which is itself the cheapest reference test.",
-          "default_severity": "high",
-          "implementation_version": "v1",
-          "is_active": true,
-          "queries": [
-            {
-              "name": "Expired, and nothing establishes that nothing depends on it",
-              "short_description": "Default baseline query: the decoded validity end is in the past, and the reference walk has not shown the certificate to be unused.",
-              "canonical_query": {
-                "model": "integrations.Certificate",
-                "operator": "and",
-                "clauses": [
-                  {
-                    "field": "is_expired",
-                    "op": "eq",
-                    "value": true,
-                    "negated": false
-                  },
-                  {
-                    "field": "not_relied_on",
-                    "op": "eq",
-                    "value": false,
-                    "negated": false
-                  }
-                ]
-              },
-              "asserted_fields": [
-                "is_expired",
-                "not_relied_on"
-              ],
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
-            }
-          ],
-          "target_model": "integrations.Certificate"
-        },
-        {
           "control_id": "PAN-CRT-002",
           "name": "Certificate Key Strength Minimums",
           "control_type": "certificate",
@@ -1819,49 +1775,6 @@
             }
           ],
           "target_model": "integrations.MasterKey"
-        },
-        {
-          "control_id": "PAN-CRT-008",
-          "name": "Unused Certificates and Profiles Removed (Hygiene)",
-          "control_type": "certificate",
-          "description": "A certificate AUTHORITY certificate the device still holds where the reference walk ran and found nothing relying on it. An authority is not an ordinary unused object: while it sits in the store it extends trust to everything it ever signed, and a key nobody is watching is a key nobody notices the loss of.\n\nRELIANCE IS NOT A NAME COUNT. Within one configuration surface a certificate's issuer hash equals its issuer's subject hash, which is how a chain is read without parsing anything - so an authority that NO object names is still in use when it signed a certificate the device holds. Both edges count here, and a control written on name references alone would propose deleting authorities that are still issuing. The chain is also SURFACE-LOCAL: it cannot be followed from the firewall's own store into the vendor's predefined namespace, and the subject and issuer STRINGS cannot be compared instead, because the device formats one name five different ways depending on where it is read.\n\nTHIS CONTROL IS DELIBERATELY SILENT WHERE THE REFERENCE WALK HAS NOT RUN, and that is the opposite of how the rest of this catalogue treats a missing reading. The reason is the remediation: the finding says to review an authority for removal, the action is a DELETE, and an authority whose private key is held nowhere else cannot be recreated. The map behind the walk is a FLOOR and not a census - of 69 known reference locations on this platform, 65 are covered by no collected model - so firing on an incomplete walk would advise deleting the most sensitive key in an estate on the strength of not having looked. The opposite direction is covered rather than ignored: PAN-CRT-001 reads the same column in the other sense, so an EXPIRED certificate whose reliance is unknown does fire, and no customer is told an expired certificate is safe.\n\nA CERTIFICATE'S OWN FORWARD-TRUST FLAG IS ITSELF A FORM OF RELIANCE, so an authority carrying it is not orphaned however few objects name it.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED, and it is not reportable. The corpus also asks that every certificate, validation profile and service profile be accounted for against something that uses it, with the unused ones reviewed. The assertion there is that somebody has LOOKED, and an item kept for a stated reason meets it - configuration cannot show intent, so that half is an engineer's question rather than a query, and it reaches three subjects where a control reports against one.",
-          "rationale": "Every certificate an authority signed remains verifiable while the authority is trusted, so an authority kept past its purpose is a standing grant of trust with no owner. Unlike an unused policy object, the cost of leaving it is not clutter.",
-          "audit": "Device > Certificate Management > Certificates: for each entry whose CA flag is set, look for its name in the Certificate Profile CA lists and in the SSL/TLS Service Profile, GlobalProtect portal and gateway, decryption and syslog configurations - then read every other certificate's Issuer against this one's Subject, because a signed certificate is reliance even where no object names the issuer. An entry reported here is a candidate for review, not a confirmed orphan.",
-          "remediation": "Establish what the authority was for before removing it. Where it is genuinely finished, delete it and record that the key is gone - the delete is irreversible and the key is not recoverable from a configuration backup. Attempting the delete is itself a reference test: a refusal answers with the name of the object that still points at it. Where the authority is still issuing, leave it and record the decision, because the next assessment will raise it again.",
-          "default_severity": "medium",
-          "implementation_version": "v1",
-          "is_active": true,
-          "queries": [
-            {
-              "name": "An authority certificate the reference walk found nothing relying on",
-              "short_description": "Default baseline query: the entry is a CA, and the walk completed and found no name reference and no signed certificate.",
-              "canonical_query": {
-                "model": "integrations.Certificate",
-                "operator": "and",
-                "clauses": [
-                  {
-                    "field": "is_ca",
-                    "op": "eq",
-                    "value": true,
-                    "negated": false
-                  },
-                  {
-                    "field": "not_relied_on",
-                    "op": "eq",
-                    "value": true,
-                    "negated": false
-                  }
-                ]
-              },
-              "asserted_fields": [
-                "not_relied_on"
-              ],
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
-            }
-          ],
-          "target_model": "integrations.Certificate"
         },
         {
           "control_id": "PAN-CRT-009",
@@ -4855,6 +4768,93 @@
           "target_model": "integrations.IkeGateway"
         },
         {
+          "control_id": "PAN-CRT-001",
+          "name": "No Expired Certificates In Use (Hygiene)",
+          "control_type": "certificate",
+          "description": "A certificate whose validity period has already ended, where nothing establishes that nothing on the device depends on it. An expired certificate a live service presents causes silent authentication failures and trains administrators and users to click through warnings, which is the reflex every certificate warning afterwards depends on.\n\nTHE EXPIRY IS DECODED FROM THE CERTIFICATE AND NOT READ FROM A FIELD, which matters because the device offers three renderings of one expiry and they are not established to agree: the operational read returned the SAME WRONG DATE for three different certificates on one appliance. The decoded certificate is the authority on itself, and `not_valid_after` is reported beside the verdict as the evidence a reader checks.\n\nTHE VERDICT IS A SNAPSHOT AGAINST A CLOCK. It was computed when the configuration was normalised and it goes stale between passes - a certificate that expires tomorrow reads as current today and as expired after the next collection. That is a real property of any stored verdict about time rather than a defect, and it is the reason the date is kept beside it.\n\nWHAT THE FINDING DOES AND DOES NOT CLAIM. It says the certificate has expired and that nothing establishes that nothing depends on it. It does NOT say the certificate is in use. The reference map behind that distinction is a FLOOR and not a census: of 69 known locations on this platform where a certificate can be referenced, 65 are covered by no collected model at all, so the walk can prove a certificate IS referenced and can never prove that it is not. A certificate whose reference map was never walked therefore REPORTS here rather than passing, which is the direction that errs toward telling a customer to look.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED. The corpus also asks that the firewall raise its own warning as its certificates approach expiry, which is a single device-wide setting rather than a property of a certificate. A control reports against one subject, and this control's subject is the certificate; the device-wide setting is collected and is asserted by no control in this catalogue.",
+          "rationale": "An expired certificate does not fail safely. The service keeps running, the warning lands on whoever is using it, and the habit of dismissing it is what a man-in-the-middle later depends on. Remediation is also not instant - a certificate has to be reissued, redistributed and rebound - so the warning is worth having before the expiry rather than after.",
+          "audit": "Device > Certificate Management > Certificates: read the Expires column on every scope, including the predefined entries. Then check the Certificate Profile and SSL/TLS Service Profile grids, GlobalProtect portal and gateway, decryption settings and the syslog server profiles for a reference to each expired entry - and read its Issuer against the other certificates' Subjects, because an authority that nothing NAMES is still in use if it signed something the device holds.",
+          "remediation": "Reissue the certificate, import the replacement, and repoint every profile and service that names the old one before deleting it. A PREDEFINED entry reported here cannot be remediated on the device at all - it is the vendor's and is read-only - and the action is to stop referencing it. Where the certificate is an authority, reissue the authority and re-sign what it issued rather than deleting it: a delete refused for references answers with the referrer's name, which is itself the cheapest reference test.",
+          "default_severity": "high",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "Expired, and nothing establishes that nothing depends on it",
+              "short_description": "Default baseline query: the decoded validity end is in the past, and the reference walk has not shown the certificate to be unused.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_expired",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "not_relied_on",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "is_expired",
+                "not_relied_on"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
+        },
+        {
+          "control_id": "PAN-CRT-008",
+          "name": "Unused Certificates and Profiles Removed (Hygiene)",
+          "control_type": "certificate",
+          "description": "A certificate AUTHORITY certificate the device still holds where the reference walk ran and found nothing relying on it. An authority is not an ordinary unused object: while it sits in the store it extends trust to everything it ever signed, and a key nobody is watching is a key nobody notices the loss of.\n\nRELIANCE IS NOT A NAME COUNT. Within one configuration surface a certificate's issuer hash equals its issuer's subject hash, which is how a chain is read without parsing anything - so an authority that NO object names is still in use when it signed a certificate the device holds. Both edges count here, and a control written on name references alone would propose deleting authorities that are still issuing. The chain is also SURFACE-LOCAL: it cannot be followed from the firewall's own store into the vendor's predefined namespace, and the subject and issuer STRINGS cannot be compared instead, because the device formats one name five different ways depending on where it is read.\n\nTHIS CONTROL IS DELIBERATELY SILENT WHERE THE REFERENCE WALK HAS NOT RUN, and that is the opposite of how the rest of this catalogue treats a missing reading. The reason is the remediation: the finding says to review an authority for removal, the action is a DELETE, and an authority whose private key is held nowhere else cannot be recreated. The map behind the walk is a FLOOR and not a census - of 69 known reference locations on this platform, 65 are covered by no collected model - so firing on an incomplete walk would advise deleting the most sensitive key in an estate on the strength of not having looked. The opposite direction is covered rather than ignored: PAN-CRT-001 reads the same column in the other sense, so an EXPIRED certificate whose reliance is unknown does fire, and no customer is told an expired certificate is safe.\n\nA CERTIFICATE'S OWN FORWARD-TRUST FLAG IS ITSELF A FORM OF RELIANCE, so an authority carrying it is not orphaned however few objects name it.\n\nONE HALF OF THIS CONTROL IS NOT REPORTED, and it is not reportable. The corpus also asks that every certificate, validation profile and service profile be accounted for against something that uses it, with the unused ones reviewed. The assertion there is that somebody has LOOKED, and an item kept for a stated reason meets it - configuration cannot show intent, so that half is an engineer's question rather than a query, and it reaches three subjects where a control reports against one.",
+          "rationale": "Every certificate an authority signed remains verifiable while the authority is trusted, so an authority kept past its purpose is a standing grant of trust with no owner. Unlike an unused policy object, the cost of leaving it is not clutter.",
+          "audit": "Device > Certificate Management > Certificates: for each entry whose CA flag is set, look for its name in the Certificate Profile CA lists and in the SSL/TLS Service Profile, GlobalProtect portal and gateway, decryption and syslog configurations - then read every other certificate's Issuer against this one's Subject, because a signed certificate is reliance even where no object names the issuer. An entry reported here is a candidate for review, not a confirmed orphan.",
+          "remediation": "Establish what the authority was for before removing it. Where it is genuinely finished, delete it and record that the key is gone - the delete is irreversible and the key is not recoverable from a configuration backup. Attempting the delete is itself a reference test: a refusal answers with the name of the object that still points at it. Where the authority is still issuing, leave it and record the decision, because the next assessment will raise it again.",
+          "default_severity": "medium",
+          "implementation_version": "v1",
+          "is_active": true,
+          "queries": [
+            {
+              "name": "An authority certificate the reference walk found nothing relying on",
+              "short_description": "Default baseline query: the entry is a CA, and the walk completed and found no name reference and no signed certificate.",
+              "canonical_query": {
+                "model": "integrations.Certificate",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_ca",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "not_relied_on",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "not_relied_on"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.Certificate"
+        },
+        {
           "control_id": "PAN-HAP-001",
           "name": "High Availability Deployed for Critical Paths",
           "control_type": "high_availability",
@@ -5166,6 +5166,699 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.PanoramaRegistration"
+        },
+        {
+          "control_id": "PAN-NET-001",
+          "name": "Out-Of-Service Interface Residue",
+          "control_type": "firewall_interface",
+          "default_severity": "medium",
+          "description": "Requires an interface that is not in service to hold nothing a cable could use: no configured address, no security zone membership, no interface management profile, and administratively shut down. The finding is graded by what the port is left HOLDING, read as what someone who patches a cable into it gains - a port holding more than one takes the highest rank it earns.\n\nWHICH PORTS ARE OUT OF SERVICE IS NOT A CLAUSE AND CANNOT BE ONE. No column can hold it: the configuration cannot answer it, a port carrying an address and a zone may be a spare built in advance of a project, and a port carrying nothing may be a live uplink waiting on the far end. Written as an applicability clause on a customer-supplied column it would SUPPRESS this control wherever the answer had not arrived, which reads as careful and is how a control stops reporting. So the control is delivered as a reported inventory of every port whose stored configuration and administrative state disagree, with the qualification attached, and the customer's list narrows which rows are called findings.\n\nTHE ASSERTION RESTS ON ONE VERDICT COLUMN RATHER THAN ON FOUR READINGS, because it is a conjunction of four negatives and its failing condition is therefore a DISJUNCTION, which a clause list that is one conjunction cannot express. The verdict also carries the precedence the grading needs. Its default is the firing side, so a port nobody has recomputed is reported rather than passing.\n\nAND THE ADMINISTRATIVE STATE IS UNKNOWN ON EVERY PORT MEASURED SO FAR. The only oracle for the CONFIGURED administrative state conflates it with the physical link, and no port in the lab estate stores the key at all, so `administrative_state_unknown` is the state every stripped port in that estate is in. Under this programme's own rule an unknown fires, and it fires at this control's own severity because an unknown has no rank of its own.\n\nTWO RESIDUE STATES ARE DELIBERATELY NOT REPORTED. A port holding only a comment or link speed and duplex settings carries neither reachability nor a policy position, and a port holding a routing-instance membership with no address was left unranked on purpose. Both are real configurations and both are excluded by this control's own clauses rather than dropped silently.",
+          "rationale": "A forgotten port that still holds an address, a zone or a management profile is a way into the estate that no policy was written for. An absent permitted-source list on a bound management profile means ANY host, so the port answers that profile's services to anything that can reach it; a zone membership makes traffic entering on the port that zone's traffic for every rule written for the zone; an address alone makes it routable. A port that is administratively down holds none of that in effect, which is why shutting it down is half of the requirement and stripping it is the other half.",
+          "audit": "Network > Interfaces > (interface): IPv4/IPv6 addressing, the Security Zone on the Config tab, and the Interface Management Profile on Advanced > Other Info. The administrative state is the Link State on Advanced > Link Settings - read the CONFIGURED value there and not `show interface all`, which reports the physical link and conflates the two. Zone membership is only expressible from the zone end: Network > Zones lists its members and the interface does not name its zone.",
+          "remediation": "On each port confirmed out of service: remove the IP addressing, remove the port from its security zone's member list, clear the Interface Management Profile binding, and set Link State to Down. Where the port is a member of an aggregate or a virtual wire, removing the membership is what strips it - six of the seven interface roles cannot hold an address or a profile binding at all.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The port is not stripped and shut down, and what it holds is a state this control ranks.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "stripped_and_shut_down",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "comment_or_link_settings_only",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "routing_instance_without_address",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "out_of_service_residue"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Management binding with no source restriction",
+              "short_description": "The port names an interface management profile that restricts no source, so the services it permits answer any host that can reach the port.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "stripped_and_shut_down",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "comment_or_link_settings_only",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "routing_instance_without_address",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "unrestricted_management_binding",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "out_of_service_residue"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Address only",
+              "short_description": "The port holds a configured address and nothing else - routable and reachable, with no service or policy position granted.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "stripped_and_shut_down",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "comment_or_link_settings_only",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "routing_instance_without_address",
+                    "negated": true
+                  },
+                  {
+                    "field": "out_of_service_residue",
+                    "op": "eq",
+                    "value": "address_only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "out_of_service_residue"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.Interface"
+        },
+        {
+          "control_id": "PAN-NET-002",
+          "name": "Policy Re-Evaluation Of Running Sessions",
+          "control_type": "session_settings",
+          "default_severity": "high",
+          "description": "Requires the firewall to re-evaluate running sessions against policy when a policy change is committed. Enabled, withdrawing a rule withdraws the access it granted; disabled, every connection open at the time of the commit keeps that access until the session ends by itself - which on a long-lived flow can be indefinitely.\n\nAN APPLIANCE WHOSE SETTING NOBODY HAS ESTABLISHED IS REPORTED, NOT PASSED, and that is the whole shape of this control. The vendor says the capability is enabled by default and says so twice and consistently, and no oracle on the appliance confirms it: `show session info` carries about sixty dataplane settings and no rematch field, `show system state filter *rematch*` answers NO_MATCHES on every appliance measured, and `show session rematch` reports whether a rematch has EXECUTED rather than what the setting is. So nothing is stored for an absent key and the finding says the setting was never established rather than that it is off. Reading the vendor's documented default as compliance would have passed every appliance that has never touched the setting, which in the estate this was measured on was most of them - and the Help has been wrong about a default on this estate before.\n\nTHE TWO FAILING GROUPS ARE ALTERNATIVES AND SO ARE TWO QUERIES: the setting stored as off, and nothing stored at all. A clause list is one conjunction with no OR, so they cannot be one query. They report at the same severity, because an appliance whose rematch setting nobody has established may be leaving revoked access in force on exactly the long-lived flows this control is about.",
+          "rationale": "Policy is only as current as the sessions it governs. Without re-evaluation on commit, revoking access is an instruction about future connections only, so an attacker or a departed user holding an open session keeps what the rule change was meant to take away - and the longer-lived the flow, the longer the gap. This is the one device-wide setting in this domain whose failure silently unmakes a policy change an operator believes they have made.",
+          "audit": "Device > Setup > Session > Session Settings: 'Rematch Sessions'. Read the configured value rather than inferring it - no operational command on the appliance reports this setting, so an appliance whose checkbox has never been touched is a reading nobody has taken.",
+          "remediation": "Enable 'Rematch Sessions' on Device > Setup > Session and commit. On an HA pair set it on both members: each appliance holds its own row and nothing here compares the peers.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The appliance does not re-evaluate running sessions against policy on commit.",
+              "canonical_query": {
+                "model": "integrations.PanOsSessionSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "session_rematch",
+                    "op": "eq",
+                    "value": true,
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "session_rematch"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Setting never established",
+              "short_description": "No rematch key is stored on this appliance, so whether revoked access is withdrawn from running sessions is unknown.",
+              "canonical_query": {
+                "model": "integrations.PanOsSessionSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rematch_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "session_rematch"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanOsSessionSettings"
+        },
+        {
+          "control_id": "PAN-NET-003",
+          "name": "Link-Layer Discovery Announcements",
+          "control_type": "firewall_interface",
+          "default_severity": "low",
+          "description": "Requires that no interface facing a network whose adjacent devices the customer does not control announces the firewall to its neighbour. The finding is graded by what an announcement actually puts on the wire, and every rank ADDS to a floor rather than replacing it: the mandatory items - chassis identifier and port name - go out whenever the protocol transmits at all, whatever a bound profile suppresses.\n\nWHICH PORTS FACE AN UNTRUSTED NETWORK IS NOT A CLAUSE. The configuration holds each port's zone, address and routing instance and nothing about where the cable goes, and the same setting is routine on an internal access port and serious on a transit port. So the control delivers every interface transmitting and what each one transmits, with the untrusted subset marked as requiring confirmation and NOT suppressed - an applicability clause here would switch the control off on every port until a person answered.\n\nA PORT WITH NO LLDP NODE IS COMPLIANT AND A PORT WITH NO PROFILE IS NOT. The operational read lists an interface if and only if its LLDP container exists - measured by construction, the interface appeared in the reply the moment an EMPTY container was committed and nothing else changed - so a finding built on that read would report only the ports somebody has already thought about. The assertion rests on the stored enable instead. And where announcements are on with NO profile attached, the firewall uses its GLOBAL defaults, which no document in the vendor corpus describes; so what such a port leaks is UNKNOWN rather than nothing, it fires, and it fires at this control's own severity because an unknown has no rank of its own. That is the state every announcing port in the estate this was measured on is in, since no LLDP profile exists anywhere in it.\n\nTHIS CONTROL ALSO ASSERTS THAT THE PROTOCOL IS OFF FIRMWARE-WIDE, AND THAT HALF IS NOT BUILT. The device-wide enable lives on a different object from the interface, and one catalogue control can assert over one object. The per-interface half is this control; the firewall-wide half is recorded as owed and is not silently folded in.",
+          "rationale": "Link-layer discovery is a broadcast introduction to whatever is on the other end of the cable. On a port facing equipment the customer does not control, it hands the device's own management address, its software build and its place in the topology to whoever owns the next hop - the management address being the one thing the rest of a hardening programme is about keeping unreachable, and the software build being a free answer to the question a vulnerability scan would otherwise have to ask.",
+          "audit": "Network > Interfaces > (interface) > Advanced > LLDP: the Enable checkbox and the Profile. Then Network > Network Profiles > LLDP for what that profile transmits. Do not read membership of `show lldp config all` as the answer - that reply lists an interface if and only if it carries an LLDP container, so a port with no container is absent from it rather than compliant in it.",
+          "remediation": "Clear the LLDP Enable checkbox on every interface facing a network whose adjacent devices are not the customer's, or set the protocol to receive-only. Where it must transmit, bind an LLDP profile that suppresses the management address, the system description and the system name - and note that the chassis identifier and port name go out regardless, so a fully suppressed profile is still an announcement.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The interface transmits link-layer discovery and what it announces is a state this control ranks, so the mandatory chassis identifier and port name go out on it.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "lldp_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "lldp_announced_content",
+                    "op": "eq",
+                    "value": "receive_only_or_off",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "lldp_enabled",
+                "lldp_announced_content"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Announces the management address",
+              "short_description": "The announcement carries an address of the firewall's own management plane.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "lldp_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "lldp_announced_content",
+                    "op": "eq",
+                    "value": "receive_only_or_off",
+                    "negated": true
+                  },
+                  {
+                    "field": "lldp_announced_content",
+                    "op": "eq",
+                    "value": "management_address",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "lldp_enabled",
+                "lldp_announced_content"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Announces the system description",
+              "short_description": "The announcement carries the software build, which names the advisories that apply.",
+              "canonical_query": {
+                "model": "integrations.Interface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "lldp_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "lldp_announced_content",
+                    "op": "eq",
+                    "value": "receive_only_or_off",
+                    "negated": true
+                  },
+                  {
+                    "field": "lldp_announced_content",
+                    "op": "eq",
+                    "value": "system_description",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "lldp_enabled",
+                "lldp_announced_content"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.Interface"
+        },
+        {
+          "control_id": "PAN-NET-004",
+          "name": "DHCP Service On Untrusted-Facing Interfaces",
+          "control_type": "dhcp_interface_config",
+          "default_severity": "medium",
+          "description": "Requires that no interface facing a network the customer does not control carries a DHCP server configuration, and that none relays address requests to the customer's own address servers. Two independent halves: `server` and `relay` are sibling branches in the configuration, so the absence of one asserts nothing about the other, and one interface can violate both.\n\nTHE SERVER BRANCH'S EXISTENCE IS THE FINDING, NOT ITS MODE. The vendor's own gloss makes `auto` an enabled server - 'Auto mode enables the server and disables it if another DHCP server is detected on the network' - so a reading that passed anything but `enabled` would pass a server that is serving right now on any segment where no competitor happens to be present. Resting on the branch rather than on the mode also catches a server branch whose `mode` key is absent, which is a real state nobody has established the meaning of, and which a value comparison would have matched not at all. A server switched off but configured is still a finding, at a lower severity: the pool, the gateway and the resolver are all written down and one commit from being handed out.\n\nTHE PASSING STATE IS THE ABSENCE OF A ROW, which is why no query reports it. A `network/dhcp/interface` entry exists only where somebody configured DHCP on that port, so a firewall with no DHCP produces nothing for this control to match - correct, and also the one place in this domain where a collection gap is silent: an appliance with no DHCP and a collector that skipped the subtree are indistinguishable, and no column can carry the difference because there is no row for it to live on.\n\nTHE RELAY HALF ANSWERS FOR ONE MEASURED ADDRESS FAMILY. The two families are independent switches, so a reading that tests one has answered for neither; the verdict this control rests on reads both and takes the worse, but only the IPv4 switch is stored, because the measured key set for this node carries no IPv6 sibling. A relay configured for IPv6 alone therefore produces no finding, and that gap is recorded rather than hidden.\n\nWHICH INTERFACES FACE AN UNTRUSTED NETWORK IS NOT A CLAUSE, for the reason the other interface controls give: the firewall holds each port's zone, address and routing instance and nothing that says where the segment on the other side goes.",
+          "rationale": "A DHCP server on a segment the customer does not control hands every host that appears there a gateway, a resolver, a time source and a name suffix of the firewall's choosing - which is a position from which to intercept and redirect. A relay is the mirror image: anything able to broadcast on that wire gets a delivered path to internal address servers it could never have routed to, and the internal gateway, resolver and time-server addresses come back out to it. Both are services offered to an untrusted population by a device whose job is to separate it from the trusted one.",
+          "audit": "Network > DHCP > DHCP Server and Network > DHCP > DHCP Relay, one entry per interface. Read the presence of the entry first and its Mode second - `auto` is an enabled server with a back-off, not a middle setting. On the relay tab check BOTH the IPv4 and the IPv6 server lists: they are independent switches and only the IPv4 one is recorded here.",
+          "remediation": "Delete the DHCP server entry for each interface facing a network the customer does not control - disabling it leaves the pool and the option set in place. Delete the relay entry rather than clearing its switches, for the same reason, and remove the relayed server addresses on both address families.",
+          "queries": [
+            {
+              "name": "Baseline - a DHCP server branch exists on this interface",
+              "short_description": "The interface carries a DHCP server configuration, in any mode, including one whose mode key is absent.",
+              "canonical_query": {
+                "model": "integrations.PanOsDhcpInterfaceConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dhcp_server_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "dhcp_server_configured"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Server configured and switched off",
+              "short_description": "The server is off but fully configured - the pool, gateway and resolver are one commit from being handed out.",
+              "canonical_query": {
+                "model": "integrations.PanOsDhcpInterfaceConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dhcp_server_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "dhcp_server_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "dhcp_server_configured",
+                "dhcp_server_mode"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "A DHCP relay is relaying on this interface",
+              "short_description": "The interface relays address requests to the customer's own servers on at least one address family.",
+              "canonical_query": {
+                "model": "integrations.PanOsDhcpInterfaceConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dhcp_relay_state",
+                    "op": "eq",
+                    "value": "not_configured",
+                    "negated": true
+                  },
+                  {
+                    "field": "dhcp_relay_state",
+                    "op": "eq",
+                    "value": "relaying",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "dhcp_relay_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Relay configured with every switch off",
+              "short_description": "The relayed server addresses are recorded on this interface and one commit from being used.",
+              "canonical_query": {
+                "model": "integrations.PanOsDhcpInterfaceConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "dhcp_relay_state",
+                    "op": "eq",
+                    "value": "not_configured",
+                    "negated": true
+                  },
+                  {
+                    "field": "dhcp_relay_state",
+                    "op": "eq",
+                    "value": "configured_and_off",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "dhcp_relay_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanOsDhcpInterfaceConfig"
+        },
+        {
+          "control_id": "PAN-NET-005",
+          "name": "IPv6 Session Inspection",
+          "control_type": "session_settings",
+          "default_severity": "medium",
+          "description": "Requires session-level inspection of IPv6 traffic to be on wherever the firewall routes IPv6. Switched off, the firewall ignores every IPv6 rule it holds - the rules are present and have no effect, which is worse than their absence because the policy reads as covering the traffic.\n\nAN ABSENT KEY MEANS THE CAPABILITY IS ON, MEASURED, AND THE NAIVE READING OF THE SAME ABSENCE INVERTS THIS CONTROL. The field is called an Enable and the vendor states no default, so reading an absent key as 'not enabled' is the obvious move and it is wrong: the device's own dataplane was paid in both directions on a committed state - the key absent reports IPv6 firewalling ON, `no` committed reports it off, the leaf deleted and committed reports it on again - and the result was corroborated on four appliances across two platforms, two major versions and both vsys modes. On the estate this was measured on, every appliance holds no key, so the naive reading would have raised a finding on all four where the control is satisfied. A finding from this control therefore means the key is stored as `no`.\n\nWHAT THIS CONTROL CANNOT CURRENTLY SEPARATE is an appliance nobody collected from one whose key is absent. Both read as the measured default of on, because the column is non-nullable, so 'we asked and it was fine' and 'we never asked' are one value here. That is a known limitation of this control rather than a property of the estate, and it is recorded as owed work rather than scored as compliance.",
+          "rationale": "A firewall that routes IPv6 without inspecting it is a router. Every security rule written for IPv6 destinations - and every profile attached to one - is read by an operator as being in force and is not, so the traffic crosses on the strength of routing alone while the policy that was supposed to govern it reads as present. The vendor is explicit that all IPv6-based configuration is ignored when the capability is off.",
+          "audit": "Device > Setup > Session > Session Settings: 'Enable IPv6 Firewalling'. An unticked box here is not the same as an absent key in the configuration - the absent key means ON, measured on the device's own dataplane, so read the stored value and not the inference.",
+          "remediation": "Enable 'IPv6 Firewalling' on Device > Setup > Session and commit, or - where the key is stored as `no` - delete the leaf, which returns the appliance to the measured default of on. Set it on both members of an HA pair.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "IPv6 session inspection is switched off on this appliance, so every IPv6 rule it holds is ignored.",
+              "canonical_query": {
+                "model": "integrations.PanOsSessionSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ipv6_firewalling",
+                    "op": "eq",
+                    "value": true,
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ipv6_firewalling"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanOsSessionSettings"
+        },
+        {
+          "control_id": "PAN-NET-006",
+          "name": "Tunnel Content Inspection Coverage",
+          "control_type": "tunnel_inspection",
+          "default_severity": "medium",
+          "description": "Requires every enforcement point through which cleartext tunnels transit to open those tunnels to inspection - for every transiting protocol, across every zone pair they traverse, to the depth of encapsulation in use. The finding is graded by how much of that traffic the policy actually opens, and every rank below the top names traffic crossing the firewall that policy never sees.\n\nTHE PRESENCE OF A RULE IS NOT COVERAGE, which is why this rests on a verdict over the whole rulebase rather than on a rule count. A rule that exists can be switched off; can cover some transiting protocols and not others; can be scoped to zone pairs that do not include every pair the tunnels traverse; and can open one level of encapsulation where the tunnels are nested two deep. The commonest failing state is also the one a per-rule reading cannot report: NO RULE EXISTS, so there is no row to carry the finding and no rule for an engineer to open.\n\nA VSYS COVERED FROM PANORAMA IS NOT A VSYS WITH NO POLICY. The merged configuration view does not carry a device group's tunnel-inspect rulebase, so counting rules from that read alone reports this control's worst rank on exactly the estates whose coverage is centrally managed. Each row says which config subtree its rules came from, and that says which copy a reader is looking at rather than who owns it.\n\nFOUR OF THIS CONTROL'S RANKS CANNOT BE COMPUTED FROM CONFIGURATION AT ALL, and saying so is part of the control. Whether a rule covers the protocols that actually transited, the zone pairs they actually crossed, the depth they were actually nested to, and the overlay identifiers actually in use are all questions about traffic. A configuration-only reading that finds rules present and enabled reaches 'coverage unverified without a traffic answer' - which fires, at this control's own severity, because an unknown fires and has no rank of its own. The counters that look like an answer are not one: the active-tunnel counters read zero on every lab appliance, which is a lab with no traffic rather than an estate with no tunnels.\n\nAND HARDWARE TUNNEL ACCELERATION EXEMPTS ONE PROTOCOL, NOT THE CONTROL. Where the vendor supports acceleration for the mobile-network user-plane protocol on the chassis platform and card set, and it is switched on, no inspection rule is required FOR THAT PROTOCOL. Written as an applicability clause the exemption would suppress this control on every protocol on every appliance where acceleration is on - which, because an absent acceleration node asserts ENABLED, is every appliance that has never touched the setting. So the setting is reported and clauses on nothing, and the exemption is applied per protocol when the protocol list arrives.\n\nTHREE DROP CONDITIONS AND THE TUNNEL-ZONE SETTING ARE OUT OF SCOPE HERE. What the firewall does with a packet it cannot read, a packet nested deeper than the configured depth, and a tunnel header failing a strict standards check are a different assertion from whether the tunnel is opened at all - and the vendor warns that enabling one of them breaks interoperability with implementations predating the standard it checks against.",
+          "rationale": "A cleartext tunnel crossing a firewall with no inspection policy is reported as one permitted session, and everything inside it reaches its destination unexamined - applications, users, files and threats alike, none of them matched by any rule or profile. Partial coverage is the harder case, because the firewall and its logs look like they are working: the protocol, zone pair, encapsulation level or overlay identifier that no rule names is the one carrying whatever was not meant to be seen.",
+          "audit": "Policies > Tunnel Inspection, per vsys. Count the rules, then read each one's state, its Protocol list, its Source and Destination Zones against the zone pairs the tunnels actually traverse, its Maximum Tunnel Inspection Levels against the nesting in use, and any Overlay ID scoping. On a Panorama-managed estate read the device group's rulebase too - the firewall's merged view does not carry it. Device > Setup > Session reports whether tunnel acceleration is on, which exempts one protocol and not the rest.",
+          "remediation": "Add or enable a tunnel inspection rule per vsys covering every cleartext tunnel protocol that transits it, scoped to every zone pair those tunnels traverse, with the maximum inspection level set to the deepest nesting in use and no Overlay ID narrowing unless every transiting tunnel is on the named identifiers. Where coverage is pushed from Panorama, make the change in the device group rather than locally.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "This enforcement point's tunnel inspection does not open every transiting protocol and zone pair to the depth in use - including the case where that cannot be established.",
+              "canonical_query": {
+                "model": "integrations.PanOsTunnelInspectionCoverage",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tunnel_inspection_coverage_state",
+                    "op": "eq",
+                    "value": "fully_opened",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tunnel_inspection_coverage_state"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "One level of encapsulation only",
+              "short_description": "A rule covers the protocols at one level where the tunnels are nested two deep, so the inner tunnel's contents are never matched.",
+              "canonical_query": {
+                "model": "integrations.PanOsTunnelInspectionCoverage",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tunnel_inspection_coverage_state",
+                    "op": "eq",
+                    "value": "fully_opened",
+                    "negated": true
+                  },
+                  {
+                    "field": "tunnel_inspection_coverage_state",
+                    "op": "eq",
+                    "value": "single_level_only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tunnel_inspection_coverage_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Scoped to named overlay identifiers",
+              "short_description": "A rule names the overlay network identifiers it inspects, where tunnels on other identifiers also transit.",
+              "canonical_query": {
+                "model": "integrations.PanOsTunnelInspectionCoverage",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tunnel_inspection_coverage_state",
+                    "op": "eq",
+                    "value": "fully_opened",
+                    "negated": true
+                  },
+                  {
+                    "field": "tunnel_inspection_coverage_state",
+                    "op": "eq",
+                    "value": "overlay_id_scoped",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tunnel_inspection_coverage_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanOsTunnelInspectionCoverage"
+        },
+        {
+          "control_id": "PAN-NET-007",
+          "name": "Dynamic Routing Adjacency Protection",
+          "control_type": "routing_adjacency",
+          "default_severity": "high",
+          "description": "Requires every dynamic routing adjacency the firewall forms to authenticate its peer with a keyed digest from the stronger family the device offers, or - on the one protocol that offers it - to authenticate and encrypt the routing payload; and requires every BGP peer to carry a prefix ceiling that actually refuses the routes beyond it.\n\nA PROFILE BEING ATTACHED IS NOT AUTHENTICATION, which is why the assertion reads the profile's CONTENT rather than the binding. Four states rank at the top severity with something attached or nothing to attach: a profile whose authentication is explicitly set to the disabled member the device offers, a cleartext password, a weaker attachment inside an area that has a stronger one, and no authentication at all. A keyed digest using an algorithm the vendor's own guidance elsewhere calls not secure ranks below them - it raises the cost of the attack without removing it. And where a protocol attaches authentication at more than one level, the WEAKEST attachment in use sets the rank, because the vendor documents the narrower attachment as overriding the wider one.\n\nA CEILING THAT PERMITS EVERYTHING IS NOT A CEILING. The prefix limit leaf takes the keyword `unlimited` - measured as the only member of its own completion on every appliance asked - so a peer storing it has a value and no limit, and a presence test would call that compliant while the firewall accepts the peer's whole table. The keyword also sorts as a string rather than a magnitude, so a threshold query written as 'more than N' skips it silently. Absence and the keyword mean the same thing to the firewall and are two different row states, which is why this rests on a verdict that collapses them. A ceiling set far above any plausible table size still enforces and is accepted here; whether the number is sensible is the engineer's question and not a rank.\n\nTHE CONTROL APPLIES WHERE THE FIREWALL FORMS AN ADJACENCY, AND THAT NEEDS NO CLAUSE. A firewall routing only on static entries forms none, so it produces no row and there is nothing for a finding to attach to - reporting one would be a finding against a device this control was never about. The shape that makes this safe was measured: an absent peer-group means no adjacency exists, while an absent authentication-profile collection means no authentication material exists, which is the FAILING state - so a reading that tested only for the profile would have reported seven routers unauthenticated on an estate where the control does not apply.\n\nTWO THINGS THIS CONTROL CANNOT SEE. The key itself: the authentication secret and the OSPF password are encrypted-text and cannot be read back from the firewall at all, so whether a key is unique to an adjacency or shared across every site is an engineer's question and nothing here pretends to it. And whether a configured ceiling WARNS rather than stops: the peer's measured key set carries no key that says which, so a peer whose limit only raises an alarm is indistinguishable from one that enforces and produces no finding. Both are recorded as owed work.",
+          "rationale": "An unauthenticated adjacency accepts routes from anything that can reach the interface. One host on that segment can advertise a better path to any destination and pull the traffic for it through itself - a redirection that needs no access to the firewall and leaves the policy intact and irrelevant. Authentication that exists on paper and not in effect is worse than none, because the configuration reads as solved. An unbounded peer is the other failure of the same relationship: a peer that leaks its whole table fills the routing table until there is no room for the routes the business depends on, and the firewall accepts it because nothing told it not to.",
+          "audit": "Network > Virtual Routers > (router) > BGP / OSPF / OSPFv3 / RIP. For each peer or interface attachment read the Authentication profile and then OPEN the profile: a name in the field says nothing about what is inside it. For OSPF check the attachment level - on the legacy routing engine authentication attaches at an area's children and there is no per-area node. For BGP read Max Prefixes per peer and treat `unlimited` as no limit.",
+          "remediation": "On each adjacency, attach an authentication profile carrying a SHA-2 family keyed digest - or, on OSPFv3, authentication with encryption - and remove any profile whose authentication is set to the disabled member or to a cleartext password. Where an area-wide profile exists, make sure no interface or virtual link inside it attaches something weaker. On each BGP peer set Max Prefixes to a number agreed with the peer's owner rather than to `unlimited`, and confirm the limit refuses routes beyond it rather than only warning.",
+          "queries": [
+            {
+              "name": "Baseline - the adjacency is not authenticated with a strong digest",
+              "short_description": "The adjacency's authentication amounts to less than a keyed digest from the stronger family, or than authentication with encryption.",
+              "canonical_query": {
+                "model": "integrations.PanOsRoutingAdjacency",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "strong_digest",
+                    "negated": true
+                  },
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "authenticated_and_encrypted",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "authentication_strength"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Authentication absent, disabled, cleartext or overridden",
+              "short_description": "The adjacency has no effective authentication - none configured, explicitly disabled, a cleartext password, or a weaker attachment overriding an area-wide profile.",
+              "canonical_query": {
+                "model": "integrations.PanOsRoutingAdjacency",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "strong_digest",
+                    "negated": true
+                  },
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "authenticated_and_encrypted",
+                    "negated": true
+                  },
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "weak_digest",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "authentication_strength"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Authenticated with a weak digest",
+              "short_description": "The keyed digest uses an algorithm the vendor's own guidance elsewhere calls not secure.",
+              "canonical_query": {
+                "model": "integrations.PanOsRoutingAdjacency",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "strong_digest",
+                    "negated": true
+                  },
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "authenticated_and_encrypted",
+                    "negated": true
+                  },
+                  {
+                    "field": "authentication_strength",
+                    "op": "eq",
+                    "value": "weak_digest",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "authentication_strength"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "BGP peer with no enforced prefix ceiling",
+              "short_description": "The peer's prefix limit does not refuse the routes beyond it - no ceiling, a ceiling configured as unlimited, or one that only warns.",
+              "canonical_query": {
+                "model": "integrations.PanOsRoutingAdjacency",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "protocol",
+                    "op": "eq",
+                    "value": "bgp",
+                    "negated": false
+                  },
+                  {
+                    "field": "prefix_limit_state",
+                    "op": "eq",
+                    "value": "enforcing",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "prefix_limit_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanOsRoutingAdjacency"
         }
       ]
     }
