@@ -4713,6 +4713,319 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-HAP-001",
+          "name": "High Availability Deployed for Critical Paths",
+          "control_type": "high_availability",
+          "default_severity": "medium",
+          "description": "Requires every firewall whose failure would interrupt traffic the business cannot lose to have a LIVE redundant peer - one of a pair, or a member of a session-synchronising cluster - and requires that relationship to be formed and exchanging state rather than merely switched on.\n\nTHE SWITCH IS NOT THE ASSERTION, and that is the whole point of this control. An `enabled: yes` with no peer answering is worse than no redundancy at all, because the outage arrives at the moment the organisation believes it has already been engineered away. Measured on the lab pair this was built against: both members hold `configuration-synchronization/enabled: yes` while the device reports `state-sync: User-disabled` and `conn-ha2: down`, so no session state is being exchanged and a configuration review passes it.\n\nSO THE VERDICT SPANS CONFIGURATION AND AN OPERATIONAL READ, which no clause can join: it is computed at normalization from the configuration switches plus `show high-availability all`, and the firing side is also the stored default. An appliance whose runtime state nobody collected is therefore REPORTED rather than passed, and the finding says the relationship was not established rather than that it failed. No collector issues that read today, so this control currently fires on every HA-enabled appliance and the finding names the read that would settle it.\n\nWHICH FIREWALLS OUGHT TO BE REDUNDANT IS NOT READ FROM A FIREWALL. Nothing in a firewall's own configuration distinguishes a branch office from a data-centre perimeter, so every firewall without a live peer is reported for a person to decide rather than suppressed - and 'nobody told us which firewalls mattered' must not come back as a firewall that did not need redundancy. ABSENCE IS THE FINDING HERE AND NOT THE PASS: an appliance with no high-availability node at all has no peer, and the device's own operational reply answers `enabled: no` for that state.",
+          "rationale": "A firewall carrying critical traffic alone turns any single hardware or software fault into an outage of everything behind it. One configured for redundancy that never completed the relationship with its peer is worse: the configuration says the risk was engineered away and the failover does not happen.",
+          "audit": "Device > High Availability > General: Enable HA, and the Group's mode and peer. Then `show high-availability all` or `show high-availability state` on each member - the configuration cannot tell you whether the peer is answering, whether `running-sync` reads `synchronized`, or whether session state is being exchanged. Read both members: the two nodes genuinely differ and neither one is the pair.",
+          "remediation": "Pair every firewall the customer names as critical with a peer, and then verify on the device that the relationship is formed: `group/local-info/state` active or passive, `group/peer-info/conn-status` up, `running-sync` synchronized, and state synchronisation enabled rather than User-disabled. Where a firewall is deliberately standalone, record that decision - the configuration cannot carry it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The appliance has no formed, state-exchanging redundant peer by either mechanism - which includes an appliance whose runtime state nobody read.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "no_live_redundant_peer",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.HighAvailabilityConfig"
+        },
+        {
+          "control_id": "PAN-HAP-002",
+          "name": "HA1 Control Link Encryption Enabled",
+          "control_type": "high_availability",
+          "default_severity": "medium",
+          "description": "Requires the link carrying configuration and session-ownership state between two high-availability peers to be encrypted, so that nothing able to reach the path between them can read what the peers synchronise or forge what they tell each other.\n\nTHE SWITCH ALONE CANNOT SATISFY THIS AND THE DEVICE AGREES. HA1 encryption needs an imported high-availability key, and without one the firewall refuses to commit the switch at all - `validate full` answers \"High-availability ha1 encryption requires an import of the high-availability-key\", measured directly. So the verdict is computed from the configuration switch, the operational confirmation that encryption is in force, and the key's presence; an appliance missing the confirming read is reported rather than passed, because the switch can read `yes` on a link that is not encrypted.\n\nTHE SEVERITY VARIES WITH HOW FAR THE LINK TRAVELS, not with which key is absent. A control link on the management port shares the out-of-band management network, so every host that can route to management can reach the peer conversation; one on an in-band data interface travels wherever that segment travels, which on a virtual firewall is the ORDINARY case because the platform takes a free interface name here rather than a dedicated port. Both are high. A dedicated high-availability or auxiliary port sits at this control's own severity and is still a finding: the port value does not say the cable is direct, and the vendor's cross-site case runs over those ports too.\n\nWHAT NO FINDING HERE CAN SAY: encryption is a property of the PAIR. The operational reply carries no identifier that would let the two members' rows be joined, so a pair with the key imported on one member only reports as two independent findings rather than as one broken link.\n\nA STANDALONE FIREWALL IS EXCLUDED AND NOT PASSED. The control applies only where high availability is switched on, because there is no peer control link until the firewall is in a pair - so the absence of a finding on a standalone firewall says nothing about it. An appliance nobody collected is reported by this control's own coverage query instead, because the applicability clause cannot match an uncollected row.",
+          "rationale": "Anything on that path reads the whole ruleset as it is synchronised and can forge the state deciding which peer owns a session, so one foothold beside the link yields both firewalls and a failover nobody ordered - and the pair bought for resilience becomes the single thing an attacker has to stand next to.",
+          "audit": "Device > High Availability > General > Control Link (HA1): Encryption Enabled, and the Port the link is assigned to. Then `show high-availability all` for `group/local-info/ha1-encrypt-enable` and `ha1-encrypt-imported` - the switch is not the state, and the port key is frequently ABSENT from the configuration while the operational reply names one.",
+          "remediation": "Export the high-availability key from one peer and import it on the other, then enable encryption on the HA1 control link on both members and confirm `ha1-encrypt-enable: yes` on each. Where the peers are not directly cabled, do this before anything else: the vendor's own recommendation for encryption is conditioned on exactly that case.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "High availability is on and the HA1 control link is not encrypted - the switch is off or absent, the runtime confirmation is missing, or no HA key is imported.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha1_control_link_not_encrypted",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Unencrypted control link on the management port",
+              "short_description": "The peer conversation shares the out-of-band management network, so every host that can route to management can reach it.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha1_control_link_not_encrypted",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha1_control_link_exposure",
+                    "op": "eq",
+                    "value": "unencrypted-management-port"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Unencrypted control link on an in-band data interface",
+              "short_description": "The peer conversation rides the dataplane and travels as far as that interface's segment.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha1_control_link_not_encrypted",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha1_control_link_exposure",
+                    "op": "eq",
+                    "value": "unencrypted-in-band-interface"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "High-availability configuration not collected",
+              "short_description": "The high-availability subtree was not collected for this appliance, so the setting was not established.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_config_collected",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.HighAvailabilityConfig"
+        },
+        {
+          "control_id": "PAN-HAP-003",
+          "name": "HA1 Backup and Heartbeat Backup Configured",
+          "control_type": "high_availability",
+          "default_severity": "medium",
+          "description": "Requires the peers to have a second way of telling each other they are alive that shares neither the first way's physical port nor its subnet - a backup control link, or keepalives over the management path where the primary link is not already on it - and requires that second way to be complete enough to carry traffic rather than half-configured.\n\nTHE NAIVE READING PASSES THE COMMONEST BROKEN STATE. `interface/ha1-backup` exists as a PRESENT AND EMPTY committed container on both members of the lab pair this was built against - no port, no address, no netmask - so a check for the container returns a node and reports a second path that has no far end. What settles it is a backup link with a port AND a backup address for the peer, on a different port and a different subnet from the primary; that is the vendor's own independence test, and it is a comparison between two fields rather than a value, so it is computed at normalization and not in a clause.\n\nTHE HEARTBEAT BRANCH REVERSES MEANING when the primary control link already rides the management port: a 'backup path over management' is then the same path, and a pair with it switched on has one keepalive route and not two. The verdict folds that in.\n\nONE COMPLETE MECHANISM MEETS THE MINIMUM AND NOT THE PREFERRED, which this control does NOT report. The catalogue prices that gap at low and this control's assertion is the single-path case, so an appliance with one complete mechanism satisfies the assertion and produces nothing - the gap between minimum and preferred is not reported here, and the absence of a finding does not mean both mechanisms are present.\n\nA STANDALONE FIREWALL IS EXCLUDED AND NOT PASSED, for the same reason as the encryption control: there is no peer to send keepalives to. The vendor's rule that the control, data and packet-forwarding links are unsupported between cluster members that are not pairs is carried by the same exclusion, which holds on this estate's leaf semantics rather than as a general truth.",
+          "rationale": "With one keepalive path, losing that single link while both peers are alive leaves each believing the other is dead, and two firewalls both claiming the active role fight over the same addresses and sessions until a person intervenes - an outage produced by the redundancy mechanism itself, on an estate whose availability review it passed.",
+          "audit": "Device > High Availability > General > Control Link (HA1 Backup): Port, IPv4/IPv6 Address, Netmask, and Backup Peer HA1 IP Address; and Election Settings > Heartbeat Backup. Read the BACKUP PEER ADDRESS, not the container: a backup link with no far end is the state this control exists to find, and it looks configured. Then check the backup link is on a different physical port and a different subnet from the primary.",
+          "remediation": "Give the backup control link a dedicated port, its own address and netmask on a subnet that does not overlap the primary link's, and set the Backup Peer HA1 IP Address on each member. Where the primary control link is not on the management port, enable Heartbeat Backup as well - and where it IS on the management port, use a backup control link instead, because heartbeat backup would share the same path.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "High availability is on and the peers have no second, independent keepalive path - including a backup control link with no backup address for the peer.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "no_independent_second_keepalive_path",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "High-availability configuration not collected",
+              "short_description": "The high-availability subtree was not collected for this appliance, so the setting was not established.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_config_collected",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.HighAvailabilityConfig"
+        },
+        {
+          "control_id": "PAN-HAP-004",
+          "name": "HA Link and Path Monitoring Enabled",
+          "control_type": "high_availability",
+          "default_severity": "medium",
+          "description": "Requires each firewall in a redundant relationship to hand over when the traffic it is actually forwarding stops being deliverable - a monitored interface going down, or a monitored next hop becoming unreachable - and not only when its peer stops answering, with at least one real group of interfaces or destinations under monitoring rather than an empty switch.\n\nAN ABSENT MONITORING KEY ASSERTS THAT MONITORING IS ON, which is why this control does not read the switches. Measured directly: an appliance holding no `group/monitoring` node at all reports `link-monitoring: {enabled: yes, failure-condition: any, groups: null}` and the same for path monitoring. So the default state of an estate is MONITORING ENABLED AND MONITORING NOTHING - a query over the two enables would pass every unconfigured appliance in it, and a reader who assumed the absent key meant 'no' would raise a gap the device denies. What decides this control is the GROUPS.\n\nAND A POPULATED COUNT DOES NOT SETTLE IT EITHER: a link group carrying no interface is valid configuration the device accepts, measured with `validate full`. The verdict therefore rests on whether any interface or any destination is actually under monitoring, computed at normalization because it needs a count over a child collection and an existence test inside each entry.\n\nLINK MONITORING ALONE MEETS THE MINIMUM AND NOT THE PREFERRED, and this control does not report that gap: an appliance with a populated link group satisfies the assertion and produces nothing, so the absence of a finding here does not mean path monitoring is in place. The failure-condition setting is deliberately not graded - the vendor documents the all-groups choice as legitimate with a reason, and no severity was ever assigned to it.\n\nA STANDALONE FIREWALL IS EXCLUDED AND NOT PASSED: monitoring that triggers a handover is inert without a peer to hand over to. A cluster member that is not in a pair is excluded with it, which narrows the control against what stage 3 intended and is recorded rather than hidden - the cluster participation key holds nothing on any appliance in any estate today, so admitting it would suppress the control everywhere instead of widening it.",
+          "rationale": "A firewall whose peer is alive and whose own forwarding path has died keeps the active role and keeps accepting traffic it can no longer deliver, so the pair bought to survive a failure sits through a total blackhole with both members reporting healthy and nothing in the estate raising a hand.",
+          "audit": "Device > High Availability > Link and Path Monitoring: read the LINK GROUPS and PATH GROUPS, not the Enabled switches - the switches report themselves as on when their keys are absent, and the vendor says twice on this screen that a switch does nothing without a group. Then open each group: a link group with no interface in it, and a path group with no destination, both commit cleanly and monitor nothing.",
+          "remediation": "Define at least one link group holding the interfaces whose loss should move the active role, and at least one path group holding destinations beyond the next hop, on both members. Then confirm `groups` is non-empty in `show high-availability all` rather than trusting the Enabled switch.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "High availability is on and no interface and no destination is actually under monitoring - the device reports monitoring enabled with no groups.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_enabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "ha_monitors_nothing",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "High-availability configuration not collected",
+              "short_description": "The high-availability subtree was not collected for this appliance, so the setting was not established.",
+              "canonical_query": {
+                "model": "integrations.HighAvailabilityConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ha_config_collected",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.HighAvailabilityConfig"
+        },
+        {
+          "control_id": "PAN-HAP-005",
+          "name": "Panorama Connectivity Redundant and Secured",
+          "control_type": "panorama_registration",
+          "default_severity": "low",
+          "description": "Two assertions over one firewall's channel to its central management estate, at two severities.\n\nFIRST, THE FIREWALL NAMES EVERY MANAGEMENT APPLIANCE IT IS MEANT TO REACH - both of them where the management estate is a redundant pair - so that losing one appliance does not leave it unmanaged. This is the medium half. An absent second address slot is a MEASURED reading and not an unread one: the firewall's own `show panorama-status` gains and loses a second server block with the leaf, paid in both directions on a real appliance.\n\nSECOND, THE CHANNEL AUTHENTICATES WITH THE CUSTOMER'S OWN CERTIFICATE MATERIAL and the firewall satisfies itself that the appliance answering is the one it meant to reach, rather than trusting the certificate pair every appliance of this make ships with. This is the low half, and low because the channel is already encrypted with those predefined certificates: what is missing is certificate ownership and peer identity, not confidentiality. It needs all three of a bound local certificate, the Panorama surface switched to use it, and the server-identity check on - and the commonest state in an estate is a certificate bound with nothing switched on to use it, which configures nothing the device presents.\n\nTHE TWO HALVES SHARE ONE ROW, because a finding is one row per control. So the HARDENING half is this control's baseline tier and the REDUNDANCY half is a calibration above it: either can match alone, and where both match the worse severity wins and the row is reported at the redundancy half's medium. That is the severity mechanism working as built rather than a trick - the baseline tier is discarded the moment a calibration matches - and it means the absence of a medium here is not the absence of the redundancy gap on some other row. `matched_query_names` on the finding says which half fired, and a reader who needs the other half reads the row's columns.\n\nWHETHER THE MANAGEMENT ESTATE IS A PAIR IS ASSUMED AND NOT READ. The answer lives on the management appliance's own high-availability configuration, which is out of assessment scope, so no firewall can supply it and the applicability predicate defaults to APPLYING - a default the other way would suppress this control on every firewall. The consequence is stated on every finding: on a single-appliance management estate the redundancy half fires everywhere and its remediation is wrong, and an engineer's answer should override it.\n\nAND THE APPLIANCE'S OWN HALF OF THE HANDSHAKE IS UNANSWERED BY DESIGN. Custom Certificate Only and Check Authorization List are switches on the management station and exist on no firewall - verified on both firewall platforms - so a firewall presenting the customer's certificate is still talking to an appliance that would have accepted the shipped one. Every finding here says which part needs the station.",
+          "rationale": "A firewall holding one management address loses central policy, central logging and central visibility the moment that appliance goes down, and because it keeps passing traffic perfectly well nobody notices until a change has to be pushed or an investigation needs the logs that were never collected. And anything holding the certificates the vendor ships with every appliance can stand in the middle of that channel: an attacker who reaches the management network takes the firewall's registration, serves it policy and collects the logs it forwards - so every artefact the organisation would use to notice comes from the attacker.",
+          "audit": "Device > Setup > Management > Panorama Settings: both Panorama Servers fields, and Secure Communication Settings for the Certificate Type, the per-surface Secure Client Communication switches and Verify Panorama Server Identity. Read `certificate-type` as WHICH CHILD is present - the explicit `none` branch and an absent key are two different stored states with the same meaning. Then note what cannot be read here: the station's Custom Certificate Only and Check Authorization List, and whether the estate is a pair at all.",
+          "remediation": "Where the management estate is a redundant pair, set the second Panorama Servers field on every managed firewall to the secondary appliance. For the channel: issue a device certificate from the customer's own authority, bind it under Certificate Type > Local, enable Secure Client Communication for the Panorama surface, and enable Verify Panorama Server Identity. Then do the station's half - Custom Certificate Only and Check Authorization List on the management appliance - because the firewall's three switches do not authenticate the channel on their own.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The management channel is not hardened to customer certificate material with peer-name validation. The baseline tier, so the redundancy calibration overrides it where both match.",
+              "canonical_query": {
+                "model": "integrations.PanoramaRegistration",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "management_channel_not_hardened",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No secondary management appliance named",
+              "short_description": "No secondary management appliance is named, on an estate taken to be a redundant pair. Carries the higher tier, so a firewall failing both halves reports at this one.",
+              "canonical_query": {
+                "model": "integrations.PanoramaRegistration",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "management_estate_is_a_pair",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "panorama_server_secondary",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.PanoramaRegistration"
         }
       ]
     }

@@ -35,6 +35,8 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     IkeCryptoProfile,
     IkeGateway,
+    HighAvailabilityConfig,
+    PanoramaRegistration,
     ManagementInterface,
     SecurityRule,
     Snapshot,
@@ -111,6 +113,13 @@ class Control(models.Model):
         #: control - see the stage 8 artifact for `ike-crypto`.
         IKE_CRYPTO_PROFILE = "ike_crypto_profile", "IKE Crypto Profile"
         IKE_GATEWAY = "ike_gateway", "IKE Gateway"
+        #: The two `ha-panorama` subjects, SEPARATE types for the same one-to-one reason.
+        #: PAN-HAP-001 to 004 assert over the high-availability relationship; PAN-HAP-005 over
+        #: the channel to the management estate. PAN-HAP-006 and 007 assert over PANORAMA'S OWN
+        #: configuration, which `rules.md` puts out of assessment scope, so they have no type
+        #: here and no catalog entry - see the stage 8 artifact for `ha-panorama`.
+        HIGH_AVAILABILITY = "high_availability", "High Availability"
+        PANORAMA_REGISTRATION = "panorama_registration", "Panorama Registration"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -185,6 +194,12 @@ class Control(models.Model):
         # Device-wide network objects: one row per named entry per appliance, no vsys axis.
         "ike_crypto_profile": "integrations.IkeCryptoProfile",
         "ike_gateway": "integrations.IkeGateway",
+        # Device-wide management-plane settings: one row per appliance, no entry name at all.
+        # On an HA pair each yields two rows for one real configuration and nothing
+        # deduplicates them - which is correct for the HA subject, whose two rows genuinely
+        # differ, and a known duplication for the registration subject, whose two agree.
+        "high_availability": "integrations.HighAvailabilityConfig",
+        "panorama_registration": "integrations.PanoramaRegistration",
         # The subject is the issue record, which exists precisely when the object does not.
         "normalization": "integrations.NormalizationIssue",
         "config": "",
@@ -233,6 +248,8 @@ class Control(models.Model):
         "integrations.NormalizationIssue": "Normalization Issue",
         "integrations.IkeCryptoProfile": "IKE Crypto Profile",
         "integrations.IkeGateway": "IKE Gateway",
+        "integrations.HighAvailabilityConfig": "High Availability",
+        "integrations.PanoramaRegistration": "Panorama Registration",
     }
 
     @property
@@ -1297,6 +1314,141 @@ class IkeGatewayFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.ike_gateway_finding_id} <- {self.control_query_id}"
+
+
+class HighAvailabilityFinding(ObjectFindingBase):
+    """A finding against one appliance's high-availability relationship. PAN-HAP-001 to 004.
+
+    ONE ROW PER APPLIANCE and no entry name: `deviceconfig/high-availability` is device-wide, so
+    a vsys never appears here. `subject_scope` is not declared - there is one address per
+    appliance and nothing to collide with.
+
+    ON AN HA PAIR THIS IS TWO FINDINGS FOR ONE RELATIONSHIP and that is correct here rather than
+    a duplication to fix. OptivEdgeIntegrations AGENTS.md says HA state "genuinely differs per
+    node and should not be collapsed", and stage 4 of the `ha-panorama` domain measured the
+    divergence on this lab's own pair: `group/mode` present on one member and absent on the
+    other, four successful commits on one member changing nothing on the other, and
+    `running-sync` reading `not synchronized` throughout.
+
+    WHAT NO ROW OF THIS MODEL CAN SAY. Whether the HA1 control link is encrypted is a property of
+    the PAIR - a pair with the key imported on one member only reports as two independent
+    findings rather than as one broken link - and the operational reply carries no identifier
+    that would let the two members' rows be joined. Every finding here is the per-appliance half.
+
+    THE ABSENCE OF A FINDING ON AN APPLIANCE IS NOT A STATEMENT THAT ITS HA IS SOUND.
+    PAN-HAP-002, 003 and 004 all carry `ha_enabled` as applicability, so a firewall in no pair
+    produces nothing from them at all; and an appliance nobody collected is reported by a
+    separate query on `ha_config_collected` rather than by any of the three assertions.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="high_availability_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="high_availability_findings")
+    high_availability_config = models.ForeignKey(
+        HighAvailabilityConfig, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="HighAvailabilityFindingControlQuery",
+        related_name="high_availability_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["high_availability_config"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "high_availability_config"],
+                name="unique_hacfg_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on high availability for {self.subject_name}"
+
+
+class HighAvailabilityFindingControlQuery(FindingControlQueryBase):
+    high_availability_finding = models.ForeignKey(
+        HighAvailabilityFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="high_availability_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["high_availability_finding", "control_query"],
+                name="unique_hacfg_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.high_availability_finding_id} <- {self.control_query_id}"
+
+
+class PanoramaRegistrationFinding(ObjectFindingBase):
+    """A finding against one appliance's channel to its management estate. PAN-HAP-005.
+
+    ONE ROW PER APPLIANCE, device-wide like the HA model beside it, and no `subject_scope`.
+
+    ON AN HA PAIR THIS IS TWO FINDINGS FOR ONE CONFIGURATION AND THE TWO ROWS DO AGREE, which is
+    the opposite of the HA model's case: the management addresses and the secure-communication
+    switches are not HA fields, and this estate measured the synchronisation directly -
+    `panorama-server-2` written on one member was present on both twenty minutes later with
+    nothing addressed to the peer. So a pair produces two identical findings for one gap, and
+    nothing deduplicates them.
+
+    THE CONTROL CARRIES TWO ASSERTIONS AT TWO SEVERITIES over this one row - the estate's address
+    redundancy at medium and the channel's certificate hardening at low - so a row can fire for
+    either or both and there is only ever one finding. The queries are written so the two cannot
+    both match: the hardening query excludes the redundancy query's population, because
+    `derive_control_query_severity_value` takes the WORST matched calibration and a row failing
+    both would otherwise be reported at the gentler tier.
+
+    WHAT NO ROW OF THIS MODEL CAN SAY, and no firewall can. The management appliance's own half of
+    the handshake - whether it accepts only customer-issued certificates, and whether it checks
+    each firewall against an authorisation list - lives on `secure-conn-server` on the station,
+    which `rules.md` puts out of assessment scope. A row on the hardened side of every column
+    here still does not say the channel is authenticated.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="panorama_registration_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="panorama_registration_findings")
+    panorama_registration = models.ForeignKey(
+        PanoramaRegistration, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="PanoramaRegistrationFindingControlQuery",
+        related_name="panorama_registration_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["panorama_registration"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "panorama_registration"],
+                name="unique_panoreg_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on management channel for {self.subject_name}"
+
+
+class PanoramaRegistrationFindingControlQuery(FindingControlQueryBase):
+    panorama_registration_finding = models.ForeignKey(
+        PanoramaRegistrationFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="panorama_registration_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["panorama_registration_finding", "control_query"],
+                name="unique_panoreg_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.panorama_registration_finding_id} <- {self.control_query_id}"
 
 
 class ManagementTlsFinding(ObjectFindingBase):

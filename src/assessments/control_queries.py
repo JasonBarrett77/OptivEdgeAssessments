@@ -33,6 +33,8 @@ SNMP_SETTINGS_MODEL = "integrations.SnmpSettings"
 SYSTEM_IDENTITY_MODEL = "integrations.SystemIdentity"
 IKE_CRYPTO_PROFILE_MODEL = "integrations.IkeCryptoProfile"
 IKE_GATEWAY_MODEL = "integrations.IkeGateway"
+HIGH_AVAILABILITY_CONFIG_MODEL = "integrations.HighAvailabilityConfig"
+PANORAMA_REGISTRATION_MODEL = "integrations.PanoramaRegistration"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -334,4 +336,20 @@ def evaluate_ike_gateway_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or IKE_GATEWAY_MODEL,
+    )
+
+
+def evaluate_high_availability_config_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or HIGH_AVAILABILITY_CONFIG_MODEL,
+    )
+
+
+def evaluate_panorama_registration_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or PANORAMA_REGISTRATION_MODEL,
     )
