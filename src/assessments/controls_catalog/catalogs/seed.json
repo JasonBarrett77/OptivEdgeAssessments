@@ -4713,6 +4713,254 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.IkeGateway"
+        },
+        {
+          "control_id": "PAN-SAS-001",
+          "name": "Sanctioned SaaS Applications Tagged",
+          "control_type": "sanctioned_application_marking",
+          "default_severity": "medium",
+          "description": "Requires each enforcement point to record which cloud applications the business has approved, in the one mechanism the firewall itself reads: the predefined approval tag on an application. Policy can only separate corporate use of a SaaS application from personal use if the approved set is identified somewhere the firewall can act on, and this is that place.\n\nTHE CONTROL IS ABOUT WHETHER THE MECHANISM IS USED AT ALL, and that is a narrowing rather than a convenience. The firewall holds NO list of what the business approved - the marking IS the firewall's only record of it - so no reading can compare the marked set against an approved set, and a control claiming to do that would be asserting something no firewall read supports.\n\nZERO IS THE FINDING AND IT IS THE VENDOR'S OWN RULE THAT MAKES IT ONE: a partition that marks nothing treats every application as unsanctioned. The reading is a COUNT and not a presence test, because a partition can hold application entries that carry no marking at all - the collection is populated and the marked count is nil, and a truthiness test on the container splits those two the wrong way.\n\nTHE SECOND HALF ASKS WHETHER THE PARTITIONS AGREE, on an appliance that has more than one. It is reported separately at the same severity and it cannot say which partition is in force: precedence for this node across a virtual system, the firewall's shared namespace and a Panorama push has never been measured, so the finding reports that they diverge and stops there.\n\nAND THE INVENTORY CANNOT BE CHECKED FROM THE SCREEN THAT SHOWS IT. The Objects > Applications grid renders the vendor's predefined application CHARACTERISTIC tags - Web App, Uploading, Deleting - in the same chips as the operator's approval markings, and its filter panel counts them. So that column is full on an appliance which marks nothing, and a reviewer who takes a populated Tags column for a marked inventory has refuted nothing.",
+          "rationale": "Tenant restrictions, unsanctioned-application controls and attribute-driven selections all need to know which applications are approved, and the firewall has one place to record that. Where the record is empty, every control that depends on it either catches the approved applications too or catches nothing - and the vendor's own rule is that an unmarked application is an unsanctioned one.",
+          "audit": "Objects > Applications, for the virtual system named in the finding: select an application and read Edit Tags. Do NOT read the grid's Tags column as the answer - it mixes the vendor's predefined characteristic tags with the operator's approval markings. Where the appliance runs several virtual systems, read the same screen in each one: the marking is per partition and the partitions can disagree.",
+          "remediation": "Apply the predefined approval tag to each cloud application the business has approved, in every virtual system that enforces policy for its users, and apply the same set in each one. The marking is a SET rather than a state - the device accepts an application marked approved and tolerated at once, and writing a tag MERGES into the member list - so removing a wrong marking is its own step and setting the right one does not replace it. An application group can hold the same inventory for policy reuse and CANNOT carry the marking: the device refuses a tag on a group outright, so a group is not a substitute. Where a marking is pushed from a Panorama device group it counts here and cannot be edited on the firewall; make the change in the device group instead.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No application in this virtual system carries the predefined approval tag.",
+              "canonical_query": {
+                "model": "integrations.SanctionedApplicationMarking",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "sanctioned_application_count",
+                    "op": "eq",
+                    "value": 0,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "sanctioned_application_count"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Approval marking differs between virtual systems",
+              "short_description": "A multi-vsys appliance marks an application approved in one partition and not in another.",
+              "canonical_query": {
+                "model": "integrations.SanctionedApplicationMarking",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "appliance_is_multi_vsys",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "marking_is_inconsistent_across_vsys",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "marking_is_inconsistent_across_vsys"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SanctionedApplicationMarking"
+        },
+        {
+          "control_id": "PAN-SAS-002",
+          "name": "HTTP Header Insertion Enforces Tenant Restrictions",
+          "control_type": "saas_url_filtering_posture",
+          "default_severity": "high",
+          "description": "Requires that for sanctioned applications which also have consumer or external tenants - Office 365, Google Workspace, Dropbox, Slack - a URL Filtering profile reachable from the enforcement point inserts a tenant-restriction header AND is carried by a security rule of that enforcement point, so only the corporate tenant is reachable.\n\nIN FORCE AND NOT MERELY DEFINED, which is the whole of this control and is why it rests on a derived verdict rather than on the presence of a profile. The hop is rule to profile group to profile to header insertion, resolved across the virtual system, the firewall's own shared namespace and whatever Panorama pushed - and a clause compares one field to one literal.\n\nA COUNT OF PROFILES CARRYING HEADER INSERTION COUNTS THE WRONG THING. One header-insertion entry carries exactly one type - the device refuses a second - so covering N applications takes N sibling entries, and the unit of coverage is the TYPE entry.\n\nWHAT THIS CONTROL DOES NOT CLAIM. It does not report that a tenant identifier is wrong: the device stores whatever string it is given and cannot tell a correct identifier from a plausible wrong one, and for the Microsoft case the value comes from the customer's own cloud directory and from no firewall screen. What it does report is a header that names NO tenant at all, which reads as configured and restricts nothing. It also does not claim the header name is one the vendor offers - the enumeration is enforced at neither the write nor the commit, and an arbitrary header name commits.\n\nAND IT DOES NOT ANSWER WHETHER THE REWRITING CAN HAPPEN ON THE SESSIONS IT COVERS. The vendor states that header insertion requires HTTP/1.x, which needs the protocol-negotiation extension stripped in a decryption profile and the QUIC application refused - both of which belong to other objects and neither of which is asserted here or anywhere in this catalogue. A passing verdict on this control is therefore not a statement that the restriction reaches the traffic.",
+          "rationale": "A sanctioned application reachable in any tenant is a sanctioned application through which data leaves the organisation: the same client, the same domain and the same App-ID serve a personal account as serve the corporate one, so nothing in an application-level decision separates them. The tenant-restriction header is the mechanism that does, and a header defined in a profile no rule carries changes nothing about any session.",
+          "audit": "Objects > Security Profiles > URL Filtering > (profile) > HTTP Header Insertion, for every profile reachable from the enforcement point named in the finding - the partition's own, the firewall's shared namespace and anything pushed from Panorama. Read the Type entry and the headers beneath it, then confirm in Policies > Security that a rule of that partition carries the profile, directly or through the profile group it names. A profile with header insertion that no rule carries is the state this control exists to catch.",
+          "remediation": "Add an HTTP Header Insertion entry of the vendor's tenant-restriction type to a URL Filtering profile, give each header the organisation's own account identifier as its value, and attach that profile to the security rules that carry the traffic for those applications. One type per header-insertion entry, so add a sibling entry per application rather than expecting one to cover several. Where the profile is PUSHED from Panorama the firewall will refuse the edit - make it in the device group or Shared instead. Where the platform supports a SaaS Tenant List, prefer it: it is referenced from the rule directly, and a list carrying no members commits and restricts nothing, so check the members rather than the reference.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No URL Filtering profile reachable from this enforcement point inserts a tenant-restriction header into traffic one of its rules carries.",
+              "canonical_query": {
+                "model": "integrations.SaasUrlFilteringPosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tenant_restriction_in_force",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tenant_restriction_in_force"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SaasUrlFilteringPosture"
+        },
+        {
+          "control_id": "PAN-SAS-003",
+          "name": "Upload/Download/Share Function Controls per App",
+          "control_type": "saas_application_policy_posture",
+          "default_severity": "high",
+          "description": "Requires that where App-ID resolves the upload, sharing and delete FUNCTIONS of a cloud application as applications of their own, the enforcement point's policy refuses those functions while leaving browsing and viewing permitted - cutting the path data leaves by without breaking casual use.\n\nTHE ASSERTION IS A RELATION BETWEEN TWO RULES and that is why it rests on a derived verdict: a refusal of the function child evaluated BEFORE the permission on the base application. Rule order is positional rather than a value, and the ordering spans scopes, because rules pushed from Panorama as pre-rules are evaluated before the firewall's own and post-rules after.\n\nTHE COMMONEST FAILING STATE IS THAT NO RULE NAMES THE FUNCTIONS AT ALL, which is an absence rather than a value: there is no action anywhere to read. It is reported at this control's own severity, because a policy that does not distinguish browsing an application from moving data into it permits both.\n\n`deny` IS NOT THE ONLY REFUSAL. The action a rule carries has six values and four of them - drop and the three resets - are refusals in this control's sense while none of them is the word deny. A reading that matched the literal would report a compliant policy as failing.\n\nWHAT ANY COUNT HERE CAN MEAN IS BOUNDED BY A CONTENT RELEASE. Which applications have function children is a property of the vendor's application catalogue, which content updates deliver and which changes with no configuration change - so a count of rules naming one is a LOWER BOUND over a namespace this assessment has not enumerated.\n\nAND A DISABLED RULE COUNTS TOWARD THE REFUSAL, which is stated because the direction of that error is the unsafe one: a disabled rule that refuses an upload function reports a refusal no session will ever meet.",
+          "rationale": "Blocking a cloud application outright is usually refused by the business and permitting it outright leaves the upload path open, so the function-level App-IDs are the only setting that separates reading from writing. Where no rule names them the two are the same permission, and the policy shows no sign of the distinction anybody intended.",
+          "audit": "Policies > Security, for the enforcement point named in the finding, INCLUDING the pre-rules and post-rules pushed from Panorama - a decision made in a pre-rule is evaluated before anything local. Find the rules whose Application column names a function child App-ID (the indented children under an application in Objects > Applications - for example the uploading, downloading and delete entries beside a base application) and read the Action of the FIRST rule that matches each one in evaluation order. Treat drop and the three reset actions as refusals, not only deny.",
+          "remediation": "Add a rule that refuses the upload, sharing and delete function App-IDs of each cloud application the policy permits, and place it ABOVE the rule that permits the base application - in the same rulebase, or in a Panorama pre-rule so it is evaluated before the local rules. Any of deny, drop or the three reset actions satisfies this; which one to choose is a question about what the user sees, and the vendor notes the firewall may reset one application and silently drop another under the same action. Check that the rule is ENABLED: a disabled rule counts toward this assessment's reading and refuses nothing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A function child application this enforcement point's policy names is permitted by the first rule that matches it, or no rule names any of them.",
+              "canonical_query": {
+                "model": "integrations.SaasApplicationPolicyPosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "function_apps_are_refused",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "function_apps_are_refused"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SaasApplicationPolicyPosture"
+        },
+        {
+          "control_id": "PAN-SAS-004",
+          "name": "Unsanctioned SaaS Restricted by Category",
+          "control_type": "saas_url_filtering_posture",
+          "default_severity": "medium",
+          "description": "Requires the enforcement point to restrict the web categories that carry consumer file storage and personal publishing - actively restricted, meaning interrupted, held behind a password or refused. These categories catch the long tail of unsanctioned cloud services that no explicit list will enumerate.\n\nTHE READING IS AN ENUMERATION OVER THE CATEGORY NAMESPACE AND NOT A MEMBERSHIP TEST, and that is the measured reason this control rests on a derived verdict. A predefined category explicitly set to permit is NEVER WRITTEN: the configuration holds the per-action member lists and the question is which categories appear in none of them. So a profile naming 29 of 90 categories and leaving 61 implicit passes any membership test and is exactly the configuration this control exists to catch - the vendor states its own default from the other side, that site access for all categories is Allow.\n\nTHE VERDICT IS THE WEAKEST LINK, twice over: the weakest treatment any reachable profile gives a category, because a permissive profile that also applies leaves the category reachable, and then the weakest across the categories themselves.\n\n`alert` IS GRADED BELOW THE RESTRICTING VALUES AND ABOVE THE PERMITTING ONES, reported at LOW rather than at this control's own severity. The visit still happens; what exists is a record of it, so the exposure is unchanged and an investigation after the fact has something to read. The vendor's own floor for categories it calls necessary-but-risky is the interruption, which is why that value and the two above it produce no finding.\n\nTWO RESTRICTING SURFACES ARE NOT IN THIS READING AND A CATEGORY REACHABLE ONLY THROUGH ONE OF THEM IS RESTRICTED IN FACT: the block-response list and remote browser isolation. Neither has a measured place in the restrictiveness order, so neither is counted, and the error runs toward reporting such a category as weaker than it is.\n\nAND THE HALF THAT IS NOT HERE. This control also asks that the organisation's own approved applications be carved out BY NAME instead of the whole category being left open, and there is no object on the firewall for an exception that excludes a named approved application from a restricted web category. The only carve-out the firewall has is an application filter's exclusion list, which belongs to the application-attribute surface - a different subject, which this control cannot carry a query for.",
+          "rationale": "No list of unsanctioned cloud services stays current: a new consumer storage provider appears and the policy that names providers by hand does not know about it. The web category is the only surface that covers the ones nobody has heard of yet - and a category in no restricting list is permitted by the vendor's own default, which is indistinguishable in the configuration from a decision to permit it.",
+          "audit": "Objects > Security Profiles > URL Filtering > (profile) > Categories, for every profile reachable from the enforcement point named in the finding, and read the Site Access column for the consumer file storage and personal publishing categories. Read the categories you do NOT find as well: one left at its implicit value is permitted and is not written anywhere. Where several profiles are reachable, the weakest one decides. A security rule naming the category explicitly also counts as a restricting surface where its action refuses - the keyword `any` is not a naming.",
+          "remediation": "Set Site Access for the consumer file storage and personal publishing categories to Continue, Override or Block in every URL Filtering profile reachable from the enforcement point - not only in the one an engineer happens to open, because the weakest reachable profile decides. Alert is not enough: the visit happens and is merely recorded. Then carve the organisation's own approved applications out by name, on the application surface, so that restricting the category does not refuse the services the business approved. Where the profile is pushed from Panorama, make the change in the device group or in Shared.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A web category carrying consumer file storage or personal publishing is not actively restricted at this enforcement point.",
+              "canonical_query": {
+                "model": "integrations.SaasUrlFilteringPosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "consumer_storage_categories_are_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "consumer_storage_categories_are_restricted"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Permitted and recorded rather than restricted",
+              "short_description": "The weakest treatment is `alert`: the visit happens and is recorded, so the exposure is unchanged and measurable.",
+              "canonical_query": {
+                "model": "integrations.SaasUrlFilteringPosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "consumer_storage_categories_are_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "consumer_storage_category_treatment",
+                    "op": "eq",
+                    "value": "alert",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "consumer_storage_categories_are_restricted",
+                "consumer_storage_category_treatment"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SaasUrlFilteringPosture"
+        },
+        {
+          "control_id": "PAN-SAS-005",
+          "name": "SaaS Security Inline / SSPM Adoption Documented",
+          "control_type": "cloud_app_engine_setting",
+          "default_severity": "medium",
+          "description": "Requires that where the cloud application inspection subscription is bought, the App-ID Cloud Engine is actually working on the appliance. The engine is what delivers cloud-based App-IDs, and the policy recommendations the inline SaaS product produces reach the firewall through it.\n\nTHE CONFIGURATION AND THE ENGINE POINT OPPOSITE WAYS FROM ONE NODE AND THE CONFIGURATION IS THE REASSURING ONE. The key that switches the engine off is absent on an appliance nobody has touched, which reads as 'not deliberately disabled' - while the engine itself may be reporting a failed licence check, a failed cloud connection or a missing device certificate. So this control rests on the engine's own account of its condition and not on the configured key, and what the device does with that key absent is an inference rather than a measured vendor default.\n\nTHE DEVICE CERTIFICATE IS A SECOND PRECONDITION AND IT IS NOT IN THE LICENCE LISTING AT ALL, which is why the finding names the condition rather than the symptom: a remediation that buys a subscription and stops there still has no engine.\n\nAN APPLIANCE WITH NO SUBSCRIPTION PRODUCES NO FINDING HERE, deliberately: the control was never about it, and the vendor states that an unlicensed firewall cannot use the cloud-delivered applications at all. So the ABSENCE of a finding on an appliance is not a statement that the engine is healthy - most often it is a statement that the licence check failed.\n\nAND THE HALF THIS CONTROL CANNOT READ. Whether the recommendations are reviewed and taken into policy on a stated cadence is not on the firewall: the recommendation feed is operational only and lists what the cloud has OFFERED rather than what anybody imported, and an imported recommendation appears afterwards only as an ordinary security rule. Neither is the posture-management product's adoption: the firewall has no surface for it whatever. Both are the engineer's answer, and this control's finding says nothing about either.\n\nTHIS CONTROL IS A PREMISE UNDER THE OTHERS IN ITS DOMAIN. Rules and application filters naming cloud-delivered App-IDs stay VISIBLE in the policy while they stop enforcing, so a finding on the function-control or category controls rests on this engine working - and neither of those controls can read this row.",
+          "rationale": "A cloud-delivered App-ID that the engine cannot fetch stops matching traffic while the rule naming it still reads as policy, so the configuration looks correct and enforces nothing. The failure is silent, it has at least three independent causes, and only one of them is the subscription anybody thinks to check.",
+          "audit": "Device > Setup > Content-ID for the appliance named in the finding, to see whether the App-ID Cloud Engine is switched off - and then ask the engine itself, with `show cloud-appid connection-to-cloud`, which reports the licence check, the cloud connection and the device certificate as three separate conditions. The licence listing alone cannot answer this: it names the features present, so it can only report a missing subscription by what is absent from its list, and it does not mention the device certificate at all. `show system info` carries the certificate status beside it.",
+          "remediation": "Name the condition the finding reports and fix that one. For a failed licence check, install and activate the cloud application inspection subscription. For a missing or invalid device certificate, install it and confirm it has reached the daemons - a subscription without it buys nothing. For a failed cloud connection, check egress and name resolution for the engine's endpoint. For a configured disable, clear the checkbox in Device > Setup > Content-ID - and where the value comes from a Panorama template, clear it there, because the next push will set it again. Where the engine was never asked, issue the operational read before concluding anything: this finding then says only that nobody looked.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The App-ID Cloud Engine is not working on an appliance whose failure is not the absence of the subscription.",
+              "canonical_query": {
+                "model": "integrations.CloudAppEngineSetting",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ace_failure_reason",
+                    "op": "eq",
+                    "value": "license_check_failed",
+                    "negated": true
+                  },
+                  {
+                    "field": "ace_not_operational",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ace_not_operational"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.CloudAppEngineSetting"
         }
       ]
     }

@@ -103,6 +103,21 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.IKE_CRYPTO_PROFILE, "IKE crypto profile"),
     FindingKind(m.IkeGatewayFinding, "ike_gateway",
                 m.Control.ControlType.IKE_GATEWAY, "IKE gateway"),
+    # The four `saas-security` subjects. THREE OF THE LABELS NAME A VERDICT rather than an
+    # object, because that is what the row is - a conclusion about everything an enforcement
+    # point can reach, written because the commonest state of this domain is that no entry
+    # exists for a per-entry row to be about.
+    FindingKind(m.SanctionedApplicationMarkingFinding, "sanctioned_application_marking",
+                m.Control.ControlType.SANCTIONED_APPLICATION_MARKING,
+                "sanctioned application marking"),
+    FindingKind(m.SaasUrlFilteringPostureFinding, "saas_url_filtering_posture",
+                m.Control.ControlType.SAAS_URL_FILTERING_POSTURE,
+                "SaaS URL filtering posture"),
+    FindingKind(m.SaasApplicationPolicyPostureFinding, "saas_application_policy_posture",
+                m.Control.ControlType.SAAS_APPLICATION_POLICY_POSTURE,
+                "SaaS application policy posture"),
+    FindingKind(m.CloudAppEngineFinding, "cloud_app_engine_setting",
+                m.Control.ControlType.CLOUD_APP_ENGINE_SETTING, "App-ID Cloud Engine"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

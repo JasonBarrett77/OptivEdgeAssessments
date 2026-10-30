@@ -181,9 +181,33 @@ from assessments.search.authentication_sequence.compiler import (
     FIELD_OPERATOR_REGISTRY as AUTHENTICATION_SEQUENCE_FIELD_OPERATOR_REGISTRY,
     compile_authentication_sequence_search_node,
 )
+from assessments.search.sanctioned_application_marking.compiler import (
+    FIELD_OPERATOR_REGISTRY as SANCTIONED_APPLICATION_MARKING_FIELD_OPERATOR_REGISTRY,
+    SANCTIONED_APPLICATION_MARKING_MODEL,
+    compile_sanctioned_application_marking_search_node,
+)
+from assessments.search.saas_url_filtering_posture.compiler import (
+    FIELD_OPERATOR_REGISTRY as SAAS_URL_FILTERING_POSTURE_FIELD_OPERATOR_REGISTRY,
+    SAAS_URL_FILTERING_POSTURE_MODEL,
+    compile_saas_url_filtering_posture_search_node,
+)
+from assessments.search.saas_application_policy_posture.compiler import (
+    FIELD_OPERATOR_REGISTRY as SAAS_APPLICATION_POLICY_POSTURE_FIELD_OPERATOR_REGISTRY,
+    SAAS_APPLICATION_POLICY_POSTURE_MODEL,
+    compile_saas_application_policy_posture_search_node,
+)
+from assessments.search.cloud_app_engine_setting.compiler import (
+    FIELD_OPERATOR_REGISTRY as CLOUD_APP_ENGINE_SETTING_FIELD_OPERATOR_REGISTRY,
+    CLOUD_APP_ENGINE_SETTING_MODEL,
+    compile_cloud_app_engine_setting_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
+    CloudAppEngineSetting,
     NormalizationIssue,
+    SaasApplicationPolicyPosture,
+    SaasUrlFilteringPosture,
+    SanctionedApplicationMarking,
     AdminUser,
     ServerProfile,
     AuthenticationProfile,
@@ -348,6 +372,33 @@ MODEL_REGISTRY = {
         "model_class": IkeGateway,
         "field_operators": IKE_GATEWAY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_ike_gateway_search_node,
+    },
+    # The four `saas-security` subjects. THREE OF THEM ARE VERDICTS OVER A COLLECTION rather than
+    # entries of one: the commonest state of this domain is NO ENTRY AT ALL - no application-tag
+    # container, no header insertion on any profile at any scope, no application filter, no rule
+    # naming a function child application - and a per-entry grain has no row for that, so a
+    # predicate could not compare against it. Every column of all three defaults to its FIRING
+    # value for the same reason.
+    SANCTIONED_APPLICATION_MARKING_MODEL: {
+        "model_class": SanctionedApplicationMarking,
+        "field_operators": SANCTIONED_APPLICATION_MARKING_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_sanctioned_application_marking_search_node,
+    },
+    SAAS_URL_FILTERING_POSTURE_MODEL: {
+        "model_class": SaasUrlFilteringPosture,
+        "field_operators": SAAS_URL_FILTERING_POSTURE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_saas_url_filtering_posture_search_node,
+    },
+    SAAS_APPLICATION_POLICY_POSTURE_MODEL: {
+        "model_class": SaasApplicationPolicyPosture,
+        "field_operators": SAAS_APPLICATION_POLICY_POSTURE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_saas_application_policy_posture_search_node,
+    },
+    # The fourth is a device-wide singleton and takes an appliance directly.
+    CLOUD_APP_ENGINE_SETTING_MODEL: {
+        "model_class": CloudAppEngineSetting,
+        "field_operators": CLOUD_APP_ENGINE_SETTING_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_cloud_app_engine_setting_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.
