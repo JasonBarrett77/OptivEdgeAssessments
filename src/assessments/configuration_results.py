@@ -897,24 +897,7 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # Panorama's own configuration, which is out of assessment scope - so this debt is for five
     # controls and not seven.
     "PAN-HAP": "stage9-ha-panorama.json",
-}
-#: EMPTY since 2026-10-28, when the first stage 9 run presented `ike-crypto` - the `PAN-IKE`
-#: entry, which is the only one this ever held, was cleared by the work it named. The empty map
-#: states that no domain is currently in that position, exactly as `LEGACY_SURFACE` does.
-#:
-#: `PAN-NET` ADDED 2026-10-30 by the stage 8 run on `network-hardening`. Six models reached
-#: stage 8 together - `Interface`, `PanOsSessionSettings`, `PanOsLldpGlobalSettings`,
-#: `PanOsDhcpInterfaceConfig`, `PanOsTunnelInspectionCoverage` and `PanOsRoutingAdjacency` - and
-#: none has a rail item, because a rail item is a page and that stage forbids building one. The
-#: stage 9 artifact named below is what clears this entry, and the two tests above fail the
-#: moment it exists.
-AWAITING_PRESENTATION: dict[str, str] = {
     "PAN-NET": "stage9-network-hardening.json",
-}
-#: It was EMPTY from 2026-10-28, when the first stage 9 run presented `ike-crypto` and the
-#: `PAN-IKE` entry - the only one this had ever held - was cleared by the work it named. That is
-#: the lifecycle, and it is why the empty state is worth keeping rather than deleting.
-AWAITING_PRESENTATION: dict[str, str] = {
     # `saas-security` reached stage 8 on 2026-10-30. FOUR of its models had never been queried
     # from this repository at all, so none of them has a rail item: the three enforcement-point
     # verdicts and the device-wide App-ID Cloud Engine. Stage 9 for this domain is what gives
