@@ -90,6 +90,21 @@ FIELD_COMPILERS = {
     "parse_error": build_text_compiler("parse_error", "parse_error"),
     "is_ca": build_boolean_compiler("is_ca", "is_ca"),
     "is_self_signed": build_boolean_compiler("is_self_signed", "is_self_signed"),
+    # THE FIVE VERDICT COLUMNS, and each one is the column a control clauses on while the
+    # evidence column beside it stays searchable for display. The pairs are
+    # key_strength_band/key_size_bits, signature_hash/signature_algorithm and
+    # is_expired/not_valid_after - see the model, which says in each case why the verdict and
+    # not the evidence carries the clause.
+    "key_strength_band": build_text_compiler("key_strength_band", "key_strength_band"),
+    "signature_hash": build_text_compiler("signature_hash", "signature_hash"),
+    "weak_signature_hash": build_boolean_compiler("weak_signature_hash", "weak_signature_hash"),
+    "is_expired": build_boolean_compiler("is_expired", "is_expired"),
+    # TWO CONTROLS CLAUSE ON THIS IN OPPOSITE SENSES AND BOTH ARE RIGHT. `eq false` is "in use
+    # or nobody could tell", which is PAN-CRT-001's second clause and fires on an incomplete
+    # walk; `eq true` is "the walk ran and found nothing", which is PAN-CRT-008's assertion and
+    # is silent until it has. `relied_on_by` beside it is NOT registered: a JSON lookup is
+    # unindexed and silently matches nothing when a key is renamed.
+    "not_relied_on": build_boolean_compiler("not_relied_on", "not_relied_on"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

@@ -104,11 +104,65 @@ class CertificateObjectControlTests(TestCase):
         self.assertEqual(profile.ca_certificate_names, ["some-ca"])
 
     def test_either_leaf_satisfies_the_floor(self):
-        """The corpus says CRL or OCSP - not both. Two profiles, one of each, neither fires."""
+        """The corpus says CRL or OCSP - not both. Two profiles, one of each, neither fires.
+
+        THE TWO BLOCKING KEYS ARE PART OF THE FIXTURE and were not until 2026-10-30, when
+        PAN-CRT-004 gained the second half the corpus always asked for: where revocation IS
+        checked, a check that cannot reach an answer must stop the session. Without those keys
+        these profiles check revocation and let BOTH inconclusive outcomes through, so they fire
+        on that half and this test's own subject - that one revocation leaf satisfies the floor -
+        could not be asserted in isolation. The fixture is made to pass both halves rather than
+        the assertion being weakened; the half on its own is
+        `test_revocation_checked_but_failing_open_fires`.
+        """
         self._appliance("fw-ok", shared={"certificate-profile": {"entry": [
-            {"@name": "crl-only", "use-crl": "yes"},
-            {"@name": "ocsp-only", "use-ocsp": "yes"}]}})
+            {"@name": "crl-only", "use-crl": "yes",
+             "block-unknown-cert": "yes", "block-timeout-cert": "yes"},
+            {"@name": "ocsp-only", "use-ocsp": "yes",
+             "block-unknown-cert": "yes", "block-timeout-cert": "yes"}]}})
         self.assertEqual(self._cert_findings(), set())
+
+    def test_revocation_checked_but_failing_open_fires(self):
+        """PAN-CRT-004's second half, and the reachable attack is the timeout one.
+
+        `unknown_allowed` is the responder answering and declining to vouch for the certificate;
+        `timeout_allowed` is an adversary who can delay or drop the path to the responder getting
+        the same result as a revoked certificate being accepted, with no access to the firewall at
+        all. EITHER ONE ALONE FIRES: the assertion is `is not none`, not the conjunction of both
+        negations, which would pass the profile that blocks on one outcome and not the other.
+        """
+        self._appliance("fw-open", shared={"certificate-profile": {"entry": [
+            {"@name": "blocks-unknown-only", "use-ocsp": "yes", "block-unknown-cert": "yes"},
+            {"@name": "blocks-timeout-only", "use-crl": "yes", "block-timeout-cert": "yes"},
+            {"@name": "blocks-neither", "use-crl": "yes", "use-ocsp": "yes"},
+            {"@name": "blocks-both", "use-ocsp": "yes",
+             "block-unknown-cert": "yes", "block-timeout-cert": "yes"}]}})
+        self.assertEqual(
+            self._cert_findings(),
+            {("blocks-unknown-only", "shared"), ("blocks-timeout-only", "shared"),
+             ("blocks-neither", "shared")})
+        self.assertEqual(
+            CertificateProfile.objects.get(name="blocks-unknown-only").fail_open_mode,
+            CertificateProfile.FAIL_OPEN_TIMEOUT)
+        self.assertEqual(
+            CertificateProfile.objects.get(name="blocks-timeout-only").fail_open_mode,
+            CertificateProfile.FAIL_OPEN_UNKNOWN)
+
+    def test_the_fail_closed_half_is_silent_where_no_revocation_is_checked(self):
+        """The applicability clause, and why the suppression is not a silence.
+
+        A profile checking no revocation has no check to fail closed on, so a fail-open finding
+        there would name a consequence that cannot arise. Nothing is hidden by it: the SAME
+        profile is reported by this control's first half at the same severity, so it appears once
+        and under the right title. One finding per control per object, however many queries
+        match - which is why the matched-query list is what this asserts.
+        """
+        self._appliance("fw-neither", shared={"certificate-profile": {"entry": [
+            {"@name": "nothing-at-all", "CA": {"entry": [{"@name": "ca"}]}}]}})
+        self.assertEqual(self._cert_findings(), {("nothing-at-all", "shared")})
+        finding = CertificateProfileFinding.objects.get(subject_name="nothing-at-all")
+        self.assertEqual(
+            finding.matched_query_names, ["Neither revocation method is in use"])
 
     def test_an_explicit_no_fires_like_an_absent_key(self):
         """Both mean no revocation checking, so both must report.
