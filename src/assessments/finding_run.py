@@ -35,11 +35,21 @@ from assessments.session_settings_findings import generate_session_settings_find
 from assessments.tunnel_inspection_findings import generate_tunnel_inspection_findings
 from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
+from assessments.cloud_app_engine_findings import generate_cloud_app_engine_findings
 from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
 from assessments.ike_gateway_findings import generate_ike_gateway_findings
 from assessments.high_availability_findings import generate_high_availability_findings
 from assessments.panorama_registration_findings import (
     generate_panorama_registration_findings,
+)
+from assessments.saas_application_policy_posture_findings import (
+    generate_saas_application_policy_posture_findings,
+)
+from assessments.saas_url_filtering_posture_findings import (
+    generate_saas_url_filtering_posture_findings,
+)
+from assessments.sanctioned_application_marking_findings import (
+    generate_sanctioned_application_marking_findings,
 )
 from assessments.interface_management_profile_findings import (
     generate_interface_management_profile_findings,
@@ -109,6 +119,17 @@ GENERATORS = (
     # points at, so a reader meets the proposal before the binding that chooses it.
     ("ike crypto profile", T.IKE_CRYPTO_PROFILE, generate_ike_crypto_profile_findings),
     ("ike gateway", T.IKE_GATEWAY, generate_ike_gateway_findings),
+    # App-ID Cloud Engine before the three SaaS verdicts, because its state is the PREMISE they
+    # rest on: rules and filters naming cloud-delivered App-IDs stay visible in the policy while
+    # they stop enforcing, so a reader meets "the engine is not working" before any finding that
+    # assumes it is.
+    ("App-ID Cloud Engine", T.CLOUD_APP_ENGINE_SETTING, generate_cloud_app_engine_findings),
+    ("sanctioned application marking", T.SANCTIONED_APPLICATION_MARKING,
+     generate_sanctioned_application_marking_findings),
+    ("SaaS URL filtering posture", T.SAAS_URL_FILTERING_POSTURE,
+     generate_saas_url_filtering_posture_findings),
+    ("SaaS application policy posture", T.SAAS_APPLICATION_POLICY_POSTURE,
+     generate_saas_application_policy_posture_findings),
     # Last on purpose: it reports what the run could NOT establish, so it reads as the
     # footnote to everything above rather than as another finding family.
     ("coverage", T.COVERAGE, generate_coverage_findings),

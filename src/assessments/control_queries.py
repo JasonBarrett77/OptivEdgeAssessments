@@ -41,6 +41,10 @@ LLDP_GLOBAL_MODEL = "integrations.PanOsLldpGlobalSettings"
 DHCP_INTERFACE_CONFIG_MODEL = "integrations.PanOsDhcpInterfaceConfig"
 TUNNEL_INSPECTION_MODEL = "integrations.PanOsTunnelInspectionCoverage"
 ROUTING_ADJACENCY_MODEL = "integrations.PanOsRoutingAdjacency"
+SANCTIONED_APPLICATION_MARKING_MODEL = "integrations.SanctionedApplicationMarking"
+SAAS_URL_FILTERING_POSTURE_MODEL = "integrations.SaasUrlFilteringPosture"
+SAAS_APPLICATION_POLICY_POSTURE_MODEL = "integrations.SaasApplicationPolicyPosture"
+CLOUD_APP_ENGINE_SETTING_MODEL = "integrations.CloudAppEngineSetting"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -413,4 +417,34 @@ def evaluate_routing_adjacency_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or ROUTING_ADJACENCY_MODEL,
+    )
+def evaluate_sanctioned_application_marking_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SANCTIONED_APPLICATION_MARKING_MODEL,
+    )
+
+
+def evaluate_saas_url_filtering_posture_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SAAS_URL_FILTERING_POSTURE_MODEL,
+    )
+
+
+def evaluate_saas_application_policy_posture_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SAAS_APPLICATION_POLICY_POSTURE_MODEL,
+    )
+
+
+def evaluate_cloud_app_engine_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or CLOUD_APP_ENGINE_SETTING_MODEL,
     )

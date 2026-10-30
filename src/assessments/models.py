@@ -46,6 +46,10 @@ from optivedge_integrations.integrations.models import (
     PanOsRoutingAdjacency,
     PanOsSessionSettings,
     PanOsTunnelInspectionCoverage,
+    CloudAppEngineSetting,
+    SaasApplicationPolicyPosture,
+    SaasUrlFilteringPosture,
+    SanctionedApplicationMarking,
 )
 
 
@@ -150,6 +154,20 @@ class Control(models.Model):
         DHCP_INTERFACE_CONFIG = "dhcp_interface_config", "DHCP Interface Configuration"
         TUNNEL_INSPECTION = "tunnel_inspection", "Tunnel Inspection Coverage"
         ROUTING_ADJACENCY = "routing_adjacency", "Routing Adjacency"
+        #: The four `saas-security` subjects. THREE OF THEM ARE NAMED FOR A VERDICT AND NOT FOR
+        #: A PAN-OS OBJECT, which is what their rows are: the commonest state of this domain is
+        #: no entry at all, so the subject is the enforcement point and the row is a conclusion
+        #: about everything reachable from it. PAN-SAS-002 and PAN-SAS-004 share one type,
+        #: because two control types cannot name one model - `finding_registry` is keyed by
+        #: model and `generate_object_findings` filters by type.
+        SANCTIONED_APPLICATION_MARKING = (
+            "sanctioned_application_marking", "Sanctioned Application Marking")
+        SAAS_URL_FILTERING_POSTURE = (
+            "saas_url_filtering_posture", "SaaS URL Filtering Posture")
+        SAAS_APPLICATION_POLICY_POSTURE = (
+            "saas_application_policy_posture", "SaaS Application Policy Posture")
+        CLOUD_APP_ENGINE_SETTING = (
+            "cloud_app_engine_setting", "App-ID Cloud Engine")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -239,6 +257,10 @@ class Control(models.Model):
         "dhcp_interface_config": "integrations.PanOsDhcpInterfaceConfig",
         "tunnel_inspection": "integrations.PanOsTunnelInspectionCoverage",
         "routing_adjacency": "integrations.PanOsRoutingAdjacency",
+        "sanctioned_application_marking": "integrations.SanctionedApplicationMarking",
+        "saas_url_filtering_posture": "integrations.SaasUrlFilteringPosture",
+        "saas_application_policy_posture": "integrations.SaasApplicationPolicyPosture",
+        "cloud_app_engine_setting": "integrations.CloudAppEngineSetting",
     }
 
     class Meta:
@@ -292,6 +314,10 @@ class Control(models.Model):
         "integrations.PanOsDhcpInterfaceConfig": "DHCP Interface Configuration",
         "integrations.PanOsTunnelInspectionCoverage": "Tunnel Inspection Coverage",
         "integrations.PanOsRoutingAdjacency": "Routing Adjacency",
+        "integrations.SanctionedApplicationMarking": "Sanctioned Application Marking",
+        "integrations.SaasUrlFilteringPosture": "SaaS URL Filtering Posture",
+        "integrations.SaasApplicationPolicyPosture": "SaaS Application Policy Posture",
+        "integrations.CloudAppEngineSetting": "App-ID Cloud Engine",
     }
 
     @property
@@ -2643,3 +2669,263 @@ class RoutingAdjacencyFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.routing_adjacency_finding_id} <- {self.control_query_id}"
+
+
+class SanctionedApplicationMarkingFinding(ObjectFindingBase):
+    """A finding against one enforcement point's approved-application inventory. PAN-SAS-001.
+
+    THE SUBJECT IS A VERDICT AND NOT A NAMED OBJECT, so `subject_name` holds the enforcement
+    point rather than an entry key. That is a departure from every other `ObjectFindingBase`
+    subclass and it is the right one here: the commonest failing state of this control is that
+    NO application-tag entry exists at all, so there is no object to name - and the engineer
+    fixing "this partition approves nothing" opens Objects > Applications for that vsys rather
+    than any one application.
+
+    `subject_scope` IS DECLARED, because the name is the partition and a partition name is not
+    unique across an estate: `vsys1` exists on every single-vsys firewall. The scope carries the
+    appliance, which is what makes two rows of the same name tellable apart.
+
+    WHAT THE FINDING CANNOT SAY. A marking pushed from a Panorama device group counts toward the
+    count - it is in force here - and the row has no column saying where a marking was authored,
+    so "this partition approves nothing" cannot be told from "this partition's whole inventory is
+    pushed". The remediation names the firewall's own vsys node, which an engineer cannot edit
+    for a pushed marking.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="sanctioned_application_marking_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="sanctioned_application_marking_findings")
+    sanctioned_application_marking = models.ForeignKey(
+        SanctionedApplicationMarking, on_delete=models.CASCADE, related_name="findings")
+    #: The appliance the partition belongs to. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SanctionedApplicationMarkingFindingControlQuery",
+        related_name="sanctioned_application_marking_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["sanctioned_application_marking"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "sanctioned_application_marking"],
+                name="unique_sasmark_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on approval marking {self.subject_name}"
+
+
+class SanctionedApplicationMarkingFindingControlQuery(FindingControlQueryBase):
+    sanctioned_application_marking_finding = models.ForeignKey(
+        SanctionedApplicationMarkingFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="sanctioned_application_marking_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sanctioned_application_marking_finding", "control_query"],
+                name="unique_sasmark_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.sanctioned_application_marking_finding_id} "
+                f"<- {self.control_query_id}")
+
+
+class SaasUrlFilteringPostureFinding(ObjectFindingBase):
+    """A finding against what one enforcement point's URL Filtering profiles do for SaaS.
+
+    PAN-SAS-002 and PAN-SAS-004, which fail independently on one row: a partition can insert a
+    tenant-restriction header on the traffic and still leave the consumer-storage web categories
+    in no restricting list at all.
+
+    A VERDICT SUBJECT, named and scoped like the sibling above and for the same reason: no
+    url-filtering profile row exists to hang either control on, because
+    `normalization/security_profiles.py::PROFILE_KINDS` holds four kinds and this is not one of
+    them.
+
+    THE FINDING CANNOT ATTRIBUTE THE SCOPE OF WHAT IT READ, and on this estate that matters:
+    every url-filtering profile actually present on the lab appliances is Panorama-pushed, and a
+    pushed profile is in the firewall's own container under no configuration read. So a finding
+    that this partition enforces no tenant restriction may be remediated by telling an engineer
+    to add header insertion to a profile the firewall will refuse to edit.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="saas_url_filtering_posture_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="saas_url_filtering_posture_findings")
+    saas_url_filtering_posture = models.ForeignKey(
+        SaasUrlFilteringPosture, on_delete=models.CASCADE, related_name="findings")
+    subject_scope = models.CharField(max_length=128, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SaasUrlFilteringPostureFindingControlQuery",
+        related_name="saas_url_filtering_posture_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["saas_url_filtering_posture"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "saas_url_filtering_posture"],
+                name="unique_sasurl_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on SaaS URL filtering posture {self.subject_name}"
+
+
+class SaasUrlFilteringPostureFindingControlQuery(FindingControlQueryBase):
+    saas_url_filtering_posture_finding = models.ForeignKey(
+        SaasUrlFilteringPostureFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="saas_url_filtering_posture_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["saas_url_filtering_posture_finding", "control_query"],
+                name="unique_sasurl_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.saas_url_filtering_posture_finding_id} <- {self.control_query_id}"
+
+
+class SaasApplicationPolicyPostureFinding(ObjectFindingBase):
+    """A finding against what one enforcement point's application policy does about SaaS.
+
+    PAN-SAS-003. A VERDICT SUBJECT, named and scoped like its siblings.
+
+    ONE HALF OF PAN-SAS-004 ALSO ASSERTS ON THIS SUBJECT AND CANNOT REACH IT. That control's
+    `control_type` resolves to the URL-filtering posture, `Control.save()` derives one
+    `target_model` from the type, and `ControlQuery.clean()` refuses a query on another model -
+    so the attribute-driven half of PAN-SAS-004 produces no finding anywhere. Splitting that
+    control into two catalogue ids is a product decision; the stage 8 artifact for
+    `saas-security` records it under `subjects_in_two_models`.
+
+    A DISABLED RULE COUNTS toward every verdict this model carries, which the normalizer that
+    writes them records as probably wrong: a disabled deny rule reports a refusal no session will
+    ever meet. The direction of that error is the unsafe one and it is stated rather than hidden.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="saas_application_policy_posture_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="saas_application_policy_posture_findings")
+    saas_application_policy_posture = models.ForeignKey(
+        SaasApplicationPolicyPosture, on_delete=models.CASCADE, related_name="findings")
+    subject_scope = models.CharField(max_length=128, blank=True)
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SaasApplicationPolicyPostureFindingControlQuery",
+        related_name="saas_application_policy_posture_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["saas_application_policy_posture"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "saas_application_policy_posture"],
+                name="unique_sasapp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on SaaS application policy posture "
+                f"{self.subject_name}")
+
+
+class SaasApplicationPolicyPostureFindingControlQuery(FindingControlQueryBase):
+    saas_application_policy_posture_finding = models.ForeignKey(
+        SaasApplicationPolicyPostureFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="saas_application_policy_posture_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["saas_application_policy_posture_finding", "control_query"],
+                name="unique_sasapp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.saas_application_policy_posture_finding_id} "
+                f"<- {self.control_query_id}")
+
+
+class CloudAppEngineFinding(ObjectFindingBase):
+    """A finding against one appliance's App-ID Cloud Engine. PAN-SAS-005.
+
+    ONE ROW PER APPLIANCE, because the node is a device-wide singleton - so unlike the three
+    verdict models above, the owner is the appliance and `subject_name` is its hostname. On an HA
+    pair the setting is synchronised and this produces two findings for one configuration, which
+    nothing deduplicates. No `subject_scope`: a hostname is the scope.
+
+    THE FINDING RESTS ON AN OPERATIONAL READ AND NOT ON THE CONFIGURATION, which is the whole
+    point of this subject. The configured `disable` key is absent on every lab appliance, so a
+    control reading it alone passes all four - while the engine itself reports a failed licence
+    check, a failed cloud connection and a missing device certificate on every one of them.
+
+    AND THE CONTROL IS SILENT WHERE THE LICENCE IS THE REASON, by design: an appliance with no
+    subscription was never what this half of PAN-SAS-005 was about, and its other half - whether
+    the adoption decision is on the record - is an engineer's answer rather than a configuration
+    read, so no query exists for it. The absence of a finding here is therefore not a statement
+    that the engine is healthy.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="cloud_app_engine_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="cloud_app_engine_findings")
+    cloud_app_engine_setting = models.ForeignKey(
+        CloudAppEngineSetting, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="CloudAppEngineFindingControlQuery",
+        related_name="cloud_app_engine_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["cloud_app_engine_setting"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "cloud_app_engine_setting"],
+                name="unique_sasace_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on App-ID Cloud Engine {self.subject_name}"
+
+
+class CloudAppEngineFindingControlQuery(FindingControlQueryBase):
+    cloud_app_engine_finding = models.ForeignKey(
+        CloudAppEngineFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="cloud_app_engine_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cloud_app_engine_finding", "control_query"],
+                name="unique_sasace_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.cloud_app_engine_finding_id} <- {self.control_query_id}"
