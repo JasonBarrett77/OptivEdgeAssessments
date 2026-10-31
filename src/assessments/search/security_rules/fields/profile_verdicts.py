@@ -162,6 +162,20 @@ GRADING_FIELDS = {
     # `signature-unscoped` (medium, the baseline tier and so queryless) and
     # `inline-analysis-population` (high) - and the blank passing state.
     "vulnerability_widest_exemption_surface": _V.VULNERABILITY_EXCEPTIONS,
+    # PAN-SPY-001's grading: WHICH severity band the anti-spyware profile leaves un-stopped.
+    # `critical` and `high` both sit at the control's own baseline tier and are queried anyway,
+    # because the band is what a reader of the row needs and stage 6 names this column as the
+    # clause those subjects violate. `medium` is UNREACHABLE and deliberately has no query:
+    # `SecurityProfile.worst_unstopped_severity` returns `medium` only when critical and high
+    # are both stopped, which makes `spyware_blocks_critical_high` TRUE - and every query on
+    # this control carries that assertion as `eq false`, so no row can hold both.
+    "spyware_worst_unstopped_severity": _V.SPYWARE_SEVERITIES,
+    # PAN-SPY-002's grading: what the profile does with a lookup on the vendor's own downloaded
+    # malicious-domain list. Four members, `sinkhole` passing, the other three all queried.
+    "spyware_dns_content_list_action": _V.SPYWARE_DNS_SINKHOLE,
+    # PAN-SPY-004's grading: the weakest action any inline analysis engine holds. `allow` (high)
+    # and `alert` (medium, the baseline tier) fire; the four stopping actions pass.
+    "spyware_worst_engine_action": _V.SPYWARE_INLINE,
 }
 
 PROFILE_VERDICT_GRADING_COMPILERS = {

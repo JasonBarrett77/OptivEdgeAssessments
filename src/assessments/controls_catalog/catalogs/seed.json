@@ -2562,7 +2562,7 @@
           "control_id": "PAN-SPY-001",
           "name": "Anti-Spyware Profile Blocks Critical/High/Medium Severity",
           "control_type": "security_rule",
-          "description": "Anti-spyware signatures detect command-and-control, credential theft and post-exploitation beaconing. Critical and high severities must be blocked; leaving them at alert turns C2 detection into a log entry while the channel stays open.\\n\\nWHAT IS ASSESSED. Every custom Anti-Spyware profile - local vsys, local shared, and Panorama-pushed - and the predefined `default` and `strict` profiles WHEN a rule or profile group uses them (Jason, 2026-09-11). An unused predefined profile protects nothing; the shipped `default` protecting a rule is the commonest weak configuration there is.\\n\\nTHE VERDICT IS ORDER-INDEPENDENT. A severity is blocked only when a catch-all rule covers it - any threat name, any category - and every rule that can match it takes a blocking action. No document says whether profile rules are first-match, and this reading does not need to know: it cannot pass a weak profile. Its cost is that a non-blocking rule BELOW a broad blocking one still fails the severity.\\n\\nBLOCKING is drop, reset-client, reset-server, reset-both or block-ip. The corpus minimum names reset-both alone; any blocking action passes here (Jason, 2026-09-11). `default` is NOT blocking - a signature's default action is typically alert or reset-both (Web Interface Help p.272), so it cannot be relied on, and the predefined `default` profile is exactly that case.\\n\\nFires when critical OR high is not blocked, which is the corpus minimum. Medium is the corpus PREFERRED value: it is on the row and queryable, and fires nothing.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO anti-spyware profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.",
+          "description": "Anti-spyware signatures detect command-and-control, credential theft and post-exploitation beaconing. Critical and high severities must be blocked; leaving them at alert turns C2 detection into a log entry while the channel stays open.\n\nWHAT IS ASSESSED. Every custom Anti-Spyware profile - local vsys, local shared, and Panorama-pushed - and the predefined `default` and `strict` profiles WHEN a rule or profile group uses them (Jason, 2026-09-11). An unused predefined profile protects nothing; the shipped `default` protecting a rule is the commonest weak configuration there is.\n\nTHE VERDICT IS ORDER-INDEPENDENT. A severity is blocked only when a catch-all rule covers it - any threat name, any category - and every rule that can match it takes a blocking action. No document says whether profile rules are first-match, and this reading does not need to know: it cannot pass a weak profile. Its cost is that a non-blocking rule BELOW a broad blocking one still fails the severity.\n\nBLOCKING is drop, reset-client, reset-server, reset-both or block-ip. The corpus minimum names reset-both alone; any blocking action passes here (Jason, 2026-09-11). `default` is NOT blocking - a signature's default action is typically alert or reset-both (Web Interface Help p.272), so it cannot be relied on, and the predefined `default` profile is exactly that case.\n\nFires when critical OR high is not blocked, which is the corpus minimum. Medium is the corpus PREFERRED value: it is on the row and queryable, and fires nothing.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO anti-spyware profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.\n\nWHY MEDIUM CANNOT BE REPORTED HERE, measured 2026-10-31. The graded column reads `medium` only when critical and high are BOTH stopped - and that makes this control's own assertion true, so every query on it excludes the row. A profile stopping critical and high but not medium is therefore below the vendor's recommendation and is reported by nothing. Reporting it needs an assertion this control does not make, which is stage 3's decision and not this entry's.",
           "rationale": "Critical and high severity signatures that only alert turn detection into a log entry while the attack proceeds.",
           "audit": "Objects > Security Profiles > Anti-Spyware > <profile> > Rules, and which Security policy rules and Security Profile Groups reference it.",
           "remediation": "Give the profile a catch-all rule for critical and high severity with a reset or drop action, and remove or tighten any rule that alerts on those severities. For a predefined profile, point the rules and groups using it at `strict` or at a custom profile instead - predefined profiles cannot be edited.",
@@ -2598,7 +2598,86 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_blocks_critical_high"
+              ]
+            },
+            {
+              "name": "Critical severity left un-stopped",
+              "short_description": "Rules whose anti-spyware profile leaves critical severity signatures un-stopped.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_blocks_critical_high",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_worst_unstopped_severity",
+                    "op": "eq",
+                    "value": "critical"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_blocks_critical_high",
+                "spyware_worst_unstopped_severity"
+              ]
+            },
+            {
+              "name": "High severity left un-stopped",
+              "short_description": "Rules whose anti-spyware profile stops critical but leaves high severity signatures un-stopped.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_blocks_critical_high",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_worst_unstopped_severity",
+                    "op": "eq",
+                    "value": "high"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_blocks_critical_high",
+                "spyware_worst_unstopped_severity"
+              ]
             }
           ]
         },
@@ -3990,7 +4069,124 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_dns_sinkholes"
+              ]
+            },
+            {
+              "name": "Content list permits the lookup",
+              "short_description": "Rules whose anti-spyware profile permits a lookup on the Palo Alto Networks Content malicious-domain list, so nothing is blocked and nothing is logged.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_dns_sinkholes",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_dns_content_list_action",
+                    "op": "eq",
+                    "value": "allow"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_dns_sinkholes",
+                "spyware_dns_content_list_action"
+              ]
+            },
+            {
+              "name": "Content list only records the lookup",
+              "short_description": "Rules whose anti-spyware profile alerts on a lookup on the Palo Alto Networks Content malicious-domain list, so the lookup still resolves.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_dns_sinkholes",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_dns_content_list_action",
+                    "op": "eq",
+                    "value": "alert"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_dns_sinkholes",
+                "spyware_dns_content_list_action"
+              ]
+            },
+            {
+              "name": "Content list blocks without sinkholing",
+              "short_description": "Rules whose anti-spyware profile blocks a lookup on the Palo Alto Networks Content malicious-domain list but does not sinkhole it, so the infected client is never identified.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_dns_sinkholes",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_dns_content_list_action",
+                    "op": "eq",
+                    "value": "block"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_dns_sinkholes",
+                "spyware_dns_content_list_action"
+              ]
             }
           ]
         },
@@ -4034,7 +4230,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_dns_categories_enforced"
+              ]
             }
           ]
         },
@@ -4075,7 +4274,86 @@
                   }
                 ]
               },
-              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis detector that does not block."
+              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis detector that does not block.",
+              "asserted_fields": [
+                "spyware_inline_analysis_blocks"
+              ]
+            },
+            {
+              "name": "An inline engine permits the verdict",
+              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis engine set to allow, so a malicious verdict is discarded and no log entry is written.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_inline_analysis_blocks",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_worst_engine_action",
+                    "op": "eq",
+                    "value": "allow"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_inline_analysis_blocks",
+                "spyware_worst_engine_action"
+              ]
+            },
+            {
+              "name": "An inline engine only records the verdict",
+              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis engine set to alert, so the session is delivered and a threat log is written.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "spyware_inline_analysis_blocks",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "spyware_worst_engine_action",
+                    "op": "eq",
+                    "value": "alert"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "spyware_inline_analysis_blocks",
+                "spyware_worst_engine_action"
+              ]
             }
           ],
           "implementation_version": "v3",
@@ -4309,7 +4587,10 @@
                   }
                 ]
               },
-              "short_description": "Rules whose anti-spyware profile carries threat exceptions."
+              "short_description": "Rules whose anti-spyware profile carries threat exceptions.",
+              "asserted_fields": [
+                "spyware_exceptions_minimal"
+              ]
             }
           ],
           "implementation_version": "v3",

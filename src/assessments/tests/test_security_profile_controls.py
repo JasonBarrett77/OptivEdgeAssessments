@@ -133,7 +133,7 @@ class ThreatProfileRuleControlTests(_LabFixture):
         self.run = AssessmentRun.objects.create(
             name="run", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
 
-    def _rule(self, name, verdicts, **kwargs):
+    def _rule(self, name, verdicts, grading=None, **kwargs):
         """A rule plus one verdict row per assertion.
 
         `verdicts` maps an assertion to (satisfied, detail, profile_name). Any assertion left
@@ -142,14 +142,23 @@ class ThreatProfileRuleControlTests(_LabFixture):
         It defaulted to NULL until 2026-10-12, when absence became a finding - after which
         every test here fired all eleven controls and none was about what it said.
         `_rule_with_no_profiles` is the NULL case, which now has to be asked for explicitly.
+
+        `grading` maps an assertion to its `grading_value`, and DEFAULTS TO BLANK for every
+        assertion - which is both the shipped default and a real state, the one a rule nobody
+        has recomputed is in. It is a separate argument rather than a fourth tuple element
+        because every other call site here passes three, and a blank grading is the right
+        default for all of them: it matches no calibration query, so those tests keep reporting
+        at their control's baseline tier, which is what they assert.
         """
+        grading = grading or {}
         rule = self._bare_rule(name, **kwargs)
         for assertion in dict(V.ASSERTION_CHOICES):
             satisfied, detail, profile_name = verdicts.get(
                 assertion, (True, "", "a-satisfying-profile"))
             SecurityRuleProfileVerdict.objects.create(
                 security_rule=rule, assertion=assertion, profile_name=profile_name,
-                satisfied=satisfied, detail=detail)
+                satisfied=satisfied, detail=detail,
+                grading_value=grading.get(assertion, ""))
         # A named profile on every row is a RESOLVED profile, which is what the coverage pass
         # would have recorded beside these rows.
         SecurityRule.objects.filter(pk=rule.pk).update(vulnerability_profile_resolved=True)
@@ -297,6 +306,85 @@ class ThreatProfileRuleControlTests(_LabFixture):
         generate_rule_findings(self.run)
         self.assertEqual(
             RuleFinding.objects.get(control__control_id="PAN-SPY-002").severity, "high")
+
+    # ------------------------------------------------- the three anti-spyware grading axes
+    # PAN-SPY-001, -002 and -004 calibrate their severity off `grading_value`. Added by the
+    # stage 8 run on anti-spyware, 2026-10-31, which is also when the three grading fields were
+    # registered - before it, all five controls reported at their baseline tier whatever the
+    # grading said, so three of stage 6's measured subjects got the wrong severity and one of
+    # them got it too LOW.
+
+    def _severity(self, control_id):
+        generate_rule_findings(self.run)
+        return RuleFinding.objects.get(control__control_id=control_id).severity
+
+    def test_an_inline_engine_at_allow_is_graded_ABOVE_the_control_default(self):
+        """The one calibration that RAISES. PAN-SPY-004 defaults to medium and `allow` is high,
+        so without the query this row under-reports - the direction Jason's 2026-10-31 ruling
+        ('assume the worst case and let the engineer reduce the severity') is about."""
+        self._rule("engine-allow", {V.SPYWARE_INLINE: (False, "detectors not blocking", "p")},
+                   grading={V.SPYWARE_INLINE: "allow"})
+        self.assertEqual(self._severity("PAN-SPY-004"), "high")
+
+    def test_an_inline_engine_at_alert_is_graded_AT_the_control_default(self):
+        self._rule("engine-alert", {V.SPYWARE_INLINE: (False, "detectors not blocking", "p")},
+                   grading={V.SPYWARE_INLINE: "alert"})
+        self.assertEqual(self._severity("PAN-SPY-004"), "medium")
+
+    def test_the_dns_content_list_grading_ranks_three_ways(self):
+        """`allow`, `alert` and `block` are three distinct ranks on one control, and the
+        shipped baseline reported all three at high."""
+        for value, expected in (("allow", "high"), ("alert", "medium"), ("block", "low")):
+            with self.subTest(value=value):
+                RuleFinding.objects.all().delete()
+                SecurityRule.objects.all().delete()
+                self._rule(f"dns-{value}",
+                           {V.SPYWARE_DNS_SINKHOLE: (False, f"action is {value}", "p")},
+                           grading={V.SPYWARE_DNS_SINKHOLE: value})
+                self.assertEqual(self._severity("PAN-SPY-002"), expected)
+
+    def test_a_blank_grading_reports_at_the_baseline_tier_rather_than_losing_the_finding(self):
+        """The state a rule nobody recomputed is in. The calibration is lost and the FINDING is
+        kept, because the verdict clause beside it matches False and NULL alike."""
+        self._rule("ungraded", {V.SPYWARE_INLINE: (False, "detectors not blocking", "p")})
+        self.assertEqual(self._severity("PAN-SPY-004"), "medium")
+
+    def test_a_calibration_query_does_not_widen_the_control_onto_a_deny_rule(self):
+        """Every active query is OR-ed, never ANDed onto the baseline, so a calibration carrying
+        only its own threshold would report rows the applicability clauses exclude. Measured on
+        the worst case: a deny rule whose profile fails the assertion AND holds a graded value."""
+        self._rule("deny-graded", {V.SPYWARE_INLINE: (False, "detectors not blocking", "p")},
+                   grading={V.SPYWARE_INLINE: "allow"}, action="deny")
+        self.assertEqual(self._fired(), [])
+
+    def test_a_calibration_query_does_not_widen_the_control_onto_a_PASSING_rule(self):
+        """The other half: a graded value on a rule whose assertion is SATISFIED. The grading
+        column alone would report the most compliant configuration in the estate."""
+        self._rule("pass-graded", {}, grading={V.SPYWARE_INLINE: "allow"})
+        self.assertEqual(self._fired(), [])
+
+    def test_the_MEDIUM_band_of_PAN_SPY_001_cannot_be_reported_at_all(self):
+        """Measured 2026-10-31, and it is why that grading's `medium` placement has no query.
+
+        `SecurityProfile.worst_unstopped_severity` returns `medium` only when critical and high
+        are BOTH stopped - which makes `spyware_blocks_critical_high` TRUE, and every query on
+        the control carries that assertion as `eq false`. So the row the placement describes is
+        excluded by the control's own assertion and no severity can reach it. The control's name
+        promises the band; its description now says why it cannot report it."""
+        self._rule("medium-only", {}, grading={V.SPYWARE_SEVERITIES: "medium"})
+        self.assertEqual(self._fired(), [])
+
+    def test_a_rule_the_assessment_never_ran_over_fires_NO_spyware_control(self):
+        """NOT A PASS, and recorded as a test so the gap is not re-discovered.
+
+        The verdict compilers filter on `profile_verdicts__assertion` before they look at the
+        value, so a rule with NO verdict row matches neither the True nor the False arm. The
+        four PAN-VLN controls catch this with `vulnerability_verdict_written`; there is no
+        `spyware_verdict_written` column, so all five PAN-SPY controls pass such a rule in
+        silence. Filed in the stage 8 artifact's handback, not fixed here - the column is
+        stage 7's to add and this stage may not add one."""
+        self._bare_rule("never-assessed-for-spyware")
+        self.assertEqual([cid for cid, _ in self._fired() if cid.startswith("PAN-SPY")], [])
 
     def test_a_disabled_rule_still_reports_and_says_so(self):
         """A disabled rule is one click from live, so the finding is real - and must say it."""

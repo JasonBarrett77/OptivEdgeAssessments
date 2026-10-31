@@ -161,7 +161,21 @@ def threat_profile_lines(rule, fields=None) -> list[str]:
         if getattr(rule, field, None) is True:
             continue
         detail = getattr(rule, f"{field}_detail", "")
-        lines.append(f"{label}: {detail}" if detail else f"{label}: not satisfied")
+        text = detail or "not satisfied"
+        # THE GRADED VALUE, WHERE THE ASSERTION HAS ONE, because a calibration query clauses on
+        # it and `hidden_fields` then declares it presented - and for one axis no cell carried
+        # it. `spyware_worst_engine_action` is the case that forced this: the detail beside it
+        # names the DETECTORS that do not block and never says whether they sit at `allow` or
+        # `alert`, which is the whole difference between PAN-SPY-004 at high and at medium. The
+        # other axes' details do happen to state their value - the severity detail leads with
+        # the worst un-stopped band, the DNS one names the action - so this makes two
+        # declarations explicit and the third one true. Read off the verdict row rather than a
+        # per-axis property, so a tenth graded assertion needs nothing here.
+        verdict_row = rule.profile_verdict(field)
+        graded = (verdict_row.grading_value if verdict_row else "") or ""
+        if graded:
+            text = f"{text} (graded {graded})"
+        lines.append(f"{label}: {text}")
     return lines
 
 

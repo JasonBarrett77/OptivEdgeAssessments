@@ -75,6 +75,22 @@ _EXTRA_HIDDEN = {
         # leaving a row whose cells all look fine, which is what that check exists to stop.
         "vulnerability_verdict_written",
     ),
+    "anti-spyware": (
+        # THE THREE GRADING AXES PAN-SPY-001, -002 and -004 CALIBRATE THEIR SEVERITY WITH, each
+        # claused on by that control's calibration queries. All three are carried by the
+        # Profiles cell, which prints `(graded <value>)` beside the failing assertion's detail -
+        # see `security_rules.threat_profile_lines`, where that suffix was added for exactly
+        # this declaration. It is the same fact and not a second one: the grading axis IS the
+        # value the row's severity was derived from, and the cell now names it.
+        #
+        # None of the three is a candidate for a column of its own here, because this sheet sets
+        # `auto_setting_columns=False` and `tested_columns=()` - it has no Setting / Observed
+        # value block at all - so a column would be a hand-written one, which is stage 9's
+        # decision and not this one's.
+        "spyware_worst_unstopped_severity",
+        "spyware_dns_content_list_action",
+        "spyware_worst_engine_action",
+    ),
 }
 
 
