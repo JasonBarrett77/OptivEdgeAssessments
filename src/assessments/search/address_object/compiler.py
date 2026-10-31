@@ -17,6 +17,23 @@ direction these controls exist to prevent.
 references being uncollected is not a finding — it is a list sitting unused in the address
 book. The collection flow only fetches lists that normalised rule refs point at, so the
 unreferenced ones are expected to be unsized and must not be reported as a gap.
+
+`size_known` AND `collection_attempted` STAY REGISTERED AND NOTHING SHOULD CLAUSE ON THEM. They
+are kept because the shipped PAN-COV-001 baseline rested on both until 2026-10-31, and because
+dropping a registration refuses any catalogue payload that still carries one. Both are TRUE for
+a list the firewall has never read a byte of: a never-fetched list answers `total-valid 1` with
+the single member `0.0.0.0/32`, which is a syntactically valid address, so
+`resolved_content_source_total` becomes 1 and `num_hosts` becomes 1. `content_was_fetched` is
+the column that tells the device's answers apart, and a coverage assertion belongs on that.
+
+`build_choice_compiler` RAISES ON A VALUE OUTSIDE THE COLUMN'S CHOICES rather than matching
+nothing. Copied from `search/normalization_issue/compiler.py`, where the reasoning is written
+out; used here for the two columns a control's whole population turns on. A mistyped
+`address_type` would make one half of PAN-COV-001 match no row and say nothing, and a mistyped
+`content_shortfall_band` would drop a severity band the same way. `address_type` was registered
+as free text until 2026-10-31, when the name-based half of PAN-COV-001 made it load-bearing; no
+catalogue query had used it before that, and the configuration pages that map to it ask `eq`
+with a value read off a row, which is always a member.
 """
 
 from __future__ import annotations
@@ -52,6 +69,31 @@ def build_text_compiler(field_name, lookup_field):
         return AddressObject.objects.filter(
             **{f"{lookup_field}__{suffix}": value.strip()}).values("pk")
     compiler.SUPPORTED_OPERATORS = TEXT_OPERATORS
+    return compiler
+
+
+def build_choice_compiler(field_name, lookup_field, choices):
+    """`eq` against a closed set, refusing a value the column cannot hold.
+
+    See the module docstring for why this raises where `build_text_compiler` would compile a
+    clause that matches nothing. The members are read off the model's own `choices` rather than
+    restated, so a member added to the column cannot go missing here.
+    """
+    members = {str(stored) for stored, _label in choices}
+
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, str) or not value.strip():
+            raise SearchSyntaxError(f"{field_name} search value must be a non-empty string.")
+        candidate = value.strip()
+        if candidate not in members:
+            raise SearchSyntaxError(
+                f"{field_name} has no value {candidate!r}. It is one of: "
+                f"{', '.join(sorted(members))}.")
+        return AddressObject.objects.filter(**{lookup_field: candidate}).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
     return compiler
 
 
@@ -112,7 +154,12 @@ def build_referenced_by_policy_compiler(field_name):
 
 FIELD_COMPILERS = {
     "name": build_text_compiler("name", "name"),
-    "address_type": build_text_compiler("address_type", "address_type"),
+    #: The kind discriminator, and the scope clause of both halves of PAN-COV-001: `edl` for the
+    #: imported-list half and `fqdn` for the name-based half. The four address kinds are
+    #: mutually exclusive on the device - it names the choice set in its own validation message -
+    #: so this is the clause that keeps one half from reporting the other half's rows.
+    "address_type": build_choice_compiler(
+        "address_type", "address_type", AddressObject.ADDRESS_TYPE_CHOICES),
     "namespace_type": build_text_compiler("namespace_type", "namespace_type"),
     "is_edl": build_boolean_compiler("is_edl", "is_edl"),
     "num_hosts": build_integer_compiler("num_hosts", "num_hosts"),
@@ -129,6 +176,37 @@ FIELD_COMPILERS = {
     "resolved_content_truncated": build_boolean_compiler(
         "resolved_content_truncated", "resolved_content_truncated"),
     "referenced_by_policy": build_referenced_by_policy_compiler("referenced_by_policy"),
+    #: WHETHER THE FIREWALL HAS EVER FETCHED THIS LIST'S CONTENT, and the only column that tells
+    #: the device's answers apart. MEASURED on pan-fw-111 2026-10-29: never fetched answers
+    #: total-valid 1 with the single member `0.0.0.0/32`; a fetch that FAILED answers
+    #: total-valid 0 / total-invalid 1 with the reason verbatim; a fetched list answers a real
+    #: count with real members; and a fourth reply carries every counter zero with no member key
+    #: at all. The first, second and fourth are all False here, because nothing in the reply
+    #: separates "fetched an empty list" from "never fetched" and the unknown fires.
+    #:
+    #: It is the ASSERTION of PAN-COV-001's imported-list half and the APPLICABILITY of
+    #: PAN-COV-002: a list nobody fetched cannot be found to be part-kept. That pair is what
+    #: makes the two controls a partition rather than two chances to report one row.
+    "content_was_fetched": build_boolean_compiler(
+        "content_was_fetched", "content_was_fetched"),
+    #: Whether this collection read the firewall's FQDN resolution table AND found a stanza for
+    #: this object's name. TRUE DOES NOT MEAN THE REACH IS KNOWN - a stanza answering only AAAA,
+    #: or the `::  unknown` sentinel, leaves num_hosts null with this true. What it establishes
+    #: is that somebody asked, which `size_known` cannot say: it reads false for a name nobody
+    #: looked up, a name looked up and answered with nothing, and a name that resolved correctly
+    #: to IPv6 only - and the third of those is a healthy object.
+    "resolution_was_read": build_boolean_compiler(
+        "resolution_was_read", "resolution_was_read"),
+    #: How far the content this collection kept falls short of what the device said the list
+    #: holds, bucketed. The GRADED column of PAN-COV-002, so the severity queries clause on it.
+    #: A closed choice set rather than the raw ratio on purpose: a grading over the integer
+    #: range would have had to place the two sentinels stage 4 measured - total-valid 1 and
+    #: total-valid 0 - and both of them sort at the gentle end of a numeric comparison while
+    #: meaning the two worst-known states. Equality on a band keeps them out of it, and
+    #: `content_not_fetched` is where they land.
+    "content_shortfall_band": build_choice_compiler(
+        "content_shortfall_band", "content_shortfall_band",
+        AddressObject.CONTENT_SHORTFALL_BAND_CHOICES),
 }
 
 FIELD_OPERATOR_REGISTRY = {

@@ -60,6 +60,8 @@ PROBE_VALUES = (
     "local",            # a real config_source choice
     "error",            # a real NormalizationIssue.severity choice
     "skipped",          # a real NormalizationIssue.disposition choice
+    "edl",              # a real AddressObject.address_type choice
+    "equal",            # a real AddressObject.content_shortfall_band choice
 )
 
 

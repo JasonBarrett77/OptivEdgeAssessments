@@ -46,27 +46,49 @@ def _subject(obj) -> str:
     """The one sentence a coverage finding contributes.
 
     Says what is unknown and WHY it is unknown, because the remediation differs: a list nobody
-    collected needs the EDL/FQDN cache refresh run, while one truncated at our ceiling needs a
-    decision about the ceiling. Neither is something to change on the firewall.
+    collected needs the EDL/FQDN cache refresh run, one truncated at our ceiling needs a
+    decision about the ceiling, and a name-based object may need the engineer to say whether
+    the name was ever meant to resolve. None of them is something to change on the firewall.
+
+    THE PART-KEPT ARM TESTS BOTH COLUMNS and not `resolved_content_truncated` alone. The flag
+    compares the members kept against the device's own total, so a device reporting a total
+    with no usable members at all sets it while `content_was_fetched` stays false - which is a
+    row PAN-COV-001 reports and PAN-COV-002 excludes. Branching on the flag alone put the
+    part-kept sentence on a row whose content was never read.
     """
     subject = f"{obj.get_address_type_display()} {obj.name}{_where(obj)}"
 
-    if obj.resolved_content_truncated:
+    if obj.resolved_content_truncated and obj.content_was_fetched:
         kept = obj.num_hosts if obj.num_hosts is not None else "an unknown number of"
         reported = obj.resolved_content_source_total
+        members = obj.resolved_member_count
         return matched_query_sentence(
             f"{subject} was collected only in part - {kept} addresses kept of "
             f"{reported if reported is not None else 'an unreported total'} the device "
-            f"reported, so its size is a known under-count and any breadth scored from it is "
-            f"a floor rather than a figure",
+            f"reported"
+            + (f", built from the {members} members this collection held" if members is not None
+               else "")
+            + ", so its size is a known under-count and any breadth scored from it is "
+              "a floor rather than a figure",
+            [],
+        )
+
+    if obj.address_type == AddressObject.TYPE_FQDN:
+        return matched_query_sentence(
+            f"{subject} has no resolved addresses on record, because this assessment did not "
+            f"read the firewall's own resolution table for that name - so the number of "
+            f"addresses it permits is unknown. Run the EDL/FQDN cache refresh. If the name is "
+            f"still unresolved afterwards then the firewall does not resolve it, which is a "
+            f"configuration question for the engineer rather than a gap here; either way, "
+            f"until it is answered no rule referencing it can be scored for breadth",
             [],
         )
 
     return matched_query_sentence(
-        f"{subject} has no resolved content, so the number of addresses it permits is unknown. "
-        f"It is referenced by policy and has never been collected, or the collection returned "
-        f"nothing. Run the EDL/FQDN cache refresh; until then any rule referencing it cannot "
-        f"be scored for breadth",
+        f"{subject} has no collected content, so the number of addresses it permits is "
+        f"unknown. It is referenced by policy and the firewall has never fetched it, or a "
+        f"fetch was attempted and returned nothing usable. Run the EDL/FQDN cache refresh; "
+        f"until then any rule referencing it cannot be scored for breadth",
         [],
     )
 

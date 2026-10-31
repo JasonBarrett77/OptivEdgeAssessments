@@ -2890,42 +2890,67 @@
           "name": "External Dynamic List Content Not Collected",
           "control_type": "coverage",
           "default_severity": "medium",
-          "description": "An address object referenced by policy whose content has never been collected, so the number of addresses it permits is unknown.\n\nTHIS IS A FINDING ABOUT THE ASSESSMENT, NOT THE DEVICE. Nothing here says the firewall is misconfigured. It says a question could not be answered, and it exists because the alternative is silence: an object with no size falls through a breadth score as the NARROWEST possible value, which is a false negative on the controls whose whole purpose is finding rules that permit too much.\n\nWHY IT HAPPENS. EDL and FQDN content lives only in the device's runtime cache, never in its configuration, so it is collected by the separate \"Refresh EDL/FQDN Cache\" action rather than by a configuration sync. That action is deliberately not part of a regular refresh - FQDN is one cheap call per appliance, but EDL collection is one call per referenced list, each potentially paged - so a freshly synced estate legitimately has none of it.\n\nONLY REFERENCED OBJECTS REPORT. A list sitting unused in the address book is not a gap; collection follows normalized rule references, so an unreferenced list is expected to be unsized.\n\nONLY WHERE NOBODY ASKED. The query requires that no collection has reported on the object at all. An object a collection DID reach, and which the device then failed to resolve, is not this - it is a device fault and reports as PAN-POL-023. The two are identical in the size column and are told apart by whether the device ever answered.\n\nNOT the same as an EDL the DEVICE could not fetch, which is a real defect in the customer's configuration and is PAN-POL-023. The two are distinguishable: a device that tried and failed leaves a snapshot reporting its own totals, where a list nobody collected has no snapshot at all.",
+          "description": "An address object a security rule relies on whose content this assessment never read, so the number of addresses that rule admits is unknown.\n\nTHIS IS A FINDING ABOUT THE ASSESSMENT, NOT THE DEVICE. Nothing here says the firewall is misconfigured. It says a question could not be answered, and it exists because the alternative is silence: an object with no size falls through a breadth score as the NARROWEST possible value, which is a false negative on the controls whose whole purpose is finding rules that permit too much.\n\nTWO HALVES, AND EITHER ONE FIRES. An imported list - an external dynamic list - whose content the firewall has never fetched; and a name-based object - an FQDN - for which this collection never read the firewall's own resolution table. They are one control because they are one question asked of two kinds of object, and the answer a reader needs is the same: the rule's reach was not established. Which half fired is on the row, in the setting the finding marks.\n\nWHY IT HAPPENS. EDL and FQDN content lives only in the device's runtime cache, never in its configuration, so it is collected by the separate \"Refresh EDL/FQDN Cache\" action rather than by a configuration sync. That action is deliberately not part of a regular refresh - FQDN is one cheap call per appliance, but EDL collection is one call per referenced list, each potentially paged - so a freshly synced estate legitimately has none of it.\n\nONLY REFERENCED OBJECTS REPORT. A list sitting unused in the address book is not a gap; collection follows normalized rule references, so an unreferenced list is expected to be unsized. A firewall does not resolve a name no policy uses either - measured: a committed FQDN object was absent from the resolution table fourteen minutes and several refresh windows after a successful commit - so reporting unreferenced objects would report the whole address book.\n\nWHAT \"NEVER READ\" IS, MEASURED RATHER THAN INFERRED. A list the firewall has never fetched does not answer empty: it answers one valid member, the literal 0.0.0.0/32. That is a syntactically valid address, so every count derived from it reads as a successful collection - the recorded total becomes 1, the size becomes 1 host, and a rule naming that list scores its side as the narrowest thing on the device. The member literal is the discriminator and no count is. A fetch the firewall ATTEMPTED AND FAILED answers nothing valid with the reason in its own words, and a fourth reply carries every counter zero with no members at all; both of those are also \"not read\", because nothing in the reply separates a list fetched and found empty from one never fetched.\n\nA DEVICE THAT TRIED AND FAILED NOW REPORTS HERE, which is a change from this control's first implementation. That state is a defect in the customer's configuration - a live rule behind a list the firewall cannot reach - and it is PAN-POL-023's subject, which today has no generator and therefore reports nowhere. Reporting the worst case and letting the engineer reduce it is the standing decision; a silence that reads as \"collected and fine\" is not available. The remediation below says which case a reader is looking at: if the object is still unread after a refresh, the device could not supply it and the fault moves to the customer.",
           "rationale": "A breadth score computed over an object of unknown size is not a conservative estimate, it is a wrong one in the dangerous direction - the rule reads as tight and nobody has reason to doubt it. Medium because the assessment, not the estate, is what is incomplete; it should be visible and actioned, not compete with real findings.",
-          "audit": "Objects > Addresses. An EDL or FQDN object showing no resolved content. The remedy is to run the EDL/FQDN cache refresh, which contacts the device; a configuration sync will not fill it.",
-          "remediation": "Run \"Refresh EDL/FQDN Cache\" for the management station, then regenerate findings. If it remains unresolved afterwards the device itself cannot fetch the list, which is PAN-POL-023 and is the customer's to fix.",
+          "audit": "Objects > Addresses. An external dynamic list showing no resolved content, or a name-based (FQDN) object with no resolved addresses. The remedy is to run the EDL/FQDN cache refresh, which contacts the device; a configuration sync will not fill it.",
+          "remediation": "Run \"Refresh EDL/FQDN Cache\" for the management station, then regenerate findings. A row that clears was a gap in this assessment and nothing more. A row that remains is the device's own: the firewall cannot fetch the list, or cannot resolve the name, which is the customer's to fix and is PAN-POL-023's ground rather than this control's. For a name-based object, confirm with the engineer whether the name is expected to resolve from the firewall's own resolution path - the record cannot tell a name nobody looked up from a name that was looked up and answered with nothing, and the two need different remedies.",
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A referenced external dynamic list whose content the firewall has never fetched.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
+              "asserted_fields": [
+                "content_was_fetched"
+              ],
               "canonical_query": {
                 "model": "integrations.AddressObject",
                 "operator": "and",
                 "clauses": [
+                  {
+                    "field": "address_type",
+                    "op": "eq",
+                    "value": "edl"
+                  },
                   {
                     "field": "referenced_by_policy",
                     "op": "eq",
                     "value": true
                   },
                   {
-                    "field": "is_edl",
+                    "field": "content_was_fetched",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Name-based object resolution never read",
+              "short_description": "A referenced FQDN object for which the firewall's resolution table was not read.",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "asserted_fields": [
+                "resolution_was_read"
+              ],
+              "canonical_query": {
+                "model": "integrations.AddressObject",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "address_type",
+                    "op": "eq",
+                    "value": "fqdn"
+                  },
+                  {
+                    "field": "referenced_by_policy",
                     "op": "eq",
                     "value": true
                   },
                   {
-                    "field": "size_known",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "resolved_content_truncated",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "collection_attempted",
+                    "field": "resolution_was_read",
                     "op": "eq",
                     "value": false
                   }
@@ -2933,7 +2958,7 @@
               }
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.AddressObject"
         },
@@ -2942,22 +2967,36 @@
           "name": "External Dynamic List Content Truncated at the Collection Ceiling",
           "control_type": "coverage",
           "default_severity": "medium",
-          "description": "An external dynamic list whose content was collected only in part, because it holds more members than the collection ceiling keeps.\n\nTHE CEILING IS OURS, NOT THE DEVICE'S. The firewall reports the full total and will serve it; collection stops at 50,000 members per list to bound how much of one response has to be held and stored. So this is a limit of the assessment, and the number of addresses recorded for the object is a known UNDER-COUNT.\n\nWHAT IT MEANS FOR ANYTHING SCORED FROM IT. A breadth figure derived from a truncated list is a floor rather than a figure: the object is at least this broad and may be far broader. The device's own reported total is kept beside the collected count, so the shortfall is readable rather than inferred.\n\nIt is also worth knowing on its own terms. A list of more than fifty thousand entries is a large thing for a rule to depend on, and whether anyone has looked at what is in it is a fair question for an assessor to ask.",
+          "description": "An external dynamic list a security rule relies on whose content was collected only in part, so the number of addresses recorded for it is a known under-count.\n\nTHE CEILING IS OURS, NOT THE DEVICE'S. The firewall reports the full total and will serve it; collection stops at 50,000 members per list to bound how much of one response has to be held and stored. So this is a limit of the assessment rather than a fault on the device.\n\nWHAT IT MEANS FOR ANYTHING SCORED FROM IT. A breadth figure derived from a partly collected list is a floor rather than a figure: the object is at least this broad and may be far broader. The device's own reported total is kept beside the collected count, so the shortfall is readable rather than inferred, and the severity on the row is set by how large it is - within about one step of the truth is low, a sample large enough to mislead is medium, several bands below the truth is high.\n\nTHE FLAG IS WIDER THAN THIS CONTROL'S NAME. Any shortfall between what the device reported and what was kept sets it, including a paging walk that ended early; the 50,000 ceiling is never consulted when it is written. So a row here says \"we kept less than the device said it holds\", which is the fact a reader can act on, and not specifically \"this list exceeds fifty thousand entries\".\n\nA LIST NOBODY FETCHED IS NOT PART-KEPT, and is excluded here rather than left to arithmetic. A list the firewall has never fetched answers one valid member - the literal 0.0.0.0/32 - so a ratio computed over it is exactly 1.0 and would land in the gentlest band, reporting the most incomplete object on the device as the most compliant. Those rows report under PAN-COV-001 instead, at its own severity. The two controls partition: PAN-COV-001 fires where the content was never fetched, this one only where it was, so no unread list is silent and none is reported twice.\n\nIt is also worth knowing on its own terms. A list of tens of thousands of entries is a large thing for a rule to depend on, and whether anyone has looked at what is in it is a fair question for an assessor to ask.",
           "rationale": "An under-count reads as a smaller object, and a smaller object reads as a tighter rule. Recording the truncation is what stops a partial collection being mistaken for a complete one. Medium for the same reason as PAN-COV-001: the gap is in what was measured, not in the estate.",
-          "audit": "Objects > Addresses. The object reports both the number of addresses collected and the total the device reported; they disagree.",
-          "remediation": "Nothing on the device. Either accept the floor, or raise the collection ceiling and re-run the EDL/FQDN cache refresh if the exact size matters to a finding that rests on it.",
+          "audit": "Objects > Addresses. The object reports both the number of members collected and the total the device reported; they disagree, and the band on the finding says by how much.",
+          "remediation": "Nothing on the device. Either accept the floor, or raise the collection ceiling and re-run the EDL/FQDN cache refresh if the exact size matters to a finding that rests on it. Where the shortfall is large, treat every breadth figure taken from this object as a lower bound until it is collected whole.",
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A referenced external dynamic list whose fetched content was kept only in part.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
+              "asserted_fields": [
+                "resolved_content_truncated"
+              ],
               "canonical_query": {
                 "model": "integrations.AddressObject",
                 "operator": "and",
                 "clauses": [
                   {
+                    "field": "address_type",
+                    "op": "eq",
+                    "value": "edl"
+                  },
+                  {
                     "field": "referenced_by_policy",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "content_was_fetched",
                     "op": "eq",
                     "value": true
                   },
@@ -2968,9 +3007,91 @@
                   }
                 ]
               }
+            },
+            {
+              "name": "Shortfall up to two times",
+              "short_description": "The kept part already fixes the order of magnitude: worth recording, not worth alarming.",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "asserted_fields": [
+                "content_shortfall_band"
+              ],
+              "canonical_query": {
+                "model": "integrations.AddressObject",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "address_type",
+                    "op": "eq",
+                    "value": "edl"
+                  },
+                  {
+                    "field": "referenced_by_policy",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "content_was_fetched",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "resolved_content_truncated",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "content_shortfall_band",
+                    "op": "eq",
+                    "value": "up_to_two_times"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Shortfall more than ten times",
+              "short_description": "A reach computed from the kept part can sit several bands below the truth.",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "asserted_fields": [
+                "content_shortfall_band"
+              ],
+              "canonical_query": {
+                "model": "integrations.AddressObject",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "address_type",
+                    "op": "eq",
+                    "value": "edl"
+                  },
+                  {
+                    "field": "referenced_by_policy",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "content_was_fetched",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "resolved_content_truncated",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "content_shortfall_band",
+                    "op": "eq",
+                    "value": "more_than_ten_times"
+                  }
+                ]
+              }
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.AddressObject"
         },

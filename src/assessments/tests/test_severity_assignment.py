@@ -57,7 +57,17 @@ class SeededSeverityTests(TestCase):
 
     def test_every_non_baseline_query_carries_one(self):
         """A non-baseline query with no severity would match, contribute nothing, and leave the
-        finding at the default - indistinguishable from the query not existing."""
+        finding at the default - indistinguishable from the query not existing.
+
+        THAT REASON DOES NOT COVER EVERY NON-BASELINE QUERY, and the rule holds anyway. A
+        control stated as two halves over one model carries a second query whose job is to
+        widen the POPULATION rather than to calibrate: the union over a control's active
+        queries decides what fires, so such a query is distinguishable from not existing even
+        though its severity equals the control's default. PAN-COV-001's name-based half is one,
+        from 2026-10-31. It carries `medium` explicitly - the tier the pipeline's stage 5
+        record for that half declares - so the invariant stays mechanical and no reader has to
+        infer a tier from an absence.
+        """
         for cat in load_seed_payload()["catalogs"]:
             for control in cat["controls"]:
                 for query in control["queries"]:
