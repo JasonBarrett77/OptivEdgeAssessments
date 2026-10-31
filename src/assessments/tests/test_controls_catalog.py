@@ -12,6 +12,7 @@ from assessments.controls_catalog.io.importers import (
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import validate_catalog_payload
+from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
     AssessmentRun,
@@ -37,6 +38,32 @@ def build_security_rule_query(value: str) -> dict:
             }
         ],
     }
+
+
+class SeededCatalogTextTests(TestCase):
+    """The text a CUSTOMER reads, checked on the shipped payload rather than on a model."""
+
+    def test_no_control_ships_a_literal_backslash_n(self):
+        """A paragraph break written `\\n` in the JSON reaches the page as two CHARACTERS.
+
+        FOUND BY A SIDEWAYS GLANCE, NOT BY A READER. The stage 8 anti-spyware run of 2026-10-31
+        fixed eight of these in PAN-SPY-001's description and reported it as that control's
+        defect; the same grep over the whole payload found 28 controls carrying 132 of them,
+        across PAN-AUTH, PAN-CRT, PAN-MGT and PAN-VLN, every one in `description` and every one a
+        paragraph break beside REAL newlines in the same string. So the shape is a known one: an
+        author escaping a newline twice in a field that already holds them literally.
+
+        Checked here and not in a template filter because the payload is where it is wrong - a
+        filter would hide it from the next author, and `description` is the one field with no
+        length limit and the most prose in it.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                for field, value in control.items():
+                    if isinstance(value, str) and "\\n" in value:
+                        offenders.setdefault(control["control_id"], []).append(field)
+        self.assertEqual(offenders, {})
 
 
 class ControlsCatalogTests(TestCase):
