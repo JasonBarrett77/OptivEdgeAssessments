@@ -131,14 +131,33 @@ class PolicyHygieneTests(TestCase):
 
         self.assertEqual(self._severities("PAN-AVW-003"), {"stale": "high"})
 
-    def test_a_disabled_rule_is_out_of_scope(self):
-        """Same scope as PAN-POL-008: the question is what inspection is in force on traffic
-        the rule permits, and a disabled rule permits none."""
+    def test_a_disabled_allow_rule_IS_in_scope_for_AVW_003(self):
+        """CHANGED 2026-10-31, and the method was renamed because it never ran.
+
+        It was `test_a_disabled_rule_is_out_of_scope`, which is also the name of the
+        PAN-POL-008 test 160 lines below in this same class - so Python bound the later
+        definition and this one was dead from the day it was written. Nothing in the suite
+        ever asserted PAN-AVW-003's scope on `disabled`, which is how the clause below
+        survived the ruling that removed it everywhere else.
+
+        THE RULING: Jason, 2026-10-14, "keep disabled rules in scope" - a disabled allow rule
+        is one click from carrying traffic, and its finding already says DISABLED. 3e2cc5a
+        left `disabled eq false` out of the eleven threat-profile baselines for exactly that
+        reason and passed this control over on the ground that it "already led with three
+        scope clauses", which was true and left the ruled-out clause standing. Removed from
+        PAN-AVW-003's baseline on 2026-10-31, so all twelve now scope alike - see
+        `test_a_disabled_allow_rule_with_no_profile_fires_every_control` in
+        `test_security_profile_controls.py`, which is the same assertion for the other eleven.
+        """
         self._rule("disabled-no-wf", disabled=True, wildfire=None)
 
-        self.assertEqual(self._severities("PAN-AVW-003"), {})
+        self.assertEqual(self._severities("PAN-AVW-003"), {"disabled-no-wf": "high"})
 
-    def test_a_deny_rule_is_out_of_scope(self):
+    def test_a_deny_rule_is_out_of_scope_for_AVW_003(self):
+        """Renamed for the same reason as the test above: `test_a_deny_rule_is_out_of_scope`
+        is also PAN-POL-024's, 95 lines below, so this one never ran either. The assertion is
+        unchanged and still holds - a rule that denies passes no traffic for a profile to
+        analyse."""
         self._rule("deny-no-wf", action="deny", wildfire=None)
 
         self.assertEqual(self._severities("PAN-AVW-003"), {})
@@ -200,7 +219,9 @@ class PolicyHygieneTests(TestCase):
 
         self.assertEqual(self._severities("PAN-POL-014"), {})
 
-    def test_the_predefined_defaults_are_out_of_scope(self):
+    def test_the_predefined_defaults_are_out_of_scope_for_POL_014(self):
+        """Renamed 2026-10-31: three tests in this class shared this name, so only the last
+        was ever bound and run. Assertion unchanged."""
         self._rule("intrazone-default", source=ANY, disabled=True,
                    config_source=SecurityRule.SOURCE_DEFAULT)
 
@@ -246,8 +267,10 @@ class PolicyHygieneTests(TestCase):
         self.assertEqual(self._severities("PAN-POL-024"), {})
         self.assertEqual(self._severities("PAN-POL-014"), {"disabled-any-zones": "low"})
 
-    def test_the_predefined_defaults_are_out_of_scope(self):
-        """They carry no zone elements at all, and their match tuple cannot be edited."""
+    def test_the_predefined_defaults_are_out_of_scope_for_POL_024(self):
+        """They carry no zone elements at all, and their match tuple cannot be edited.
+
+        Renamed 2026-10-31 for the same reason as the PAN-POL-014 one above."""
         self._rule("interzone-default", from_zone=None, to_zone=None,
                    config_source=SecurityRule.SOURCE_DEFAULT)
 

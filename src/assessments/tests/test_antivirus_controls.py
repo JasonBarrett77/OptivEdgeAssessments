@@ -634,8 +634,50 @@ class UnusedProfileControlTests(_AntivirusFixture):
         self.assertEqual(self._fired_profiles("PAN-AVW-006"),
                          {"strong-but-idle": "low", "weak-but-idle": "low"})
 
-    def test_a_profile_of_another_kind_is_out_of_scope(self):
-        """v1 is antivirus only. An unused anti-spyware profile is nobody's finding yet."""
+    def test_an_unreferenced_WILDFIRE_ANALYSIS_profile_reports(self):
+        """THE SECOND HALF, added 2026-10-31. The corpus names antivirus AND WildFire
+        analysis profiles; v1 shipped antivirus only.
+
+        That was never a judgement about the second kind. The configuration explorer has one
+        page per profile KIND, a control query is linked to the page whose scope its clauses
+        contain, and a query SPANNING two kinds matches neither page - so the resolver refuses
+        to guess. The limit is about one QUERY, not about one control: every active query is
+        OR'd when the control is evaluated (standing ruling 6), so the second half is a second
+        query naming one kind, and each stays answerable against its own page.
+        """
+        self._profile("wf-orphan", {}, kind=SecurityProfile.KIND_WILDFIRE_ANALYSIS,
+                      used=False, ml={})
+
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {"wf-orphan": "low"})
+
+    def test_a_referenced_WILDFIRE_ANALYSIS_profile_is_silent(self):
+        self._profile("wf-in-service", {}, kind=SecurityProfile.KIND_WILDFIRE_ANALYSIS,
+                      used=True, ml={})
+
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})
+
+    def test_an_unused_PREDEFINED_wildfire_analysis_profile_is_out_of_scope(self):
+        """The same scope decision as the antivirus half. The applicability clause is carried
+        on BOTH queries - a half missing the baseline's exclusion widens the control onto
+        objects that never qualified."""
+        self._profile("default", {}, kind=SecurityProfile.KIND_WILDFIRE_ANALYSIS,
+                      predefined=True, used=False, ml={})
+
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})
+
+    def test_both_halves_report_together_and_each_names_its_own_profile(self):
+        """One control, two queries, one finding per profile. The pair covers the subject the
+        corpus names, which is what the OR is for."""
+        self._profile("av-orphan", ALL_BLOCK, used=False)
+        self._profile("wf-orphan", {}, kind=SecurityProfile.KIND_WILDFIRE_ANALYSIS,
+                      used=False, ml={})
+
+        self.assertEqual(self._fired_profiles("PAN-AVW-006"),
+                         {"av-orphan": "low", "wf-orphan": "low"})
+
+    def test_a_profile_of_an_UNCOVERED_kind_is_out_of_scope(self):
+        """Antivirus and WildFire analysis are the two kinds the corpus names here. An unused
+        anti-spyware profile is nobody's finding yet."""
         self._profile("spy-orphan", {}, kind=SecurityProfile.KIND_SPYWARE, used=False, ml={})
 
         self.assertEqual(self._fired_profiles("PAN-AVW-006"), {})

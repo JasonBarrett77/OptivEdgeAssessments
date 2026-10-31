@@ -3808,6 +3808,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "antivirus_blocks_malware"
+              ],
               "short_description": "Rules whose antivirus profile lets malware through on a decoder or an application exception."
             }
           ]
@@ -3854,6 +3857,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "antivirus_inline_ml_blocks"
+              ],
               "short_description": "Rules whose antivirus profile has a WildFire inline ML model that does not block."
             }
           ]
@@ -3863,10 +3869,10 @@
           "name": "Unused AV / WildFire Profiles (Hygiene)",
           "control_type": "security_profile",
           "target_model": "integrations.SecurityProfile",
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "default_severity": "low",
-          "description": "An antivirus profile that no security rule and no profile group names.\n\nV1 IS ANTIVIRUS ONLY, where the corpus names antivirus AND WildFire analysis profiles. Not a judgement about WildFire analysis - a structural limit worth stating. The configuration explorer has one page per profile KIND, mirroring PAN-OS's own tabs, and a control query is linked to the page whose scope its clauses contain. A query spanning two kinds matches neither page, and the resolver refuses to guess rather than send an assessor somewhere plausible and wrong. WildFire analysis profiles ARE collected and have their own page; covering them needs a sibling control or a resolver that can answer a two-kind query, and `oep-wf-unused` is standing on the lab for whichever lands.\n\nAn unreferenced profile is drift: it was built for something, that something changed, and the profile stayed. The risk is not the profile sitting there - it is the next administrator attaching it believing it current, which is how a rule ends up protected by settings nobody has looked at in two years.\n\nWHAT COUNTS AS A REFERENCE. A rule naming the profile directly in its profile-setting, or a profile group naming it. Both are already resolved - `is_used` and `referrer_count` are written by the referrer walk, which reads rules and groups across every scope a reference can resolve through.\n\nTHE PREDEFINED PROFILES ARE OUT OF SCOPE. `default` ships with the device and exists whether anyone uses it or not; an unused one says nothing about the estate. A rule protected by it is PAN-AVW-001's and PAN-AVW-002's business, not this control's. Same scope decision as PAN-SPY-001 reaches from the other side.\n\nIT SAYS NOTHING ABOUT THE PROFILE'S CONTENTS. An unused profile that blocks everything reports here exactly like an unused one that blocks nothing - the finding is that it is unattached. Whether it would protect anything is PAN-AVW-001, 002 and 003.\n\nLOW, and deliberately. Nothing is exposed by a profile nobody uses. The corpus marks it hygiene and so does this - it belongs in the same sweep as the other unused-object controls, not in a remediation queue.",
+          "description": "An antivirus or WildFire analysis profile that no security rule and no profile group names.\n\nBOTH KINDS, AS TWO ONE-KIND QUERIES (2026-10-31). V1 was antivirus only, where the corpus names antivirus AND WildFire analysis profiles. That was never a judgement about WildFire analysis - it was a structural limit: the configuration explorer has one page per profile KIND, mirroring PAN-OS's own tabs, a control query is linked to the page whose scope its clauses contain, and a query SPANNING two kinds matches neither page, so the resolver refuses to guess rather than send an assessor somewhere plausible and wrong.\n\nThe limit is about one query, not about one control. A control fires when either half holds (standing ruling 6), and every active query is OR'd when the control is evaluated - so two queries, each naming ONE kind, cover both subjects while each stays answerable against its own page. Nothing new was needed in the store: every column both queries name already shipped on the profile row.\n\nAn unreferenced profile is drift: it was built for something, that something changed, and the profile stayed. The risk is not the profile sitting there - it is the next administrator attaching it believing it current, which is how a rule ends up protected by settings nobody has looked at in two years.\n\nWHAT COUNTS AS A REFERENCE. A rule naming the profile directly in its profile-setting, or a profile group naming it. Both are already resolved - `is_used` and `referrer_count` are written by the referrer walk, which reads rules and groups across every scope a reference can resolve through.\n\nTHE PREDEFINED PROFILES ARE OUT OF SCOPE. `default` ships with the device and exists whether anyone uses it or not; an unused one says nothing about the estate. A rule protected by it is PAN-AVW-001's and PAN-AVW-002's business, not this control's. Same scope decision as PAN-SPY-001 reaches from the other side.\n\nIT SAYS NOTHING ABOUT THE PROFILE'S CONTENTS. An unused profile that blocks everything reports here exactly like an unused one that blocks nothing - the finding is that it is unattached. Whether it would protect anything is PAN-AVW-001, 002 and 003.\n\nLOW, and deliberately. Nothing is exposed by a profile nobody uses. The corpus marks it hygiene and so does this - it belongs in the same sweep as the other unused-object controls, not in a remediation queue.",
           "rationale": "A rulebase accumulates profiles the way it accumulates rules, and nothing in the UI distinguishes a profile in service from one abandoned three migrations ago. An assessor can clear the list quickly once it exists; nobody produces it by hand.",
           "audit": "Objects > Security Profiles > Antivirus and > WildFire Analysis. The finding names the profile and its scope; the referrer count on its row is zero, which is the whole assertion.",
           "remediation": "Delete it, or attach it where it was meant to go. If it is kept deliberately - a pre-staged profile for an incident, say - record that, because nothing in the configuration distinguishes it from one that was forgotten.",
@@ -3898,7 +3904,42 @@
                     "value": false
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "is_used"
+              ],
+              "short_description": "Antivirus profiles that no security rule and no profile group names."
+            },
+            {
+              "name": "Unreferenced WildFire analysis profile",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "wildfire-analysis"
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "is_used"
+              ],
+              "short_description": "WildFire analysis profiles that no security rule and no profile group names."
             }
           ]
         },
@@ -3907,7 +3948,7 @@
           "name": "WildFire Analysis Profile Submits All File Types",
           "control_type": "security_rule",
           "default_severity": "high",
-          "description": "A security rule whose traffic is not fully sent for WildFire sandbox analysis.\n\nPER RULE, NOT PER PROFILE. A WildFire analysis profile nothing uses endangers nothing; a rule carries traffic. The same profile can be correct for one rule and absent from another, and the remediation - attach a profile, or widen one - belongs to the rule. PAN-AVW-006 is the control that asks about unused profiles.\n\nTHREE WAYS A RULE FAILS, and they have different fixes, so the finding says which:\n\n  - NO PROFILE REACHES IT. The rule names none, or names a profile group that names no WildFire analysis profile, or names one that resolves to nothing in scope. Nothing is sent. On the lab this is the common case: 113 rules point at a group called `default` that names no profiles at all.\n  - THE PROFILE SENDS NOTHING. A profile with no `rules` node, an empty one, or a rule carrying only a name are all valid configuration - measured 2026-10-09 by writing each - and all three submit nothing while looking configured.\n  - THE PROFILE IS TOO NARROW. Its rules name specific file types rather than `any`, or specific applications, or a single direction.\n\nWHAT IT ASSERTS. Some rule in the profile in force covers `any` file type, `any` application and both directions. The corpus names `any` for both its minimum and its preferred value, differing only in that the preferred adds direction `both` and all application traffic; this asserts the preferred, per the checklist's rule of asserting the stricter and letting an assessor relax it.\n\nBOTH DIRECTIONS MATTER and the corpus says why: inbound is delivery, outbound is exfiltration and beacon staging. A profile set to `upload` only leaves every delivered file unanalysed.\n\nA RULE WITH NO DIRECTION SET IS REPORTED, not passed. The device accepts a profile rule carrying no `direction` and stores none; the UI writes `both` when a rule is added through the form, so no instance of the absent case exists to read and nothing establishes what the device then does. Unestablished must not render as fine.\n\nTHE SHIPPED PROFILE PASSES, which is the reverse of PAN-AVW-001 and 002. The predefined `default` carries one rule: file-type `any`, application `any`, direction `both`, analysis `public-cloud` - read off the device 2026-10-09. So a rule that uses the shipped profile is fine here, and the finding is about rules that reach no profile or a hand-narrowed one.\n\nPRIVATE CLOUD IS NOT THE SAME COVERAGE, and this control does not report it. Help p.308: \"A WildFire private cloud (hosted by a WildFire appliance) does not support analysis of APK, Mac OS X, archive, and linux files.\" So a rule whose profile asks for `file-type any` at `analysis private-cloud` still leaves four types unanalysed. The corpus explicitly permits private-cloud where data residency requires it, so firing on it would contradict the corpus - and the claim is documentation, not measurement: no WildFire appliance exists on the lab to confirm it. Recorded here so an assessor reading a passing private-cloud rule knows what the pass means.\n\nWHAT THIS CONTROL DOES NOT COVER. Device-wide WildFire settings gate what is actually forwarded regardless of the profile - a file type listed here is still never analysed if it exceeds `deviceconfig/setting/wildfire/file-size-limit` for its type. That is PAN-AVW-004 and it is a separate subject; this control asserts what the profile asks for, not what the platform ultimately sends.\n\nSCOPE. Enabled allow rules that are not the implicit defaults - the same scope as PAN-POL-008, because the question is the same shape: what inspection is in force on traffic this rule permits.",
+          "description": "A security rule whose traffic is not fully sent for WildFire sandbox analysis.\n\nPER RULE, NOT PER PROFILE. A WildFire analysis profile nothing uses endangers nothing; a rule carries traffic. The same profile can be correct for one rule and absent from another, and the remediation - attach a profile, or widen one - belongs to the rule. PAN-AVW-006 is the control that asks about unused profiles.\n\nTHREE WAYS A RULE FAILS, and they have different fixes, so the finding says which:\n\n  - NO PROFILE REACHES IT. The rule names none, or names a profile group that names no WildFire analysis profile, or names one that resolves to nothing in scope. Nothing is sent. On the lab this is the common case: 113 rules point at a group called `default` that names no profiles at all.\n  - THE PROFILE SENDS NOTHING. A profile with no `rules` node, an empty one, or a rule carrying only a name are all valid configuration - measured 2026-10-09 by writing each - and all three submit nothing while looking configured.\n  - THE PROFILE IS TOO NARROW. Its rules name specific file types rather than `any`, or specific applications, or a single direction.\n\nWHAT IT ASSERTS. Some rule in the profile in force covers `any` file type, `any` application and both directions. The corpus names `any` for both its minimum and its preferred value, differing only in that the preferred adds direction `both` and all application traffic; this asserts the preferred, per the checklist's rule of asserting the stricter and letting an assessor relax it.\n\nBOTH DIRECTIONS MATTER and the corpus says why: inbound is delivery, outbound is exfiltration and beacon staging. A profile set to `upload` only leaves every delivered file unanalysed.\n\nA RULE WITH NO DIRECTION SET IS REPORTED, not passed. The device accepts a profile rule carrying no `direction` and stores none; the UI writes `both` when a rule is added through the form, so no instance of the absent case exists to read and nothing establishes what the device then does. Unestablished must not render as fine.\n\nTHE SHIPPED PROFILE PASSES, which is the reverse of PAN-AVW-001 and 002. The predefined `default` carries one rule: file-type `any`, application `any`, direction `both`, analysis `public-cloud` - read off the device 2026-10-09. So a rule that uses the shipped profile is fine here, and the finding is about rules that reach no profile or a hand-narrowed one.\n\nPRIVATE CLOUD IS NOT THE SAME COVERAGE, and this control does not report it. Help p.308: \"A WildFire private cloud (hosted by a WildFire appliance) does not support analysis of APK, Mac OS X, archive, and linux files.\" So a rule whose profile asks for `file-type any` at `analysis private-cloud` still leaves four types unanalysed. The corpus explicitly permits private-cloud where data residency requires it, so firing on it would contradict the corpus - and the claim is documentation, not measurement: no WildFire appliance exists on the lab to confirm it. Recorded here so an assessor reading a passing private-cloud rule knows what the pass means.\n\nWHAT THIS CONTROL DOES NOT COVER. Device-wide WildFire settings gate what is actually forwarded regardless of the profile - a file type listed here is still never analysed if it exceeds `deviceconfig/setting/wildfire/file-size-limit` for its type. That is PAN-AVW-004 and it is a separate subject; this control asserts what the profile asks for, not what the platform ultimately sends.\n\nSCOPE. Allow rules that are not the implicit defaults - the same scope as PAN-POL-008 and as the eleven threat-profile controls, because the question is the same shape: what inspection is in force on traffic this rule permits.\n\nA DISABLED ALLOW RULE IS REPORTED (2026-10-31). V1 also carried `disabled eq false`, which made this the one av-wildfire control that excluded switched-off rules. That clause is the one Jason ruled out on 2026-10-14 - \"keep disabled rules in scope\", because a disabled allow rule is one click from carrying traffic and its finding already says DISABLED - and 3e2cc5a left it out of the eleven threat-profile baselines for exactly that reason. This control was passed over by that commit on the ground that it \"already led with three scope clauses\", which was true and left the ruled-out clause standing. Removed here, so all twelve per-rule threat-profile controls now scope alike.",
           "rationale": "WildFire is the only thing that catches malware with no signature yet, and the profile decides what it ever sees. A file type the profile filters out is an unanalysed delivery channel, and a rule that reaches no profile at all is every file type filtered out. The gap is invisible from the rule itself: it shows a profile group and looks configured.",
           "audit": "For each enabled allow rule, resolve what it actually reaches: Policies > Security, the rule's Profile column, then Objects > Security Profile Groups for the group it names and whether that group lists a WildFire Analysis profile. Then Objects > Security Profiles > WildFire Analysis for that profile's Rules tab - FILE TYPES must read `any`, APPLICATIONS `any`, and DIRECTION `both`. A profile with an empty Rules tab sends nothing. Note the ANALYSIS column too: `private-cloud` does not analyse APK, Mac OS X, archive or linux files at all, so a private-cloud profile asking for every file type still leaves four unanalysed.",
           "remediation": "Attach a WildFire analysis profile to every rule that permits traffic, through the profile group the rules already name rather than rule by rule. The predefined `default` profile already submits everything, so referencing it is sufficient where no local policy requires otherwise; where a custom profile exists, give it a rule with file type `any`, application `any` and direction `both`. Check the device-wide file size limits too - PAN-AVW-004 - since a type above its limit is never analysed whatever the profile says.",
@@ -3933,20 +3974,19 @@
                     "negated": true
                   },
                   {
-                    "field": "disabled",
-                    "op": "eq",
-                    "value": false
-                  },
-                  {
                     "field": "wildfire_analysis_submits_all",
                     "op": "eq",
                     "value": false
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "wildfire_analysis_submits_all"
+              ],
+              "short_description": "Allow rules whose traffic is not fully sent for WildFire sandbox analysis."
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.SecurityRule"
         },
@@ -3955,7 +3995,7 @@
           "name": "WildFire File Size Limits Tuned",
           "control_type": "wildfire_settings",
           "default_severity": "low",
-          "description": "An appliance whose WildFire file size limits are all still at the PAN-OS default.\n\nA TUNING CHECK, not a maximisation check (Jason, 2026-10-09). The corpus asks for the platform maximum; Help p.774 advises the opposite in the paragraph that describes the field - \"if the limit is too large and prevents the firewall from forwarding multiple large zero-day files at the same time, lower and tune the maximum limit based on the amount of available firewall buffer space.\" Both cannot be asserted, and asserting the maximum would call the vendor's own advice a finding. So this asks the question that IS answerable from configuration - has anybody sized these at all - and is neutral on direction: a value moved off its default, up or down, is evidence of a decision.\n\nTHE DEFAULTS ARE PAN-OS'S OWN, from two agreeing vendor sources - Help pages 774-776 and Panorama's Size Limit tooltip: pe 16 MB (1-50), apk 10 MB (1-50), pdf 3072 KB (100-51200), ms-office 16384 KB (200-51200), jar 5 MB (1-20), flash 5 MB (1-10), MacOSX 10 MB (1-50), archive 50 MB (1-50), linux 50 MB (1-50), script 20 KB (10-4096).\n\nWHAT THIS FINDING MEANS, AND WHAT IT DOES NOT. The default IS the vendor's best-practice recommendation for nine of the ten - the Help restates each default as its own recommendation. So an estate at defaults is AT the recommended starting point, not below it, and this control is NOT saying the limits are too low. It says nobody has evaluated whether this platform can afford more. Help p.775: the recommendations are \"a good starting place for setting effective limits that don't overtax firewall resources\", and \"if more buffer space is available, you can increase the file size limit above the best practice recommendation.\" That evaluation needs the platform's buffer headroom, which is not in the configuration - hence a low severity and a remediation that asks for a decision rather than a number.\n\nMacOSX IS THE ONE PLACE THE VENDOR DISAGREES WITH ITSELF: default 10 MB, recommendation \"Set the size for MacOSX files to 1MB\". Every other bullet restates its own default and 1 MB is the range minimum, so it reads like a documentation error. Recorded, not acted on - the control compares against the DEFAULT, as it does for every other type.\n\nTHE VENDOR SAYS THESE VALUES MOVE. p.776: they \"might differ based on the current version of PAN-OS or the content release\", and the Size Limit tooltip is the live authority. A CONTENT release can change them, not only a PAN-OS upgrade, so this table is a snapshot and should be re-read against the tooltip when either changes.\n\nTWO EARLIER TABLES WERE WRONG and both inferred the defaults from a DEVICE - one took a template STACK's configuration for the platform's defaults, the other read one device and could cover only one release. Both were avoidable: the Help states the defaults outright, one page further on than the page the search returned.\n\nRELEASE-INVARIANT, for what this asserts. 11.2 adds `eml` to the key set - ten types on 11.1, eleven on 11.2 - and `eml` is excluded, so the ten asserted here are the same on both.\n\nTWO TYPES DEFAULT TO THEIR MAXIMUM, archive and linux - fatal to the reading this control does NOT take, since a check asserting limits 'raised to the platform maximum' could never fire on those two however an estate was configured.\n\nWHAT COUNTS AS UNTUNED. Every file type the release has a default for, not only the ones the configuration names. An absent entry is the clearest case of untouched there is, and walking only what is present would report a device that configures nothing as fully tuned - which is exactly the PA-5220s' shape.\n\n`eml` IS NEVER ASSERTED. A TEMPLATE cannot set it - the write is refused with `eml 'eml' is not a valid reference`, and a template's key set is ten where an 11.2 device's is eleven. On a Panorama-managed estate its only remediation would be a device-local override, and a control whose sole remedy is to create an override is asking for the thing treated as a defect everywhere else here.\n\nTHE UNITS ARE NOT UNIFORM - the UI renders pe as 16 MB and pdf as 3072 KB - so a value is compared only against its own default and never against another type's.",
+          "description": "An appliance whose WildFire file size limits are all still at the PAN-OS default.\n\nEVERY TYPE, NOT ANY TYPE (2026-10-31). V1 asserted `size_limits_untuned`, which fires when ANY asserted type is still at its default. The sentence above - and the whole of this description - is about a platform nobody has sized AT ALL, which is the ALL quantifier, and the store carries both columns for exactly this reason. An estate that sized one type and left the other nine is making a decision this control has no business reporting, and the lab separates the two readings: fw-core-tpa-a has moved `pe` off its default and nothing else, so V1 reported it and this does not.\n\nA TUNING CHECK, not a maximisation check (Jason, 2026-10-09). The corpus asks for the platform maximum; Help p.774 advises the opposite in the paragraph that describes the field - \"if the limit is too large and prevents the firewall from forwarding multiple large zero-day files at the same time, lower and tune the maximum limit based on the amount of available firewall buffer space.\" Both cannot be asserted, and asserting the maximum would call the vendor's own advice a finding. So this asks the question that IS answerable from configuration - has anybody sized these at all - and is neutral on direction: a value moved off its default, up or down, is evidence of a decision.\n\nTHE DEFAULTS ARE PAN-OS'S OWN, from two agreeing vendor sources - Help pages 774-776 and Panorama's Size Limit tooltip: pe 16 MB (1-50), apk 10 MB (1-50), pdf 3072 KB (100-51200), ms-office 16384 KB (200-51200), jar 5 MB (1-20), flash 5 MB (1-10), MacOSX 10 MB (1-50), archive 50 MB (1-50), linux 50 MB (1-50), script 20 KB (10-4096).\n\nWHAT THIS FINDING MEANS, AND WHAT IT DOES NOT. The default IS the vendor's best-practice recommendation for nine of the ten - the Help restates each default as its own recommendation. So an estate at defaults is AT the recommended starting point, not below it, and this control is NOT saying the limits are too low. It says nobody has evaluated whether this platform can afford more. Help p.775: the recommendations are \"a good starting place for setting effective limits that don't overtax firewall resources\", and \"if more buffer space is available, you can increase the file size limit above the best practice recommendation.\" That evaluation needs the platform's buffer headroom, which is not in the configuration - hence a low severity and a remediation that asks for a decision rather than a number.\n\nMacOSX IS THE ONE PLACE THE VENDOR DISAGREES WITH ITSELF: default 10 MB, recommendation \"Set the size for MacOSX files to 1MB\". Every other bullet restates its own default and 1 MB is the range minimum, so it reads like a documentation error. Recorded, not acted on - the control compares against the DEFAULT, as it does for every other type.\n\nTHE VENDOR SAYS THESE VALUES MOVE. p.776: they \"might differ based on the current version of PAN-OS or the content release\", and the Size Limit tooltip is the live authority. A CONTENT release can change them, not only a PAN-OS upgrade, so this table is a snapshot and should be re-read against the tooltip when either changes.\n\nTWO EARLIER TABLES WERE WRONG and both inferred the defaults from a DEVICE - one took a template STACK's configuration for the platform's defaults, the other read one device and could cover only one release. Both were avoidable: the Help states the defaults outright, one page further on than the page the search returned.\n\nRELEASE-INVARIANT, for what this asserts. 11.2 adds `eml` to the key set - ten types on 11.1, eleven on 11.2 - and `eml` is excluded, so the ten asserted here are the same on both.\n\nTWO TYPES DEFAULT TO THEIR MAXIMUM, archive and linux - fatal to the reading this control does NOT take, since a check asserting limits 'raised to the platform maximum' could never fire on those two however an estate was configured.\n\nWHAT COUNTS AS UNTUNED. Every file type the release has a default for, not only the ones the configuration names. An absent entry is the clearest case of untouched there is, and walking only what is present would report a device that configures nothing as fully tuned - which is exactly the PA-5220s' shape.\n\n`eml` IS NEVER ASSERTED. A TEMPLATE cannot set it - the write is refused with `eml 'eml' is not a valid reference`, and a template's key set is ten where an 11.2 device's is eleven. On a Panorama-managed estate its only remediation would be a device-local override, and a control whose sole remedy is to create an override is asking for the thing treated as a defect everywhere else here.\n\nTHE UNITS ARE NOT UNIFORM - the UI renders pe as 16 MB and pdf as 3072 KB - so a value is compared only against its own default and never against another type's.",
           "rationale": "A file above its forwarding limit is never analysed, and attackers pad payloads past default limits precisely because the defaults are predictable and widely unchanged. The limits that suit an estate depend on its hardware and traffic, so the finding is not that a number is wrong - it is that nobody has chosen one.",
           "audit": "Device > Setup > WildFire > General Settings > File Size Limits. Compare each per-type value against the PAN-OS default for that type; a type missing from the list is at its default by definition. Click in a Size Limit field to see the live range and default - the vendor states they can change with a PAN-OS or content release, so the tooltip beats any written table including this one.\n\nNote the units differ per type - pe is MB, pdf is KB - so read each row against its own default rather than against its neighbours. On a Panorama-managed estate check the template STACK as well as the templates: the stack overrides its members, so a value set in a template may not be the one in force.",
           "remediation": "Size each limit against the platform's available buffer space and the file types the estate actually carries, and record the reasoning - the point is a deliberate choice, not a particular number. The permitted ranges are pe 1-50 MB, apk 1-50 MB, pdf 100-51200 KB, ms-office 200-51200 KB, jar 1-20 MB, flash 1-10 MB, MacOSX 1-50 MB, archive 1-50 MB, linux 1-50 MB, script 10-4096 KB.\n\nRaising every limit to the maximum is NOT the vendor's advice: Help p.774 warns that a limit too large prevents the firewall forwarding multiple large zero-day files at once. Note also that archive and linux already default to their maximum.\n\nOn a Panorama-managed estate set these in the TEMPLATE or the template STACK, not on the firewall, or the next push reverts them - and remember the stack overrides its member templates, so a value set in a template will not take effect if the stack also sets it.",
@@ -3970,15 +4010,19 @@
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "size_limits_untuned",
+                    "field": "size_limits_wholly_untuned",
                     "op": "eq",
                     "value": true
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "size_limits_wholly_untuned"
+              ],
+              "short_description": "Appliances whose WildFire file size limits are ALL still at the PAN-OS default."
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.WildfireSettings"
         },
@@ -3987,7 +4031,7 @@
           "name": "WildFire Session Information Sharing Enabled",
           "control_type": "wildfire_settings",
           "default_severity": "low",
-          "description": "An appliance that withholds session context from WildFire, or does not report benign and grayware verdicts.\n\nBOTH HALVES, EITHER ONE FIRES (Jason, 2026-10-09). The corpus entry names two different things - its title and description are about session information sharing, its xpath is `report-grayware-file` - and they are two different nodes in opposite states on the lab. The control asserts both.\n\nTHE CONFIG STORES EXCLUSIONS, SO THE UI IS INVERTED, and reading it the other way round gets this control exactly backwards. `session-info-select` holds twelve `exclude-*` members - exclude-url, exclude-username, exclude-filename and nine more - so a ticked checkbox on Device > Setup > WildFire means the exclusion is ABSENT. An empty list is FULL sharing and the state this control wants. That is the opposite of the usual rule that an absent key is the weaker end, which is why it is stated here rather than left to be rediscovered.\n\nTHE TWO REPORT FLAGS ARE PLAIN. `report-benign-file` and `report-grayware-file` are yes/no and both are implicitly NO - absent on pan-fw-111 and both boxes render unticked, measured 2026-10-09. So an untouched device fails this half, and the finding says so rather than reading like somebody turned them off.\n\nWHAT IT DOES NOT ASSERT. The Inline Session Information Settings block (`cloud-inline-wf-session-info-select`) carries the same twelve exclusions for the inline-cloud engine. It is collected and shown, and not asserted - no corpus control names it, and inventing one here would be widening the corpus rather than implementing it.",
+          "description": "An appliance that withholds session context from WildFire, or does not report benign and grayware verdicts.\n\nBOTH HALVES, EITHER ONE FIRES (Jason, 2026-10-09). The corpus entry names two different things - its title and description are about session information sharing, its xpath is `report-grayware-file` - and they are two different nodes in opposite states on the lab. The control asserts both.\n\nTHE CONFIG STORES EXCLUSIONS, SO THE UI IS INVERTED, and reading it the other way round gets this control exactly backwards. `session-info-select` holds twelve `exclude-*` members - exclude-url, exclude-username, exclude-filename and nine more - so a ticked checkbox on Device > Setup > WildFire means the exclusion is ABSENT. An empty list is FULL sharing and the state this control wants. That is the opposite of the usual rule that an absent key is the weaker end, which is why it is stated here rather than left to be rediscovered.\n\nTHE TWO REPORT FLAGS ARE PLAIN. `report-benign-file` and `report-grayware-file` are yes/no and both are implicitly NO - absent on pan-fw-111 and both boxes render unticked, measured 2026-10-09. So an untouched device fails this half, and the finding says so rather than reading like somebody turned them off.\n\nWHAT IT DOES NOT ASSERT. The Inline Session Information Settings block (`cloud-inline-wf-session-info-select`) carries the same twelve exclusions for the inline-cloud engine. It is collected and shown, and not asserted - no corpus control names it, and inventing one here would be widening the corpus rather than implementing it.\n\nTHE REPORTING HALF IS GRADED, AS FOUR QUERIES ON ONE TOKEN (2026-10-31). V1 put all three columns in one OR'd baseline, which fires correctly and cannot carry a severity: the two reporting gaps rank differently - unwanted-file verdicts low, harmless-file verdicts informational - and a disjunction has one severity. So the baseline now carries the session-information half alone, and the reporting half is three calibration queries over `verdict_reporting_gap`, a token the normalizer derives from the same two booleans and which therefore can never disagree with them. Its four members are mutually exclusive on a single-valued column, so no appliance matches two of them.\n\nWHEN BOTH HALVES FAIL AT ONCE, the reported severity is the worst matched calibration and not the baseline tier - which is how the severity machinery works for every graded control. An appliance withholding session context AND missing only harmless-file reporting therefore reports at informational rather than low. That is a real under-report and it is recorded in the stage 8 av-wildfire artifact rather than worked around here, because the fix is a decision about whether these two halves should be one control at all.",
           "rationale": "A WildFire verdict is more useful with the session that produced it - the URL, the filename, the user - and the analysis report is richer for it. Benign and grayware reporting is what makes near-miss deliveries visible at all: without it the only samples an analyst ever sees are the ones already judged malicious, which is the wrong end of the funnel for hunting.",
           "audit": "Device > Setup > WildFire. In Session Information Settings every box should be ticked - a ticked box means that attribute is NOT excluded. In General Settings, Report Benign File and Report Grayware File should both be ticked; both are unticked by default.",
           "remediation": "Tick every Session Information Settings box and both report boxes. On a Panorama-managed estate set them in the TEMPLATE, not on the firewall. Note the privacy direction: these forward session context including usernames and URLs to the WildFire cloud, so an estate with a data-residency or privacy constraint should take the exclusions deliberately rather than by default - this control reports the default, which is to share everything and report nothing.",
@@ -4002,30 +4046,82 @@
                 "operator": "and",
                 "clauses": [
                   {
-                    "operator": "or",
-                    "clauses": [
-                      {
-                        "field": "shares_full_session_info",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "field": "report_benign_file",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "field": "report_grayware_file",
-                        "op": "eq",
-                        "value": false
-                      }
-                    ]
+                    "field": "shares_full_session_info",
+                    "op": "eq",
+                    "value": false
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "shares_full_session_info"
+              ],
+              "short_description": "Appliances that withhold session context from WildFire analysis."
+            },
+            {
+              "name": "Grayware verdict reporting not switched on",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.WildfireSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "verdict_reporting_gap",
+                    "op": "eq",
+                    "value": "grayware"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "verdict_reporting_gap"
+              ],
+              "short_description": "Appliances not reporting unwanted-file verdicts, with harmless-file reporting on."
+            },
+            {
+              "name": "Benign verdict reporting not switched on",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "informational",
+              "canonical_query": {
+                "model": "integrations.WildfireSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "verdict_reporting_gap",
+                    "op": "eq",
+                    "value": "benign"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "verdict_reporting_gap"
+              ],
+              "short_description": "Appliances not reporting harmless-file verdicts, with unwanted-file reporting on."
+            },
+            {
+              "name": "Neither verdict reporting setting switched on",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.WildfireSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "verdict_reporting_gap",
+                    "op": "eq",
+                    "value": "both"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "verdict_reporting_gap"
+              ],
+              "short_description": "Appliances reporting neither harmless-file nor unwanted-file verdicts."
             }
           ],
-          "implementation_version": "v1",
+          "implementation_version": "v2",
           "is_active": true,
           "target_model": "integrations.WildfireSettings"
         },
