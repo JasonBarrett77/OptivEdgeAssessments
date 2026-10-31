@@ -2879,8 +2879,43 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "vulnerability_blocks_critical_high"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Rule never assessed for vulnerability inspection",
+              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_verdict_written",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_verdict_written"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
               "is_active": true
             }
           ]
@@ -4085,8 +4120,43 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "vulnerability_blocks_brute_force"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Rule never assessed for vulnerability inspection",
+              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_verdict_written",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_verdict_written"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
               "is_active": true
             }
           ]
@@ -4096,16 +4166,14 @@
           "name": "Inline Cloud Analysis for Exploits Enabled",
           "control_type": "security_rule",
           "default_severity": "medium",
-          "description": "A vulnerability protection profile whose inline cloud-analysis detectors do not stop the traffic they catch.\n\nTWO detectors on 11.2 - SQL Injection and Command Injection - detecting exploit patterns in real time, ahead of signature coverage.\n\nTHE CORPUS POINTS THIS CONTROL AT A NODE THAT DOES NOT EXIST. controls.json names `cloud-inline-analysis/enabled`; writing it is refused with `cloud-inline-analysis is invalid` (code=12) on 11.2.3-h3 WITH an Advanced Threat Prevention licence active - measured 2026-10-10. The engine lives at `mica-engine-{kind}-enabled`, entry-keyed by detector, each carrying `inline-policy-action`. That is what the corpus DESCRIBES, just not where it points, so this is built against the real node and the deviation is recorded in control-changes.json. Jason approved, 2026-10-10.\n\n`alert` RUNS THE DETECTOR AND LETS THE TRAFFIC THROUGH, which is why this asks whether each detector BLOCKS rather than whether it is on. It is the same distinction `enable(alert-only)` forced on PAN-AVW-002: a detector that only watches is not protection, and treating it as enabled would pass a profile that logs the attack and delivers it.\n\nA DETECTOR THE PROFILE NEVER MENTIONS DOES NOT RUN, and has a row saying so. The detector names come from the content release, so nothing is hardcoded in the query - but unlike the antivirus ML models, the catalogue cannot be read from the predefined profiles: all four of them carry ZERO entries for this engine, measured 2026-10-10. A build-derived catalogue would be empty, no rows would be written, and a profile running no inline analysis at all would read as having nothing wrong. The catalogue therefore falls back to the measured key space.\n\nTHE TWO ENGINES ARE NOT ONE SHAPE. The anti-spyware equivalent has five detectors and its action accepts `drop`; this one has two and does not. A shared enum would offer a value the device rejects here, which is why they are measured and held separately.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO vulnerability protection profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.",
+          "description": "A vulnerability protection profile that does not run real-time exploit analysis, or whose inline cloud-analysis detectors do not stop the traffic they catch.\n\nTWO HALVES AND EITHER ONE FIRES, per standing ruling 6. The profile-wide switch at `cloud-inline-analysis` decides whether the engine runs AT ALL, and each detector's `inline-policy-action` decides what happens to what it catches. Until 2026-10-31 only the second half was built, and a profile with both detectors on reset-both and the profile-wide switch off satisfied this control while running no analysis whatever. The two halves are one control with an OR - one `target_model`, no new control id - and the finding's matched queries say which half fired.\n\nTWO detectors on 11.2 - SQL Injection and Command Injection - detecting exploit patterns in real time, ahead of signature coverage.\n\nTHE CORPUS POINTS THIS CONTROL AT A NODE THAT DOES NOT EXIST. controls.json names `cloud-inline-analysis/enabled`; writing it is refused with `cloud-inline-analysis is invalid` (code=12) on 11.2.3-h3 WITH an Advanced Threat Prevention licence active - measured 2026-10-10. The engine lives at `mica-engine-{kind}-enabled`, entry-keyed by detector, each carrying `inline-policy-action`. That is what the corpus DESCRIBES, just not where it points, so this is built against the real node and the deviation is recorded in control-changes.json. Jason approved, 2026-10-10.\n\n`alert` RUNS THE DETECTOR AND LETS THE TRAFFIC THROUGH, which is why this asks whether each detector BLOCKS rather than whether it is on. It is the same distinction `enable(alert-only)` forced on PAN-AVW-002: a detector that only watches is not protection, and treating it as enabled would pass a profile that logs the attack and delivers it.\n\nA DETECTOR THE PROFILE NEVER MENTIONS DOES NOT RUN, and has a row saying so. The detector names come from the content release, so nothing is hardcoded in the query - but unlike the antivirus ML models, the catalogue cannot be read from the predefined profiles: all four of them carry ZERO entries for this engine, measured 2026-10-10. A build-derived catalogue would be empty, no rows would be written, and a profile running no inline analysis at all would read as having nothing wrong. The catalogue therefore falls back to the measured key space.\n\nTHE TWO ENGINES ARE NOT ONE SHAPE. The anti-spyware equivalent has five detectors and its action accepts `drop`; this one has two and does not. A shared enum would offer a value the device rejects here, which is why they are measured and held separately.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO vulnerability protection profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.",
           "rationale": "An exploit attempt against an unpatched flaw arrives before the signature for it does. Inline analysis is what sees the pattern rather than the signature - and a detector on alert watches the exploit succeed.",
           "audit": "Objects > Security Profiles > Vulnerability Protection, the Inline Cloud Analysis tab. Both detectors should read a blocking action; `alert` runs the detector and lets the traffic through.",
           "remediation": "Set both detectors to reset-both or another blocking action. Note this profile's inline action does NOT offer `drop`, unlike the anti-spyware one. Requires an active Advanced Threat Prevention licence.",
           "queries": [
             {
               "name": "Baseline",
-              "is_baseline": true,
-              "is_active": true,
-              "adjusted_severity": null,
+              "short_description": "Rules whose vulnerability protection profile has an inline cloud-analysis detector that does not block.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -4128,7 +4196,76 @@
                   }
                 ]
               },
-              "short_description": "Rules whose vulnerability protection profile has an inline cloud-analysis detector that does not block."
+              "asserted_fields": [
+                "vulnerability_inline_analysis_blocks"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Real-time analysis is switched off for the profile",
+              "short_description": "Rules whose vulnerability protection profile has the profile-wide inline cloud analysis switch off, so no detector runs whatever each one's action says.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_inline_analysis_enabled",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_inline_analysis_enabled"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Rule never assessed for vulnerability inspection",
+              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_verdict_written",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_verdict_written"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
           ],
           "implementation_version": "v3",
@@ -4184,16 +4321,14 @@
           "name": "Vulnerability Exceptions Minimal and Documented (Hygiene)",
           "control_type": "security_rule",
           "default_severity": "medium",
-          "description": "A vulnerability protection profile carrying signature exceptions.\n\nEach one disables exploit blocking for a specific threat ID. Unreviewed exceptions from a past false-positive incident leave a permanent hole against those CVEs.\n\nTHE TRIGGER IS PRESENCE, not age. The corpus asks that every exception have an owner, a justification and a review date - none of which is in the configuration, and the corpus marks this control `config_settable: false` and `evidence_source: interview-data` for that reason. So this reports that exceptions EXIST and leaves the recertification judgement to an assessor who can ask. The same resolution PAN-POL-014 took when its corpus wording depended on a grace period nothing records.\n\nEXCEPTIONS HIDE IN MORE THAN ONE PLACE and this counts all of them. An anti-spyware profile has FOUR surfaces - `threat-exception`, `botnet-domains/threat-exception`, `botnet-domains/whitelist`, and the `inline-exception-ip-address` / `inline-exception-edl-url` member lists - and controls.json names only the first. Measured 2026-10-10; before that the count read the first alone, so a profile exempting half an estate from inline analysis counted zero exceptions. The finding names the surface, because the remediation differs: a signature exception is removed in one place, an address exemption in another.\n\nSEVERITY IS NOT SCALED BY COUNT. One exception with no justification is the finding; twenty well-documented ones are not worse in a way the configuration can show. An assessor reading the detail can see the number and where they live.\n\nFEWER SURFACES THAN THE ANTI-SPYWARE EQUIVALENT. This kind has no botnet tree, so two of the four cannot exist here - `threat-exception` and the two inline-exception lists are all there is. Its exception entry also carries a key the anti-spyware one lacks, `time-attribute`, so PAN-SPY-005's note that it 'applies equally' to this control is true of the intent and not of the node.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO vulnerability protection profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.",
+          "description": "A vulnerability protection profile carrying signature exceptions.\n\nEach one disables exploit blocking for a specific threat ID. Unreviewed exceptions from a past false-positive incident leave a permanent hole against those CVEs.\n\nTHE TRIGGER IS PRESENCE, not age. The corpus asks that every exception have an owner, a justification and a review date - none of which is in the configuration, and the corpus marks this control `config_settable: false` and `evidence_source: interview-data` for that reason. So this reports that exceptions EXIST and leaves the recertification judgement to an assessor who can ask. The same resolution PAN-POL-014 took when its corpus wording depended on a grace period nothing records.\n\nEXCEPTIONS HIDE IN MORE THAN ONE PLACE and this counts all of them. An anti-spyware profile has FOUR surfaces - `threat-exception`, `botnet-domains/threat-exception`, `botnet-domains/whitelist`, and the `inline-exception-ip-address` / `inline-exception-edl-url` member lists - and controls.json names only the first. Measured 2026-10-10; before that the count read the first alone, so a profile exempting half an estate from inline analysis counted zero exceptions. The finding names the surface, because the remediation differs: a signature exception is removed in one place, an address exemption in another.\n\nSEVERITY IS NOT SCALED BY COUNT, IT IS SCALED BY WIDTH. One exception with no justification is the finding; twenty well-documented ones are not worse in a way the configuration can show. What does change the severity is how far the widest exemption reaches, which is a property of the surface it sits on: a per-signature exception narrowed to named addresses reports LOW, one with no address scope reports MEDIUM, and an entry on either inline-analysis exclusion list reports HIGH - one such entry takes a reference to an address group or an external dynamic list and so lifts every real-time detector for a population the configuration does not size. An assessor reading the detail can see the number and where they live.\n\nFEWER SURFACES THAN THE ANTI-SPYWARE EQUIVALENT. This kind has no botnet tree, so two of the four cannot exist here - `threat-exception` and the two inline-exception lists are all there is. Its exception entry also carries a key the anti-spyware one lacks, `time-attribute`, so PAN-SPY-005's note that it 'applies equally' to this control is true of the intent and not of the node.\n\nREPORTED PER RULE, not per profile (2026-10-12). A profile nothing uses endangers nothing, and a rule is what carries traffic, so the subject is the rule and the finding names the profile in force on it. One profile behind forty rules therefore produces forty findings - which is the point: each is a distinct piece of traffic.\n\nSCOPE. Allow rules that are not the predefined default rules - the same exclusions as PAN-AVW-003 and PAN-POL-008. A rule that denies, drops or resets passes no traffic for a profile to inspect, so a profile on it, or the lack of one, protects nothing either way. Unlike those two controls, a DISABLED allow rule is reported: it is in the configuration and one click from carrying traffic, and its finding says it is disabled (Jason, 2026-10-14).\n\nA rule with NO vulnerability protection profile in force IS reported here - the absence is this control's own finding, not only PAN-POL-008's (Jason, 2026-10-12). So the two overlap on an allow rule carrying none: PAN-POL-008 says the rule is uninspected, this control says which inspection it is missing.\n\nWHETHER THAT IS RIGHT FOR THIS ONE CONTROL IS AN OPEN QUESTION, RAISED 2026-10-31 AND NOT SETTLED HERE. Stage 3 of the pipeline scopes this control to rules where a profile IS in force, on the ground that a review of exemptions has no subject on a rule that reaches no profile - the review has no subject rather than an unsatisfactory one - and that reporting \u2018this profile carries exemptions\u2019 about a profile that does not exist is a false finding. Stage 5 restated that as an applicability clause `vulnerability_profile_resolved equals true` AND recorded in the same breath that it contradicts the 2026-10-12 ruling, that the ruling is Jason's rather than a reading, and that a person should settle it before the narrowing is implemented. It is therefore NOT implemented: this entry still reports a rule that reaches no profile.\n\nWHAT THE DECISION COSTS EITHER WAY, measured 2026-10-31 so it can be taken cheaply. Wide (what ships): on a 31-rule reconstruction of the lab's own profile shapes this control reports 7 rules - 3 of them rules that reach no resolvable profile, which already carry three other PAN-VLN findings plus PAN-POL-008's. Narrow: it reports 4, and on the real lab - where not one rule or profile group binds a vulnerability profile at all - it would report NOTHING, while the other three controls report every rule. Taking the narrow reading is one edit with no code change: add `vulnerability_profile_resolved equals true` to the three exemption queries, which is already a registered search field. The coverage companion query must NOT take that clause either way, because a rule nobody assessed must not be excluded by the test for whether it was assessed.",
           "rationale": "A vulnerability exception is a decision to stop blocking a known exploit. That is sometimes right and always worth revisiting, and nothing in the configuration records whether anyone has.",
           "audit": "Objects > Security Profiles > Vulnerability Protection, the Exceptions tab, and the Inline Cloud Analysis tab's exempt IP addresses and EDLs. For each, ask who added it, why, and when it was last reviewed.",
           "remediation": "Remove exceptions whose justification has expired; scope the rest with `exempt-ip` where the signature allows it, and keep the owner and review date outside the configuration.",
           "queries": [
             {
               "name": "Baseline",
-              "is_baseline": true,
-              "is_active": true,
-              "adjusted_severity": null,
+              "short_description": "Rules whose vulnerability protection profile carries exemptions.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -4216,7 +4351,120 @@
                   }
                 ]
               },
-              "short_description": "Rules whose vulnerability protection profile carries exceptions."
+              "asserted_fields": [
+                "vulnerability_exceptions_minimal"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Exemption scoped to named addresses",
+              "short_description": "Rules whose profile's widest exemption is a per-signature exception narrowed to named addresses, so the hole has a stated edge.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_exceptions_minimal",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "vulnerability_widest_exemption_surface",
+                    "op": "eq",
+                    "value": "signature-scoped"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_exceptions_minimal",
+                "vulnerability_widest_exemption_surface"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Exemption lifts every real-time detector for a population",
+              "short_description": "Rules whose profile carries an inline cloud-analysis exclusion list, so one entry exempts a whole population from every real-time exploit detector.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_exceptions_minimal",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "vulnerability_widest_exemption_surface",
+                    "op": "eq",
+                    "value": "inline-analysis-population"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_exceptions_minimal",
+                "vulnerability_widest_exemption_surface"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Rule never assessed for vulnerability inspection",
+              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "vulnerability_verdict_written",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vulnerability_verdict_written"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
             }
           ],
           "implementation_version": "v3",

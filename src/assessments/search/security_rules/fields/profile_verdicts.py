@@ -1,4 +1,4 @@
-"""Compilers for the eleven per-rule threat-profile assertions.
+"""Compilers for the twelve per-rule threat-profile assertions, and one graded value beside them.
 
 PAN-AVW-001, PAN-AVW-002, PAN-SPY-001..005 and PAN-VLN-001..004.
 
@@ -100,6 +100,13 @@ VERDICT_FIELDS = {
     "vulnerability_blocks_brute_force": _V.VULNERABILITY_BRUTE_FORCE,
     "vulnerability_inline_analysis_blocks": _V.VULNERABILITY_INLINE,
     "vulnerability_exceptions_minimal": _V.VULNERABILITY_EXCEPTIONS,
+    # PAN-VLN-003's FIRST HALF, and the twelfth assertion. `VULNERABILITY_INLINE` above answers
+    # only the second half - it reads `mica-engine-vulnerability-enabled` and not
+    # `cloud-inline-analysis` - so a profile with every detector at reset-both and the
+    # profile-wide switch OFF satisfied that assertion and inspected nothing in real time.
+    # Stage 3 states the control as two halves and standing ruling 6 makes it one control with
+    # an OR, so this field is clausedon by a second active query rather than a new control id.
+    "vulnerability_inline_analysis_enabled": _V.VULNERABILITY_INLINE_ENABLED,
 }
 
 PROFILE_VERDICT_COMPILERS = {
@@ -110,3 +117,54 @@ PROFILE_VERDICT_COMPILERS.update({
     f"{field}_detail": build_profile_verdict_detail_compiler(f"{field}_detail", assertion)
     for field, assertion in VERDICT_FIELDS.items()
 })
+
+
+def build_profile_verdict_grading_compiler(field_name, assertion):
+    """The GRADED VALUE beside one assertion's verdict - what the severity varies with.
+
+    A verdict says WHETHER and a severity grading needs WHICH, and the value it needs is
+    `SecurityRuleProfileVerdict.grading_value`: ONE column with a different vocabulary per
+    assertion, which is why the field name says which axis it is and the assertion is bound in.
+
+    **BLANK IS NOT A MATCHABLE VALUE AND THAT IS THE POINT.** `grading_value` is
+    `blank=True` rather than nullable, and it is blank on every assertion that has no grading,
+    on a verdict whose profile could not be resolved, and on a rule that has no verdict row at
+    all. A positive `eq` reaches none of those, so a rule nobody graded matches no calibration
+    query and reports at its control's BASELINE severity - which is the direction a missing
+    grading has to point. An empty search value is refused rather than compiled, because
+    `eq ""` would quietly match every ungraded row and hand the whole estate a calibration.
+    """
+    def compiler(clause):
+        op = clause["op"]
+        if op not in GRADING_OPERATORS:
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        value = clause["value"]
+        if not isinstance(value, str):
+            raise SearchSyntaxError(f"{field_name} search value must be a string.")
+        if not value.strip():
+            raise SearchSyntaxError(f"{field_name} search value must not be empty.")
+        return SecurityRule.objects.filter(
+            profile_verdicts__assertion=assertion,
+            profile_verdicts__grading_value=value).values("pk")
+    compiler.SUPPORTED_OPERATORS = GRADING_OPERATORS
+    return compiler
+
+
+GRADING_OPERATORS = {"eq"}
+
+#: field name -> the assertion whose `grading_value` it reads. ONE ENTRY PER GRADED AXIS A
+#: CONTROL QUERY NAMES, and not one per axis that exists: the two vulnerability weakest-action
+#: axes are stored and graded, but every one of their placements sits at its control's own
+#: baseline severity, so no calibration query names them and registering them would ship a
+#: search surface no control asks for.
+GRADING_FIELDS = {
+    # PAN-VLN-004's grading. Three firing members - `signature-scoped` (low),
+    # `signature-unscoped` (medium, the baseline tier and so queryless) and
+    # `inline-analysis-population` (high) - and the blank passing state.
+    "vulnerability_widest_exemption_surface": _V.VULNERABILITY_EXCEPTIONS,
+}
+
+PROFILE_VERDICT_GRADING_COMPILERS = {
+    field: build_profile_verdict_grading_compiler(field, assertion)
+    for field, assertion in GRADING_FIELDS.items()
+}

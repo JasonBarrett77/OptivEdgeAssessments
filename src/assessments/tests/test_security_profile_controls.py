@@ -100,13 +100,25 @@ class _LabFixture(TestCase):
         return profile
 
     def _bare_rule(self, name, *, action="allow", disabled=False,
-                   config_source=SecurityRule.SOURCE_LOCAL):
+                   config_source=SecurityRule.SOURCE_LOCAL, verdict_written=True):
+        """A rule with no verdict rows yet.
+
+        `vulnerability_verdict_written` IS SET HERE, because the column's default is False and
+        that state is not one a collection can produce: the coverage pass writes a verdict row
+        for every assertion and sets this column True in the same loop, so rows-without-the-flag
+        exists only in a fixture. Leaving it False made the four PAN-VLN controls' coverage
+        companion query - "Rule never assessed for vulnerability inspection" - fire on every
+        rule in this file, which is correct behaviour against an unreachable fixture.
+
+        `verdict_written=False` is available for the one test that is ABOUT that state.
+        """
         self.order += 1
         return SecurityRule.objects.create(
             management_station=self.station, enforcement_point=self.point,
             source_snapshot=self.snapshot, config_source=config_source,
             effective_order=self.order, rule_position=self.order, name=name, action=action,
-            rule_type="universal", disabled=disabled)
+            rule_type="universal", disabled=disabled,
+            vulnerability_verdict_written=verdict_written)
 
 
 # ---------------------------------------------------------------------------- the rule half
@@ -138,6 +150,10 @@ class ThreatProfileRuleControlTests(_LabFixture):
             SecurityRuleProfileVerdict.objects.create(
                 security_rule=rule, assertion=assertion, profile_name=profile_name,
                 satisfied=satisfied, detail=detail)
+        # A named profile on every row is a RESOLVED profile, which is what the coverage pass
+        # would have recorded beside these rows.
+        SecurityRule.objects.filter(pk=rule.pk).update(vulnerability_profile_resolved=True)
+        rule.refresh_from_db()
         return rule
 
     def _rule_with_no_profiles(self, name, **kwargs):
@@ -240,6 +256,37 @@ class ThreatProfileRuleControlTests(_LabFixture):
                 self.assertIn((control_id, f"r-{assertion}"), fired)
                 others = {cid for cid, name in fired if name == f"r-{assertion}"}
                 self.assertEqual(others, {control_id})
+
+    def test_a_rule_the_assessment_never_ran_over_fires_every_VLN_control_and_says_so(self):
+        """The coverage companion the four PAN-VLN controls carry, from the pipeline's stage 5.
+
+        `<verdict> equals false` matches False OR NULL but cannot reach a rule with no verdict
+        row at all, because the verdict compilers filter on the assertion before reading the
+        value - so such a rule passed every vulnerability control in silence. This is the one
+        row that state can exist on, and it must fire at each control's OWN tier rather than at
+        a coverage tier, because no coverage control over a security rule exists to own it.
+
+        The profile here SATISFIES every assertion, so nothing but the companion can match -
+        which is what makes the query's effect measurable rather than inferred.
+        """
+        rule = self._rule("never-assessed", {}, verdict_written=False)
+        self.assertFalse(rule.vulnerability_verdict_written)
+        fired = {control_id for control_id, name in self._fired() if name == "never-assessed"}
+        self.assertEqual(fired, {"PAN-VLN-001", "PAN-VLN-002", "PAN-VLN-003", "PAN-VLN-004"})
+        for control_id, severity in (("PAN-VLN-001", "high"), ("PAN-VLN-002", "medium"),
+                                     ("PAN-VLN-003", "medium"), ("PAN-VLN-004", "medium")):
+            finding = RuleFinding.objects.get(control__control_id=control_id,
+                                              security_rule=rule)
+            # THE ONLY THING ON THE ROW that tells "nobody established it" from "it is switched
+            # off", while the clause rides on the domain control rather than on a coverage one.
+            self.assertEqual(finding.matched_query_names,
+                             ["Rule never assessed for vulnerability inspection"])
+            self.assertEqual(finding.severity, severity)
+
+    def test_an_assessed_rule_does_not_fire_the_coverage_companion(self):
+        """The other side of it: the companion must not fire on every healthy rule."""
+        self._rule("assessed", {})
+        self.assertEqual([name for _cid, name in self._fired() if name == "assessed"], [])
 
     def test_a_spyware_gap_does_not_fire_a_vulnerability_control(self):
         self._rule("spy-side", {V.SPYWARE_INLINE: (False, "detectors alert", "spy-p")})

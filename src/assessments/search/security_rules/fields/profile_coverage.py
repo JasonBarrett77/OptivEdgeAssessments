@@ -37,6 +37,18 @@ compile_has_spyware_profile_clause = _build(
 compile_has_vulnerability_profile_clause = _build(
     "has_vulnerability_profile", "has_vulnerability_profile")
 
+#: PAN-VLN-004's applicability. THE RESOLVED HALF, and it is not `has_vulnerability_profile`:
+#: the two differ on a rule naming a vulnerability profile that does not exist. The name is in
+#: force, so `has_vulnerability_profile` is true, while nothing resolves - and saying "this
+#: profile carries exemptions" about a profile that does not exist is a false finding.
+#:
+#: The column is `BooleanField(default=False)` and is set by the coverage pass from the
+#: generalised `profile_is_resolved`, which walks the rule's profile-setting, resolves a group
+#: name by scope and reads its member list. The search layer compares a field to a literal and
+#: cannot do any of that, which is why the resolution happens in normalisation.
+compile_vulnerability_profile_resolved_clause = _build(
+    "vulnerability_profile_resolved", "vulnerability_profile_resolved")
+
 
 def compile_wildfire_analysis_submits_all_clause(clause):
     """Does the WildFire analysis profile in force on this rule send EVERY file type?

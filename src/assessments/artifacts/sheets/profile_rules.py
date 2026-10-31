@@ -58,6 +58,26 @@ def _subject_columns(verdict_fields):
     return tuple(narrowed)
 
 
+#: Fields a kind's controls assert on that are NOT one of the satellite's assertion names, with
+#: the column that already says each one. `hidden_fields` is a statement that something else on
+#: the sheet carries the fact, so each entry here has to name what.
+_EXTRA_HIDDEN = {
+    "vulnerability-protection": (
+        # PAN-VLN-004's grading axis, which its two calibration queries clause on. The Profiles
+        # cell prints that control's own verdict detail - "<n> exception(s): <surfaces>" - so the
+        # WIDEST surface is the same fact as that line, the way `*_breadth_known` on the generic
+        # rules sheet is the same fact as a host count reading Unknown. Whether it deserves a
+        # column of its own is a presentation decision and is not made here.
+        "vulnerability_widest_exemption_surface",
+        # The coverage companion all four PAN-VLN controls carry. `threat_profile_lines` prints
+        # one line for a rule with no verdict row for any assertion, which is the only state
+        # this column is False in - so the cell says "assessment has not run" rather than
+        # leaving a row whose cells all look fine, which is what that check exists to stop.
+        "vulnerability_verdict_written",
+    ),
+}
+
+
 def _spec(slug, title, control_ids, verdict_fields):
     return findings_sheet.DeviceSettingSheet(
         title=title,
@@ -71,7 +91,8 @@ def _spec(slug, title, control_ids, verdict_fields):
         tested_columns=(),
         # The rules sheet's own list, plus this kind's verdict fields. The Profiles column
         # carries them, which is what `hidden_fields` is a statement about.
-        hidden_fields=security_rules.SPEC.hidden_fields + tuple(verdict_fields),
+        hidden_fields=(security_rules.SPEC.hidden_fields + tuple(verdict_fields)
+                       + _EXTRA_HIDDEN.get(slug, ())),
         subject_select_related=security_rules.SPEC.subject_select_related,
         subject_prefetch=security_rules.SPEC.subject_prefetch,
         appliance_of=security_rules.SPEC.appliance_of,

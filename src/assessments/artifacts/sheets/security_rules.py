@@ -114,6 +114,11 @@ THREAT_VERDICT_LABELS = (
     ("vulnerability_blocks_brute_force", "brute-force source"),
     ("vulnerability_inline_analysis_blocks", "vulnerability inline analysis"),
     ("vulnerability_exceptions_minimal", "vulnerability exceptions"),
+    # PAN-VLN-003's FIRST HALF and the twelfth assertion. It was added to the model's
+    # `VULNERABILITY_ASSERTIONS` tuple - which is where each per-kind sheet takes its
+    # `hidden_fields` from - before any control queried it, so it was DECLARED presented and
+    # printed nowhere. A label is what makes that declaration true.
+    ("vulnerability_inline_analysis_enabled", "vulnerability real-time analysis"),
 )
 
 
@@ -134,6 +139,20 @@ def threat_profile_lines(rule, fields=None) -> list[str]:
     those views exist to remove.
     """
     wanted = set(fields) if fields else None
+    # NOBODY LOOKED IS NOT THE SAME AS NOT SATISFIED, and without this line it reads as it.
+    # A verdict row is written for EVERY assertion including the no-profile case, so the absence
+    # of every row means the coverage pass has not run over this rule - which is the one state
+    # `SecurityRule.vulnerability_verdict_written` is False in, and the state the four PAN-VLN
+    # controls' coverage companion query fires on. The per-assertion lines below would otherwise
+    # print "not satisfied" for each, which a reader takes as a configuration gap and which the
+    # customer cannot clear.
+    #
+    # Only the satellite-backed labels are consulted: the WildFire view's two fields are COLUMNS
+    # on the rule and have no verdict row to be missing.
+    satellite = [field for field, _label in THREAT_VERDICT_LABELS
+                 if wanted is None or field in wanted]
+    if satellite and all(rule.profile_verdict(field) is None for field in satellite):
+        return ["assessment has not run for this rule - no verdict recorded for any assertion"]
     lines = []
     for field, label in THREAT_VERDICT_LABELS:
         if wanted is not None and field not in wanted:

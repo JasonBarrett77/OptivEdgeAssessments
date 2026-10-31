@@ -33,14 +33,19 @@ from assessments.search.security_rules.fields.name import compile_name_clause
 from assessments.search.security_rules.fields.negate_destination import compile_negate_destination_clause
 from assessments.search.security_rules.fields.negate_source import compile_negate_source_clause
 from assessments.search.security_rules.fields.provenance import compile_provenance_clause
+from assessments.search.security_rules.fields.profile_assessment_coverage import (
+    compile_vulnerability_verdict_written_clause,
+)
 from assessments.search.security_rules.fields.profile_verdicts import (
     PROFILE_VERDICT_COMPILERS,
+    PROFILE_VERDICT_GRADING_COMPILERS,
 )
 from assessments.search.security_rules.fields.profile_coverage import (
     compile_has_antivirus_profile_clause,
     compile_wildfire_analysis_submits_all_clause,
     compile_has_spyware_profile_clause,
     compile_has_vulnerability_profile_clause,
+    compile_vulnerability_profile_resolved_clause,
 )
 from assessments.search.security_rules.fields.rule_type import compile_rule_type_clause
 from assessments.search.security_rules.fields.service import compile_service_clause
@@ -83,6 +88,11 @@ FIELD_COMPILERS = {
     "wildfire_analysis_submits_all": compile_wildfire_analysis_submits_all_clause,
     "has_spyware_profile": compile_has_spyware_profile_clause,
     "has_vulnerability_profile": compile_has_vulnerability_profile_clause,
+    # PAN-VLN-004's applicability, and the coverage companion the four PAN-VLN controls carry.
+    # The second one is a statement about OUR visibility and not about the device - see
+    # `profile_assessment_coverage`.
+    "vulnerability_profile_resolved": compile_vulnerability_profile_resolved_clause,
+    "vulnerability_verdict_written": compile_vulnerability_verdict_written_clause,
     "rule_type": compile_rule_type_clause,
     "service": compile_service_clause,
     "source_address": compile_source_address_semantic_clause,
@@ -90,8 +100,10 @@ FIELD_COMPILERS = {
     "to_zone": compile_to_zone_clause,
     "vsys_display_name": compile_vsys_display_name_clause,
     "vsys_name": compile_vsys_name_clause,
-    # The nine per-rule threat-profile assertions, plus a detail field each.
+    # The twelve per-rule threat-profile assertions, plus a detail field each.
     **PROFILE_VERDICT_COMPILERS,
+    # The graded value beside one of them, which a calibration query clauses on.
+    **PROFILE_VERDICT_GRADING_COMPILERS,
 }
 FIELD_OPERATOR_REGISTRY = {
     "action": compile_action_clause.SUPPORTED_OPERATORS,
@@ -119,6 +131,10 @@ FIELD_OPERATOR_REGISTRY = {
         compile_wildfire_analysis_submits_all_clause.SUPPORTED_OPERATORS,
     "has_spyware_profile": compile_has_spyware_profile_clause.SUPPORTED_OPERATORS,
     "has_vulnerability_profile": compile_has_vulnerability_profile_clause.SUPPORTED_OPERATORS,
+    "vulnerability_profile_resolved":
+        compile_vulnerability_profile_resolved_clause.SUPPORTED_OPERATORS,
+    "vulnerability_verdict_written":
+        compile_vulnerability_verdict_written_clause.SUPPORTED_OPERATORS,
     "rule_type": compile_rule_type_clause.SUPPORTED_OPERATORS,
     "service": compile_service_clause.SUPPORTED_OPERATORS,
     "source_address": compile_source_address_semantic_clause.SUPPORTED_OPERATORS,
@@ -128,6 +144,8 @@ FIELD_OPERATOR_REGISTRY = {
     "vsys_name": compile_vsys_name_clause.SUPPORTED_OPERATORS,
     **{field: compiler.SUPPORTED_OPERATORS
        for field, compiler in PROFILE_VERDICT_COMPILERS.items()},
+    **{field: compiler.SUPPORTED_OPERATORS
+       for field, compiler in PROFILE_VERDICT_GRADING_COMPILERS.items()},
 }
 
 def compile_security_rule_search_node(node):
