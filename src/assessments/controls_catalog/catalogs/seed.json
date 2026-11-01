@@ -7740,6 +7740,786 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-GPP-001",
+          "name": "Portal TLS Service Profile Bound",
+          "control_type": "globalprotect_portal",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A GlobalProtect portal with no SSL/TLS service profile bound to it. Nobody has decided what the portal will negotiate, so remote users get whatever floor the platform falls back to, and a reviewer reading the portal's own record is shown a posture the handshake does not deliver.\n\nTHE CLAUSE IS ON THE BINDING AND ON NOTHING ELSE, which is narrower than this control's catalogue text and deliberately so. The text asserts four things in one sentence - a binding, a TLS 1.2+ floor, a CA-issued certificate and a monitored expiry - and three of them belong to controls whose object IS the value in question: PAN-CRT-005 owns the floor on the service profile itself and names GlobalProtect among the services it floors, PAN-CRT-009 owns the algorithm selections on the same profile, and PAN-CRT-001 owns the expiry. What the portal's own leaf holds is a NAME and nothing more, so the binding is the whole of what this row can assert.\n\nTHE BINDING IS MANDATORY ON A COMMITTED PORTAL, measured three ways, so a row this fires on is one whose configuration a collection did not carry rather than a portal an operator left unbound. That is a real row in a real estate and it is what the derived column exists to report; the finding says so, and `mandatory_keys_present` beside the row is what records it. The clause is written on the derived verdict and NOT on `ssl_tls_service_profile is_empty` on purpose - whether the absence operator matches a column that was never populated is a property of the query layer and not of the device.\n\nON A SHARED INTERFACE THE PORTAL'S OWN SETTING IS NOT WHAT IS IN FORCE. The vendor states twice that where a gateway and a portal terminate on the same interface and do not share a certificate profile and an SSL/TLS service profile, the gateway's configuration takes precedence during the SSL handshake. So the interface-sharing question decides whose transport settings apply, and it is the engineer's to answer.\n\nTHE SECOND HALF OF THIS CONTROL IS NOT EXPRESSED AND IS NOT DROPPED SILENTLY. That the certificate the portal presents chains to an authority the connecting endpoint already trusts, before anything has been deployed to that endpoint, has NO COLUMN: the firewall holds the certificate's own fields and not the trust stores of the endpoints that will reach it, and the address users actually reach the portal at is not a firewall fact either. It is answered by the engineer, so a clean result on this control is not evidence of a trusted chain.\n\nAN APPLICABILITY QUESTION DELIBERATELY NOT MADE A CLAUSE: which of these portals face a network the customer does not control. A portal on an internal segment carries the same configuration and not the same risk, and no column distinguishes them - a clause on an unanswered question would SUPPRESS the control rather than qualify it.",
+          "rationale": "The first thing a new endpoint does is reach the portal over HTTPS with no GlobalProtect configuration on it yet, so the portal's transport settings are the only thing standing between a remote user and an interception on the one connection where nothing else is in place to notice it.",
+          "audit": "Network > GlobalProtect > Portals. Open the portal the finding names and read `portal-config/ssl-tls-service-profile`. A blank value on a committed portal is not a device state - the firewall refuses to commit a portal without it - so check whether the configuration read for this appliance carried the portal's `portal-config` subtree at all before reporting it as unbound. Then open the profile the name points at and check its floor against PAN-CRT-005, which owns that assertion. Where a gateway terminates on the same interface, read the gateway's profile too: the vendor says the gateway's wins.",
+          "remediation": "Bind an SSL/TLS service profile to the portal. Where a gateway terminates on the same interface, bind the SAME certificate profile and SSL/TLS service profile to both, which is the vendor's own recommendation and the only way the portal's record and the handshake agree. Obtaining a trusted certificate is a separate piece of work from binding a profile - a reissuance rather than a configuration write - which is why this control does not carry it.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectPortal",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A GlobalProtect portal with no SSL/TLS service profile name bound to it.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tls_profile_binding_missing",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tls_profile_binding_missing"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPP-002",
+          "name": "Portal Authentication Demands More Than A Password",
+          "control_type": "globalprotect_portal_client_auth",
+          "default_severity": "critical",
+          "is_active": true,
+          "description": "A row of a GlobalProtect portal's client-authentication table that will admit an endpoint class on a password alone, or on whichever of a password and a client certificate the endpoint can produce. A portal that one stolen password opens hands the attacker the agent configuration and the network behind it, and the reconnection credential the portal then issues turns that single phished password into access that outlives the session it was stolen in.\n\nTHE SUBJECT IS THE ROW AND NOT THE PORTAL, and that is this control's central decision. The table is KEYED BY THE ENDPOINT CLASS - `Any`, `Browser`, `Satellite`, or one of eleven per-platform names the leaf also references - so one portal can demand both factors of one class and neither of another. Measured: two rows of ONE portal in this lab sit at `high` and at no finding at all. A control at the portal grain would report one verdict for both, could not say which class was weak, and would show the compliant row beside the failing one as though they agreed.\n\nGRADED ON ONE DERIVED COLUMN AND NOT ON TWO CLAUSES, because the failing condition is a DISJUNCTION - no certificate profile bound to the portal, OR one bound with a permissive and/or switch - and a clause list is one conjunction with no OR, so two clauses would fire only where both held. `password_only` is the estate's measured state and sits at the baseline; `password_or_certificate` is one tier lower, because the attacker needs only whichever of the two they can obtain; `unknown` fires AT the baseline rather than grading down, because its two candidate readings are the two ENDS of this grading and there is no defensible middle.\n\nTHE VENDOR'S POLARITY READS BACKWARDS AND IS KEPT. `yes` on `user-credential-or-client-cert-required` means a password OR a client certificate will do, which is the PERMISSIVE state, and `no` means both are required, which is the hardened one - the device's own help string spells it `No (User Credentials AND Client Certificate Required)`. A reviewer who selected `yes` believing they had the hardened rows selected exactly the permissive ones.\n\nONE SEVERITY SEPARATES TWO ROWS WHOSE OWN SWITCH VALUES ARE IDENTICAL, and the difference is a leaf on the PARENT portal: whether `portal-config/certificate-profile` binds anything at all. Where it binds nothing there is no second factor for the OR to reach, so a permissive switch means a password is the whole test. That fact is carried down onto each row through the row's own foreign key to its portal, which is a to-one upward walk.\n\nTWO OF THIS CONTROL'S FOUR RANKS ARE NOT PLACEABLE AND BOTH ABSENCES ARE DELIBERATE. Its acceptable minimum - a password verified by an identity service the customer confirms enforces a second factor - IS NOT A VALUE OF ANY COLUMN, because the firewall records WHICH service it asks and never what that service demands. So a row naming a SAML or RADIUS object is not evidence of MFA, and no query here can award it.\n\nTHE FALLBACK PATH IS UNEXPRESSED RATHER THAN SATISFIED. The first factor may be an authentication PROFILE or an authentication SEQUENCE - two different objects, both stored by this project - and this column cannot say which. A sequence is tried member by member until one succeeds, so a portal bound to one whose last member is the firewall's own local user database accepts a locally held password whenever the identity service is unreachable. The finding names the bound object so an engineer can resolve it by hand.\n\nAND THE WEAKEST ADMISSION STATE THE DEVICE PERMITS PRODUCES NO FINDING AT ALL. A portal with an EMPTY authentication table demands nothing of anybody, which is weaker than every rank graded here, and it produces no row of this subject to report on. `GlobalProtectPortal.client_auth_row_count` is the only column anywhere that can see it, and a control's queries all compile against one model.",
+          "rationale": "Portal authentication gates delivery of the agent configuration and of the network behind it, so a password-only path is one phishing email from a working remote-access session, and the credential the portal issues on success keeps that access alive after the password is changed.",
+          "audit": "Network > GlobalProtect > Portals > the portal the finding names > Authentication. Open the row the finding names - the finding prints the row name, the portal and the endpoint class, because the row name alone is operator-chosen and not unique within a vsys - and read two things together: the and/or switch on the row, remembering that `Yes` is the permissive setting, and `portal-config/certificate-profile` on the portal above it. Then open the authentication object the row names and establish whether it is a profile or a SEQUENCE, and whether the service behind it actually enforces a second factor; neither is a firewall fact.",
+          "remediation": "Set the row's and/or switch to require both factors - the setting whose label reads `No (User Credentials AND Client Certificate Required)` - and bind a certificate profile to the portal so that a client certificate can be demanded at all. Both are needed: the switch alone demands a certificate the portal cannot check, and the profile alone leaves the row admitting either factor. Repeat for EVERY row of the table, including any fallback row, and check whether the authentication object is a sequence whose last member is the firewall's local user database.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectPortalClientAuthRow",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A portal authentication row that does not demand both a password and a client certificate of the endpoint class it serves.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortalClientAuthRow",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_and_certificate",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "admission_demand"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Admission on a password alone",
+              "short_description": "The and/or switch is permissive and the portal binds no certificate profile, so a password is the whole of the admission test for this endpoint class.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortalClientAuthRow",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_and_certificate",
+                    "negated": true
+                  },
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "admission_demand"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "critical",
+              "is_active": true
+            },
+            {
+              "name": "Admission on either factor rather than both",
+              "short_description": "A certificate profile is bound and the and/or switch is permissive, so the endpoint is admitted on whichever of the two factors it can produce.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortalClientAuthRow",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_and_certificate",
+                    "negated": true
+                  },
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_or_certificate",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "admission_demand"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "What this row demands could not be resolved",
+              "short_description": "The and/or switch is absent from this row, so one of the two inputs the verdict needs is missing and the row's demand was not established.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortalClientAuthRow",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "password_and_certificate",
+                    "negated": true
+                  },
+                  {
+                    "field": "admission_demand",
+                    "op": "eq",
+                    "value": "unknown",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "admission_demand"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "critical",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPP-003",
+          "name": "Portal Drives Agents To A Current Version",
+          "control_type": "globalprotect_portal",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A GlobalProtect portal whose agent configuration does not tell the endpoint to move to a current app version. An endpoint running a superseded GlobalProtect app carries client vulnerabilities that are already patched and publicly described, and the portal is the only thing that reaches those endpoints - so an estate that does not drive upgrades from there has no mechanism that will ever retire them.\n\nTHE SETTING THAT COUNTS IS THE ONE ON THE FIRST AGENT CONFIGURATION AN ENDPOINT MATCHES, because the portal delivers the first match and stops. The collection is a flat entry list with no priority key, so the order is the DOCUMENT order and a consumer that sorts destroys the semantics; the finding names which configuration to edit.\n\nTHREE SENTINELS, AND THEY ARE THE REASON THIS CONTROL IS NOT A SINGLE EQUALITY. A naive reading - an equality on a `gp-app-config` entry named after the setting - PASSES EVERY PORTAL THAT HANDS OUT NO AGENT CONFIGURATION AT ALL, which is the measured state of the one portal in this lab that nobody here configured: a missing key matches no equality and the row is dropped silently. `no_agent_configuration` reports it at the baseline. `not_set` reports a configuration that exists and says nothing about upgrades - three sources agree the FORM's default is `Allow with Prompt` and not one of them is a measurement of what the agent does when the member is absent, and the agent is the thing that acts on it. `several_members` reports the wire hazard: the stored list APPENDS rather than replaces on a setting the vendor's own schema marks single-valued, with neither the member value nor the entry name validated at the write, so there is no effective instruction to report.\n\nA FIFTH VENDOR VALUE HAS NO RANK AND IS REPORTED AT THE BASELINE ANYWAY. The device's predefined dictionary and the vendor Help agree on prompt / disabled / manual / transparent / INTERNAL, and the fifth upgrades automatically but waits until the endpoint is connected internally to the corporate network. Whether that converges depends on how often the population is on the corporate network, which is the customer's fact and not the firewall's - so it was left unranked. It still reports, because the assertion is written as the negation of the two ACCEPTABLE values and a reader of a clean report otherwise has no way to tell this configuration from one that upgrades unconditionally. Reduce the severity where the population is known to be on-network often enough.\n\n`Disallow` IS PRESCRIBED BY THE VENDOR DURING A STAGED ROLLOUT, temporarily and on every configuration but one, which is the one case where this finding's worst value is deliberate. Confirm whether a population is being held back on purpose before reporting it as neglect.\n\nTHE FLEET HALF OF THIS ASSERTION HAS NO COLUMN AND IS NOT DROPPED SILENTLY. That the versions actually connecting are within one major release of the one the estate treats as current cannot be read: the only operational read in the estate that could answer it returns an empty success with no counter, no row count and no timestamp, so `no agent has ever connected` and `this is never populated here` arrive identically. The current-version baseline is the customer's to supply in any case.\n\nTHE SECOND HALF OF THIS CONTROL IS BUILT NOWHERE AND THAT IS RECORDED RATHER THAN QUIET. That access is CONDITIONED on the app version the endpoint reports - so an endpoint below the floor is refused or confined rather than asked to upgrade - rests on a HIP object's client-version criterion, which is a column of the virtual system and not of the portal. One catalogue control has one target model, and the portal took the id because this control's language leads with the portal's agent configuration, because the grading is on this half, and because this half carries the control's own severity while the other carries its lower preferred-gap tier. So a clean result here says nothing about whether an out-of-date agent would be refused. What that half would say, where it is built, is narrow in any case: the HIP matcher has exactly three children - contains, is, is-not - every one a string match with no numeric comparison anywhere beneath it, so `below the documented floor` is not something the object can express, and a HIP object no security rule references refuses nobody.",
+          "rationale": "Client vulnerabilities in a superseded GlobalProtect app are patched and publicly described, and the portal is the only channel that reaches the endpoints carrying them, so a portal that does not drive upgrades leaves a known-vulnerable fleet with nothing that will ever retire it.",
+          "audit": "Network > GlobalProtect > Portals > the portal the finding names > Agent > App Configurations. Read the upgrade behaviour on the FIRST configuration an endpoint would match, in the order the list is stored, because the portal delivers the first match and stops. On current releases the setting is delivered as a named `gp-app-config` key/value pair rather than a dedicated leaf, so confirm the key in the GUI rather than by path. A portal with no App Configurations at all is the baseline case and there is nothing to open; what to check then is whether that portal is in service. The fleet question - which app versions are actually connecting - cannot be answered from configuration and needs the customer's inventory.",
+          "remediation": "Set the upgrade behaviour to `Allow with Prompt` or `Allow Transparently` on the agent configurations this portal hands out, after testing the version on a limited configuration first, which is the vendor's own sequence. Where the portal hands out no agent configuration at all, the fix is to create one: nothing else reaches those endpoints. Where several values are stored on one setting, delete the entry and write it once - the list appends and the vendor's schema marks it single-valued. Pair this with a HIP-based admission condition on the app version, which is a separate piece of work on the security policy and is not asserted by this control.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectPortal",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A portal whose first matching agent configuration does not tell the endpoint to upgrade, by prompt or transparently.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Upgrades disallowed outright",
+              "short_description": "The agent configuration sets the upgrade behaviour to Disallow, so nothing will move an endpoint matching it and the superseded app is permanent until the portal is edited.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Upgrades left to the user to initiate",
+              "short_description": "The agent configuration sets Allow Manually, so an upgrade is possible and nothing initiates it - convergence depends on individual users deciding to look.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "manual",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "No agent configuration is handed out at all",
+              "short_description": "The portal has no client-config node, so it hands out no agent configuration and there is no upgrade instruction to read and nothing for a remediation to edit.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "no_agent_configuration",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "No upgrade instruction recorded on the configuration",
+              "short_description": "An agent configuration exists and records no upgrade setting. What the agent does when the member is absent is documented as a form default and measured nowhere.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "not_set",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Several upgrade values on a single-valued setting",
+              "short_description": "The stored list holds more than one upgrade value while the vendor's schema marks the setting single-valued, so there is no effective instruction to report.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "prompt",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "transparent",
+                    "negated": true
+                  },
+                  {
+                    "field": "upgrade_posture",
+                    "op": "eq",
+                    "value": "several_members",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "upgrade_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPP-004",
+          "name": "Agent Configuration Does Not Save User Credentials",
+          "control_type": "globalprotect_portal",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A GlobalProtect portal whose agent configuration permits the app to keep the user's password on the endpoint. A laptop that is stolen, resold or compromised then carries a working remote-access credential for the corporate network in its own storage, so losing a device becomes losing network access, and revoking it means resetting that user's password rather than wiping the device.\n\nTHE LITERAL IS THE STRING `0` AND NOT THE WORD `no`. The leaf is a four-value enumeration of numeric strings - 0 is No, 1 is Yes, 2 is Save Username Only, 3 is Only with User Fingerprint - and a clause written from this control's own prose would have compared against the word and never matched anything on any device in any estate.\n\nTHE STORED ORDER IS NOT THE EXPOSURE ORDER, which is why every calibration here is an EQUALITY and none is a threshold. The column runs 0,1,2,3 and the exposure runs 0 < 2 < 3 < 1: `Save Username Only` keeps no password at all and is the mildest finding, while `Yes` keeps everything and is the worst. Any threshold over this column reports Save Username Only as worse than a stored password behind a fingerprint, and `Yes` as better than both.\n\n`Only with User Fingerprint` IS GRADED ON WHAT IS STORED AND NOT ON WHAT GATES IT. The password is still on the endpoint; what releases it is a biometric check the firewall cannot see and that whoever holds the device may be able to satisfy. The catalogue's own notes label this value `Yes with User Fingerprint`, which points at a weaker reading than the device and the vendor agree on - both call it `Only with User Fingerprint`.\n\nTWO SENTINELS, BOTH AT THE BASELINE. `no_agent_configuration` is a portal that hands out nothing, so what the app keeps is decided by the app; `not_set` is a configuration with no value recorded. Both are UNKNOWNS about whether a working remote-access credential is sitting in an endpoint's storage, and both the device's schema default and the vendor's documentation name `Yes` - this control's worst value - as what the form shows, so a missing reading on that question reports rather than passing.\n\nTHE HARDENED VALUE DOES NOT BY ITSELF PRODUCE A CREDENTIAL PROMPT PER CONNECTION. The authentication-override cookie is a neighbouring node on the same agent configuration and pre-empts re-entry of credentials. This control is about what is STORED on the endpoint, which is what its own node decides.",
+          "rationale": "A cached VPN password turns a lost laptop into a standing remote-access breach that survives the device, and clearing it means a password reset for that user rather than a remote wipe.",
+          "audit": "Network > GlobalProtect > Portals > the portal the finding names > Agent > App Configurations > User/User Group > Save User Credentials. Read the value on the FIRST configuration an endpoint would match, in the order the list is stored. Confirm the numeric mapping in the GUI before acting on it: 0 is No, 1 is Yes, 2 is Save Username Only, 3 is Only with User Fingerprint, and the catalogue notes label the fourth the other way round. A portal with no App Configurations is the baseline case and there is nothing to open.",
+          "remediation": "Set Save User Credentials to `No` on every agent configuration this portal hands out. Where the user-experience need is real, meet it with connect-before-logon and single sign-on rather than a cached password; note that the authentication-override cookie on the same configuration already suppresses re-entry of credentials, so hardening this value does not by itself add a prompt per connection. Where the portal hands out no configuration at all, what the app keeps is not under this firewall's control and the fix is to create one.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectPortal",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A portal whose first matching agent configuration does not set Save User Credentials to No.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The user's password is kept on the endpoint",
+              "short_description": "Save User Credentials is Yes, so both the username and the password sit in the endpoint's own storage. This is also the value the device's schema marks as the field's default.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  },
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "1",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The password is kept behind a local biometric",
+              "short_description": "Save User Credentials is Only with User Fingerprint: the password is still stored and what releases it is a check on the endpoint that the firewall cannot see.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  },
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "3",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The username is kept and the password is not",
+              "short_description": "Save User Credentials is Save Username Only, so no password can be lifted off the device; what remains is a confirmed account name against a confirmed portal.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  },
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "2",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "No agent configuration is handed out at all",
+              "short_description": "The portal has no client-config node, so what the app keeps on the endpoint is decided by the app and not by this firewall.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  },
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "no_agent_configuration",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "No saved-credential value recorded on the configuration",
+              "short_description": "An agent configuration exists and records no Save User Credentials value, so whether a credential is sitting in an endpoint's storage was not established.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "0",
+                    "negated": true
+                  },
+                  {
+                    "field": "saved_credentials_posture",
+                    "op": "eq",
+                    "value": "not_set",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "saved_credentials_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPP-005",
+          "name": "Portal Web Login Page Disabled Where Nothing Needs It",
+          "control_type": "globalprotect_portal",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A GlobalProtect portal that serves a browser-reachable login page. The page is an unauthenticated credential prompt published wherever the portal is reachable, it answers whether a username is real, and it is the surface PAN-OS pre-authentication exploit chains have arrived at - so an estate that distributes its agents by other means is carrying that exposure for nothing it uses.\n\nTHE ASSERTION IS THE NEGATION OF `Disable` AND THAT IS WIDER THAN AN EQUALITY ON THE SHIPPED PAGE. `custom-login-page` holds one of three kinds of value: `Disable`, which is a STATE and not a pointer and means no page is served at all; `factory-default`, the page the platform ships; or the name of an imported response page, which is any string. The third cannot be written as a placement literal and does not need to be - an imported page is still an unauthenticated credential prompt, it is graded at the same tier as the shipped one, and the negation catches it.\n\nTHE FOURTH STATE THE VENDOR HELP NAMES DOES NOT EXIST ON A DEVICE. The Help names a `None` value and calls it this field's default; the key is MANDATORY on a committed portal, measured three ways, and writing `None` is refused in both capitalisations. So the comparison is total over three states and a null is never a device state.\n\nWHICH MEANS AN EMPTY VALUE HERE IS EVIDENCE ABOUT THE READ, and that is what this control's second query reports. A portal row whose collection did not carry `portal-config` has no login-page value, no comparison reaches a value that is not there, and SQL decides the absence the compliant way - so without a clause on the companion a portal nobody could read would appear in a clean report. `mandatory_keys_present` is that companion: it is false until something proves otherwise, and false is the firing side.\n\nTHAT COMPANION CLAUSE IS ON THIS CONTROL AND IT BELONGS TO A COVERAGE CONTROL. The rule is that a coverage statement - `we could not see this` - carries a different remediation from a configuration statement, and only the first can be cleared by the assessor rather than by the customer. No coverage control over a GlobalProtect portal exists and no build run may mint one, so the clause is parked here rather than dropped, because an unknown that reads as compliant and carries no clause at all is a silent pass. It is filed as a request and should move when that control lands.\n\nWHETHER THE SURFACE IS NEEDED IS THE CUSTOMER'S FACT AND DELIBERATELY NOT AN APPLICABILITY CLAUSE. No column distinguishes an estate that deploys agents through endpoint management from one that relies on the page, and a clause on an unanswered question would SUPPRESS the control rather than qualify it. The standard this control holds is that serving the page is a decision somebody made and can point to, rather than the state the portal happened to be left in.",
+          "rationale": "An unauthenticated credential prompt on the public internet is a phishing target, a username oracle and a documented step in PAN-OS exploit chains, and an estate that distributes its agents through endpoint management gets nothing back for carrying it.",
+          "audit": "Network > GlobalProtect > Portals > the portal the finding names > General > Authentication > Custom Login Page. `Disable` is the only value in which no page is served; `factory-default` is the page the platform ships and any other value names an imported response page, which is the same exposure in different clothes. Where the finding says the read did not carry the portal's mandatory keys, the thing to check is the collection and not the portal - the firewall refuses to commit a portal without this key, so a blank value is not a device state. Then establish how agents are actually distributed in this estate, because that is what decides whether the page is needed at all.",
+          "remediation": "Set Custom Login Page to `Disable` on every portal whose agents are distributed by endpoint management or any other means. Where the page is genuinely needed, record the decision and what depends on it, and keep the portal's exposure narrowed by other means - the finding's standard is a decision somebody can point to, not the absence of the page. Replacing the shipped page with an imported one does not clear this finding: the prompt is still unauthenticated and still answers whether a username is real.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectPortal",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A portal that serves a browser-reachable login page - the platform's own or an imported one - rather than disabling it.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "custom_login_page",
+                    "op": "eq",
+                    "value": "Disable",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "custom_login_page"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The platform's own login page is served",
+              "short_description": "The portal serves the login page the platform ships, which is the page every scanner and every published exploit chain has already seen.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "custom_login_page",
+                    "op": "eq",
+                    "value": "Disable",
+                    "negated": true
+                  },
+                  {
+                    "field": "custom_login_page",
+                    "op": "eq",
+                    "value": "factory-default",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "custom_login_page"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Whether this portal serves a login page could not be established",
+              "short_description": "The read for this portal did not carry the four keys a committed portal always has, so what it serves a browser was never established - and an unknown here reads as compliant to every comparison written over it.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectPortal",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "mandatory_keys_present",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "mandatory_keys_present"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPP-006",
+          "name": "Clientless VPN Absent Unless A Business Need Is Documented",
+          "control_type": "globalprotect_enforcement_point",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A virtual system that publishes internal web applications for browser access through a GlobalProtect portal, or that holds the pieces to. Publishing an application this way puts the firewall in the business of rewriting and proxying that application's pages on behalf of an internet-facing service, which is a far larger surface than a tunnel and one that has carried pre-authentication exploit chains.\n\nTHE SUBJECT IS THE VIRTUAL SYSTEM AND NOT THE PORTAL, and that is this control's central decision. What it asserts is an ABSENCE - that no portal publishes these applications AND that neither the portal nor the firewall holds the application definitions or application groups such publishing would draw on - and nothing that does not exist can carry a row. The `latent` rank is the case that forces the grain: a virtual system holding a clientless application definition that NO portal publishes has no portal row to be reported on, so a portal-keyed control is silent on it by construction. Measured in this lab on a virtual system with one definition, no portal and no interface imported.\n\nTHERE IS NO OFF SWITCH TO READ AND A READER WHO ASSUMES ONE REPORTS THE OPPOSITE. The `clientless-vpn` container has ten children on three builds measured and not one of them is a boolean - an application-to-user mapping, crypto settings, a DNS proxy, a hostname, an inactivity logout, a login lifetime, a user cap, a proxy server setting, a rewrite-exclusion list and a security zone. The UI control that looks like a top-level switch REVEALS the group rather than writing an element, so `absent OR disabled` collapses to `the element exists or it does not`, and reading the missing switch as `off` would report every portal with the feature fully configured as compliant.\n\nNODE PRESENCE IS THE WRONG TEST AND AN ENTRY COUNT IS THE RIGHT ONE. Deleting the last entry leaves the container present and empty, deleting the container leaves `global-protect` present and empty, and an appliance in this lab carries exactly that - committed, undecorated, with a count of one answered for a container holding nothing. Every level of that residue is truthy to a naive read. BOTH OBJECT KINDS ARE COUNTED and not only the definitions, because the vendor's own sentence names two screens and an application reachable only through a GROUP would have made the estate look clean.\n\nAN UNKNOWN FIRES AT THE BASELINE, with the engineer's questions attached. The two directions of error are different and both matter: an absence must not be reported as a decision to keep the feature off, and a presence must not be reported as an undocumented one.\n\nABSENCE SATISFIES THIS CONTROL RATHER THAN MAKING IT INAPPLICABLE. What is graded is PRESENCE, so there is no acceptable rank in the ordinary sense - the acceptable state is the absence of every rank below it - and a virtual system with no GlobalProtect node at all still produces a row and still reads as compliant, because this subject is a verdict over entries and not an entry.\n\nONE PRECONDITION IS AN APPLICABILITY CLAUSE AND THE OTHER DELIBERATELY IS NOT. The licensing clause suppresses this control ONLY where a populated licence list carries no GlobalProtect feature - a definite no. Where the appliance reported no licences at all the answer is UNKNOWN rather than no, the clause leaves the row in play and the control fires, because suppressing on an unknown reads as careful and does the opposite. The second precondition - the vendor says the feature is unsupported on a multi-vsys firewall IF the clientless traffic must traverse several virtual systems - is a statement about where traffic GOES and no configuration node holds it, so it is the engineer's question rather than a multi-vsys test that would suppress the control on every multi-vsys appliance.\n\nTHE SECOND HALF OF THIS CONTROL IS SILENT AND THAT IS RECORDED RATHER THAN QUIET. Where a portal DOES publish, the browser sessions carrying those applications may not negotiate weaker transport than the portal itself requires - and that floor is a column of the PORTAL, not of the virtual system. One catalogue control has one target model, and there is no relation between the two models in either direction to reach the other half by. So where this control reports a live surface, the transport those sessions negotiate is unasserted by anything in this catalogue. IT IS A SECOND, INDEPENDENTLY CONFIGURED TRANSPORT ON THE SAME INTERNET-FACING SERVICE, weaker than the portal's own in every respect: four values with no TLS 1.3 at all and a schema default of TLS 1.0, against the service profile's TLS 1.0 through 1.3 and a default of 1.2. The control that looks as though it covers every TLS floor on this device does not cover this node, so read the floor on each publishing portal by hand.",
+          "rationale": "Clientless VPN makes the firewall rewrite and proxy an internal application's pages for anyone who can reach the portal, which is a far larger attack surface than a tunnel and has featured in pre-authentication exploit chains - and a configuration nobody uses carries all of that risk for no benefit.",
+          "audit": "Network > GlobalProtect > Portals > Clientless VPN, on every portal of the virtual system the finding names, and Network > GlobalProtect > Clientless Apps and Clientless App Groups for the definitions themselves. There is no checkbox to confirm this: what to look at is whether the Clientless VPN tab has applications in it and whether any application or group objects exist at all - a container that is present and empty is not the feature being in use. Where the finding says the pieces are held and nothing publishes them, the definitions are the thing to find and no portal will show them. Then establish the business need and whether each published application has been reviewed, neither of which the configuration can answer.",
+          "remediation": "Delete the `clientless-vpn` branch from each portal that carries it, and delete the clientless application definitions and application groups the virtual system holds - leaving the definitions behind is the `latent` state this control reports, because they are one edit from being live. Where a documented business need requires the feature, keep only the applications somebody has reviewed, record the need, and raise the clientless transport floor on each publishing portal to the highest value that node offers, which is TLS 1.2 - that floor is configured independently of the portal's own SSL/TLS service profile, defaults lower, and is asserted by no control in this catalogue. Where browser access is a real requirement, an identity-aware proxy meets it without putting the firewall in the application-rewriting business.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectEnforcementPoint",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A virtual system where the clientless-VPN feature is present in any degree - a portal publishing applications, or the definitions held with nothing publishing them.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectEnforcementPoint",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "licence_excludes_globalprotect",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "absent",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "clientless_vpn_feature_state"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The clientless-VPN surface is live",
+              "short_description": "A portal carries the clientless-VPN branch and the application definitions exist, so the surface is reachable by any browser that can reach the portal.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectEnforcementPoint",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "licence_excludes_globalprotect",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "absent",
+                    "negated": true
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "live",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "clientless_vpn_feature_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The pieces are held and nothing publishes them",
+              "short_description": "Clientless application definitions exist in this virtual system and no portal carries the branch, so nothing is reachable today and the configuration is one edit from being live.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectEnforcementPoint",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "licence_excludes_globalprotect",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "absent",
+                    "negated": true
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "latent",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "clientless_vpn_feature_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Whether this virtual system publishes web applications could not be resolved",
+              "short_description": "The clientless-VPN state of this virtual system was not established, so it is reported rather than counted as clean - an absence must not read as a decision to keep the feature off.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectEnforcementPoint",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "licence_excludes_globalprotect",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "absent",
+                    "negated": true
+                  },
+                  {
+                    "field": "clientless_vpn_feature_state",
+                    "op": "eq",
+                    "value": "unknown",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "clientless_vpn_feature_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
         }
       ]
     }

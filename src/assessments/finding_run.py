@@ -32,6 +32,15 @@ from assessments.zone_findings import generate_zone_findings
 from assessments.rulebase_device_match_findings import (
     generate_rulebase_device_match_findings,
 )
+from assessments.globalprotect_portal_findings import (
+    generate_globalprotect_portal_findings,
+)
+from assessments.globalprotect_portal_client_auth_findings import (
+    generate_globalprotect_portal_client_auth_findings,
+)
+from assessments.globalprotect_enforcement_point_findings import (
+    generate_globalprotect_enforcement_point_findings,
+)
 from assessments.data_filtering_posture_findings import (
     generate_data_filtering_posture_findings,
 )
@@ -178,6 +187,16 @@ GENERATORS = (
     # need no line here: they target `SecurityProfile`, whose generator already exists.
     ("data filtering posture", T.DATA_FILTERING_POSTURE,
      generate_data_filtering_posture_findings),
+    # `globalprotect-portal`, in this tuple's own ordering rule: the VSYS-WIDE verdict first, then
+    # the portal, then the row beneath it. A reader meets "this virtual system publishes internal
+    # web applications for browser access" - or holds the pieces to - before any finding about one
+    # portal's settings, and meets the portal before the authentication row inside it, because the
+    # row's own severity turns on a leaf of the portal above it.
+    ("GlobalProtect enforcement point", T.GLOBALPROTECT_ENFORCEMENT_POINT,
+     generate_globalprotect_enforcement_point_findings),
+    ("GlobalProtect portal", T.GLOBALPROTECT_PORTAL, generate_globalprotect_portal_findings),
+    ("GlobalProtect portal authentication row", T.GLOBALPROTECT_PORTAL_CLIENT_AUTH,
+     generate_globalprotect_portal_client_auth_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

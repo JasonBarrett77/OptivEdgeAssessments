@@ -161,6 +161,26 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # profile anywhere beneath the enforcement point, so the subject is the point.
     FindingKind(m.DataFilteringPostureFinding, "data_filtering_posture",
                 m.Control.ControlType.DATA_FILTERING_POSTURE, "data filtering posture"),
+    # `globalprotect-portal` adds THREE kinds for its three models, because every one of them is a
+    # control's target: the portal entry (PAN-GPP-001, -003, -004, -005), its client-auth ROW
+    # (PAN-GPP-002) and the vsys above both (PAN-GPP-006). None of the three had a kind, a
+    # generator or a search surface before this change.
+    #
+    # THE ROW IS A KIND OF ITS OWN AND NOT A ROLL-UP ONTO THE PORTAL. A portal can demand both
+    # factors of one endpoint class and neither of another - measured, two rows of one portal at
+    # `high` and at `no_finding` - so a portal-keyed finding would report one verdict an engineer
+    # cannot act on, which is the to-many downward grain standing ruling 6 refuses.
+    FindingKind(m.GlobalProtectPortalFinding, "globalprotect_portal",
+                m.Control.ControlType.GLOBALPROTECT_PORTAL, "GlobalProtect portal"),
+    FindingKind(m.GlobalProtectPortalClientAuthFinding, "globalprotect_portal_client_auth_row",
+                m.Control.ControlType.GLOBALPROTECT_PORTAL_CLIENT_AUTH,
+                "GlobalProtect portal authentication row"),
+    # A VERDICT rather than an object, like the SaaS three and the data-filtering posture above:
+    # the commonest thing it reports is an ABSENCE - no portal, no published application, no
+    # posture matcher - and nothing that does not exist can carry a row.
+    FindingKind(m.GlobalProtectEnforcementPointFinding, "globalprotect_enforcement_point",
+                m.Control.ControlType.GLOBALPROTECT_ENFORCEMENT_POINT,
+                "GlobalProtect enforcement point"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

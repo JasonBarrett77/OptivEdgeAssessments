@@ -49,6 +49,9 @@ DEVICE_IDENTIFICATION_MODEL = "integrations.DeviceIdentificationState"
 ZONE_MODEL = "integrations.Zone"
 RULEBASE_DEVICE_MATCH_MODEL = "integrations.RulebaseDeviceMatchVerdict"
 DATA_FILTERING_POSTURE_MODEL = "integrations.DataFilteringPosture"
+GLOBALPROTECT_PORTAL_MODEL = "integrations.GlobalProtectPortal"
+GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL = "integrations.GlobalProtectPortalClientAuthRow"
+GLOBALPROTECT_ENFORCEMENT_POINT_MODEL = "integrations.GlobalProtectEnforcementPoint"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -483,4 +486,28 @@ def evaluate_data_filtering_posture_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or DATA_FILTERING_POSTURE_MODEL,
+    )
+
+
+def evaluate_globalprotect_portal_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_PORTAL_MODEL,
+    )
+
+
+def evaluate_globalprotect_portal_client_auth_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL,
+    )
+
+
+def evaluate_globalprotect_enforcement_point_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
     )

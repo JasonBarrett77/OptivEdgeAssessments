@@ -53,6 +53,9 @@ from optivedge_integrations.integrations.models import (
     DeviceIdentificationState,
     RulebaseDeviceMatchVerdict,
     DataFilteringPosture,
+    GlobalProtectPortal,
+    GlobalProtectPortalClientAuthRow,
+    GlobalProtectEnforcementPoint,
     Zone,
 )
 
@@ -219,6 +222,40 @@ class Control(models.Model):
         #: measured subjects at their own scope - and at this grain one point's row cannot name
         #: which profile failed.
         DATA_FILTERING_POSTURE = "data_filtering_posture", "Data Filtering Posture"
+        #: `globalprotect-portal`. THREE SUBJECTS, THREE MODELS, THREE TYPES, for the one-to-one
+        #: reason above - and the three are a PARENT, its CHILD ROW and the VSYS above both,
+        #: which is the shape standing ruling 6's direction qualifier decides.
+        #:
+        #: The portal entry, which four of the domain's six controls target: PAN-GPP-001 (is a
+        #: transport profile bound at all), -003 (does the portal drive agents to a current
+        #: version), -004 (may the app keep a password on the endpoint) and -005 (is the
+        #: browser-reachable login page served).
+        GLOBALPROTECT_PORTAL = "globalprotect_portal", "GlobalProtect Portal"
+        #: One row of one portal's client-authentication table, keyed by endpoint CLASS. It is
+        #: PAN-GPP-002's subject and nothing else's, and it is A SEPARATE TYPE FROM THE PORTAL
+        #: RATHER THAN A ROLL-UP ONTO IT: a portal can demand both factors of one endpoint class
+        #: and neither of another - measured, two rows of one portal sit at `high` and at
+        #: `no_finding` - so a portal-grain control would fire the parent for one child's fault
+        #: and report the compliant sibling beside it. That is exactly the to-many DOWNWARD walk
+        #: ruling 6 refuses. The row's own FK to its portal is the to-ONE walk it permits, and it
+        #: is how the portal's `certificate_profile_bound` reaches the row at all.
+        GLOBALPROTECT_PORTAL_CLIENT_AUTH = (
+            "globalprotect_portal_client_auth", "GlobalProtect Portal Client Authentication")
+        #: One virtual system as a VERDICT over its GlobalProtect objects as a whole, which is
+        #: PAN-GPP-006's target. Chosen from the control's own language - "No portal publishes
+        #: internal web applications, and neither the portal nor the firewall holds the
+        #: application definitions" is a statement about the vsys and not about any one portal -
+        #: and confirmed by the `latent` rank, which stage 5 says exists FOR this grain: a vsys
+        #: holding a clientless application definition that no portal publishes has no portal row
+        #: to be reported on, so a portal-grain control is silent on it by construction.
+        #: PAN-GPP-006's second half, the clientless transport floor, is per portal and stays
+        #: SILENT; the stage 8 artifact records it in `subjects_in_two_models`. There is no Django
+        #: relation between this model and the portal in EITHER direction - introspected, not
+        #: assumed - so ruling 6's relation remedy has nothing to walk: the two share only
+        #: `appliance`, whose reverse accessor is to-many AND crosses vsys boundaries, which would
+        #: fire one vsys's row for another vsys's portal.
+        GLOBALPROTECT_ENFORCEMENT_POINT = (
+            "globalprotect_enforcement_point", "GlobalProtect Enforcement Point")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -328,6 +365,22 @@ class Control(models.Model):
         # exactly the devices that fail. The domain's other three controls REUSE
         # `security_profile` above rather than mint a second type for one model.
         "data_filtering_posture": "integrations.DataFilteringPosture",
+        # `globalprotect-portal`. THREE models and THREE types, because none of the three had a
+        # type: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for all three before this
+        # change, so nothing here is a second type for a model that already has one.
+        #
+        # One portal entry of one vsys. PAN-GPP-001, -003, -004 and -005 share it, which is the
+        # normal case - many controls, one type, one model.
+        "globalprotect_portal": "integrations.GlobalProtectPortal",
+        # One row of one portal's client-auth table, keyed by the endpoint class it serves.
+        # PAN-GPP-002 only. The child grain is the control's own grain: the parent cannot say
+        # which class is weak, and firing the parent for one child is the downward walk ruling 6
+        # refuses.
+        "globalprotect_portal_client_auth": "integrations.GlobalProtectPortalClientAuthRow",
+        # One vsys, as a verdict over its GlobalProtect objects as a whole. PAN-GPP-006 only.
+        # The absence of a portal, of a published application or of a posture matcher has no
+        # entry row to live on, which is what this grain exists for.
+        "globalprotect_enforcement_point": "integrations.GlobalProtectEnforcementPoint",
     }
 
     class Meta:
@@ -389,6 +442,9 @@ class Control(models.Model):
         "integrations.Zone": "Security Zone",
         "integrations.RulebaseDeviceMatchVerdict": "Rulebase Device Match",
         "integrations.DataFilteringPosture": "Data Filtering Posture",
+        "integrations.GlobalProtectPortal": "GlobalProtect Portal",
+        "integrations.GlobalProtectPortalClientAuthRow": "GlobalProtect Portal Client Authentication",
+        "integrations.GlobalProtectEnforcementPoint": "GlobalProtect Enforcement Point",
     }
 
     @property
@@ -3289,3 +3345,271 @@ class DataFilteringPostureFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.data_filtering_posture_finding_id} <- {self.control_query_id}"
+
+class GlobalProtectPortalFinding(ObjectFindingBase):
+    """A finding against one GlobalProtect portal entry of one vsys. PAN-GPP-001, -003, -004, -005.
+
+    THE PORTAL IS AN INTERNET-FACING TLS ENDPOINT AND AN AGENT-CONFIGURATION SERVER AT ONCE, which
+    is why four controls land on one row. Two of them read `portal-config` - the transport binding
+    and the browser login page - and two read the FIRST agent configuration an endpoint would match,
+    because the portal delivers the first match and stops.
+
+    `subject_name` IS THE PORTAL NAME AND `subject_scope` CARRIES THE VSYS AND THE APPLIANCE. The
+    name is unique DEVICE-WIDE rather than per vsys - measured at the write, a second vsys was
+    refused the same name with code=12 "already in use" - but a reader still needs the vsys,
+    because what the portal enforces belongs to that enforcement point.
+
+    WHAT NO FINDING HERE CAN SAY, and both are in stage 5's `not_stored`:
+
+    * WHETHER THE TLS FLOOR THE PORTAL NEGOTIATES IS ACCEPTABLE. PAN-GPP-001's clause is on the
+      BINDING and nothing else. The bound value is a NAME, and on a template-managed appliance the
+      profile it names is not in the same payload at all - measured, the estate's one adopted
+      portal binds `oep-tpl-tls`, which answers `No such node` in both committed views. What that
+      profile permits is PAN-CRT-005's subject.
+    * WHETHER THE CERTIFICATE THE PORTAL PRESENTS IS TRUSTED. That is PAN-GPP-001's SECOND half,
+      which stage 5 discharged `engineer_answers`: no column exists for it, it owes no query, and
+      a reader of a clean PAN-GPP-001 finding must not read it as "the chain is trusted".
+
+    AND ONE THING A PASS ON PAN-GPP-003 DOES NOT MEAN. Stage 3 asserts both that the portal drives
+    endpoints to a current version AND that the versions actually connecting are within one major
+    release of current. The second half has no column anywhere: the only read that could answer it
+    returns None with status=success and carries no counter, no row count and no timestamp, so "no
+    agent has ever connected" and "this is never populated here" are the same reply.
+
+    THE PART OF PAN-GPP-003 THAT IS SILENT HERE. Its second record - access conditioned on the app
+    version the endpoint reports - clauses on `integrations.GlobalProtectEnforcementPoint`, a
+    different model, so no query on this control can carry it. There is no Django relation between
+    the two in either direction; the stage 8 artifact records it in `subjects_in_two_models`.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="globalprotect_portal_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="globalprotect_portal_findings")
+    globalprotect_portal = models.ForeignKey(
+        GlobalProtectPortal, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectPortalFindingControlQuery",
+        related_name="globalprotect_portal_findings", blank=True)
+    #: Declared because a name is not unique across the estate: the portal name's namespace is
+    #: ONE APPLIANCE - measured at the write, a second vsys was refused the same name with code=12
+    #: "already in use" - so two appliances and an HA pair all collide on it, and what the portal
+    #: enforces belongs to a particular vsys of a particular appliance.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_portal"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "globalprotect_portal"],
+                name="unique_gpp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on GlobalProtect portal {self.subject_name}"
+
+
+class GlobalProtectPortalFindingControlQuery(FindingControlQueryBase):
+    globalprotect_portal_finding = models.ForeignKey(
+        GlobalProtectPortalFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_portal_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_portal_finding", "control_query"],
+                name="unique_gpp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.globalprotect_portal_finding_id} <- {self.control_query_id}"
+
+
+class GlobalProtectPortalClientAuthFinding(ObjectFindingBase):
+    """A finding against one row of one portal's client-authentication table. PAN-GPP-002.
+
+    THE ROW IS THE SUBJECT AND THE PORTAL IS NOT, and that is this model's whole reason for
+    existing rather than a roll-up onto `GlobalProtectPortalFinding`. The table is KEYED BY THE
+    ENDPOINT CLASS it serves - `Any`, `Browser`, `Satellite`, or one of eleven per-platform names -
+    so one portal can demand both factors of one class and neither of another. Measured on this
+    estate: two rows of ONE portal on pan-fw-111 sit at `high` and at `no_finding`, which is the
+    shape a parent-grain finding reports as one verdict and an engineer cannot act on.
+
+    `subject_name` IS THE ROW'S OWN NAME, which is OPERATOR-CHOSEN and carries no meaning - four
+    portals of one vsys each carry a row called `r1`. It is here because it is what tells two rows
+    of one portal apart and what an engineer opens; `os` is what a reader goes by and the finding's
+    sentence names it. `subject_scope` carries the appliance, the vsys and the portal name,
+    because the row name alone is not unique within a vsys.
+
+    THE PORTAL'S FACT IS CARRIED ONTO THE ROW AND THE WALK IS UPWARD. Whether a client certificate
+    can be demanded of anybody is a leaf on the PARENT - `portal-config/certificate-profile` - and
+    the and/or switch beside it says nothing without it. `certificate_profile_bound` is that fact,
+    written onto the row at normalisation; the row's `portal` FK is the to-ONE upward relation
+    standing ruling 6 permits, and it is why one severity separates two rows whose own switch
+    values are identical.
+
+    WHAT NO FINDING HERE CAN SAY. Whether the first factor is a PROFILE or a SEQUENCE - two
+    different objects, both shipped downstream - and stage 5's `not_stored` says the column cannot
+    tell them apart. A sequence is tried member by member until one succeeds, so a portal bound to
+    one whose last member is the firewall's own local user database accepts a locally held password
+    whenever the identity service is unreachable. That is stage 3's fallback-path assertion, and it
+    is unexpressed rather than satisfied.
+
+    AND IT CANNOT SAY WHETHER THE IDENTITY SERVICE ENFORCES A SECOND FACTOR. The firewall records
+    WHICH service it asks and never what that service demands, which is why stage 3's `acceptable`
+    minimum is not a value of any column and stage 5 placed no rank for it.
+
+    THE WEAKEST ADMISSION STATE THE DEVICE PERMITS PRODUCES NO ROW OF THIS MODEL AT ALL: a portal
+    with an empty authentication table demands nothing, and there is no row to report it on.
+    `GlobalProtectPortal.client_auth_row_count` is the only column anywhere that can see it, and no
+    query of this control can reach a column on another model.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="globalprotect_portal_client_auth_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="globalprotect_portal_client_auth_findings")
+    globalprotect_portal_client_auth_row = models.ForeignKey(
+        GlobalProtectPortalClientAuthRow, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectPortalClientAuthFindingControlQuery",
+        related_name="globalprotect_portal_client_auth_findings", blank=True)
+    #: Declared because the ROW name is the least unique name in this domain: it is
+    #: operator-chosen and carries no meaning, and four portals of one vsys were measured each
+    #: carrying a row called `r1`. The scope holds the appliance, the vsys and the PORTAL name,
+    #: without which a reader cannot find the row the finding is about.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_portal_client_auth_row"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "globalprotect_portal_client_auth_row"],
+                name="unique_gppca_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on GlobalProtect portal authentication row "
+                f"{self.subject_name}")
+
+
+class GlobalProtectPortalClientAuthFindingControlQuery(FindingControlQueryBase):
+    globalprotect_portal_client_auth_finding = models.ForeignKey(
+        GlobalProtectPortalClientAuthFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_portal_client_auth_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_portal_client_auth_finding", "control_query"],
+                name="unique_gppca_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.globalprotect_portal_client_auth_finding_id} "
+                f"<- {self.control_query_id}")
+
+
+class GlobalProtectEnforcementPointFinding(ObjectFindingBase):
+    """A finding against one vsys's GlobalProtect objects taken as a whole. PAN-GPP-006.
+
+    THE VSYS IS THE ROW AND NOT THE PORTAL, because what this control asserts is an ABSENCE and
+    nothing that does not exist can carry a row. PAN-GPP-006 asserts that no portal publishes
+    internal web applications for browser access AND that neither the portal nor the firewall holds
+    the application definitions or application groups such publishing would draw on - which is a
+    statement about the virtual system, not about any one portal.
+
+    THE RANK THIS GRAIN EXISTS FOR IS `latent`: a vsys holding a clientless application definition
+    that NO portal publishes. Measured on vsys6 of this estate - one definition, no portal, no
+    interface imported - so nothing is reachable today and what is present is a configuration one
+    edit from being live. There is no portal row for it to be reported on, so a portal-grain
+    control is silent on it by construction, and that silence is the reason this model is here.
+
+    NODE PRESENCE IS THE WRONG TEST AND AN ENTRY COUNT IS THE RIGHT ONE. Deleting the last entry
+    leaves the container present and empty; deleting the container leaves `global-protect` present
+    and empty; one appliance in this estate carries exactly that, committed and undecorated, and
+    `action=get` answers a count of one for it. A truthiness test on the container reports a portal
+    where there is none.
+
+    `subject_name` IS THE VSYS NAME, with the appliance in `subject_scope`: the row has no entry
+    name at all, and one portal's name would be the wrong thing to print on a verdict about whether
+    any of them publishes anything.
+
+    THE HALF OF PAN-GPP-006 THAT IS SILENT HERE, and a reader of this finding must not take it for
+    the whole control. Its second record - where a portal DOES publish, the browser sessions
+    carrying those applications may not negotiate weaker transport than the portal itself requires
+    - clauses on `integrations.GlobalProtectPortal`. That is a different model, and standing ruling
+    6's relation remedy has nothing to walk: there is no Django relation between these two models in
+    EITHER direction, introspected rather than assumed. They share only `appliance`, and
+    `appliance__globalprotectportals__*` - the default reverse accessor, there being no
+    `related_name` - is to-MANY and crosses vsys boundaries, so it would fire one virtual system's
+    row for a portal in another. The stage 8 artifact records the half as
+    silent in `subjects_in_two_models`; what would close it is either a column on THIS model
+    carrying the floor at this grain, which stage 8 may not add, or a second control id.
+
+    AND A PASS HERE IS NOT A STATEMENT ABOUT WHETHER THE FEATURE IS SUPPORTED. The vendor says it
+    is unsupported on a multi-vsys firewall IF the traffic must traverse several virtual systems -
+    a statement about where traffic GOES, which no configuration node holds - so that precondition
+    is stage 3's `engineer_supplies` question and deliberately not a clause.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="globalprotect_enforcement_point_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="globalprotect_enforcement_point_findings")
+    globalprotect_enforcement_point = models.ForeignKey(
+        GlobalProtectEnforcementPoint, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectEnforcementPointFindingControlQuery",
+        related_name="globalprotect_enforcement_point_findings", blank=True)
+    #: Declared because `subject_name` here is the VSYS NAME, and `vsys1` exists on every
+    #: single-vsys platform in the estate - so without the appliance the name identifies nothing.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_enforcement_point"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "globalprotect_enforcement_point"],
+                name="unique_gppep_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on GlobalProtect enforcement point "
+                f"{self.subject_name}")
+
+
+class GlobalProtectEnforcementPointFindingControlQuery(FindingControlQueryBase):
+    globalprotect_enforcement_point_finding = models.ForeignKey(
+        GlobalProtectEnforcementPointFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_enforcement_point_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_enforcement_point_finding", "control_query"],
+                name="unique_gppep_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.globalprotect_enforcement_point_finding_id} "
+                f"<- {self.control_query_id}")
+

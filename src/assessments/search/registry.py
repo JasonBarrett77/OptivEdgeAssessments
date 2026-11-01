@@ -267,12 +267,30 @@ from assessments.search.data_filtering_posture.compiler import (
     DATA_FILTERING_POSTURE_MODEL,
     compile_data_filtering_posture_search_node,
 )
+from assessments.search.globalprotect_portal.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_PORTAL_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_PORTAL_MODEL,
+    compile_globalprotect_portal_search_node,
+)
+from assessments.search.globalprotect_portal_client_auth.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_PORTAL_CLIENT_AUTH_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL,
+    compile_globalprotect_portal_client_auth_search_node,
+)
+from assessments.search.globalprotect_enforcement_point.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_ENFORCEMENT_POINT_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
+    compile_globalprotect_enforcement_point_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
     CloudAppEngineSetting,
     DeviceIdentificationState,
     RulebaseDeviceMatchVerdict,
     DataFilteringPosture,
+    GlobalProtectPortal,
+    GlobalProtectPortalClientAuthRow,
+    GlobalProtectEnforcementPoint,
     Zone,
     NormalizationIssue,
     SaasApplicationPolicyPosture,
@@ -549,6 +567,35 @@ MODEL_REGISTRY = {
         "model_class": DataFilteringPosture,
         "field_operators": DATA_FILTERING_POSTURE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_data_filtering_posture_search_node,
+    },
+    # `globalprotect-portal`. THREE entries for three models, and none of the three had a type, a
+    # compiler or a finding model before this change - so nothing here reuses and nothing here is
+    # a second surface over a model that already had one.
+    #
+    # THE THREE ARE A PARENT, ITS CHILD ROW AND THE VSYS ABOVE BOTH, which is why they are three
+    # and not one: `test_every_control_type_targets_a_registered_model` iterates `ControlType`,
+    # reads `_CONTROL_TYPE_TARGET_MODEL` and asserts the target is in THIS map, so a type with a
+    # map entry and no compiler fails a test whose message names the other map.
+    GLOBALPROTECT_PORTAL_MODEL: {
+        "model_class": GlobalProtectPortal,
+        "field_operators": GLOBALPROTECT_PORTAL_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_portal_search_node,
+    },
+    # The child row, keyed by the endpoint CLASS it serves. Its own grain and not the portal's:
+    # one portal can demand both factors of one class and neither of another, so a portal-grain
+    # query cannot say which class is weak - the to-many downward walk standing ruling 6 refuses.
+    GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL: {
+        "model_class": GlobalProtectPortalClientAuthRow,
+        "field_operators": GLOBALPROTECT_PORTAL_CLIENT_AUTH_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_portal_client_auth_search_node,
+    },
+    # The vsys as a verdict over its GlobalProtect objects as a whole, the same shape as the three
+    # SaaS postures and `data_filtering_posture` above: the gap it reports is sometimes the ABSENCE
+    # of a portal or of a published application, and nothing that does not exist carries a row.
+    GLOBALPROTECT_ENFORCEMENT_POINT_MODEL: {
+        "model_class": GlobalProtectEnforcementPoint,
+        "field_operators": GLOBALPROTECT_ENFORCEMENT_POINT_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_enforcement_point_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

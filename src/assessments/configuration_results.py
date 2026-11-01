@@ -915,6 +915,12 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # kinds this domain adds - File Blocking and Data Filtering - have no page either. Stage 9
     # for this domain is what gives all of them one, and stage 8's contract forbids building it.
     "PAN-FIL": "stage9-file-data-filtering.json",
+    # `globalprotect-portal` reached stage 8 on 2026-10-31. THREE models and none of them has a
+    # rail item: all three were created by stage 7 for this domain and had never been queried from
+    # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's
+    # contract forbids building one. The portal and its client-auth ROW will want two pages rather
+    # than one, because the row is the grain a PAN-GPP-002 finding names.
+    "PAN-GPP": "stage9-globalprotect-portal.json",
 }
 
 
