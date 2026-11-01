@@ -284,6 +284,33 @@ from assessments.search.dos_policy_rule.compiler import (
     DOS_POLICY_RULE_MODEL,
     compile_dos_policy_rule_search_node,
 )
+# `decryption-policy`. FOUR entries for FOUR new models, none of which had a type or a registry
+# entry before this run - measured, not assumed. `decryption_policy_rule` is the only one of the
+# four whose compiler is a PACKAGE with a `fields/` subdirectory rather than a single file, because
+# five of its columns are MEMBER LISTS stored as rows of five separate child models;
+# `search/security_rules/` is the only precedent for that shape.
+from assessments.search.decryption_policy_rule.compiler import (
+    FIELD_OPERATOR_REGISTRY as DECRYPTION_POLICY_RULE_FIELD_OPERATOR_REGISTRY,
+    DECRYPTION_POLICY_RULE_MODEL,
+    compile_decryption_policy_rule_search_node,
+)
+from assessments.search.decryption_rulebase_coverage.compiler import (
+    FIELD_OPERATOR_REGISTRY as DECRYPTION_RULEBASE_COVERAGE_FIELD_OPERATOR_REGISTRY,
+    DECRYPTION_RULEBASE_COVERAGE_MODEL,
+    compile_decryption_rulebase_coverage_search_node,
+)
+from assessments.search.ssl_decryption_exclusion.compiler import (
+    FIELD_OPERATOR_REGISTRY as SSL_DECRYPTION_EXCLUSION_FIELD_OPERATOR_REGISTRY,
+    SSL_DECRYPTION_EXCLUSION_MODEL,
+    compile_ssl_decryption_exclusion_search_node,
+)
+from assessments.search.ssl_decryption_vendor_exclusion_optout.compiler import (
+    SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL,
+    compile_ssl_decryption_vendor_exclusion_optout_search_node,
+)
+from assessments.search.ssl_decryption_vendor_exclusion_optout.compiler import (
+    FIELD_OPERATOR_REGISTRY as SSL_VENDOR_EXCLUSION_OPTOUT_FIELD_OPERATOR_REGISTRY,
+)
 from assessments.search.rulebase_device_match.compiler import (
     FIELD_OPERATOR_REGISTRY as RULEBASE_DEVICE_MATCH_FIELD_OPERATOR_REGISTRY,
     RULEBASE_DEVICE_MATCH_MODEL,
@@ -429,6 +456,10 @@ from optivedge_integrations.integrations.models import (
     DecryptionSettings,
     ZoneProtectionProfile,
     DosPolicyRule,
+    DecryptionPolicyRule,
+    DecryptionRulebaseVerdict,
+    SslDecryptionExclusion,
+    SslDecryptionVendorExclusionOptOut,
 )
 
 
@@ -853,6 +884,48 @@ MODEL_REGISTRY = {
         "model_class": DosPolicyRule,
         "field_operators": DOS_POLICY_RULE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_dos_policy_rule_search_node,
+    },
+    # `decryption-policy`. FOUR entries for FOUR new models, and nothing here is extended or
+    # reused: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for all four and none of them was
+    # in this map, measured before the first edit.
+    #
+    # TWO GRAINS OVER ONE PAN-OS OBJECT, which is the shape to read first. The per-ENTRY grain
+    # reports a rule that exists and is wrong; the per-ENFORCEMENT-POINT verdict reports a rulebase
+    # that does not exist at all - the commonest state stage 4 measured, and one a predicate cannot
+    # compare against at the entry grain because there is no row.
+    #
+    # THE RULE'S COMPILER IS A PACKAGE WITH A `fields/` SUBDIRECTORY, which only
+    # `search/security_rules/` above does. Five of its columns - `category`, `source`,
+    # `destination`, `source_user` and `service` - are MEMBER LISTS stored as rows of five separate
+    # child models carrying `(decryption_rule, value, prov, position)`, so each one's compiler
+    # filters a different table and returns PARENT ids. There is no `in` operator in this registry:
+    # membership is answered by querying the child model.
+    DECRYPTION_POLICY_RULE_MODEL: {
+        "model_class": DecryptionPolicyRule,
+        "field_operators": DECRYPTION_POLICY_RULE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_decryption_policy_rule_search_node,
+    },
+    DECRYPTION_RULEBASE_COVERAGE_MODEL: {
+        "model_class": DecryptionRulebaseVerdict,
+        "field_operators": DECRYPTION_RULEBASE_COVERAGE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_decryption_rulebase_coverage_search_node,
+    },
+    SSL_DECRYPTION_EXCLUSION_MODEL: {
+        "model_class": SslDecryptionExclusion,
+        "field_operators": SSL_DECRYPTION_EXCLUSION_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ssl_decryption_exclusion_search_node,
+    },
+    # NO SHIPPED CONTROL COMPILES THROUGH THIS ENTRY. PAN-DEC-004's second assertion record names
+    # this model, a control has exactly one `target_model`, and `probe.relation_between` finds no
+    # relation between it and the exclusion model in either direction - so that half is silent and
+    # the entry exists because `test_every_control_type_targets_a_registered_model` requires it of
+    # the type, and so the half reports the moment a control exists. Its one searchable assertion
+    # column also cannot fire in any estate today: the vendor's own catalogue is only reachable
+    # through an operational read nothing issues on a collection run. See the compiler's docstring.
+    SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL: {
+        "model_class": SslDecryptionVendorExclusionOptOut,
+        "field_operators": SSL_VENDOR_EXCLUSION_OPTOUT_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ssl_decryption_vendor_exclusion_optout_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

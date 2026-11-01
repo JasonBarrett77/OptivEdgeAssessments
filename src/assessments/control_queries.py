@@ -68,6 +68,14 @@ USER_ID_DISCOVERY_BOUND_MODEL = "integrations.UserIdDiscoveryBound"
 DECRYPTION_SETTINGS_MODEL = "integrations.DecryptionSettings"
 ZONE_PROTECTION_PROFILE_MODEL = "integrations.ZoneProtectionProfile"
 DOS_POLICY_RULE_MODEL = "integrations.DosPolicyRule"
+# `decryption-policy`. TWO GRAINS OVER ONE PAN-OS OBJECT and two more models beside them. The
+# per-entry grain reports a rule that exists and is wrong; the verdict grain reports a rulebase
+# that does not exist at all, which is the commonest state stage 4 measured.
+DECRYPTION_POLICY_RULE_MODEL = "integrations.DecryptionPolicyRule"
+DECRYPTION_RULEBASE_COVERAGE_MODEL = "integrations.DecryptionRulebaseVerdict"
+SSL_DECRYPTION_EXCLUSION_MODEL = "integrations.SslDecryptionExclusion"
+SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL = (
+    "integrations.SslDecryptionVendorExclusionOptOut")
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -682,4 +690,72 @@ def evaluate_dos_policy_rule_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or DOS_POLICY_RULE_MODEL,
+    )
+
+
+def evaluate_decryption_policy_rule_control_queries(queryset, control):
+    """One ordered entry of one decryption rulebase of one vsys. PAN-DEC-002, -003, -005 to -008
+    and -010.
+
+    SEVEN CONTROLS REACH THIS HELPER, which is the ordinary many-controls-one-type case, and each
+    asserts on a different column of the same row - the content criterion, the written reason, the
+    address criterion, the exempt user population, the inverted match, the attached profile and the
+    two log switches.
+
+    PAN-DEC-001 and PAN-DEC-009 do NOT reach here. Their subject is the rulebase as a whole, and
+    the state they report is that no rule does something - which has no row at this grain, because
+    stage 4 measured the commonest state of this domain as no decryption rulebase at all.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DECRYPTION_POLICY_RULE_MODEL,
+    )
+
+
+def evaluate_decryption_rulebase_coverage_control_queries(queryset, control):
+    """One enforcement point's decryption rulebase as a verdict over all of its rules.
+    PAN-DEC-001 and PAN-DEC-009.
+
+    PAN-DEC-009's SECOND assertion record names the per-rule model and does NOT reach here, and
+    that is not a silence this helper causes: stage 5 discharges that record `not_in_configuration`
+    - no configuration node anywhere on the firewall holds whether a published service's own
+    certificate was imported with its private key - so it owes no query at either grain.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DECRYPTION_RULEBASE_COVERAGE_MODEL,
+    )
+
+
+def evaluate_ssl_decryption_exclusion_control_queries(queryset, control):
+    """One SSL decryption exclusion the organisation added itself. PAN-DEC-004's first record.
+
+    THE SECOND RECORD IS SILENT AND NOT ROUTED ELSEWHERE. It asserts over
+    `integrations.SslDecryptionVendorExclusionOptOut`, a control has exactly one `target_model`,
+    and `probe.relation_between` finds NO relation between the two models in either direction - so
+    there is no walk by which one query could carry both halves. See the stage 8 artifact for
+    `decryption-policy`, `subjects_in_two_models`.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SSL_DECRYPTION_EXCLUSION_MODEL,
+    )
+
+
+def evaluate_ssl_decryption_vendor_exclusion_optout_control_queries(queryset, control):
+    """One appliance's departures from the vendor's SSL exclusion list.
+
+    NO SHIPPED CONTROL REACHES THIS HELPER, the same recorded state
+    `evaluate_lldp_global_control_queries` carries. It is registered so that the half of
+    PAN-DEC-004 somebody may decide to split out reports the moment a control exists, rather than
+    leaving a model and a normaliser nothing can read. The generator's docstring says why no estate
+    can make that half fire today.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL,
     )

@@ -72,6 +72,10 @@ from optivedge_integrations.integrations.models import (
     Zone,
     ZoneProtectionProfile,
     DosPolicyRule,
+    DecryptionPolicyRule,
+    DecryptionRulebaseVerdict,
+    SslDecryptionExclusion,
+    SslDecryptionVendorExclusionOptOut,
 )
 
 
@@ -514,6 +518,63 @@ class Control(models.Model):
         #: ONE OF ITS TWO HALVES: the other is discharged onto the customer's asset inventory,
         #: because nothing in a firewall says which destination is a business-critical service.
         DOS_POLICY_RULE = "dos_policy_rule", "DoS Policy Rule"
+        #: `decryption-policy`. FOUR MINTS FOR TEN CONTROLS AND NO REUSE, and the reverse map was
+        #: measured BEFORE the first of these four lines was written, because nothing in the suite
+        #: checks one-to-one-ness in the direction a mint can break it: the shipped test asserts
+        #: enum SUBSET of map, and no test anywhere asserts that two types do not share one target
+        #: model. Measured 2026-11-01, before the first edit: 63 types, 63 map entries, 63 DISTINCT
+        #: targets, no duplicate, and `rev(_CONTROL_TYPE_TARGET_MODEL)` answering NO TYPE for all
+        #: four of `integrations.DecryptionPolicyRule`, `integrations.DecryptionRulebaseVerdict`,
+        #: `integrations.SslDecryptionExclusion` and
+        #: `integrations.SslDecryptionVendorExclusionOptOut`. So nothing here reuses a type and
+        #: nothing mints a second one for a model that already has one.
+        #:
+        #: SITE 8 IS WHY THIS DOMAIN IS BUILDABLE AT ALL AND IT WAS MEASURED, not assumed:
+        #: `control_type.max_length` is 64 and the longest shipped value was
+        #: `globalprotect_gateway_agent_config` at 34, while
+        #: `ssl_decryption_vendor_exclusion_optout` below is 38 CHARACTERS. The field was 32 until
+        #: 2026-11-01, so this domain could not have been registered yesterday - `makemigrations`
+        #: would have REFUSED with `fields.E009` and generated nothing.
+        #:
+        #: TWO GRAINS OVER ONE PAN-OS OBJECT, which is the shape to read before the four names.
+        #: The per-ENTRY grain reports a rule that exists and is wrong; the per-ENFORCEMENT-POINT
+        #: verdict reports a rulebase that does not exist at all, which stage 4 measured as the
+        #: commonest state of this domain - all four lab appliances, all twenty vsys, both Shared
+        #: rulebases and all ten device groups, twice. A predicate cannot compare against a row
+        #: that is not there, so the coverage controls have no row at the entry grain.
+        #:
+        #: One ordered entry of one decryption rulebase of one vsys. PAN-DEC-002, -003, -005,
+        #: -006, -007, -008 and -010 share it - seven controls, one type, one model, which is the
+        #: ordinary case this map's own comment describes.
+        DECRYPTION_POLICY_RULE = "decryption_policy_rule", "Decryption Policy Rule"
+        #: One enforcement point's decryption rulebase AS A VERDICT over all of its rules.
+        #: PAN-DEC-001 and PAN-DEC-009. A SEPARATE TYPE FROM THE RULE RATHER THAN A ROLL-UP ONTO
+        #: IT, and the direction is what decides it: these two controls fire where NO rule does
+        #: something, and the remediation is to ADD a rule rather than to edit one.
+        DECRYPTION_RULEBASE_COVERAGE = (
+            "decryption_rulebase_coverage", "Decryption Rulebase Coverage")
+        #: One SSL decryption exclusion the organisation added itself, in one scope of one
+        #: appliance. PAN-DEC-004's FIRST record only, and that control's second record names the
+        #: opt-out model below and STAYS SILENT: `probe.relation_between SslDecryptionExclusion
+        #: SslDecryptionVendorExclusionOptOut` finds NO RELATION IN EITHER DIRECTION - six paths
+        #: through shared ancestors, every one to-many and every one leaving a scope field
+        #: unconstrained - so standing ruling 6's relation remedy has nothing to walk. The
+        #: exclusion half owns the id because the control's own severity (medium) and its
+        #: `minimum_value_descr` are stage 3's record 0, while record 1 is the
+        #: `preferred_gap_severity` half at low. See the stage 8 artifact,
+        #: `subjects_in_two_models`.
+        SSL_DECRYPTION_EXCLUSION = "ssl_decryption_exclusion", "SSL Decryption Exclusion"
+        #: One appliance's departures from the VENDOR-SUPPLIED SSL decryption exclusion list.
+        #: REGISTERED WITH NO SHIPPED CONTROL, the same recorded state `lldp_global` above carries
+        #: and for the same reason: PAN-DEC-004's two assertion records name two models, a control
+        #: has one `target_model`, and splitting the catalogue id is a product decision rather than
+        #: a build run's. Registering it now means the half somebody may decide to build reports
+        #: the moment a control exists, rather than leaving a model, a normaliser and a migration
+        #: with nothing that can ever read them. The generator's own docstring says what its
+        #: sentence would be and why no estate can make it fire today.
+        SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT = (
+            "ssl_decryption_vendor_exclusion_optout",
+            "SSL Decryption Vendor Exclusion Opt-Out")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -739,6 +800,26 @@ class Control(models.Model):
         "zone_protection_profile": "integrations.ZoneProtectionProfile",
         # One DoS Protection policy rule of one rulebase of one vsys. PAN-ZON-007 only.
         "dos_policy_rule": "integrations.DosPolicyRule",
+        # `decryption-policy`. FOUR models and FOUR types, because none of the four had one:
+        # `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for all of them before this change,
+        # measured against 63 types and 63 DISTINCT targets, so nothing here is a second type for
+        # a model that already has one.
+        #
+        # One ordered entry of one decryption rulebase of one vsys. Seven controls share it -
+        # PAN-DEC-002, -003, -005, -006, -007, -008 and -010.
+        "decryption_policy_rule": "integrations.DecryptionPolicyRule",
+        # One enforcement point's rulebase as a verdict over all of its rules. PAN-DEC-001 and
+        # PAN-DEC-009. The absence of a rulebase has no entry row to live on, which is what this
+        # grain exists for and is the commonest state stage 4 measured.
+        "decryption_rulebase_coverage": "integrations.DecryptionRulebaseVerdict",
+        # One exclusion the organisation added itself, in one scope of one appliance.
+        # PAN-DEC-004's first record only.
+        "ssl_decryption_exclusion": "integrations.SslDecryptionExclusion",
+        # One appliance's departures from the vendor's list. NO SHIPPED CONTROL TARGETS THIS, the
+        # `lldp_global` state above: PAN-DEC-004's second record names it and a control has one
+        # target model, so the half is silent until somebody splits the catalogue id.
+        "ssl_decryption_vendor_exclusion_optout":
+            "integrations.SslDecryptionVendorExclusionOptOut",
     }
 
     class Meta:
@@ -818,6 +899,11 @@ class Control(models.Model):
         "integrations.GlobalProtectGatewayAgentConfig": "GlobalProtect Gateway Agent Configuration",
         "integrations.ZoneProtectionProfile": "Zone Protection Profile",
         "integrations.DosPolicyRule": "DoS Policy Rule",
+        "integrations.DecryptionPolicyRule": "Decryption Policy Rule",
+        "integrations.DecryptionRulebaseVerdict": "Decryption Rulebase Coverage",
+        "integrations.SslDecryptionExclusion": "SSL Decryption Exclusion",
+        "integrations.SslDecryptionVendorExclusionOptOut":
+            "SSL Decryption Vendor Exclusion Opt-Out",
     }
 
     @property
@@ -5186,3 +5272,287 @@ class DosPolicyRuleFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.dos_policy_rule_finding_id} <- {self.control_query_id}"
+
+
+class DecryptionPolicyRuleFinding(ObjectFindingBase):
+    """A finding against one decryption policy rule. PAN-DEC-002, -003, -005 to -008 and -010.
+
+    THE ENTRY GRAIN IS THE EXEMPTION GRAIN. Every exemption assertion in this domain is about a
+    rule that EXISTS and is wrong - it leaves traffic encrypted with a criterion at `any`, or with
+    no written reason, or with no profile attached, or with the source match inverted - and what an
+    engineer opens to close the finding is that rule. The three coverage assertions are the
+    opposite shape and belong to `DecryptionRulebaseCoverageFinding`, because the state they report
+    is that NO rule does something and a row per rule has nothing to report it on.
+
+    `subject_scope` CARRIES THE RULEBASE AS WELL AS THE APPLIANCE AND THE VSYS, because the shipped
+    uniqueness constraint is `(enforcement_point, config_source, rule_name)`: the same rule NAME may
+    exist in a device-group pre-rulebase and a post-rulebase at the same scope, and those are two
+    different objects a reader sent to the wrong one does not find.
+
+    AND THE RULE'S NAME MAY BE LONGER THAN THIS FINDING CAN HOLD. `DecryptionPolicyRule.rule_name`
+    is 255 characters, because no length was measured for that key and `SecurityRule.name` is 255;
+    `ObjectFindingBase.subject_name` is 64. A rule named longer than that is truncated in the
+    FINDING while the configuration row holds it whole, which is a property of the shared base and
+    not of this domain.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="decryption_policy_rule_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="decryption_policy_rule_findings")
+    decryption_policy_rule = models.ForeignKey(
+        DecryptionPolicyRule, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DecryptionPolicyRuleFindingControlQuery",
+        related_name="decryption_policy_rule_findings", blank=True)
+    #: The appliance, the vsys and the rulebase - see the class docstring for why the rulebase is
+    #: not optional here.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["decryption_policy_rule"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "decryption_policy_rule"],
+                name="unique_decrule_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on decryption rule {self.subject_name}"
+
+
+class DecryptionPolicyRuleFindingControlQuery(FindingControlQueryBase):
+    decryption_policy_rule_finding = models.ForeignKey(
+        DecryptionPolicyRuleFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="decryption_policy_rule_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["decryption_policy_rule_finding", "control_query"],
+                name="unique_decrule_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.decryption_policy_rule_finding_id} <- {self.control_query_id}"
+
+
+class DecryptionRulebaseCoverageFinding(ObjectFindingBase):
+    """A finding against one enforcement point's decryption rulebase as a whole. PAN-DEC-001, -009.
+
+    THE ROW THAT CAN REPORT AN ABSENCE. Stage 4 measured the commonest state of this domain as NO
+    DECRYPTION RULEBASE AT ALL - all four lab appliances, all twenty virtual systems, both Panorama
+    Shared rulebases and all ten device groups, twice - and a predicate cannot compare against a row
+    that is not there. So the two coverage controls name the enforcement point, where every column's
+    uncollected and unrecomputed value is the FIRING one, and the remediation is to ADD a rule.
+
+    `subject_scope` IS NOT OPTIONAL ON A VERDICT GRAIN. The subject is one virtual system, so the
+    finding's `subject_name` is a partition name like `vsys2` - which is not unique in an estate and
+    is not even unique on a Panorama. The scope carries the appliance or the HA pair that owns the
+    point.
+
+    AND THE VERDICT IS RIGHT BUT UNATTRIBUTABLE, which a reader of the finding has to be told: a
+    decryption rule pushed from a device-group or Shared pre/post-rulebase CONTRIBUTES to these
+    counts because it is in force here, and the verdict row has no scope column - so a finding
+    saying "this enforcement point opens no outbound web session" cannot say whether the gap is in
+    the firewall's own rulebase or in the device group above it. The per-rule model answers that
+    with `config_source`; this one cannot, and the generator's sentence says so.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="decryption_rulebase_coverage_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="decryption_rulebase_coverage_findings")
+    decryption_rulebase_verdict = models.ForeignKey(
+        DecryptionRulebaseVerdict, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DecryptionRulebaseCoverageFindingControlQuery",
+        related_name="decryption_rulebase_coverage_findings", blank=True)
+    #: The appliance or HA pair that owns the enforcement point. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["decryption_rulebase_verdict"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "decryption_rulebase_verdict"],
+                name="unique_decrbv_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on decryption rulebase {self.subject_name}"
+
+
+class DecryptionRulebaseCoverageFindingControlQuery(FindingControlQueryBase):
+    decryption_rulebase_coverage_finding = models.ForeignKey(
+        DecryptionRulebaseCoverageFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="decryption_rulebase_coverage_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["decryption_rulebase_coverage_finding", "control_query"],
+                name="unique_decrbv_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.decryption_rulebase_coverage_finding_id} <- {self.control_query_id}"
+
+
+class SslDecryptionExclusionFinding(ObjectFindingBase):
+    """A finding against one SSL decryption exclusion the organisation added itself. PAN-DEC-004.
+
+    THE ORGANISATION'S OWN ENTRIES AND NOT THE VENDOR'S. The read behind this subject returns
+    `ssl-decrypt/ssl-exclude-cert` at the appliance's shared scope and at each vsys; the vendor's
+    330 or 385 entries live at `/config/predefined/ssl-exclude-cert`, are a separate object, and are
+    invisible to it. The web interface renders BOTH collections in ONE grid distinguished only by a
+    Location column, so an operator looking at the screen sees entries this finding never names.
+
+    `subject_scope` IS REQUIRED because the shipped constraint is
+    `(appliance, scope, vsys_name, name)`: the same server name may be excluded in a vsys and in the
+    appliance's own shared container, and those are two different entries an operator removes in two
+    different places.
+
+    ONLY PAN-DEC-004'S FIRST RECORD REACHES THIS MODEL. Its second - that every departure from the
+    VENDOR's list is deliberate and current - is a conclusion about a different model, and
+    `probe.relation_between` finds no relation between the two in either direction, so that half is
+    silent. See `SslDecryptionVendorExclusionOptOutFinding` and the stage 8 artifact's
+    `subjects_in_two_models`.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="ssl_decryption_exclusion_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="ssl_decryption_exclusion_findings")
+    ssl_decryption_exclusion = models.ForeignKey(
+        SslDecryptionExclusion, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SslDecryptionExclusionFindingControlQuery",
+        related_name="ssl_decryption_exclusion_findings", blank=True)
+    #: The appliance and the scope the entry sits in. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ssl_decryption_exclusion"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ssl_decryption_exclusion"],
+                name="unique_sslexcl_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on SSL decryption exclusion {self.subject_name}"
+
+
+class SslDecryptionExclusionFindingControlQuery(FindingControlQueryBase):
+    ssl_decryption_exclusion_finding = models.ForeignKey(
+        SslDecryptionExclusionFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ssl_decryption_exclusion_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ssl_decryption_exclusion_finding", "control_query"],
+                name="unique_sslexcl_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ssl_decryption_exclusion_finding_id} <- {self.control_query_id}"
+
+
+class SslDecryptionVendorExclusionOptOutFinding(ObjectFindingBase):
+    """A finding against one appliance's departures from the VENDOR's SSL exclusion list.
+
+    NO SHIPPED CONTROL PRODUCES ONE OF THESE, which is a recorded state rather than dead code.
+    PAN-DEC-004's two assertion records name two models - the organisation's own exclusions and
+    these departures from the vendor's list - and `Control` maps one type to one model while
+    `ControlQuery.clean()` refuses a query whose model differs from its control's target, so one
+    catalogue id cannot hold both halves. The exclusion half took the id, because the control's own
+    severity and its minimum value are stage 3's record 0 while this is the
+    `preferred_gap_severity` half at low. Splitting PAN-DEC-004 into two catalogue ids changes what
+    a customer's report contains and is Jason's decision.
+
+    AND NO ESTATE CAN MAKE IT FIRE TODAY, which is the sharper reason to register it rather than
+    build a control for it now. The one clean assertion is that no switched-off entry is left on the
+    list after the vendor stopped shipping it, and that is a SET DIFFERENCE whose right-hand side -
+    the vendor's own catalogue - is invisible to `action=get` and to the merged configuration: the
+    config read a collector naturally reaches for answers a well-formed, TRUTHY, EMPTY count
+    envelope (`{"@total-count": "0", "@count": "0"}`) for a populated vendor list on every appliance
+    measured. Only the `show predefined` operational read supplies it, nothing issues that read on a
+    collection run, and `stale_disabled_vendor_exclusion_count` is therefore zero on every row in
+    every estate. Stage 5 took that concession deliberately and declared the column's unknown as
+    reading compliant, with the reasons written out; stage 7 filed the missing
+    `predefined_list_collected` companion as a gap. The model's own normaliser returns that fact
+    where no column can carry it.
+
+    `subject_scope` IS ABSENT AND THAT IS CORRECT: the node is a single shared-scoped member list
+    with no vsys spelling at all, measured at both scopes, so the row is one per appliance and the
+    appliance's own hostname is the whole of what tells two rows apart. ON AN HA PAIR THIS YIELDS
+    TWO ROWS FOR ONE REAL CONFIGURATION and nothing deduplicates them.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="ssl_decryption_vendor_exclusion_optout_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="ssl_decryption_vendor_exclusion_optout_findings")
+    ssl_decryption_vendor_exclusion_optout = models.ForeignKey(
+        SslDecryptionVendorExclusionOptOut, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="SslDecryptionVendorExclusionOptOutFindingControlQuery",
+        related_name="ssl_decryption_vendor_exclusion_optout_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ssl_decryption_vendor_exclusion_optout"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control",
+                        "ssl_decryption_vendor_exclusion_optout"],
+                name="unique_sslopt_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on vendor exclusion opt-outs "
+                f"{self.subject_name}")
+
+
+class SslDecryptionVendorExclusionOptOutFindingControlQuery(FindingControlQueryBase):
+    ssl_decryption_vendor_exclusion_optout_finding = models.ForeignKey(
+        SslDecryptionVendorExclusionOptOutFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ssl_decryption_vendor_exclusion_optout_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ssl_decryption_vendor_exclusion_optout_finding", "control_query"],
+                name="unique_sslopt_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.ssl_decryption_vendor_exclusion_optout_finding_id} "
+                f"<- {self.control_query_id}")

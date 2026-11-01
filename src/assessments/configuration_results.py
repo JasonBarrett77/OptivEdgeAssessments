@@ -1008,6 +1008,20 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # eight are covered and none of this domain's twenty-five queries has anywhere to go until
     # stage 9 lands.
     "PAN-ZON": "stage9-zone-dos-protection.json",
+    # `decryption-policy` reached stage 8 on 2026-11-01. FOUR models carry its ten controls and
+    # NONE of the four has a rail item: all four were created by stage 7 for this domain and had
+    # never been queried from this repository at all. Stage 9 for this domain is what gives them a
+    # page, and stage 8's contract forbids building one. The two rule models will want two pages
+    # rather than one, because a PAN-DEC-001 finding names a VIRTUAL SYSTEM and a PAN-DEC-002
+    # finding names a RULE inside it.
+    #
+    # THIS DEBT IS FOR NINE OF THE DOMAIN'S TEN CONTROLS, and the tenth is worth naming rather than
+    # leaving to arithmetic: every one of the ten has a catalog entry and at least one query, so
+    # every one has links that would go nowhere - `_awaiting` is consulted only where
+    # `query_results_url` returns nothing, and it returns nothing for all four of these models. The
+    # count of QUERIES is what this clears, not the count of controls: `test_configuration_links`
+    # fails once per catalog query of a homeless model, and this domain seeds 21.
+    "PAN-DEC": "stage9-decryption-policy.json",
 }
 
 

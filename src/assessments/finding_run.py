@@ -62,6 +62,18 @@ from assessments.zone_protection_profile_findings import (
 from assessments.dos_policy_rule_findings import (
     generate_dos_policy_rule_findings,
 )
+from assessments.decryption_policy_rule_findings import (
+    generate_decryption_policy_rule_findings,
+)
+from assessments.decryption_rulebase_coverage_findings import (
+    generate_decryption_rulebase_coverage_findings,
+)
+from assessments.ssl_decryption_exclusion_findings import (
+    generate_ssl_decryption_exclusion_findings,
+)
+from assessments.ssl_decryption_vendor_exclusion_optout_findings import (
+    generate_ssl_decryption_vendor_exclusion_optout_findings,
+)
 from assessments.globalprotect_enforcement_point_findings import (
     generate_globalprotect_enforcement_point_findings,
 )
@@ -309,6 +321,30 @@ GENERATORS = (
     ("User-ID collector", T.USER_ID_COLLECTOR, generate_user_id_collector_findings),
     ("User-ID discovery bound", T.USER_ID_DISCOVERY_BOUND,
      generate_user_id_discovery_bound_findings),
+    # `decryption-policy`. FOUR generators for ten controls, and the order follows this tuple's
+    # own rule twice over. The OBJECTS an operator maintains come first - the exclusions the
+    # organisation added itself, then the vendor-list departures beside them - because both are
+    # read by a decryption rule rather than the other way round. Then the VERDICT over a whole
+    # rulebase, then the rules inside it: a reader meets "this virtual system opens no outbound
+    # web session at all" before any finding about one rule's content criterion, because the first
+    # makes the second moot - every exemption control is about which traffic is left encrypted, and
+    # where nothing is ever opened that question has a different answer.
+    #
+    # THE OPT-OUT GENERATOR HAS NEVER PRODUCED A ROW AND CANNOT TODAY. No control targets its type
+    # - PAN-DEC-004's two assertion records name two models and a control has one target model -
+    # and the column its one assertion rests on cannot be non-zero in any estate, because the
+    # vendor's own catalogue is reachable only through an operational read nothing issues on a
+    # collection run. Its module docstring carries the measurement. That is not the same as a
+    # broken generator and it is not the same as a compliant estate.
+    ("SSL decryption exclusion", T.SSL_DECRYPTION_EXCLUSION,
+     generate_ssl_decryption_exclusion_findings),
+    ("SSL decryption vendor exclusion opt-out",
+     T.SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT,
+     generate_ssl_decryption_vendor_exclusion_optout_findings),
+    ("decryption rulebase coverage", T.DECRYPTION_RULEBASE_COVERAGE,
+     generate_decryption_rulebase_coverage_findings),
+    ("decryption policy rule", T.DECRYPTION_POLICY_RULE,
+     generate_decryption_policy_rule_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

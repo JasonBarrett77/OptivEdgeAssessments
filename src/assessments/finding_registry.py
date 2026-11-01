@@ -324,6 +324,31 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # customer's asset inventory and has no configurational form at all.
     FindingKind(m.DosPolicyRuleFinding, "dos_policy_rule",
                 m.Control.ControlType.DOS_POLICY_RULE, "DoS policy rule"),
+    # `decryption-policy`. FOUR kinds for a domain of ten controls, and none of the four reuses
+    # anything: the reverse of `_CONTROL_TYPE_TARGET_MODEL` answered NO TYPE for all four models
+    # before this run touched it.
+    #
+    # Shared by PAN-DEC-002, -003, -005, -006, -007, -008 and -010 - seven controls, one model,
+    # one kind, which is what `KIND_BY_MODEL` requires: a finding model may appear here exactly
+    # once.
+    FindingKind(m.DecryptionPolicyRuleFinding, "decryption_policy_rule",
+                m.Control.ControlType.DECRYPTION_POLICY_RULE, "decryption policy rule"),
+    # PAN-DEC-001 and PAN-DEC-009. The grain that can report an ABSENT rulebase, which stage 4
+    # measured as the commonest state of this domain and which the per-rule kind above has no row
+    # for.
+    FindingKind(m.DecryptionRulebaseCoverageFinding, "decryption_rulebase_verdict",
+                m.Control.ControlType.DECRYPTION_RULEBASE_COVERAGE,
+                "decryption rulebase coverage"),
+    # PAN-DEC-004's first record only.
+    FindingKind(m.SslDecryptionExclusionFinding, "ssl_decryption_exclusion",
+                m.Control.ControlType.SSL_DECRYPTION_EXCLUSION, "SSL decryption exclusion"),
+    # NO SHIPPED CONTROL PRODUCES ONE OF THESE - the `lldp_global` state, and the model's own
+    # docstring argues it: PAN-DEC-004's second record names this model, a control has one target
+    # model, and splitting the catalogue id is not a build run's decision.
+    FindingKind(m.SslDecryptionVendorExclusionOptOutFinding,
+                "ssl_decryption_vendor_exclusion_optout",
+                m.Control.ControlType.SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT,
+                "SSL decryption vendor exclusion opt-out"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

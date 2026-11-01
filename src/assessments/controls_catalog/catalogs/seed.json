@@ -15152,6 +15152,893 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.IpsecCryptoProfile"
+        },
+        {
+          "control_id": "PAN-DEC-001",
+          "name": "SSL Forward Proxy Decryption Deployed",
+          "control_type": "decryption_rulebase_coverage",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "An enforcement point on which NO decryption rule in force opens an outbound web session for inspection. Either there is no forward-proxy rule at all, or every one that exists leaves the session encrypted - and the two states are reported separately because the remediation differs: one is a rule to add, the other a rule to edit.\n\nEVERY CONTENT INSPECTION THE FIREWALL IS CONFIGURED TO PERFORM RUNS INSIDE A SESSION SOMEBODY OPENED. Malware, exploit, command-and-control, web-category and file-type inspection all read the inside of a TLS session, so where nothing opens one the whole inspection stack reports clean about traffic it never saw.\n\nTHE FINDING NAMES A VIRTUAL SYSTEM AND NOT A RULE, which is the grain this control needs rather than a preference. The commonest failing state measured across this estate is no decryption rulebase AT ALL - all four appliances, all twenty virtual systems, both Panorama Shared rulebases and all ten device groups - and a comparison over rule rows cannot report a row that is not there.\n\n`decrypt-and-forward` IS DELIBERATELY NOT A FAILING STATE. That action opens the session, so it meets this assertion. That it also copies the opened session to an external chain is a separate exposure the catalogue asserts nowhere, and reporting it here would call a rule that opens the session a coverage failure.\n\nWHICH EGRESS PATHS CARRY USER WEB TRAFFIC AND WHERE OPENING IT IS LAWFUL IS NOT A FACT THE FIREWALL HOLDS. An appliance that only fronts published services, or only terminates site-to-site tunnels, has no outbound web traffic to open. What this control delivers is what the policy as written does; the path list and the jurisdictions are the engineer's answer.\n\nAND THE VERDICT IS RIGHT BUT UNATTRIBUTABLE. A rule pushed from a device-group or Shared pre/post-rulebase is in force on this enforcement point and contributes to it, and this row has no scope column - so the finding cannot say whether the gap is in the firewall's own rulebase or in the device group above it.",
+          "rationale": "With most web traffic encrypted, an un-decrypting firewall inspects almost nothing while every threat report it produces reads clean. This control is the precondition for every content-inspection control in the catalogue, which is why its absence is graded above any of them.",
+          "audit": "Policies > Decryption on the virtual system the finding names, and read the TYPE and ACTION columns of every rule in force. A rule on the ssl-forward-proxy branch whose action is `decrypt` or `decrypt-and-forward` satisfies this; one whose action is `no-decrypt` does not. Read the device group's pre- and post-rulebases as well: a pushed rule is in force here and this finding cannot tell you whether one exists. Check the disabled column - a switched-off rule is not in force and is excluded from the verdict.",
+          "remediation": "Add an SSL Forward Proxy decryption rule covering the egress paths that carry user web traffic, with a forward-trust and a forward-untrust signing certificate designated (PAN-DCP-006), and leave the documented exception classes to the rules PAN-DEC-003 through PAN-DEC-007 govern. Where a rule already exists and leaves traffic encrypted, change its action rather than adding another - the existing rule may already be matching the traffic you intend to open.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No decryption rule in force on this enforcement point opens an outbound web session - either no forward-proxy rule exists, or every one that does leaves the session encrypted.",
+              "canonical_query": {
+                "model": "integrations.DecryptionRulebaseVerdict",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "opens_outbound_web",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "opens_outbound_web"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No forward-proxy rule exists at all",
+              "short_description": "At the control's own tier, so that the state behind a finding is recorded rather than inferred from the absence of a calibration. The remediation here is a rule to ADD, which the sibling state's is not.",
+              "canonical_query": {
+                "model": "integrations.DecryptionRulebaseVerdict",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "opens_outbound_web",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "outbound_web_disposition",
+                    "op": "eq",
+                    "value": "no-rule-opens-outbound-web",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "outbound_web_disposition"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Every forward-proxy rule leaves the session encrypted",
+              "short_description": "Rules exist on the branch, they match the traffic, and all of them pass it through unopened. At the control's own tier; the remediation is a rule to EDIT. Mutually exclusive with its sibling on a single-valued column.",
+              "canonical_query": {
+                "model": "integrations.DecryptionRulebaseVerdict",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "opens_outbound_web",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "outbound_web_disposition",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "outbound_web_disposition"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionRulebaseVerdict"
+        },
+        {
+          "control_id": "PAN-DEC-002",
+          "name": "URL-Category-Based Decryption Structure",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted with its CONTENT criterion unbounded. The classes most used to deliver attacks - malware distribution, phishing, command and control, newly registered domains, and sites the classifier cannot place at all - are among the traffic such a rule leaves unopened, so the attack arrives through exactly the channel the firewall was bought to inspect.\n\nAN ABSENT CONTENT KEY MEANS EVERY URL CATEGORY, measured on a committed rule carrying only its six mandatory keys, so a rule nobody bounded reads the same way as one somebody set to `any` on purpose. That is the opposite of the address criteria on the same object, which are mandatory at commit validation and always carry a written value.\n\nTHE SECOND QUERY IS THE WIDER CLAIM AND IT IS A STRICT SUBSET OF THE FIRST. A rule whose content, source, destination, user AND service criteria are all unbounded is an exemption keyed on nothing at all, which belongs to no class of exemption anybody could declare. Every rule it matches already fails the baseline, so it reports at the control's own tier and exists to name the five criteria on the finding rather than to raise or lower it.\n\nWHETHER AN EXEMPTION BELONGS TO A DECLARED CLASS IS NOT ASSERTED HERE AND CANNOT BE. Nothing on the firewall records it: a rule holds its match criteria and its own free text, and the class is a fact about the organisation's written policy. What is delivered is the inventory of what each exempting rule is keyed on, which is what lets a reader do the classification. The five sibling controls each own one declared class and this one owns only the claim that there is no undeclared sixth.\n\nAND A NAMED CONTENT CLASS MAY BE NARROWER THAN IT READS. A member may be a custom category object whose own members are other classes, and that object is an INTERSECTION rather than a union - the vendor's own worked procedure blocks the combined object while leaving each constituent class at a permitting action. So an enumeration of what a policy leaves encrypted errs toward UNDER-reporting and should be read as a lower bound.",
+          "rationale": "The traffic most likely to be carrying the attack is the traffic the firewall never opens, so malware and credential theft arrive through the channels the organisation bought the firewall to inspect, and the threat reports stay clean because the attack was never visible to them.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its URL CATEGORY column. A rule whose action is `no-decrypt` and whose category is `any` - or blank, which means the same thing - leaves every content class encrypted. Where the category names a custom object, open that object: its members are combined by intersection, so the rule is narrower than the member names suggest. Which classes the organisation requires to be inspected and which law forbids it from opening is the engineer's answer, per jurisdiction.",
+          "remediation": "Scope every no-decrypt rule to the content classes the written exemption actually covers, and never to `any`. Where the exemption is genuinely not about content - a compatibility accommodation, a privacy carve-out, a segment or a group - it belongs to the sibling control that owns that class and should be keyed on that class's own criterion, with the content criterion left out of the rule's purpose rather than left unbounded.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted and whose content criterion includes `any`, so every content class it reaches is left unopened - the risky classes among them.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "category",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Exemption keyed on no criterion at all",
+              "short_description": "Content, source, destination, user and service all unbounded: an exemption belonging to no declared class. At the control's own tier - its rows are a strict subset of the baseline's, so it names the five criteria rather than recalibrating.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "category",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  },
+                  {
+                    "field": "source",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  },
+                  {
+                    "field": "destination",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  },
+                  {
+                    "field": "service",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category",
+                "source",
+                "destination",
+                "source_user",
+                "service"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-003",
+          "name": "Performance Exceptions Bounded and Justified",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted and carries no description, so nothing on the rule says why the exemption exists or when anybody is due to revisit it. The description is the only place on a decryption rule that can hold either, and the device checks neither.\n\nAN EXEMPTION WITH NO STATED REASON CANNOT BE RETIRED. Nobody who did not create it can tell whether the throughput problem that justified it still exists, so an accommodation granted for one appliance generation survives every upgrade that would have let it be removed.\n\nAN ABSENT DESCRIPTION IS NOBODY HAVING WRITTEN ONE rather than a vendor default, which is why the clause is an emptiness test rather than a comparison against a value. The stored column records the absence as `not_configured` for the same reason.\n\nWHETHER THE EXEMPTION IS BOUNDED TIGHTLY ENOUGH IS NOT ASSERTED HERE, and that is a measurement gap rather than a scoping choice. The severity ladder behind this control ranks a destination aggregate of /8 or wider above one of /12 to /14 and both above a narrow named object - and NOTHING IN THE CONFIGURATION MEASURES HOW LARGE AN ADDRESS OBJECT IS. An eight-bit prefix and a thirty-bit prefix are the same field with the same shape, the arithmetic belongs to PAN-POL-002, and two of those bands therefore carry no severity at all.\n\nAND THE BAND ABOVE THIS CONTROL'S OWN TIER CANNOT BE REPORTED BY ANY QUERY. A rule whose content criterion is left at `any` is graded above the baseline, and the record that grades it is discharged onto a question for a person - which rules the organisation has declared as throughput exemptions - so the query it would need has to repeat an engineer-supplied population that no column holds. The stage 8 artifact records the severity no finding can carry.",
+          "rationale": "A performance exemption is the one class of carve-out that is supposed to be temporary, and the only thing that makes it temporary is a written reason with a date against it. Without one it becomes permanent by default, and the uninspected surface grows one convenience rule at a time.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its DESCRIPTION column. A throughput exemption should say which application or path it was granted for, what the measured impact was, and when it is next due to be re-measured. Then read the rule's own criteria: a performance exemption keyed on a content class or a narrow named destination is checkable against the capacity claim that justified it, and one keyed on a wide aggregate is not - that judgement is not in this finding because nothing on the firewall measures how large an address object is.",
+          "remediation": "Write the justification and the review date into the rule's description, and re-measure the exemption after hardware and software upgrades - retiring it when the headroom allows. Scope the rule to a content class or a narrow named destination rather than to a wide address aggregate, so that a later reviewer can check the exemption against the throughput claim without re-deriving the address list.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted and carries no description, so nothing on it records why the exemption exists or when anybody is due to look at it again.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "description",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "description"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-004",
+          "name": "Compatibility Exceptions Tracked Against Exclusion List",
+          "control_type": "ssl_decryption_exclusion",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "An SSL decryption exclusion the organisation added itself that carries no description, so nothing on the entry names the application it protects or when anybody is due to check whether it is still needed. The entry's own text is the only on-box record there is.\n\nAN EXCLUSION WITH NO STATED REASON CANNOT BE RETIRED, because nobody who did not create it can tell whether the application still fails when the session is opened. Certificate pinning is exactly the behaviour vendors drop, so an accommodation granted for one broken product survives every vendor fix that would have let it be removed.\n\nTHIS IS THE ORGANISATION'S OWN LIST AND NOT THE VENDOR'S, which is why `locally added` needs no clause - it is what the subject IS. PAN-OS ships 330 or 385 entries of its own at a different path, they update with content, and they are invisible to the read behind this control. The web interface renders BOTH collections in ONE grid distinguished only by a Location column, so the screen shows more entries than this control names - and the vendor's own entries would fail the DATE half of this assertion anyway: measured, every one of them carries a description naming the application and the mechanism, and not one carries a date.\n\nBOTH WRITABLE SCOPES ARE ASSESSED. An exclusion may sit in a virtual system or in the appliance's own shared container, and a reading that covered only one would report none on a firewall whose operator added them through the interface - which is where PAN-OS puts the screen. A switched-OFF entry is still reported: an entry somebody disabled is still an entry somebody should be able to account for.\n\nTHE OTHER HALF OF THIS CONTROL IS NOT HERE AND IS NOT A QUERY ANYWHERE. That every departure from the VENDOR's list is deliberate and current is a conclusion about a different object - which vendor-supplied exclusions somebody switched off on this appliance - and a control targets one model. There is no relation between the two models in either direction to reach it through. It is also unreportable today for a second reason: the vendor's own catalogue is invisible to the configuration read a collector issues, and only an operational read nobody issues supplies it, so the count of stale departures is zero on every row in every estate.",
+          "rationale": "An exclusion is a server whose sessions the firewall will never open, chosen by us rather than by the vendor. Each one is a permanent hole in the inspection surface, and an undocumented one cannot be reviewed, justified to an auditor, or removed when the application that needed it is fixed.",
+          "audit": "Device > Certificate Management > SSL Decryption Exclusion, and read the entries whose Location is NOT predefined - those are the organisation's own. For each, read the description: it should name the application, why it fails under inspection, who owns it, and when it is next due to be rechecked. Check BOTH scopes - a vsys-scoped entry is real, committable configuration that this screen may not show - and read a disabled entry too, because it is still on the list.",
+          "remediation": "Write the application, the owner and a recheck date into each locally added exclusion's description. Rely on the content-updated predefined list first and keep the local list minimal: re-validate each local entry on a schedule and remove it once the vendor ships an equivalent or the application stops breaking under inspection. Where an entry can be accounted for by nobody, remove it rather than documenting it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A locally added SSL decryption exclusion with no description, so nothing on the entry names the application it protects or when the exclusion is next due to be rechecked.",
+              "canonical_query": {
+                "model": "integrations.SslDecryptionExclusion",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "description",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "description"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.SslDecryptionExclusion"
+        },
+        {
+          "control_id": "PAN-DEC-005",
+          "name": "Privacy Exceptions Limited to Sensitive Categories",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted, whose CONTENT criterion is unbounded and whose SOURCE criterion is a named address rather than `any`. That is a privacy carve-out written as an address exemption: it exempts everything those hosts do, rather than the sensitive traffic the written policy meant to protect.\n\nA CATEGORY-KEYED CARVE-OUT IS CHECKABLE AGAINST COUNSEL'S OWN LIST AND AN ADDRESS-KEYED ONE IS NOT. The jurisdictions and the content classes - financial services, health and medicine, government, religion, legal - are what a written privacy policy names. An address list has to be re-derived from an inventory every time anybody asks what is exempt, and it exempts the hosts' other traffic silently.\n\nTHE DESTINATION-KEYED FORM OF THE SAME DEFECT IS NOT REPORTED BY THIS CONTROL. A rule whose content criterion is unbounded and whose DESTINATION is a named object is the same carve-out written the other way round, and expressing both in one control query would need an OR between two clause groups the query language does not offer. That configuration exists on the measured estate and is recorded in the stage 8 artifact rather than silently read as compliance.\n\nAN ABSENT CONTENT KEY MEANS EVERY URL CATEGORY and the address criteria are MANDATORY at commit validation, so the two halves of this comparison behave differently: the content criterion may be unbounded because nobody wrote one, while the source criterion always carries a written value - which is why that half is a negated membership test against the literal `any` rather than a test for an absent key.\n\nWHICH CATEGORIES LAW REQUIRES OR FORBIDS OPENING IS THE ORGANISATION'S ANSWER, per jurisdiction, and the firewall holds none of it. This control reports the SHAPE of the carve-out and not whether its content is the right content.",
+          "rationale": "A privacy exemption written against addresses cannot be audited against the policy that authorised it, and it exempts every other thing those hosts do. The carve-out stops being a bounded legal obligation and becomes a segment nobody inspects.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its URL CATEGORY and SOURCE columns together. A privacy carve-out should name the content classes written policy covers and leave the source at `any`; this finding is a rule that does the reverse. Open the named source object and ask what else those hosts do - everything they do is exempt. Which categories counsel requires to be left unopened in each jurisdiction this firewall serves is not on the device.",
+          "remediation": "Re-key the rule on the content classes the written privacy policy names and remove the address scoping, so the exemption covers the sensitive traffic and nothing else. Keep a no-decrypt decryption profile attached so that certificate checks still run on the exempt traffic (PAN-DEC-008), and review the category list with counsel on a schedule rather than the address list with an inventory.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted whose content criterion is unbounded and whose source criterion is a named address rather than `any` - a privacy carve-out keyed on hosts instead of on content classes.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "category",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  },
+                  {
+                    "field": "source",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category",
+                "source"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-006",
+          "name": "User/Group-Based Exceptions Bounded",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted for a population named by a DEVICE KEYWORD rather than by a group: every member of its user criterion is one of the four keywords the platform offers, so there is no membership list anybody can audit, recertify or hand to a reviewer.\n\nAN ATTACKER LANDING IN AN EXEMPT POPULATION INHERITS INSPECTION-FREE EGRESS, which is what makes the membership list the control rather than the rule.\n\nTHE FOUR KEYWORDS ARE NOT EQUALLY BAD AND THE GRADING SAYS SO. `any` exempts everyone the rule otherwise matches and is both the schema default AND the value an absent key materialises, so it is the state a query meets most often; `known-user` is the whole authenticated workforce by the vendor's own description of it; `unknown` exempts the sessions identity mapping could not attribute, a population that cannot be enumerated at all, which is the opposite of the documented membership this control asserts; `pre-logon` is a machine state rather than a set of people, bounded and auditable in a different way but still an exemption nobody recertifies.\n\nTHE GRADED COLUMN IS A MEMBER LIST, WHICH IS WHY A QUERY EXISTS AT THIS CONTROL'S OWN TIER. One rule can name several keywords at once, and a rule naming both `unknown` and `pre-logon` would match only the gentler calibration if the middle one contributed none - reporting at LOW the rule its grading puts at MEDIUM, in silence.\n\nA MEMBER OUTSIDE THE FOUR KEYWORDS IS NOT REPORTED BY THIS CONTROL AND THAT IS A GAP RATHER THAN A PASS. Such a member is a free principal string of unknown kind: the device's own reference for this field points at the LOCAL user database rather than at the directory, no build offered a group at all, and the read that would resolve it against group mapping is PAN-UID-001's. Reading it as acceptable on the strength of looking like a group name is what that silence refuses to do.",
+          "rationale": "An exemption keyed to people is only as good as the list of people, and a keyword is not a list: nobody can say who is in it, nobody can recertify it, and an account that lands inside it gets egress nothing inspects.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its USER column. A bounded exemption names a directory group whose membership somebody recertifies; this finding is a rule that names a platform keyword instead. Note that a BLANK user column means `any`, measured - not 'no user criterion'. Where the column names something that is neither a keyword nor a group you recognise, resolve it against group mapping before deciding: this control does not report that case.",
+          "remediation": "Re-key the rule on a directory group whose membership is documented and recertified, rather than on `any`, `known-user`, `unknown` or `pre-logon`, and keep the group small enough to review. Recertify exempt membership on a schedule, and keep exempt users subject to the controls that do not need the session opened - DNS Security and external dynamic list blocking among them.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted whose exempt user population is drawn entirely from the four platform keywords, so there is no membership list anybody can audit or recertify.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user_is_keyword_population",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_user_is_keyword_population"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Exempt population is every user",
+              "short_description": "The rule names `any`, so it exempts everyone it otherwise matches - which is also the schema default and the value an absent key materialises, making it the state a query meets most often.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user_is_keyword_population",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_user"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Exempt population is every authenticated user",
+              "short_description": "The rule names `known-user`, which the vendor's own screen describes as equivalent to the domain users group - the whole workforce rather than a bounded group.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user_is_keyword_population",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user",
+                    "op": "includes",
+                    "value": "known-user",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_user"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Exempt population is whoever identity mapping missed",
+              "short_description": "The rule names `unknown`, so the exempt population is the sessions the firewall could not attribute and cannot be enumerated at all. At the control's own tier, and built because the graded column is a member list - see the control description.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user_is_keyword_population",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user",
+                    "op": "includes",
+                    "value": "unknown",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_user"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Exempt population is a machine state",
+              "short_description": "The rule names `pre-logon`, which is endpoints before anybody has signed in rather than a set of people - bounded and auditable in a different way, and still an exemption nobody recertifies.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user_is_keyword_population",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "source_user",
+                    "op": "includes",
+                    "value": "pre-logon",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_user"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-007",
+          "name": "Subnet-Based Exceptions Bounded",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted and whose SOURCE MATCH IS INVERTED. The addresses it names are the only ones NOT exempted: every other host the rule reaches has its sessions left encrypted. A reader of the grid sees a narrow address list and the device applies its complement.\n\nA SEGMENT CARVE-OUT IS SUPPOSED TO BE THE NAMED SEGMENT AND NOTHING ELSE, which is what the inversion reverses: the exemption stops being a bounded list of OT, IoT, guest or medical-device networks and becomes everything except them.\n\nTHE ESCALATION APPLIES TO EVERY ROW THIS CONTROL REPORTS, which is worth stating because it is unusual. The severity ladder behind it places an inverted match above the control's own tier, and the inversion is also what the control asserts - so the calibration query carries the same population as the baseline and every finding this control produces is reported at the higher tier. The baseline tier is therefore never the severity a reader sees, and the stage 8 artifact says so rather than leaving it to be inferred.\n\nTHE POLARITY IS STORED AS THE VENDOR WRITES IT AND THE ABSENT STATE IS ASSUMED RATHER THAN MEASURED. No oracle reached when this was modelled rendered the key, so `no` is inferred from the security rulebase's measured absent-means-no plus the commit-validation refusal that negation cannot be enabled with a source address of `any` - which only makes sense if absence means no. The report prints the value as not measured for that reason.\n\nAND THAT SAME REFUSAL IS WHY THE UNBOUNDED-ADDRESS BAND MATCHES NOTHING ON A COMMITTED DEVICE. The firewall will not accept an inverted match beside the keyword `any`, so the two states cannot co-occur in a running configuration. The query is shipped rather than dropped because the read behind this control is candidate-derived and a STAGED rule can reach the combination, where a dropped query would have reported nothing for ever.\n\nHOW LARGE THE NAMED SEGMENT IS IS NOT ASSERTED HERE. The ladder ranks an address aggregate of /8 or wider above one of /12 to /14, and nothing in the configuration measures how large an address object is - so those bands carry no severity and the arithmetic belongs to PAN-POL-002.",
+          "rationale": "An inverted source match turns a bounded segment exemption into its complement, and the configuration reads as the bounded version: the grid shows a short address list and the firewall exempts everything else.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its SOURCE column together with the NEGATE checkbox beside it - the grid renders the inversion as a suffix on the member and it is easy to read past. Then ask which hosts the rule is actually exempting: it is every host it reaches EXCEPT the ones named. Read the rule above this one too, because a decryption rulebase resolves by order.",
+          "remediation": "Clear the negate switch and name the segment the exemption is for, so the rule exempts the hosts it names and nothing else. Where the intent really was 'everything except these', write that as a rule that OPENS the session for the named segment and let the default behaviour cover the rest - an exemption whose population is a complement cannot be reviewed against an inventory. Document the compensating controls for whatever segment remains exempt, and review the list against IPAM.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted whose source match is inverted, so the addresses it names are the only ones NOT exempted and every other host it reaches is.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "negate_source",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "negate_source"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Inverted match on an unbounded address criterion",
+              "short_description": "The rule's source criterion also includes `any`. Commit validation refuses that beside an inverted match, so this matches only a STAGED rule - shipped rather than dropped because the read behind this control is candidate-derived.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "negate_source",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "source",
+                    "op": "includes",
+                    "value": "any",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The source match is inverted",
+              "short_description": "The severity the graded ladder gives an inverted match, which is also what this control asserts - so this query carries the baseline's own population and every finding here reports at this tier. Stated mechanically rather than inferred.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "negate_source",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "negate_source"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-008",
+          "name": "No-Decrypt Rules Still Enforce Certificate Checks",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule that leaves traffic encrypted and attaches NO decryption profile, so the baseline TLS checks that survive an exemption do not run on it: nothing refuses a session presenting an expired certificate or one from an untrusted issuer. Traffic exempted from DECRYPTION can still be VALIDATED, and on this rule it is not.\n\nAN EMPTY PROFILE DOES NOT ALWAYS MEAN NOTHING IS APPLIED, which is why this control confines itself to rules whose action leaves traffic encrypted. Measured: with the key still absent, the same read printed a resolved `default` profile once the action moved to `decrypt` on the inbound branch - so the device resolves an absent profile to the predefined profile under some conditions and to nothing under others. The applicability clause is one of the conditions under which it was measured resolving to nothing.\n\nWHETHER AN ATTACHED PROFILE ACTUALLY REFUSES ANYTHING IS NOT ASSERTED HERE, and it is the sharper half of the risk. The two refusals - expired certificate, untrusted issuer - are children of the decryption profile's own no-decryption container; there is no decryption-profile object in this control's model at all, and an attachment with no effect is indistinguishable in outcome from having no profile attached while reading as COMPLIANT on this half. The profile's own content is PAN-DCP-005's.\n\nTHE SEVERITY LADDER FOR THAT HALF THEREFORE HAS NOTHING TO REST ON. Both refusals absent is graded highest, the untrusted-issuer refusal absent next - on the vendor's own reason, that an untrusted issuer may indicate an interception or a replay attack - and the expired-certificate refusal absent lowest, since expiry is usually neglect and the issuer refusal still catches a forgery. No column in this domain can hold any of the three, and the stage 8 artifact records all three as graded values no finding can carry.",
+          "rationale": "An exempt flow is the one place where the firewall still has a cheap, non-invasive signal about the far end: whether the certificate is valid and who issued it. A rule with no profile throws that away as well as the inspection, so the exemption costs more than it was meant to.",
+          "audit": "Policies > Decryption, the rule the finding names, and read its decryption PROFILE column. Then open that profile and read its No Decryption tab: an attached profile that blocks neither expired certificates nor untrusted issuers is no better than none, and this finding cannot tell you which you have. The profile's required content is PAN-DCP-005's. Note that the profile name is site-specific, so there is no value to compare against - only presence.",
+          "remediation": "Attach a decryption profile to every rule that leaves traffic encrypted, and set it to block sessions presenting an expired certificate and sessions whose issuer is untrusted. Enable decryption logging on the same rules (PAN-DEC-010) so that the refusals are visible when they fire. Do not rely on the predefined profile resolving by default: it was measured resolving to nothing on exactly the exempting rules this control covers.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule that leaves traffic encrypted with no decryption profile attached, so nothing refuses a session presenting an expired certificate or one from an untrusted issuer.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "no-decrypt",
+                    "negated": false
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "profile_name",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "profile_name"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-DEC-009",
+          "name": "SSL Inbound Inspection for Published Services",
+          "control_type": "decryption_rulebase_coverage",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "An enforcement point with no SSL Inbound Inspection rule in force, so exploit attempts arriving inside TLS toward the organisation's own published servers are not visible to threat prevention at all.\n\nTHE FINDING NAMES A VIRTUAL SYSTEM AND NOT A RULE, because the commonest failing state is that no such rule exists - and a comparison over rule rows cannot report a row that is not there. The remediation is to add a rule and import the server's certificate with its private key.\n\nWHICH PUBLISHED SERVICES ARE BUSINESS-CRITICAL IS THE ENGINEER'S ANSWER AND NOT THE FIREWALL'S. A compensating arrangement - TLS terminated at a load balancer or a web application firewall in front of these servers - is a legitimate answer to this finding, and the firewall holds no record of it. What is delivered is that nothing on this enforcement point inspects inbound TLS; whether that matters is the start of a conversation rather than a defect on its own.\n\nWHETHER A BOUND CERTIFICATE IS STILL VALID IS NOT ASSERTED HERE, and the state the severity ladder reaches for is UNREACHABLE rather than unmeasured: a rule that covers the service with no certificate bound cannot be committed, because `certificates` is mandatory at commit validation when the inbound-inspection branch is the one present. The state the ladder was reaching for is real and arrives by a different mechanism - an EXPIRED bound certificate - which PAN-CRT-001 owns. The stage 8 artifact records the band that carries no severity for that reason.\n\nWHETHER THE SERVER'S PRIVATE KEY WAS IMPORTED AT ALL IS NOT IN THE CONFIGURATION. That is a property of the certificate store rather than of any node this control can read, and it owes no query here.\n\nAND THIS ROW CANNOT SAY WHOSE RULEBASE THE GAP IS IN, the same limit PAN-DEC-001 carries: a rule pushed from a device group is in force here and contributes to the verdict, and this row has no scope column.",
+          "rationale": "Inbound TLS toward a published service is the one direction where the attacker chooses the payload and the organisation owns the server. Without inspection, exploit attempts against those servers travel inside a session nothing opens, and the threat logs are silent about the traffic most likely to be hostile.",
+          "audit": "Policies > Decryption on the virtual system the finding names, and look for a rule whose type is SSL Inbound Inspection with the published service's address as its destination and the server's certificate bound. Then check the certificate store: the certificate must have been imported WITH its private key, which this finding cannot see. Where TLS is terminated in front of the firewall, record that arrangement - it is the answer to this finding and nothing on the device holds it.",
+          "remediation": "Add an SSL Inbound Inspection rule for each business-critical published TLS service, destination-scoped to that service's address, and import the server certificate and its private key so the firewall can read the session. Document the key custody arrangement, and where TLS is terminated at a load balancer or web application firewall instead, record that as the compensating control. Confirm inbound TLS 1.3 handling against the platform's own capability before relying on it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No SSL Inbound Inspection rule is in force on this enforcement point, so nothing inspects inbound TLS toward the organisation's own published servers.",
+              "canonical_query": {
+                "model": "integrations.DecryptionRulebaseVerdict",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "inbound_inspection_posture",
+                    "op": "eq",
+                    "value": "no-inbound-inspection-rule",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "inbound_inspection_posture"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionRulebaseVerdict"
+        },
+        {
+          "control_id": "PAN-DEC-010",
+          "name": "Decryption Logging Enabled",
+          "control_type": "decryption_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption rule in force that either has the FAILED-handshake record switched off, or opens sessions and keeps no usable record of the ones that SUCCEED. Decryption logs carry TLS version, cipher, SNI, certificate details and the policy outcome, and they are the dataset for finding weak TLS, failed handshakes and coverage gaps.\n\nTHE TWO LOG SWITCHES DEFAULT OPPOSITE WAYS, two keys apart, which is the trap this control is written around. An absent `log-fail` means YES - measured in both directions on a real device and confirmed by the vendor on two pages - so a rule appearing in the first half is one somebody switched OFF deliberately, not one nobody edited. An absent `log-success` means NO, so the second half's commonest state is the vendor's own default rather than anybody's decision.\n\nTHE FIRST HALF COVERS EVERY RULE IN FORCE and not only the exempting ones: the failed-handshake record matters on a rule that opens the session and on one that does not. A rule whose decryption is failing quietly looks identical, from every other dataset, to one whose traffic nothing matched - so turning this off removes the one signal that distinguishes a broken exemption from an absent one.\n\nTHE SECOND HALF IS GRADED IN TWO BANDS BECAUSE LOSING THE RECORD AND LOSING ITS DELIVERY ARE NOT THE SAME. Keeping no record at all means the dataset does not exist, so there is nothing to forward and nothing to search. Keeping it with no forwarding profile named means the observation exists and is readable on the firewall - what is lost is retention and central search, which the estate's own log-forwarding controls own. The two states are read from one column over both keys, because a graded axis holds exactly one column and these two states differ by two keys at once.\n\nTHE ATTACHMENT IS NOT THE DELIVERY and no query here can reach past it. Whether a log forwarding profile named on an ordinary decryption rule forwards anything at all is unsettled in the vendor's own documentation, so even the compliant state of the second half is CONFIGURATIONALLY compliant rather than demonstrated.\n\nAND AN ABSENT `log-fail` KEY IS NOT REPORTED, which is where this control departs from the severity ladder written for it. That ladder graded an absent key as a finding on the strength of the implicit being unobtainable; it was then obtained - ABSENT MEANS YES - so the record IS kept and a finding on it would be false.",
+          "rationale": "Decryption logs are the only dataset that says what TLS the estate is actually negotiating and where decryption is failing. A rule with the records off contributes nothing to it, and its silence is indistinguishable from traffic nobody sends.",
+          "audit": "Policies > Decryption, the rule the finding names, and read the two log columns on its Options tab. A BLANK failed-handshake cell means ENABLED, measured - so a rule in this finding has `no` written on it. A blank successful-session cell means DISABLED, which is the vendor's default. Where the successful-session record is kept, read the Log Forwarding profile beside it: with none named, the records stay on the firewall and age out with its local storage.",
+          "remediation": "Leave the failed-handshake record enabled on every decryption rule - it is the vendor's default and switching it off is a decision that costs the one signal a failing exemption produces. On rules that open sessions, enable the successful-session record as well and name a log forwarding profile for it, so the TLS version, cipher and SNI data reaches the estate's log store rather than ageing out locally. Confirm the forwarding actually delivers rather than assuming the attachment does.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A rule in force with the failed-handshake record switched off, which is a decision rather than a default: an absent key means the record is KEPT, measured in both directions on a real device.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "log_fail",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "log_fail"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No record of a successful session",
+              "short_description": "A rule that opens sessions and keeps no record of the ones that succeed, so the dataset does not exist: nothing to forward and nothing to search. At the control's own tier, and disjoint from its sibling on a single-valued column.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "opens_session",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "success_record_disposition",
+                    "op": "eq",
+                    "value": "kept-and-forwarded",
+                    "negated": true
+                  },
+                  {
+                    "field": "success_record_disposition",
+                    "op": "eq",
+                    "value": "no-record",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "success_record_disposition"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Successful-session record kept but not forwarded",
+              "short_description": "The record exists and is readable on the firewall with nothing named to carry it off, so what is lost is retention and central search rather than the observation itself - which is why it is graded below its sibling.",
+              "canonical_query": {
+                "model": "integrations.DecryptionPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "opens_session",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "success_record_disposition",
+                    "op": "eq",
+                    "value": "kept-and-forwarded",
+                    "negated": true
+                  },
+                  {
+                    "field": "success_record_disposition",
+                    "op": "eq",
+                    "value": "kept-not-forwarded",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "success_record_disposition"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionPolicyRule"
         }
       ]
     }
