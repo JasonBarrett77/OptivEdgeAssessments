@@ -29,10 +29,21 @@ def _setting(obj) -> str:
     if obj.kind in (ServerProfile.Kind.RADIUS, ServerProfile.Kind.TACPLUS):
         return f"protocol {obj.protocol or 'unset'}"
     if obj.kind == ServerProfile.Kind.SAML_IDP:
+        # MESSAGE SIGNING IS REPORTED AS EFFECTIVE OR NOT, WITH THE FLAG NAMED BESIDE IT.
+        # This branch read `saml_want_auth_requests_signed` alone until PAN-AAA-009's
+        # assertion moved to `message_signing_effective`, and the old sentence was then
+        # FALSE PROSE ON EXACTLY THE ROWS THE NEW COLUMN EXISTS TO CATCH: a profile storing
+        # `want-auth-requests-signed: yes` that no authentication profile references, or
+        # whose referrer names no request-signing certificate, FIRES the control while the
+        # sentence said "message signing on". Both facts are kept - the flag is what the
+        # reader sees on the screen, the verdict is what the finding is about - because the
+        # remediation needs both: tick the box AND name a signing certificate on the
+        # authentication profile that uses this IdP.
+        signing = "effective" if obj.message_signing_effective else "NOT EFFECTIVE"
+        flag = "on" if obj.saml_want_auth_requests_signed else "OFF"
         return (f"IdP certificate validation "
                 f"{'on' if obj.saml_validate_idp_certificate else 'OFF'}, "
-                f"message signing "
-                f"{'on' if obj.saml_want_auth_requests_signed else 'OFF'}")
+                f"message signing {signing} (Sign SAML Message to IdP is {flag})")
     if obj.kind == ServerProfile.Kind.MFA:
         return f"vendor {obj.mfa_vendor_type or 'unset'}"
     return f"{obj.server_count} server(s)"

@@ -83,6 +83,23 @@ FIELD_COMPILERS = {
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "unresolved_member_count": build_integer_compiler(
         "unresolved_member_count", "unresolved_member_count"),
+    # PAN-AAA-012's SEVERITY GRADING reads this and `has_local_member` above cannot.
+    # The boolean is true for a `local-database` member and for a `none` member alike, and
+    # the vendor's own description of `none` is that it performs NO AUTHENTICATION AT ALL -
+    # so stage 3 grades `none` a tier above the control's baseline and the boolean reports
+    # both at the baseline. Without this field every `none` fallback on an administrator's
+    # sequence is reported one tier too low.
+    #
+    # ITS VALUE SET IS THREE, NOT EIGHT, AND THAT IS MEASURED FROM THE NORMALISER.
+    # `AuthenticationSequence.WEAKEST_FIRST` is `("none", "local-database")` and the
+    # normalizer writes `next((m for m in WEAKEST_FIRST if m in resolved), "")` - so the
+    # column holds `none`, `local-database` or "" and can NEVER hold an external method
+    # name. A clause comparing it to `ldap`, `radius`, `tacplus`, `kerberos`, `cloud` or
+    # `saml-idp` compiles and matches nothing for ever. "" means every resolved member
+    # reaches an authority off the box, which `unresolved_member_count` beside it is what
+    # separates from "nothing resolved".
+    "weakest_member_method": build_text_compiler(
+        "weakest_member_method", "weakest_member_method"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

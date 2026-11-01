@@ -52,6 +52,15 @@ class AaaServerControlTests(TestCase):
                 "saml_validate_idp_certificate": True,
                 "saml_want_auth_requests_signed": True}
         base.update(fields)
+        # A DERIVED COLUMN GETS WHAT THE NORMALISER WOULD COMPUTE, not the field default.
+        # `message_signing_effective` is `bool(flag and certificates and all(certificates))` in
+        # OEI's normalization/server_profiles.py, and PAN-AAA-009's clause fires on FALSE - so a
+        # row built here without it took `BooleanField(default=False)`, which is the FIRING side,
+        # and the quiet profile below reported a finding this fixture says it does not have. The
+        # flag and the referrer are what this fixture models of that expression; a test about the
+        # widening itself passes the column explicitly and this leaves it alone.
+        base.setdefault("message_signing_effective",
+                        bool(base["saml_want_auth_requests_signed"] and base["referrer_count"]))
         return ServerProfile.objects.create(
             management_station=self.station, appliance=self.appliance,
             appliance_group=self.group, source_snapshot=self.snapshot,
@@ -143,7 +152,11 @@ class AaaServerControlTests(TestCase):
 
     # --- hygiene ----------------------------------------------------------------------
     def test_013_fires_on_any_kind_with_no_referrer(self):
-        """An orphan is an orphan whatever it authenticates, so this one does NOT clause kind."""
+        """An orphan is an orphan whatever it authenticates - and since 2026-11-01 that is six
+        kind-scoped queries rather than one unclaused query. The control's reach is unchanged on
+        the six AAA kinds and narrower by exactly one row on this estate: a netflow server
+        profile stored as kind `unknown`, which this control would have told a customer to
+        delete. These three kinds exercise three of the six."""
         for name, kind in (("o-ldap", ServerProfile.Kind.LDAP),
                            ("o-mfa", ServerProfile.Kind.MFA),
                            ("o-krb", ServerProfile.Kind.KERBEROS)):

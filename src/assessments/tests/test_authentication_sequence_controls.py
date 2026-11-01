@@ -96,5 +96,27 @@ class SequenceFallbackTests(TestCase):
         self.assertEqual(len(self._fired(["local-p", "radius-p"])), 1)
 
     def test_an_unresolvable_member_is_not_counted_as_local(self):
-        """It proves nothing either way; `unresolved_member_count` carries it instead."""
-        self.assertEqual(self._fired(["radius-p", "ghost"]), [])
+        """It proves nothing either way; `unresolved_member_count` carries it instead.
+
+        2026-11-01: THE COLUMN STOPPED MERELY CARRYING IT. Stage 5's PAN-AAA-012 restatement
+        placed a query on `unresolved_member_count gt 0` at the control's own medium, so this
+        sequence now reports - for the unresolved member, and not for a local one. The assertion
+        was `== []`, which conflated the claim in this test's name with "reports nothing at
+        all", and the two came apart the day the second query shipped. It now says the narrower
+        thing it was always about, and says it through the CLAUSE COLUMNS rather than a query
+        name: a finding resting on `has_local_member` or `weakest_member_method` here is the
+        defect this test exists for, and one resting on `unresolved_member_count` is the
+        reported form of this docstring's own sentence.
+        """
+        findings = self._fired(["radius-p", "ghost"])
+        clauses = {clause.get("field")
+                   for finding in findings
+                   for query in finding.control_queries.all()
+                   for clause in query.canonical_query.get("clauses", ())}
+        self.assertNotIn("has_local_member", clauses,
+                         "an unresolvable member was counted as a local one")
+        self.assertNotIn("weakest_member_method", clauses,
+                         "an unresolvable member was ranked as a fallback method")
+        self.assertIn("unresolved_member_count", clauses,
+                      "the unresolved member is reported by nothing - the column carries it and "
+                      "stage 5 placed a query on it")

@@ -85,6 +85,21 @@ FIELD_COMPILERS = {
         "saml_validate_idp_certificate", "saml_validate_idp_certificate"),
     "saml_want_auth_requests_signed": build_boolean_compiler(
         "saml_want_auth_requests_signed", "saml_want_auth_requests_signed"),
+    # PAN-AAA-009's assertion column, which SUPERSEDES `saml_want_auth_requests_signed`
+    # above rather than replacing it. The flag alone says the firewall WANTS to sign; this
+    # column says signing is EFFECTIVE, which additionally needs a request-signing
+    # certificate named on every authentication profile that reaches this IdP profile -
+    # a fact on another model, so no conjunction of clauses over this one can express it.
+    # The superseded flag stays registered: a report column or a saved search may rest on
+    # it, and nothing in this pipeline is entitled to remove one.
+    #
+    # WIDER, MEASURED FROM THE NORMALISER RATHER THAN FROM A ROW COUNT. It is
+    # `bool(flag and certificates and all(certificates))`, so false wherever the flag is
+    # false AND in two further states the flag alone cannot reach: nothing references the
+    # profile at all, and a referrer names no signing certificate. Replacing the flag with
+    # this column therefore widens PAN-AAA-009's population; it never narrows it.
+    "message_signing_effective": build_boolean_compiler(
+        "message_signing_effective", "message_signing_effective"),
     "server_count": build_integer_compiler("server_count", "server_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
 }

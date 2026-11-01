@@ -45,6 +45,44 @@ def build_text_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_nullable_text_compiler(field_name, lookup_field):
+    """A text field whose ABSENT value is SQL NULL rather than the empty string.
+
+    `build_text_compiler` above compiles `is_empty` to `filter(field="")` ALONE, which is
+    right for a `blank=True` CharField the normalizer writes "" into, and WRONG for the
+    four columns this builder serves. `normalization/authentication.py::_profile_fields`
+    writes `"saml_certificate_profile": cert_profile or None`, with a comment recording
+    that the device refuses an empty element on all four of those keys - so the absent case
+    is the only reachable one and the null is exact rather than a convenience - and the
+    model types them `null=True`. A bare `is_empty` clause over one of them COMPILES,
+    passes every gate, and matches NOTHING on the exact population it was written for,
+    which reads from the outside like a compliant estate.
+
+    So `is_empty` ORs an `__isnull` branch beside the empty string. Precedent:
+    `search/security_profile/compiler.py` and `globalprotect_portal_client_auth`. The OR is
+    safe because it is over ONE lookup - `security_profile`'s own comment records that an
+    OR across SEVERAL lookups instead calls every row empty - and here the two branches are
+    two spellings of one state rather than two states.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op not in TEXT_OPERATORS:
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if op == "is_empty":
+            if not isinstance(value, str) or value.strip():
+                raise SearchSyntaxError(f"{field_name} is_empty expects an empty string.")
+            return AuthenticationProfile.objects.filter(
+                Q(**{lookup_field: ""}) | Q(**{f"{lookup_field}__isnull": True})
+            ).values("pk")
+        if not isinstance(value, str) or not value.strip():
+            raise SearchSyntaxError(f"{field_name} search value must be a non-empty string.")
+        suffix = {"eq": "iexact", "contains": "icontains"}.get(op, "iexact")
+        return AuthenticationProfile.objects.filter(
+            **{f"{lookup_field}__{suffix}": value.strip()}).values("pk")
+    compiler.SUPPORTED_OPERATORS = TEXT_OPERATORS
+    return compiler
+
+
 def build_boolean_compiler(field_name, lookup_field):
     def compiler(clause):
         op, value = clause["op"], clause["value"]
@@ -90,6 +128,22 @@ FIELD_COMPILERS = {
         "lockout_time_minutes", "lockout_time_minutes"),
     "mfa_factor_count": build_integer_compiler("mfa_factor_count", "mfa_factor_count"),
     "allow_list_count": build_integer_compiler("allow_list_count", "allow_list_count"),
+    # PAN-AAA-010's SEVERITY GRADING reads this and nothing else can. `allow_list_is_all`
+    # above carries the control's assertion and is a boolean, so it collapses the two
+    # states that are both "no named group" and mean OPPOSITE things: an empty list admits
+    # NOBODY (Help p.839, guide p.288 step 6) and `all` admits every principal the method
+    # can reach. Three values - `all`, `empty`, `named_group` - and the normalizer writes
+    # one of them on every row it writes, so a blank is not a reachable value here.
+    "allow_list_width": build_text_compiler("allow_list_width", "allow_list_width"),
+    # PAN-AAA-008's SECOND HALF, which no query on that control can carry: the control's
+    # one `target_model` is `integrations.ServerProfile` and `ControlQuery.clean()` refuses
+    # a query on any other, so the half stated over this model is silent at that control's
+    # grain. Registered anyway, because the clause is buildable the day a control id exists
+    # for it, and registered through the NULLABLE builder because that is the only shape in
+    # which `saml_certificate_profile is_empty ""` - the clause stage 5 wrote - selects the
+    # profiles that name no certificate profile at all.
+    "saml_certificate_profile": build_nullable_text_compiler(
+        "saml_certificate_profile", "saml_certificate_profile"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

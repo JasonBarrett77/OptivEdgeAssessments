@@ -43,7 +43,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ldap_ssl"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -81,7 +84,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ldap_verify_server_certificate"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -129,7 +135,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
             },
             {
               "name": "Meets the minimum, misses the target",
@@ -152,7 +161,62 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
+            },
+            {
+              "name": "The password is protected by nothing but the shared secret",
+              "short_description": "PAP - the password is recoverable by anyone holding the shared secret.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "radius"
+                  },
+                  {
+                    "field": "protocol",
+                    "op": "eq",
+                    "value": "PAP"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
+            },
+            {
+              "name": "This profile states no authentication protocol",
+              "short_description": "RADIUS profiles storing no protocol at all - a staged or half-written entry.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "radius"
+                  },
+                  {
+                    "field": "protocol",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -190,7 +254,36 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
+            },
+            {
+              "name": "This profile states no authentication protocol",
+              "short_description": "TACACS+ profiles storing no protocol at all - a staged or half-written entry.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "tacplus"
+                  },
+                  {
+                    "field": "protocol",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "protocol"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -228,7 +321,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "saml_validate_idp_certificate"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -258,7 +354,7 @@
                     "value": "saml-idp"
                   },
                   {
-                    "field": "saml_want_auth_requests_signed",
+                    "field": "message_signing_effective",
                     "op": "eq",
                     "value": false
                   }
@@ -266,7 +362,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "message_signing_effective"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -307,7 +406,36 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "allow_list_is_all"
+              ]
+            },
+            {
+              "name": "Every user the method can reach is admitted",
+              "short_description": "Administrator-bound profiles whose allow list is the literal `all`.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "allow_list_width",
+                    "op": "eq",
+                    "value": "all"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "allow_list_width"
+              ]
             }
           ]
         },
@@ -347,7 +475,11 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "mfa_enabled",
+                "mfa_factor_count"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -385,7 +517,114 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "has_local_member"
+              ]
+            },
+            {
+              "name": "The fallback admits without a credential at all",
+              "short_description": "Administrator-bound sequences whose weakest member performs no authentication.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSequence",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "weakest_member_method",
+                    "op": "eq",
+                    "value": "none"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "weakest_member_method"
+              ]
+            },
+            {
+              "name": "The fallback is a credential the firewall itself holds",
+              "short_description": "Administrator-bound sequences whose weakest member is the local database.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSequence",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "weakest_member_method",
+                    "op": "eq",
+                    "value": "local-database"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "weakest_member_method"
+              ]
+            },
+            {
+              "name": "A member names no profile on this appliance",
+              "short_description": "Administrator-bound sequences with a member that resolves to no profile.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSequence",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "unresolved_member_count",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "unresolved_member_count"
+              ]
+            },
+            {
+              "name": "An administrator-facing sequence tries nothing",
+              "short_description": "Administrator-bound sequences with no members at all.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSequence",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_administrative",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "member_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "member_count"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -410,6 +649,11 @@
                 "operator": "and",
                 "clauses": [
                   {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "ldap"
+                  },
+                  {
                     "field": "referrer_count",
                     "op": "eq",
                     "value": 0
@@ -418,7 +662,140 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
+            },
+            {
+              "name": "An unreferenced RADIUS server profile",
+              "short_description": "RADIUS server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "radius"
+                  },
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
+            },
+            {
+              "name": "An unreferenced TACACS+ server profile",
+              "short_description": "TACACS+ server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "tacplus"
+                  },
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
+            },
+            {
+              "name": "An unreferenced Kerberos server profile",
+              "short_description": "Kerberos server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "kerberos"
+                  },
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
+            },
+            {
+              "name": "An unreferenced SAML Identity Provider server profile",
+              "short_description": "SAML IdP server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "saml-idp"
+                  },
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
+            },
+            {
+              "name": "An unreferenced MFA server profile",
+              "short_description": "MFA server profiles nothing on the appliance references.",
+              "canonical_query": {
+                "model": "integrations.ServerProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "mfa-server-profile"
+                  },
+                  {
+                    "field": "referrer_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
             }
           ],
           "implementation_version": "v1",
