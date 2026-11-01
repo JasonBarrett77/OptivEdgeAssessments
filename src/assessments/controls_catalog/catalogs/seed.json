@@ -16820,6 +16820,827 @@
           ],
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionPolicyRule"
+        },
+        {
+          "control_id": "PAN-LOG-001",
+          "name": "Syslog Server Profile Configured",
+          "control_type": "logging_settings",
+          "default_severity": "high",
+          "description": "Off-box log delivery is the foundation of tamper-resistant audit: an attacker who compromises the firewall cannot erase what already left. This control asserts two things, and they are separate queries because they have separate remediations - that the appliance DEFINES at least one off-box log destination, and that at least one syslog profile it defines is NAMED by a forwarding rule that is actually in place.\n\nEXISTENCE IS NOT ENOUGH, which is the measured point of the second half. A syslog server profile is only an address book; nothing is sent until a Device > Log Settings match list's `send-syslog` or a Log Forwarding profile match list's names it. An appliance can hold eleven syslog profiles and forward to none of them, which is the state one lab appliance is in.\n\nTHE DESTINATION COUNT IS TAKEN AT BOTH SCOPES and counts three sources - the distinct ADDRESSES of every syslog server entry at the shared and vsys scopes, the Panorama or log-collector path where a Device > Log Settings match list sends to it, and each HTTP collector profile such a match list names. Distinct by address rather than by entry, because two profiles naming one host are one destination. Email and SNMP-trap destinations are not counted at all: they notify rather than retain. A count taken at the shared scope alone would report `no destination` on all four lab appliances.\n\nTHE SEVERITY VARIES. Exactly one destination reports at medium rather than high: the floor is met and the vendor's availability advice of two is not. Zero reports at high, and zero is also the value a row nobody has recomputed holds - deliberately, because the opposite default would report every firewall in the estate as covered the day a migration lands and before the normalization pass that fills the column.\n\nWHAT IS NOT DECIDED HERE: whether a defined collector is a LIVE one, and who is accountable for a central management station relaying logs onward to a SIEM. The device records addresses and nothing about what answers at them.",
+          "rationale": "An audit trail that never leaves the device is erasable by whoever compromises the device, and a collector described but never forwarded to is the same gap with paperwork in front of it.",
+          "audit": "Device > Log Settings and Device > Server Profiles > Syslog, at both the shared and vsys scopes. Confirm at least one off-box destination exists, confirm a second where the audit trail must survive the loss of one, and confirm a match list or Log Forwarding profile actually names one of the syslog profiles.",
+          "remediation": "Define the destination and then reference it - both halves, because either alone sends nothing: `set shared log-settings syslog <profile> server <name> server <syslog-host> port 6514 transport SSL format IETF`, then `set shared log-settings system match-list <name> filter \"All Logs\" send-syslog <profile>`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Fewer than two off-box log destinations are defined on this appliance.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offbox_destination_count",
+                    "op": "lt",
+                    "value": 2
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_destination_count"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No off-box log destination at all",
+              "short_description": "No syslog server entry at either scope, no Panorama or log-collector path and no HTTP collector, so nothing this appliance records survives the appliance.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offbox_destination_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "offbox_destination_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_destination_count"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Exactly one off-box log destination",
+              "short_description": "A single path off the box, so the audit trail has no second route to survive the loss of the first - the floor is met and the redundancy is not.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "offbox_destination_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "offbox_destination_count",
+                    "op": "eq",
+                    "value": 1
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_destination_count"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "No forwarding rule names any syslog profile",
+              "short_description": "Every syslog server profile on this appliance is an address book: no match list and no Log Forwarding profile names one, so nothing is sent however many are defined.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "syslog_destination_in_use",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "syslog_destination_in_use"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-002",
+          "name": "Syslog Delivered over TLS",
+          "control_type": "log_server_target",
+          "default_severity": "medium",
+          "description": "UDP and TCP syslog cross the network unencrypted and unauthenticated, so the log stream and everything a log line discloses about this network are readable in transit. This control asserts that every collector this firewall sends to is reached over the encrypted transport.\n\nTHE VENDOR'S OWN NAME FOR THAT TRANSPORT IS `SSL` AND NOT `TLS`. A write of `TLS` is refused - \"transport TLS is not an allowed keyword\" - which is why the remediation below says SSL.\n\nTHE SUBJECT IS A SERVER ENTRY AND NOT A PROFILE, because transport is per server: one syslog profile can hold a TLS server and a UDP one, measured on a lab PA-5220, and the remediation is to change that server's transport. A profile-grained finding could not say which server sends in the clear.\n\nEVERY QUERY ON THIS CONTROL CLAUSES ON THE KIND, AND THAT IS NOT DECORATION. One table holds both the syslog and the email kinds of log-settings server profile, and `transport` holds its UDP default on the email kind too - so a query without `kind eq syslog` reports every mail relay in the estate as sending syslog in the clear. Nothing downstream enforces it: not the catalog schema, not the compiler, not a lint.\n\nA PROFILE NOTHING FORWARDS TO IS EXCLUDED, not passed. Every query also carries a non-zero referrer count, because a profile no match list names is an address book rather than a collector this firewall sends to. NOTE THE ASYMMETRY a reviewer should weigh: the shipped control on the same shape, PAN-AAA-013, FIRES on a referrer count of zero. So the window between a migration and the referrer walk is a false negative here and a false positive there.\n\nTHE SEVERITY VARIES. TCP reports at low rather than medium: delivery is acknowledged and the content still crosses the network in the clear. UDP reports at medium, and it is both the shipped default and the materialised one - measured on two oracles, the grid and the wire - so every unconfigured destination in the estate lands there.\n\nTHE PORT IS DELIBERATELY NOT ASSESSED. A secure session on another agreed port still satisfies the assertion, and the vendor's own instruction makes the number an agreement between two systems rather than a setting with a right value. WHAT IS NOT DECIDED HERE: which network segments the log traffic crosses and whether every one of them is under the operator's control.",
+          "rationale": "Cleartext syslog is readable and forgeable by anything on the path, and an unacknowledged transport cannot distinguish a collector that stopped listening from one that is listening.",
+          "audit": "Device > Server Profiles > Syslog, at both the shared and vsys scopes. For every server entry in every profile a match list or Log Forwarding profile names, confirm the TRANSPORT cell reads SSL. An entry with the key absent renders UDP.",
+          "remediation": "`set shared log-settings syslog <profile> server <name> transport SSL`, and install the collector's CA in the firewall trust store - TLS syslog will not establish without it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A referenced syslog collector is reached over a transport that does not encrypt.",
+              "canonical_query": {
+                "model": "integrations.LogServerTarget",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "syslog"
+                  },
+                  {
+                    "field": "profile_referrer_count",
+                    "op": "gt",
+                    "value": 0
+                  },
+                  {
+                    "field": "transport",
+                    "op": "eq",
+                    "value": "SSL",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "transport"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Cleartext and unacknowledged transport",
+              "short_description": "UDP: neither the content nor the fact of delivery is protected, and this is the value an entry holding only its address reports.",
+              "canonical_query": {
+                "model": "integrations.LogServerTarget",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "syslog"
+                  },
+                  {
+                    "field": "profile_referrer_count",
+                    "op": "gt",
+                    "value": 0
+                  },
+                  {
+                    "field": "transport",
+                    "op": "eq",
+                    "value": "SSL",
+                    "negated": true
+                  },
+                  {
+                    "field": "transport",
+                    "op": "eq",
+                    "value": "UDP"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "transport"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Cleartext but acknowledged transport",
+              "short_description": "TCP: delivery is confirmed and the content still crosses the network in the clear, which is one rung below the unacknowledged transport.",
+              "canonical_query": {
+                "model": "integrations.LogServerTarget",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "syslog"
+                  },
+                  {
+                    "field": "profile_referrer_count",
+                    "op": "gt",
+                    "value": 0
+                  },
+                  {
+                    "field": "transport",
+                    "op": "eq",
+                    "value": "SSL",
+                    "negated": true
+                  },
+                  {
+                    "field": "transport",
+                    "op": "eq",
+                    "value": "TCP"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "transport"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LogServerTarget",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-003",
+          "name": "System Logs Forwarded Off-Box",
+          "control_type": "logging_settings",
+          "default_severity": "high",
+          "description": "The firewall's management-plane record - administrative authentication failures, failover, daemon crashes, failed updates - must leave the device for a central collector, with nothing in the serious severity bands filtered out on the way.\n\nTHE COLUMN LISTS WHAT IS MISSING, so the control fires on a non-empty gap list and an empty one is the only state that produces no finding. There is deliberately no acceptable member in the grading: a severity band either leaves the box or it does not.\n\nTHE PLACEMENTS ARE MEMBERSHIP TESTS AND NOT EQUALITIES, which is why five calibration queries exist rather than a threshold. The column holds a comma-joined set, so a row can be missing `critical` and `medium` at once and matches both those queries; the worst matched calibration wins, so such a row reports at high. A query shaped as \"the gap list is non-empty\" at medium would also match a row missing critical and, being lower, would report a missing critical band at medium. The five severity tokens were each checked for substring collisions before the queries were written: none is a substring of another.\n\nEMAIL AND SNMP-TRAP DESTINATIONS DO NOT COUNT AS OFF-BOX HERE - they notify rather than retain - so a band covered only by an alert is still reported. An HTTP collector does count.\n\nTHE COLUMN CANNOT TELL TWO SHAPES APART AND THE REMEDIATION DIFFERS BETWEEN THEM: no System match list attached to an off-box destination at all, and one attached whose filter excludes those bands. Both arrive as a gap list containing the band. The finding names both possibilities rather than choosing, because nothing stored distinguishes them.\n\nTHE FILTER IS A PARSE RATHER THAN A COMPARISON. It is free text the device evaluates and whose candidate list completes empty, so no key holds a severity set and turning the filter into covered severities is parsing. The five bands are the ones the log viewer grades by rather than a measured device enum.",
+          "rationale": "Management-plane events are the record of attacks on the firewall itself, and an attacker who reaches the device can erase anything that has not already left it.",
+          "audit": "Device > Log Settings > System. Confirm a match list exists, confirm it names an off-box destination - a syslog profile, an HTTP profile or Panorama - and read its filter to confirm no severity band is excluded.",
+          "remediation": "`set shared log-settings system match-list <name> filter \"All Logs\" send-syslog <profile>`. Where a filter must narrow, confirm it still admits every band this control reports as missing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "At least one System-log severity band is carried by no off-box destination on this appliance.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Missing System severity: critical",
+              "short_description": "No off-box destination carries System-log events at critical severity.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "contains",
+                    "value": "critical"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Missing System severity: high",
+              "short_description": "No off-box destination carries System-log events at high severity.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "contains",
+                    "value": "high"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Missing System severity: medium",
+              "short_description": "No off-box destination carries System-log events at medium severity.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "contains",
+                    "value": "medium"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Missing System severity: low",
+              "short_description": "No off-box destination carries System-log events at low severity.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "contains",
+                    "value": "low"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Missing System severity: informational",
+              "short_description": "No off-box destination carries System-log events at informational severity.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "system_log_severity_gaps",
+                    "op": "contains",
+                    "value": "informational"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "system_log_severity_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-004",
+          "name": "Configuration Logs Forwarded Off-Box",
+          "control_type": "logging_settings",
+          "default_severity": "high",
+          "description": "Every configuration change made on this firewall must leave the device as a record held somewhere the administrator who made the change cannot reach.\n\nONE VERDICT COLUMN RATHER THAN TWO CLAUSES, because the failure is a DISJUNCTION and the clause grammar is a flat conjunction: the control fires where there is no off-box configuration destination OR where a filter on that path holds any change back. The two halves are stored beside the verdict so the finding can say which one failed, and it does.\n\nNO MATCH LIST AT ALL MEANS NO DESTINATION. The Configuration match list is the only forwarding path for this log type, measured - so an appliance with no `config` match list fires, which is the state three of the four lab appliances are in.\n\nA FILTER THAT NAMES A NON-EXISTENT ADMINISTRATOR IS THE INFORMATIVE FAILURE. One lab appliance HAS an off-box configuration destination and still fails: the filter on that path selects changes by one administrator name and the name it selects does not exist on the appliance, so the destination is configured and no configuration record reaches it. A destination-only check reads that appliance as compliant. The `filter` key is mandatory at commit validation on this node, so every committed entry carries one and none can be assumed unrestricted until it is parsed - `All Logs` is the unrestricted spelling.\n\nONE THING THIS CONTROL ASSERTS AND THIS CATALOGUE ENTRY DOES NOT MEASURE: whether the forwarded record carries the BEFORE and AFTER of each setting rather than only who changed what and when. That half is recorded in the pipeline as unmeasurable from configuration - no stored column holds it - and it ranks one rung below this one. It contributes no query, and this sentence is here so a reader is not left inferring that the control checked it.",
+          "rationale": "A change audit trail the changer can edit is not a change audit trail, and a destination with a filter in front of it is as silent as no destination at all.",
+          "audit": "Device > Log Settings > Configuration. Confirm a match list exists, confirm it names a syslog profile, an HTTP profile or Panorama, and READ ITS FILTER - confirm the filter admits every change rather than a subset, and that any administrator name it references exists on the appliance.",
+          "remediation": "`set shared log-settings config match-list <name> filter \"All Logs\" send-syslog <profile>`. Where a filter is already present, widen it rather than only confirming the destination.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Not every configuration-change log leaves this appliance: either no off-box configuration destination is configured, or a filter on that path holds changes back.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_log_fully_offbox",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "config_log_fully_offbox"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-005",
+          "name": "Log Forwarding Profile for Traffic & Threat Logs",
+          "control_type": "vsys_log_forwarding",
+          "default_severity": "high",
+          "description": "The dataplane record - the sessions that crossed the firewall, the threats found in them, the web and file activity and the malware verdicts - must leave the device, and the profiles available to a virtual system must cover those records rather than only the one kind a profile was created for.\n\nTHE VIRTUAL SYSTEM IS THE SUBJECT AND NOT THE PROFILE, because the gap this control reports is a vsys with NO adequate profile available to it - and a profile-keyed row cannot report something that does not exist. A vsys named `vsys1` exists on single-vsys platforms too, so one row per appliance is the normal case.\n\nTHE VERDICT SPANS FOUR NAMESPACES: the vsys's own profiles, shared, Panorama-pushed and vendor-predefined. It is a UNION rather than a winner, and the reason is measured: name resolution between namespaces has no single true precedence ladder - for one profile name only the pushed copy was offered to a rule and the local one shadowed, for another only the local one was offered and the predefined dropped. So a log type is covered if ANY profile available to the vsys sends it off the box.\n\nTHE APPLICABILITY CLAUSE EXCLUDES A ROW RATHER THAN FIRING IT, and that direction is deliberate rather than careless. Where the Panorama-pushed and vendor-predefined reads have not landed, the gap list was computed from the vsys's LOCAL profiles alone and the row is taken out of this control - because over-reporting here means telling an engineer that a correctly configured vsys has no log forwarding at all, and on this lab's own measurement those two namespaces are where most of the coverage lives. The usual rule is that an unknown fires; this is the recorded exception and the reason is the direction of the error.\n\nTHE PLACEMENTS ARE MEMBERSHIP TESTS AND NOT EQUALITIES. The column holds a comma-joined set of the log types that are MISSING, so a vsys can be missing `traffic` and `url` at once and matches both queries; the worst matched calibration wins. The ten tokens of the profile's own log-type enum were each checked for substring collisions before the queries were written: none is a substring of another.\n\nFIVE LOG TYPES ARE GRADED AND FIVE ARE NOT. `traffic` and `threat` rank at this control's own severity, `url`, `data` and `wildfire` one rung below. `gtp`, `sctp`, `tunnel`, `auth` and `decryption` are UNRANKED in the catalogue - no severity has been decided for them - so they carry no calibration query and a vsys missing only those reports at this control's default severity on the baseline alone. The pipeline has that question open with a person.\n\nEMAIL AND SNMP-TRAP DESTINATIONS DO NOT COUNT AS OFF-BOX - they notify rather than retain. AND WHAT NO FINDING HERE CAN SAY: whether a covering profile was pushed or local, because the device-group scope lives in provenance on the profile rows and this subject stores none; and whether a log type is missing because nothing sends it or because nothing generates it.",
+          "rationale": "The dataplane record is the account of what actually crossed the firewall, and on-box storage is finite - so a log type nothing forwards is a log type with a deadline.",
+          "audit": "Objects > Log Forwarding, for each virtual system, together with the shared, Panorama-pushed and predefined profiles that vsys can reach. Confirm that for every log type some reachable profile's match list carries an off-box destination - a syslog, HTTP or Panorama target - rather than only the log type the profile was made for.",
+          "remediation": "`set vsys <vsys> log-settings profiles <name> match-list <name> log-type traffic filter \"All Logs\" send-syslog <profile>`, repeated per log type, and attach the profile to the security rules that generate those records.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "At least one dataplane log type is sent off the box by no profile available to this virtual system.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Missing off-box log type: traffic",
+              "short_description": "No profile available to this virtual system sends the traffic record off the box.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "contains",
+                    "value": "traffic"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Missing off-box log type: threat",
+              "short_description": "No profile available to this virtual system sends the threat record off the box.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "contains",
+                    "value": "threat"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Missing off-box log type: url",
+              "short_description": "No profile available to this virtual system sends the url record off the box.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "contains",
+                    "value": "url"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Missing off-box log type: data",
+              "short_description": "No profile available to this virtual system sends the data record off the box.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "contains",
+                    "value": "data"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Missing off-box log type: wildfire",
+              "short_description": "No profile available to this virtual system sends the wildfire record off the box.",
+              "canonical_query": {
+                "model": "integrations.VsysLogForwarding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "pushed_profile_sources_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "offbox_log_type_gaps",
+                    "op": "contains",
+                    "value": "wildfire"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "offbox_log_type_gaps"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.VsysLogForwarding",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-006",
+          "name": "Logs Forwarded to Panorama (Managed Estates)",
+          "control_type": "logging_settings",
+          "default_severity": "medium",
+          "description": "A firewall managed from a central management station should also send its logs to that station, so the estate-wide view includes this device instead of silently leaving it out.\n\nTHE GAP IS TAKEN ACROSS BOTH NODE FAMILIES - the Device > Log Settings match lists and the Log Forwarding profile match lists - because the same device fact is expressed in two places and a count over one of them understates it.\n\n`correlation` IS EXCLUDED FROM THE DENOMINATOR BY CONSTRUCTION rather than by omission: it carries no `send-to-panorama` key at all, measured on the one platform that has the kind, and the vendor says correlation logs cannot be forwarded from a firewall. A gap list must not report a kind that cannot forward.\n\nTHE ABSENT-KEY READING WAS MEASURED ON THE SYSTEM KIND ONLY, against the device's own forwarding counters, and is carried to the other fifteen. That is the FIRING direction - a log type nobody can show to be forwarded counts as not forwarded - and the Log Forwarding profile's copy of the same leaf renders differently for absence and was never settled behaviourally. A reviewer should read this control's population with that in mind.\n\nAPPLICABILITY RESTS ON THE COLLECTION PATH AND NOT ON A DEVICE READING. Whether this appliance is managed centrally is taken from the station it was reached through and its appliance group; the firewall-side fact, `deviceconfig/system/panorama-server`, belongs to another domain's control and is not read here. It defaults to TRUE so the assertion fires rather than silently excluding every unrecomputed row.\n\nTHIS CONTROL CARRIES NO SEVERITY CALIBRATION. The catalogue grades it at one rank and the pipeline recorded no per-value grading for it, so every matching appliance reports at the same severity however many log types are missing. WHAT IS NOT DECIDED HERE: whether the SIEM takes this device's logs from the station or from the device directly - a firewall can legitimately bypass the station, and nothing stored says which arrangement is intended.",
+          "rationale": "An estate-wide view with one device missing is an estate-wide view that will be trusted and is wrong, and the device missing is invisible from the console.",
+          "audit": "Device > Log Settings, every match list, and Objects > Log Forwarding, every profile match list. Confirm the PANORAMA checkbox is ticked for each forwardable log type. An entry holding no `send-to-panorama` element renders it unticked.",
+          "remediation": "`set shared log-settings system match-list <name> send-to-panorama yes`, repeated for each management-plane kind, and the equivalent on each Log Forwarding profile match list for the dataplane types.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A centrally managed appliance does not forward at least one forwardable log type to its management station or logging service.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "panorama_managed",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "panorama_log_type_gaps",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "panorama_log_type_gaps"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-007",
+          "name": "Require Audit Comments on Policy Changes",
+          "control_type": "logging_settings",
+          "default_severity": "low",
+          "description": "An administrator should not be able to change a policy rule on this firewall without recording why, so that every rule change carries the change-ticket context that explains it.\n\nTHE ABSENT KEY READS AS OFF, AND THAT WAS MEASURED IN BOTH DIRECTIONS against the commit gate itself rather than inferred: with the key absent a policy change committed with no audit comment; with it set to `yes` the same commit was refused at submission, naming the rule's xpath; deleting the key let the rule commit again. So an untouched appliance genuinely does not require a comment rather than being unread, and it fires.\n\nWHAT THE MEASUREMENT ADDS AND NO COLUMN CARRIES, because it changes the remediation: THE GATE IS THE COMMIT SUBMISSION, SO NO JOB IS CREATED. An instruction telling an engineer to watch for a failed commit job describes something that will not happen - the submission is refused outright.\n\nA TEMPLATE-PUSHED MANAGEMENT NODE BREAKS THE REMEDIATION AND THE FINDING CANNOT SAY SO. Where the whole management container arrives from a Panorama template, the audit-comment requirement is absent and an engineer sent to Device > Setup > Management on the firewall finds the field read-only. Only the per-field provenance row records that, and this control does not read it.\n\nTHE ENFORCED-FORMAT HALF IS NOT ASSESSED. Whether the comment must match a pattern - `rule-audit-comment-regex` - is a separate key that no shipped column holds, so a compliant result here means a comment is required and says nothing about whether it must be meaningful. WHAT IS NOT DECIDED HERE: what form a change reference takes in the operator's own change process.",
+          "rationale": "A rule change with no stated reason cannot be reviewed after the fact, and the rule history is the only place that reason could have lived.",
+          "audit": "Device > Setup > Management > Policy Rulebase Settings. Confirm \"Require audit comment on policies\" is ticked. An appliance that has never had the key written renders it unticked.",
+          "remediation": "`set deviceconfig setting management rule-require-audit-comment yes`. On a template-managed appliance this must be set on the Panorama template rather than on the firewall.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A policy-rule change can be committed on this appliance with no audit comment recorded.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "require_audit_comment",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "require_audit_comment"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-008",
+          "name": "Email Alerting for Critical Events",
+          "control_type": "logging_settings",
+          "default_severity": "low",
+          "description": "Somebody should be told when this firewall reports a critical event, by a notification path that does not run through the log pipeline the event would otherwise have to travel.\n\nWHAT THIS CONTROL ACTUALLY TESTS IS THE CONFIGURATION HALF: whether a System-log match list whose filter includes critical severity names an email server profile. That is one half of \"critical events alert somebody\" and the entry says so rather than implying it tested the rest.\n\nTHE FLOOR IS AN OPERATOR'S ANSWER AND NOT A DEVICE VALUE. Alerting is not required where SIEM coverage of critical events already reaches a watched mailbox, and no column on this appliance holds whether it does. So a finding here is a question put to the operator with the device-side evidence attached, which is why it ranks where it does.\n\nAND THE SECOND HALF OF THE ASSERTION CARRIES NO QUERY AT ALL. Whether the relay that exists is reached over an authenticated encrypted session is a fact about a server entry on a DIFFERENT model - the log-settings server profile table - and no control in this domain asserts it. The pipeline recorded that group as a clause it declined to place, because the clause list of this control is one conjunction with no OR and the state it reports is genuinely a different subject. So a relay that exists and is reached in the clear satisfies everything this control says.\n\nTHE SHIPPED COLUMN THIS CONTROL RESTS ON SAYS IN TERMS THAT NO QUERY RESTS ON IT, because the control was expected to be discharged onto the engineer entirely. The pipeline wrote one anyway, on the catalogue's authority, and a reviewer should settle that disagreement rather than inherit it.",
+          "rationale": "A critical event that reaches only the log pipeline is invisible while the log pipeline is what has failed, and out of hours nobody is reading the console.",
+          "audit": "Device > Log Settings > System, and Device > Server Profiles > Email. Confirm a match list whose filter includes critical severity names an email server profile, and confirm with the operator that the destination mailbox is actually watched.",
+          "remediation": "Define the relay and then reference it: `set shared log-settings email <profile> server <name> display-name Firewall-Alerts from <sender> to <soc-address> gateway <smtp-host>`, then name that profile in the System match list's `send-email` for a filter that admits critical severity.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No System-log path whose filter includes critical severity names an email server profile on this appliance.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "email_alerting_for_critical_system_events",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "email_alerting_for_critical_system_events"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-009",
+          "name": "Log Storage Quotas & Retention Reviewed",
+          "control_type": "logging_settings",
+          "default_severity": "low",
+          "description": "How much local storage each kind of log gets, and how long it is kept, should be a decision somebody made against the investigation window this estate needs rather than whatever the platform shipped with.\n\nTHIS IS A POSTURE CONTROL AND WHAT IT REPORTS IS THAT NOBODY HAS LOOKED. It fires where no per-log-type disk quota and no log expiration period is set anywhere on the appliance, which is the measured universal state in the lab that built it.\n\nTHE TEST IS PRESENCE RATHER THAN SUFFICIENCY, AND THAT IS A REAL WEAKNESS OF THE COMPLIANT SIDE. It is a presence test over about 170 keys in two platform-dependent shapes - `chassis-quota` and `chassis-log-expiration-period` split mgmt-card and log-card on a PA-5220, `disk-quota` and `log-expiration-period` carrying 43 log types on a PA-VM - and ANY ONE of them being set makes it pass. So an appliance with one log type apportioned and forty-two left as shipped produces no finding, which is weaker than the control's own language. A reader should not take a pass here as evidence that retention was reviewed across the board.\n\nTHE NUMBERS THEMSELVES CANNOT BE STORED, which is why this is a presence test and not a threshold. They exist only in `show system logdb-quota`, which no configuration read carries, and the never-expire sentinel cannot be written at all: the device reports \"Expiration-period: 0 days\" for a key-less log type and then refuses a written 0 - \"value=0 should be equal to or between 1 and 2000\".\n\nTHE WINDOW IS THE ENGINEER'S ANSWER. Nothing on the device states how far back someone must be able to investigate on the firewall itself before the central collector is the only copy, so this control is delivered unconfigured in the sense that the number it should be judged against comes from the operator. Setting something is where this remediation starts and not where it ends.",
+          "rationale": "Shipped quotas apportion storage by log volume rather than by investigative value, so the records most worth keeping are the ones most likely to roll over first.",
+          "audit": "Device > Setup > Management > Logging and Reporting Settings > Log Storage, and `show system logdb-quota` for the figures in force. Confirm shares and expiration periods have been set per log type against a stated investigation window.",
+          "remediation": "`set deviceconfig setting logging log-quota-settings <type> quota <pct>` and the matching expiration period, for every log type rather than one - and record the investigation window the numbers were chosen against.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No per-log-type disk quota or log expiration period is set anywhere on this appliance, so no retention decision is visible.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "log_retention_configured",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "log_retention_configured"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
+        },
+        {
+          "control_id": "PAN-LOG-010",
+          "name": "Log Forwarding Health Verified",
+          "control_type": "logging_settings",
+          "default_severity": "medium",
+          "description": "Logs should be known to be arriving at the collector now, not merely configured to be sent. Forwarding that silently backs up - an unreachable collector, a TLS failure, a buffer overrun - creates an audit gap that no configuration review can see.\n\nA CONNECTION IS NOT A DELIVERY, AND THE NAIVE READING IS INVERTED ON REAL APPLIANCES. The appliance with the MOST active collector connections in the lab that built this control is the one delivering nothing: five connections, every one reporting success through DNS, registration, SSL and TCP handshake, and every per-log-type line reading the no-figure sentinel with a zero counter. Meanwhile an appliance that IS delivering lists an INACTIVE collector first in its reply. A summary written off the first connection, or off connection state at all, gets this exactly backwards - so this control requires POSITIVE EVIDENCE OF A COMPLETED FORWARD: a last-forwarded timestamp with the last sequence number forwarded equal to the last acknowledged.\n\nA CONNECTED COLLECTOR THAT HAS NEVER DELIVERED ANYTHING IS A FINDING, because the read cannot tell \"this appliance created no logs of this kind\" from \"nothing populates this counter\". Both answer the same sentinel, so the safe reading is the one that reports.\n\nAND AN APPLIANCE NOBODY READ IS A FINDING TOO. The column is NOT nullable and its false is the firing side - a missing reading reported as compliant is a customer told they are safe on the strength of nothing. A companion column records whether the reading exists at all, and the finding uses it to say WHICH case a false is: a reading that shows no completed forward, or no reading. That companion is deliberately NOT a clause here: it was an applicability clause until it was removed, and in that position it SUPPRESSED the control for exactly the appliances nobody had read. Same field, opposite outcome, and the suppressing form read as the careful one.\n\nTHE MONITORING HALF IS NOT ASSESSED AND THE COLUMN GRADES SOMETHING ELSE. The catalogue grades this control by how long a stop in delivery could go unnoticed - nothing watching, a manual cadence, automated alerting within minutes - and the device holds no value for any of those: it is an arrangement, and it is a question for the operator. What is stored is the device-side half, whether delivery is known healthy now, so the gentler ranks of that scale are unreachable from any stored reading and this control reports at one severity. Saying so is the point; a reader should not read a single severity as a judgement about the monitoring.\n\nAPPLICABILITY: an appliance with no central store to reach has no delivery to vouch for, and that is taken from the collection path rather than from a device key.",
+          "rationale": "A forwarding gap is invisible to configuration review by construction - the configuration is correct and the logs are not arriving - so only a runtime reading finds it, and only monitoring finds it promptly.",
+          "audit": "`show logging-status`. Read the PER-LOG-TYPE lines rather than the connection list: confirm a last-forwarded timestamp exists and that the last sequence number forwarded equals the last acknowledged. Do not read `Connection Status: Active` as evidence of delivery, and do not read the first connection listed as the one delivering.",
+          "remediation": "Restore delivery to the collector, then confirm from `show logging-status` that a forward has completed with no backlog - and put something outside the firewall in place to notice the next stop, because nothing on the device will.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A centrally managed appliance is not known to be delivering logs to its central store with no backlog - including an appliance for which no delivery reading exists.",
+              "canonical_query": {
+                "model": "integrations.LoggingSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "panorama_managed",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "central_store_delivery_healthy",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "central_store_delivery_healthy"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "target_model": "integrations.LoggingSettings",
+          "is_active": true
         }
       ]
     }

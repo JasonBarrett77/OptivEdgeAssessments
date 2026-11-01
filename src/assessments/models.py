@@ -78,6 +78,8 @@ from optivedge_integrations.integrations.models import (
     DecryptionRulebaseVerdict,
     SslDecryptionExclusion,
     SslDecryptionVendorExclusionOptOut,
+    LogServerTarget,
+    VsysLogForwarding,
 )
 
 
@@ -597,6 +599,42 @@ class Control(models.Model):
         SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT = (
             "ssl_decryption_vendor_exclusion_optout",
             "SSL Decryption Vendor Exclusion Opt-Out")
+        #: `logging`, 2026-11-01. TWO MINTS AND ONE REUSE FOR TEN CONTROLS, and the reuse is
+        #: where the work went rather than the mints. `rev(_CONTROL_TYPE_TARGET_MODEL)` was
+        #: measured over 69 types, 69 map entries and 69 DISTINCT targets before either line
+        #: below was written: it answered NO TYPE for `integrations.LogServerTarget` and
+        #: `integrations.VsysLogForwarding`, and answered `logging_settings` for
+        #: `integrations.LoggingSettings`. Minting a second type for a model that already has
+        #: one is what this map's one-to-one property forbids and nothing in the suite catches
+        #: it in that direction, so the reverse map was measured first.
+        #:
+        #: EIGHT OF THE TEN CONTROLS REUSE `logging_settings`, WHICH ALREADY CARRIED EXACTLY ONE
+        #: CONTROL OF ANOTHER DOMAIN - PAN-MGT-011, management-services. Its generator was an
+        #: unconditional single sentence about the high-DP-load setting with no dispatch of any
+        #: kind, so eight PAN-LOG findings would each have asserted that setting was off, on
+        #: findings about log retention, syslog transport and Panorama coverage. The dispatch
+        #: `logging_settings_findings.PARTS_BY_CONTROL` was added for that, with PAN-MGT-011's
+        #: sentence kept BYTE FOR BYTE in its own arm and the default arm `()`.
+        #:
+        #: `len("log_server_target")` is 17 and `len("vsys_log_forwarding")` is 19 against
+        #: `control_type.max_length` 64, measured before writing these: a value too long makes
+        #: `makemigrations` REFUSE with `fields.E009` rather than truncate.
+        #:
+        #: ONE TYPE FOR `LogServerTarget` AND NOT TWO, although stage 5 states TWO subjects over
+        #: it - `syslog-server-target` and `email-server-target`, discriminated by the `kind`
+        #: column of one table. One model is one type, and only the syslog half has a control:
+        #: no assertion in this domain names the e-mail subject. PAN-LOG-008's second group
+        #: would have, and stage 5 left it in `undetermined` rather than in `clauses`. EVERY
+        #: CONTROL ON THIS MODEL MUST CLAUSE ON `kind`, which the model's own docstring says in
+        #: terms: `transport` holds its UDP default on the e-mail kind too, so PAN-LOG-002
+        #: without that clause reports every mail relay in the estate as sending syslog in the
+        #: clear.
+        LOG_SERVER_TARGET = "log_server_target", "Log Server Target"
+        #: One virtual system's Log Forwarding availability AS A VERDICT over the profiles it can
+        #: reach, at four scopes. PAN-LOG-005. The VSYS is the row and not the profile, because
+        #: the gap this control reports is a vsys with no adequate profile and a profile-keyed
+        #: row cannot report something that does not exist.
+        VSYS_LOG_FORWARDING = "vsys_log_forwarding", "Virtual System Log Forwarding"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -847,6 +885,16 @@ class Control(models.Model):
         # target model, so the half is silent until somebody splits the catalogue id.
         "ssl_decryption_vendor_exclusion_optout":
             "integrations.SslDecryptionVendorExclusionOptOut",
+        # `logging`, 2026-11-01. ONE SERVER ENTRY of one log-settings server profile, in one
+        # scope of one appliance - a CHILD row whose identity is the parent profile's name and
+        # its own, which is why its finding model carries `subject_scope`. Stage 5 states two
+        # subjects over this one table and only the syslog kind has a control; the e-mail kind
+        # is reachable by the same type the day something asserts it.
+        "log_server_target": "integrations.LogServerTarget",
+        # ONE ROW PER VIRTUAL SYSTEM rather than per appliance, so its finding model carries
+        # `subject_scope` too: `vsys1` is not unique in an estate and is not unique on one
+        # Panorama.
+        "vsys_log_forwarding": "integrations.VsysLogForwarding",
     }
 
     class Meta:
@@ -933,6 +981,8 @@ class Control(models.Model):
         "integrations.SslDecryptionExclusion": "SSL Decryption Exclusion",
         "integrations.SslDecryptionVendorExclusionOptOut":
             "SSL Decryption Vendor Exclusion Opt-Out",
+        "integrations.LogServerTarget": "Log Server Target",
+        "integrations.VsysLogForwarding": "Virtual System Log Forwarding",
     }
 
     @property
@@ -5702,3 +5752,129 @@ class SslDecryptionVendorExclusionOptOutFindingControlQuery(FindingControlQueryB
     def __str__(self) -> str:
         return (f"{self.ssl_decryption_vendor_exclusion_optout_finding_id} "
                 f"<- {self.control_query_id}")
+
+
+class LogServerTargetFinding(ObjectFindingBase):
+    """A finding against one server entry of one log-settings server profile. PAN-LOG-002.
+
+    THE SUBJECT IS A CHILD ROW, which is why `subject_scope` is not optional here. The entry's
+    own name is `server_name`, and that is unique only inside its parent profile: one appliance
+    can hold a shared syslog profile and a shared e-mail profile whose server entries have the
+    same names, which is why the shipped uniqueness constraint on the integrations model is
+    `(appliance, scope, vsys_name, kind, profile_name, server_name)` and why the scope here
+    carries the appliance, the config scope and the parent profile together.
+
+    ONE MODEL, TWO KINDS, ONE CONTROL. Stage 5 states two subjects over this table -
+    `syslog-server-target` and `email-server-target` - and no assertion in the logging domain
+    names the second. PAN-LOG-002's queries therefore all clause on `kind eq syslog`: the
+    model's own docstring records that `transport` holds its UDP default on the e-mail kind too,
+    so a query without that clause reports every mail relay in the estate as sending syslog in
+    the clear. Nothing downstream enforces it - not the catalog schema, not the compiler, not a
+    lint, not a generic test.
+
+    ON AN HA PAIR THIS IS TWO ROWS FOR ONE REAL CONFIGURATION, one per peer, and nothing
+    deduplicates them.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="log_server_target_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="log_server_target_findings")
+    log_server_target = models.ForeignKey(
+        LogServerTarget, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LogServerTargetFindingControlQuery",
+        related_name="log_server_target_findings", blank=True)
+    #: The appliance, the config scope and the parent profile. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["log_server_target"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "log_server_target"],
+                name="unique_lst_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on log server target {self.subject_name}"
+
+
+class LogServerTargetFindingControlQuery(FindingControlQueryBase):
+    log_server_target_finding = models.ForeignKey(
+        LogServerTargetFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="log_server_target_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["log_server_target_finding", "control_query"],
+                name="unique_lst_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.log_server_target_finding_id} <- {self.control_query_id}"
+
+
+class VsysLogForwardingFinding(ObjectFindingBase):
+    """A finding against one virtual system's Log Forwarding availability. PAN-LOG-005.
+
+    `subject_scope` IS NOT OPTIONAL HERE, for the reason `ServiceRouteFinding` records: the
+    subject is a VIRTUAL SYSTEM, so `subject_name` is a partition name like `vsys1`, which is
+    not unique in an estate and is not unique even on one Panorama. The scope carries the
+    appliance.
+
+    THE VSYS IS THE ROW AND NOT THE PROFILE, because the gap this control reports is a vsys with
+    NO adequate profile available to it, and a profile-keyed row cannot report something that
+    does not exist. The verdict spans four namespaces - the vsys's own profiles, shared,
+    Panorama-pushed and vendor-predefined - and the integrations model's own docstring records
+    that name resolution between them has no single true precedence ladder, which is why the gap
+    column takes the UNION rather than a winner.
+
+    ON AN HA PAIR BOTH PEERS HOLD THE SAME VSYS and produce two rows for one real
+    configuration, with nothing deduplicating them.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="vsys_log_forwarding_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="vsys_log_forwarding_findings")
+    vsys_log_forwarding = models.ForeignKey(
+        VsysLogForwarding, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="VsysLogForwardingFindingControlQuery",
+        related_name="vsys_log_forwarding_findings", blank=True)
+    #: The appliance that owns the virtual system. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["vsys_log_forwarding"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "vsys_log_forwarding"],
+                name="unique_vlf_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on vsys log forwarding {self.subject_name}"
+
+
+class VsysLogForwardingFindingControlQuery(FindingControlQueryBase):
+    vsys_log_forwarding_finding = models.ForeignKey(
+        VsysLogForwardingFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="vsys_log_forwarding_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vsys_log_forwarding_finding", "control_query"],
+                name="unique_vlf_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vsys_log_forwarding_finding_id} <- {self.control_query_id}"

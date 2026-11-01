@@ -892,6 +892,17 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: 2026-10-30 put the second one in. So the lifecycle has now run a full cycle: filled by a
 #: stage 8, emptied by the stage 9 it named, filled again.
 AWAITING_PRESENTATION: dict[str, str] = {
+    # `logging` reached stage 8 on 2026-11-01. TWO of its three models have no rail item:
+    # `LogServerTarget` and `VsysLogForwarding` were both created by stage 7 for this domain and
+    # had never been queried from this repository at all. The third, `LoggingSettings`, DOES
+    # have a page - `Device > Setup > Management > Logging and Reporting Settings` - which it
+    # has had since PAN-MGT-011, so this entry is load-bearing for exactly TWO of the ten
+    # PAN-LOG controls (002 and 005) and harmless for the other eight: `_awaiting` is consulted
+    # only where `query_results_url` returns nothing, and the eight logging-settings controls
+    # resolve on their own. NOTE that PAN-MGT-011 has no entry here and never needed one, for
+    # the same reason. Stage 9 for this domain is what gives the two models a page, and stage
+    # 8's contract forbids building one.
+    "PAN-LOG": "stage9-logging.json",
     # `ipsec-crypto` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
     # `IpsecCryptoProfile` and `IpsecTunnel` were both created by stage 7 for this domain and
     # had never been queried from this repository at all. The rail's two IKE entries are the

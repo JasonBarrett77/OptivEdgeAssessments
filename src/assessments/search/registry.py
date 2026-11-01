@@ -136,6 +136,16 @@ from assessments.search.dns_settings.compiler import (
     DNS_SETTINGS_MODEL,
     compile_dns_settings_search_node,
 )
+from assessments.search.log_server_target.compiler import (
+    FIELD_OPERATOR_REGISTRY as LOG_SERVER_TARGET_FIELD_OPERATOR_REGISTRY,
+    LOG_SERVER_TARGET_MODEL,
+    compile_log_server_target_search_node,
+)
+from assessments.search.vsys_log_forwarding.compiler import (
+    FIELD_OPERATOR_REGISTRY as VSYS_LOG_FORWARDING_FIELD_OPERATOR_REGISTRY,
+    VSYS_LOG_FORWARDING_MODEL,
+    compile_vsys_log_forwarding_search_node,
+)
 from assessments.search.service_route.compiler import (
     FIELD_OPERATOR_REGISTRY as SERVICE_ROUTE_FIELD_OPERATOR_REGISTRY,
     SERVICE_ROUTE_MODEL,
@@ -433,6 +443,8 @@ from optivedge_integrations.integrations.models import (
     Certificate,
     AuthenticationSettings,
     LoggingSettings,
+    LogServerTarget,
+    VsysLogForwarding,
     LoginBanner,
     DnsSettings,
     NtpSettings,
@@ -535,6 +547,18 @@ MODEL_REGISTRY = {
         "model_class": UpdateServerSettings,
         "field_operators": UPDATE_SERVER_SETTINGS_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_update_server_settings_search_node,
+    },
+    # The `logging` domain's three models sit together: the appliance-wide posture reused
+    # from PAN-MGT-011, and the two minted by stage 8 on 2026-11-01.
+    LOG_SERVER_TARGET_MODEL: {
+        "model_class": LogServerTarget,
+        "field_operators": LOG_SERVER_TARGET_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_log_server_target_search_node,
+    },
+    VSYS_LOG_FORWARDING_MODEL: {
+        "model_class": VsysLogForwarding,
+        "field_operators": VSYS_LOG_FORWARDING_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_vsys_log_forwarding_search_node,
     },
     LOGGING_SETTINGS_MODEL: {
         "model_class": LoggingSettings,

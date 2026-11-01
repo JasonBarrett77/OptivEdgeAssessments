@@ -146,6 +146,8 @@ from assessments.ssl_tls_service_profile_findings import (
     generate_ssl_tls_service_profile_findings,
 )
 from assessments.dns_settings_findings import generate_dns_settings_findings
+from assessments.log_server_target_findings import generate_log_server_target_findings
+from assessments.vsys_log_forwarding_findings import generate_vsys_log_forwarding_findings
 from assessments.service_route_findings import generate_service_route_findings
 from assessments.system_identity_findings import generate_system_identity_findings
 from assessments.update_server_settings_findings import generate_update_server_settings_findings
@@ -180,6 +182,12 @@ GENERATORS = (
     ("SNMP", T.SNMP_SETTINGS, generate_snmp_settings_findings),
     ("system identity", T.SYSTEM_IDENTITY, generate_system_identity_findings),
     ("management resolvers", T.DNS_SETTINGS, generate_dns_settings_findings),
+    # `logging`, 2026-11-01. TWO MINTS; the domain's eight other controls reuse
+    # `logging_settings`, whose generator is already listed and which cost nothing here -
+    # except a per-control dispatch inside it, which is where that reuse's real work went.
+    ("log server targets", T.LOG_SERVER_TARGET, generate_log_server_target_findings),
+    ("vsys log forwarding", T.VSYS_LOG_FORWARDING,
+     generate_vsys_log_forwarding_findings),
     ("management service paths", T.SERVICE_ROUTE, generate_service_route_findings),
     # Device-wide management-plane settings, so they sit with the settings above: one row per
     # appliance. High availability first, because PAN-HAP-005's applicability turns on whether

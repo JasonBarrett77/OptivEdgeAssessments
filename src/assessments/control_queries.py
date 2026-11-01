@@ -24,6 +24,8 @@ MASTER_KEY_MODEL = "integrations.MasterKey"
 UPDATE_SERVER_SETTINGS_MODEL = "integrations.UpdateServerSettings"
 WILDFIRE_SETTINGS_MODEL = "integrations.WildfireSettings"
 LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
+LOG_SERVER_TARGET_MODEL = "integrations.LogServerTarget"
+VSYS_LOG_FORWARDING_MODEL = "integrations.VsysLogForwarding"
 PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
 ADMIN_USER_MODEL = "integrations.AdminUser"
@@ -776,4 +778,27 @@ def evaluate_ssl_decryption_vendor_exclusion_optout_control_queries(queryset, co
         queryset,
         control,
         model_name=control.target_model or SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL,
+    )
+
+
+def evaluate_log_server_target_control_queries(queryset, control):
+    """One server entry of one log-settings server profile. PAN-LOG-002.
+
+    EVERY QUERY THAT REACHES HERE CLAUSES ON `kind`, and nothing here enforces it. One table
+    holds both the syslog and the e-mail kind, `transport` holds its UDP default on the e-mail
+    kind too, and no shipped gate compares a query's clause list against the kind it is about.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LOG_SERVER_TARGET_MODEL,
+    )
+
+
+def evaluate_vsys_log_forwarding_control_queries(queryset, control):
+    """One virtual system's Log Forwarding availability, as a verdict. PAN-LOG-005."""
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or VSYS_LOG_FORWARDING_MODEL,
     )

@@ -356,6 +356,13 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 "ssl_decryption_vendor_exclusion_optout",
                 m.Control.ControlType.SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT,
                 "SSL decryption vendor exclusion opt-out"),
+    # `logging`, 2026-11-01. TWO MINTS; the domain's eight other controls reuse
+    # `logging_settings`, whose kind is already registered above and which therefore cost
+    # nothing here. The labels are SINGULAR, as the device-services note beside them records.
+    FindingKind(m.LogServerTargetFinding, "log_server_target",
+                m.Control.ControlType.LOG_SERVER_TARGET, "log server target"),
+    FindingKind(m.VsysLogForwardingFinding, "vsys_log_forwarding",
+                m.Control.ControlType.VSYS_LOG_FORWARDING, "virtual system log forwarding"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
