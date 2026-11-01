@@ -909,6 +909,12 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # months with no control, no page and no search surface over it. Stage 9 for this domain is
     # what gives all three a page, and stage 8's contract forbids building one.
     "PAN-IOT": "stage9-device-id-iot.json",
+    # `file-data-filtering` reached stage 8 on 2026-10-31. Two models and neither has a rail
+    # item: `DataFilteringPosture` did not exist before stage 7 for this domain, and
+    # `SecurityProfile`'s pages are per profile KIND, mirroring PAN-OS's own tabs, so the two
+    # kinds this domain adds - File Blocking and Data Filtering - have no page either. Stage 9
+    # for this domain is what gives all of them one, and stage 8's contract forbids building it.
+    "PAN-FIL": "stage9-file-data-filtering.json",
 }
 
 

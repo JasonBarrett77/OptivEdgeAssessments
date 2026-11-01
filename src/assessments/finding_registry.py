@@ -153,6 +153,14 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.ZONE, "security zone"),
     FindingKind(m.RulebaseDeviceMatchFinding, "rulebase_device_match_verdict",
                 m.Control.ControlType.RULEBASE_DEVICE_MATCH, "rulebase device match"),
+    # `file-data-filtering` adds ONE kind for its two models. The profile kinds - file-blocking
+    # and data-filtering - report through `security_profile` above, which already had a kind, a
+    # generator and a search surface; PAN-FIL-001, -002 and -004 reuse it. Only PAN-FIL-003's
+    # first half needed a kind of its own, and it NAMES A VERDICT rather than an object, like the
+    # SaaS three and the rulebase match above: the commonest failing state is no data-filtering
+    # profile anywhere beneath the enforcement point, so the subject is the point.
+    FindingKind(m.DataFilteringPostureFinding, "data_filtering_posture",
+                m.Control.ControlType.DATA_FILTERING_POSTURE, "data filtering posture"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

@@ -7164,6 +7164,582 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-FIL-001",
+          "name": "Dangerous File Types Blocked, Not Merely Logged",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A file-blocking profile that is in force on traffic the firewall permits and does NOT stop the file types with the greatest malware-delivery value - Windows executables, scripting and shortcut formats, compiled help files and peer-to-peer transfer files - in both directions of transfer.\n\nGRADED BY THE ACTION THE RULE HOLDS, not by which file type is missing. `block` is acceptable and compiles to no query at all - a query for it would report the most compliant configuration in the estate. `alert` delivers the file and writes a threat-log entry, which is the case this control exists to find and inherits the baseline. `continue` stops the transfer only if a user declines a prompt, which the vendor offers as user education rather than as enforcement, so it reports one tier lower.\n\nTHE FOURTH CASE IS NOT A VALUE OF THE FIELD AND MUST NOT BE SCORED AS ONE. A committed rule may carry NO action key at all - measured on a profile committed 2026-10-22 and reading back identically four days later - and scoring that as the schema default `alert` would report a rule taking an unknown action as one known to deliver the file and log it. It is held as an empty value and reported by the baseline instead.\n\nNO FILE TYPE IS NAMED IN ANY QUERY, and that is a measurement rather than a style choice. The member spellings are CASE-SENSITIVE: the lower-case `pe` was REFUSED at the write - \"file-type 'pe' is not an allowed keyword\", code=12 - while `PE` was accepted and committed. A query comparing against the lower-case member sits in no stored row anywhere, so it would fire on every profile in the estate INCLUDING the vendor's `strict file blocking`, which actually does block them. The member list also moves between content releases - 242 members on one lab build against 225 on another - so the floor is a named set resolved when the profile is normalised, not a list in a query.\n\nBOTH DIRECTIONS OF TRANSFER ARE REQUIRED and that is forced rather than chosen. The direction key's whole value set is upload|download|both, with `inbound` refused at the write; the control's own description sets its floor inbound while the vendor's only prescribed practice for this object is the other direction. A floor written to either one alone passes the other direction's case, so a rule holding `upload` alone does not satisfy this.\n\nA SECOND RECORD, AT MEDIUM: a user-confirmation rule that is not confined to web browsing. The vendor's precondition for `continue` is that the rule match web-browsing only, because the confirmation page can only be served to a browser; a `continue` rule over any other application silently drops the traffic the security policy permits. NEITHER GATE ENFORCES THIS - `continue` beside `application any` was accepted at the write AND at the commit without comment - and the vendor's own predefined `basic file blocking` SHIPS the forbidden combination, so the rows this fires on include vendor-owned rules nobody can edit.\n\nTHE PREDEFINED PROFILES ARE IN SCOPE HERE and no clause excludes them. The vendor's own Help tells a reader to apply `strict` by name, and `basic file blocking` is named by a Panorama-pushed profile group on both lab PA-VMs. A vendor profile that is in force and does not block the floor types is a real finding; one that nothing references is excluded by the in-force clause, not by its being the vendor's.\n\nWHAT IS NOT ASSERTED: whether the confirmation page itself is enabled and reachable. The firewall has configurable response pages and a per-interface switch that turns them off, and no configuration read settles it - deciding it needs a file transfer across the firewall and a person to watch whether it completes.\n\nAN APPLICABILITY QUESTION DELIBERATELY NOT MADE A CLAUSE: which business processes legitimately move executable files across this firewall. No column distinguishes a sanctioned software-distribution path from a gap, and a clause on an unanswered question would SUPPRESS the control rather than qualify it. The finding stands on the profiles in force and applies to whichever transfers are not a sanctioned distribution path.",
+          "rationale": "A profile that records a dangerous file transfer without stopping it delivers the file anyway and leaves the only evidence in a log read after the incident, so the firewall becomes the record of the breach instead of the thing that prevented it.",
+          "audit": "Objects > Security Profiles > File Blocking. Open the profile the finding names and read its rules: the file-type list, the direction and the action on each. The finding names the weakest action in force on the floor file types across the whole profile, which is the value to check, and a profile with no rule naming them at all fails at the baseline instead.",
+          "remediation": "Set the action to `block` on a rule naming the dangerous file types, with the direction covering both upload and download. Where a rule exists with action `alert`, changing that one value is the whole fix. Where the profile names none of these file types, add a rule for them. For the second record, confine any `continue` rule to the web-browsing application - or change its action - because the confirmation page cannot be served to anything else. A finding on a predefined profile cannot be edited: attach a profile of your own in its place.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "File-blocking profiles in force that do not stop the dangerous file types in both directions.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_floor_file_types",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "stops_floor_file_types"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Floor file types delivered and only logged",
+              "short_description": "The rule in force on the dangerous file types lets the transfer complete and writes a threat-log entry.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_floor_file_types",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "floor_file_type_action",
+                    "op": "eq",
+                    "value": "alert",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "floor_file_type_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Floor file types left to a user prompt",
+              "short_description": "The rule in force on the dangerous file types stops the transfer only if a user declines a prompt.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_floor_file_types",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "floor_file_type_action",
+                    "op": "eq",
+                    "value": "continue",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "floor_file_type_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "User-confirmation rule beyond web browsing",
+              "short_description": "A file-blocking rule whose action prompts the user matches an application other than web browsing alone, which drops traffic the policy permits.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "confirm_rule_beyond_web_browsing",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "confirm_rule_beyond_web_browsing"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Whether this profile is in force could not be established",
+              "short_description": "The reference walk behind this profile's in-force test did not complete on this appliance, so the control's own applicability clause rests on an unanswered question.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "reference_reach_resolved",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach_resolved"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-FIL-002",
+          "name": "Nested-Encoding and Unopenable Archives Decided, Not Ignored",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A file-blocking profile that is in force and does NOT stop files wrapped in layer upon layer of encoding, in both directions of transfer.\n\nTHE MEMBER NAME IS CASE-SENSITIVE AND THE NAIVE QUERY FAILS EXACTLY BACKWARDS, which is why no query here names it. `multi-level-encoding` was REFUSED at the write - \"file-type 'multi-level-encoding' is not an allowed keyword\", code=12 - and `Multi-Level-Encoding` was accepted and committed. The lower-case member therefore sits in NO stored row anywhere, so a query comparing against it reports a finding on the one profile in the estate that actually blocks the type - the vendor's `strict file blocking`, which names the member in a block rule - and reports the identical finding on a device that blocks nothing. It cannot tell them apart.\n\nGRADED IN THE OPPOSITE ORDER FROM THIS CONTROL'S SIBLING, and that is deliberate rather than a transcription error. `block` is acceptable. `alert` inherits the baseline: the parcel is delivered and recorded, which is the evasion channel left open. `continue` reports one tier LOWER, because a user is asked to confirm a transfer whose contents nothing on the firewall or on the user's screen can describe - the confirmation carries no information - and it ranks below the recording case only because the transfer does at least require a deliberate act.\n\nTHE CASE THE GRADING CANNOT EXPRESS IS THE ONE THAT MATTERS MOST, and it is not a value of the field: a profile whose rules do not name the member at all. That fails the assertion at the baseline. An absent action key is likewise unknown and reports at the baseline rather than being scored as the schema default.\n\nA SECOND RECORD, SAME TIER: a profile that expresses NO DECISION about files the firewall cannot look inside - a password-protected archive or a protected office document. The clause tests EXPRESSION and not direction: a rule naming at least one such file type with ANY action satisfies it, whichever way the decision went, because which way it should go is the organisation's call and the control's own floor is that the choice be visible in the configuration at all. Stage 1 could place no leaf for this and measured 'encrypted archive' silent in all eleven vendor document indexes; the measurement turned that apparent absence into an exact, finite member set on the leaf this control already asserts - fourteen encrypted and AIP-encrypted members present on all three builds - so it needs no new object.\n\nAN ENGINEER QUESTION DELIBERATELY NOT MADE A CLAUSE: does policy permit password-protected archives, and for which processes. Absent an answer the finding reads as 'the choice is not expressed in the configuration' rather than as 'these files should be stopped', which is the direction that keeps an unanswered business question from becoming either a false finding or a suppression.\n\nTHIS CONTROL AND PAN-FIL-001 SHARE ONE CONFIGURATION LEAF AND TWO POPULATIONS OF RULES. They carry the identical catalogue xpath byte for byte, because the rule's own entry name is a placeholder in both, and the discriminator is the sibling file-type leaf on the same rule. A later reader joining the two on the path alone will merge them; the join key has to include the selecting member, not just the leaf.",
+          "rationale": "Layered encoding is how a file that would be stopped on sight arrives unexamined, and an archive the firewall cannot open is a decision somebody has to make rather than a gap to discover during an incident.",
+          "audit": "Objects > Security Profiles > File Blocking. For the first record, read the rule naming the nested-encoding file type and check its action and direction. For the second, check whether ANY rule of the profile names an encrypted-archive or protected-document file type at all - the finding is that no rule does, not that the action is wrong.",
+          "remediation": "Add or amend a rule that names the nested-encoding file type with action `block` in both directions. For the second record, name the encrypted-archive and protected-document file types in a rule and give them the action your policy calls for - blocking them is not required at the floor, but the choice has to be in the configuration. Record the reason where the decision is to permit them, because nothing in the configuration distinguishes a deliberate allowance from an oversight.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "File-blocking profiles in force that do not stop nested-encoded files in both directions.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_nested_encoding",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "stops_nested_encoding"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Nested encoding delivered and only logged",
+              "short_description": "The rule in force on the nested-encoding file type lets the transfer complete and records it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_nested_encoding",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "nested_encoding_action",
+                    "op": "eq",
+                    "value": "alert",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "nested_encoding_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Nested encoding left to an uninformed user prompt",
+              "short_description": "The rule in force on the nested-encoding file type asks a user to confirm a transfer whose contents nothing can describe.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "stops_nested_encoding",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "nested_encoding_action",
+                    "op": "eq",
+                    "value": "continue",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "nested_encoding_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "No decision expressed on files the firewall cannot open",
+              "short_description": "No rule of this profile names a password-protected archive or protected document at all, with any action.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "expresses_unopenable_file_decision",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "expresses_unopenable_file_decision"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Whether this profile is in force could not be established",
+              "short_description": "The reference walk behind this profile's in-force test did not complete on this appliance, so both of this control's records rest on an unanswered question.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": true
+                  },
+                  {
+                    "field": "reference_reach_resolved",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach_resolved"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-FIL-003",
+          "name": "Outward Data Filtering In Force and Behind It a Real Pattern",
+          "control_type": "data_filtering_posture",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "An enforcement point whose outward traffic is NOT being watched for regulated data by this firewall's own pattern matching. The row is a verdict per enforcement point and the verdict has three parts that fail independently: no data-filtering profile carrying any rule reaches the traffic this point permits; one does but its rules name no data pattern object; or the pattern object it names defines no pattern at all.\n\nTHE SUBJECT IS THE ENFORCEMENT POINT AND NOT THE PROFILE, because the commonest failing state is NO PROFILE AT ALL - three of the four appliances measured - and a profile-keyed control reports nothing on exactly the devices that fail. There is also nothing to fall back on: `/config/predefined/profiles/data-filtering` is absent on all four, so unlike file blocking the vendor ships no profile of this kind.\n\nEXISTENCE IS NOT FORCE, and the lab proves it: the estate's only referenced data-filtering profile carries NO RULES on every appliance, so a query that asks whether a profile exists and names a pattern finds data filtering in force while it scans nothing.\n\nTHE REFERENCE RESOLVING IS FREE AND IS NOT THE TEST. The firewall refuses a dangling `data-object` at the write, so 'names a pattern object' is guaranteed on any committed rule. The real question is whether that object DEFINES a pattern, which is unguaranteed and is what this verdict asks.\n\nWHAT A PASS MEANS IS BOUNDED BY THIRTEEN FILE TYPES and a reader must not render it as 'sensitive data cannot leave'. The vendor's own disclaimer on this screen says the selection 'does not block all possible file types, just the listed ones', and the list measured thirteen members identically on both platforms - office documents, PDFs and HTML. A zip, a comma-separated export, a plain text file, a database dump or an image passes this mechanism unexamined.\n\nAND IT DOES NOT SAY THE ORGANISATION HAS NO DATA-LOSS PROTECTION. An Enterprise DLP subscription supersedes pattern-based data filtering where licensed, and a system off the firewall leaves no evidence here at all. The licensing question was deliberately NOT made an applicability clause, because the suppressing form would convert an unanswered licensing question into silence on every estate that never answered it. The finding says this firewall's own pattern-based mechanism is not in force, and no more.\n\nWHICH TRAFFIC IS OUTWARD IS NOT SETTLED FROM THE CONFIGURATION. It shows the zones and what each rule permits, not where a zone goes, so the finding applies to whichever rules carry traffic outward, named rather than assumed.\n\nONLY ONE OF THIS CONTROL'S TWO HALVES IS BUILT, and the other is silent. The second asserts that every rule of a watching profile carries both the alert count and the block count - a profile whose second rule stops nothing is the shape it exists to catch. Its clauses are on `integrations.SecurityProfile`, a different model, and one catalogue control has one target model. The standing remedy is to reach the other half by a relation; that walk does not work in this direction, because `SecurityProfile.enforcement_point` is nullable - a shared-scope profile hangs off the appliance group instead - so it misses three of that half's five measured subjects, and a row at this grain cannot name which profile failed anyway. What would close it is a column on this model carrying that quantifier at this grain.",
+          "rationale": "A profile with nothing behind the pattern it names, or one defined but not in force on the traffic that leaves, reads as data-loss protection in every configuration review while scanning nothing - so the organisation believes it has a tripwire across its exits and finds out otherwise from somebody else.",
+          "audit": "Objects > Security Profiles > Data Filtering, and Objects > Custom Objects > Data Patterns. The finding names the enforcement point and which part of the verdict failed. Read it beside the profile evidence on the row: each profile visible at that point, its namespace, whether it carries rules and the route a rule reaches it by. Confirm first whether data-loss protection is delivered by this firewall at all.",
+          "remediation": "Where no profile is in force, create a data-filtering profile with at least one rule, name a data pattern object on that rule, and attach the profile to the rules that carry traffic outward - directly or through a profile group. Where a profile is in force and the pattern object behind it defines nothing, add the patterns: a profile naming an empty pattern object is valid configuration that matches nothing. Where data-loss protection is delivered by a subscription or by a system off the firewall, record that instead - this control cannot see either.",
+          "implementation_version": "v1",
+          "target_model": "integrations.DataFilteringPosture",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Enforcement points whose outward data filtering is not in force, names no pattern, or names a pattern object that defines nothing.",
+              "canonical_query": {
+                "model": "integrations.DataFilteringPosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "outward_data_filtering_effective",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "outward_data_filtering_effective"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-FIL-004",
+          "name": "Unused File-Blocking and Data-Filtering Profiles (Hygiene)",
+          "control_type": "security_profile",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A file-blocking or data-filtering profile an administrator created that nothing on this firewall points at - no security rule, and no profile group a rule names.\n\nBOTH KINDS, AS TWO ONE-KIND QUERIES, for the same structural reason PAN-AVW-006 carries two: the configuration explorer has one page per profile KIND, mirroring PAN-OS's own tabs, and a query spanning two kinds matches neither page. A control fires when either half holds, because the evaluator takes the UNION over a control's active queries - so one query per kind covers both subjects while each stays answerable against the page for its own kind.\n\nTHE WALK IS TWO HOPS AND A ONE-HOP PREDICATE IS MEASURED WRONG IN BOTH DIRECTIONS. Every one of the eight standing file-blocking profiles on the lab's primary appliance is named by a profile group, and NOT ONE of those groups is named by any security rule - so the naive predicate 'is it named by a rule' reports all eight as unused, while a predicate that walks groups reports none of them, and neither is the truth: nothing is enforcing any of them. In the other direction a rules-only audit calls a live profile unused, because a rule's profile setting is a CHOICE NODE - group XOR profiles, never both - so a rule reaching a profile through a group does not list it.\n\nTHE UNRESOLVED CASE IS KEPT OUT OF THIS FINDING RATHER THAN COUNTED AS IT, which is the difference between 'nothing points at this' and 'we could not tell'. Those are two values of one column and this control's assertion names only the first, so a profile whose walk could not be completed does not report here - it would otherwise read as a profile in use. The companion queries below report that state in its own words instead.\n\nTHE PREDEFINED PROFILES ARE OUT OF SCOPE. The vendor's two file-blocking profiles exist on every appliance whether anyone uses them or not, so counting them would manufacture a finding on every firewall ever shipped. On the data-filtering kind the same clause is a GUARD rather than a filter: the predefined data-filtering collection measured ABSENT on all four appliances, so it excludes no row today - it is written because that absence is a measurement of one content release and not a property of the store, and because the two halves should read the same way.\n\nTHE DATA-FILTERING HALF HAS A WIDER REFERRER SURFACE THAN THE FILE-BLOCKING ONE and reusing one walk for both produces FALSE FINDINGS on exactly the estates most likely to be using the feature. Ten fields can point at a data-filtering profile against six for file blocking, and four of the ten are not policy at all - an AI-security profile's data-leak-detection member lists, input and output, default and model-specific. Nothing in the vendor Help that describes this object mentions that route. NO READ IN THIS PROJECT ISSUES `profiles/ai-security`, so on an estate using that feature every data-filtering profile's reach is unresolved and this control reports NONE of them - which is the correct outcome and must not look like a clean result. The companion query is what says so.\n\nON A MANAGED ESTATE THIS IS A CANDIDATE LIST AND SAYS SO. A profile referenced only by a DISABLED Panorama rule is pushed to the firewall and is indistinguishable, from the firewall, from one nothing uses - and unreferenced management-station profiles are pushed exactly like used ones. So the finding is 'these profiles are referenced by nothing this firewall holds', which is true either way, with removal recommended only after the management station has been checked. On a standalone firewall it is the answer.\n\nTHE SECOND HALF OF THE ORIGINAL ASSERTION IS NOT IN ANY CLAUSE: that each profile has been looked at and either attached deliberately or removed, with a reason written down for any that is kept. No column can hold whether a human looked, and the only configuration place a reason could sit is the description - measured empty on eight of eight committed profiles in the lab and hidden on the grid. A clause testing that the description is non-empty would report a decision wherever anybody typed anything, so this asserts the firewall-side half only.\n\nIT SAYS NOTHING ABOUT THE PROFILE'S CONTENTS. An unused profile that blocks everything reports here exactly like an unused one that blocks nothing - the finding is that it is unattached. Whether it would protect anything is PAN-FIL-001's and PAN-FIL-002's business.\n\nLOW, and deliberately: nothing is exposed by a profile nobody uses. The risk is the next administrator attaching it believing it current, which is how a rule ends up protected by settings nobody has looked at in two years.",
+          "rationale": "A rulebase accumulates profiles the way it accumulates rules, and nothing in the interface distinguishes a profile in service from one abandoned three migrations ago. An assessor can clear the list quickly once it exists; nobody produces it by hand.",
+          "audit": "Objects > Security Profiles > File Blocking and > Data Filtering. The finding names the profile and its scope. Check the profile groups and the security rules of every vsys before acting - a rule reaching a profile through a group does not list the profile itself. On a Panorama-managed firewall, check the management station too, including disabled rules and device groups this firewall does not serve.",
+          "remediation": "Delete it, or attach it where it was meant to go. If it is kept deliberately - a pre-staged profile for an incident, say - record that, because nothing in the configuration distinguishes it from one that was forgotten. Where the companion query fired instead, nothing about the profile needs changing: what is missing is a read, and for the data-filtering kind the read that is missing is the AI-security profile collection.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "File-blocking profiles an administrator created that no security rule and no profile group names.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Unreferenced data filtering profile",
+              "short_description": "Data-filtering profiles an administrator created that no security rule and no profile group names.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "data-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Whether anything points at this file-blocking profile could not be established",
+              "short_description": "The reference walk did not complete for this file-blocking profile, so it is neither reported as unused nor known to be in use.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "file-blocking",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach_resolved",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach_resolved"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Whether anything points at this data filtering profile could not be established",
+              "short_description": "The reference walk did not complete for this data-filtering profile - on an estate using AI-security profiles that is every one of them, because no read in this project issues that collection.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "data-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach_resolved",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach_resolved"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
         }
       ]
     }

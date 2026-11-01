@@ -455,6 +455,67 @@ FIELD_COMPILERS = {
     "rule_count": build_integer_compiler("rule_count", "rule_count"),
     "referrer_count": build_integer_compiler("referrer_count", "referrer_count"),
     "threat_exception_count": build_integer_compiler("threat_exception_count", "threat_exception_count"),
+    # ---------------------------------------------------------------- `file-data-filtering`
+    # PAN-FIL-001, -002 and -004, over the `file-blocking` and `data-filtering` kinds of this
+    # model. Every one of these columns is stored as a CONCLUSION over the profile's rule list,
+    # for the reason the module docstring gives about the severity verdicts: the questions span
+    # rules and a predicate compares one field to one literal.
+    #
+    # THE SPELLINGS BEHIND THEM ARE CASE-SENSITIVE AND MEASURED, which is why no clause here
+    # names a file type. Stage 4 wrote the lower-case `pe` and the device REFUSED it -
+    # "file-type 'pe' is not an allowed keyword", code=12 - while `PE` committed; the same for
+    # `multi-level-encoding` against `Multi-Level-Encoding`. A query comparing against the
+    # lower-case member sits in no stored row anywhere and would report a finding on the one
+    # profile in the estate that actually blocks the type. The member set also MOVES between
+    # content releases - 242 members on 11.2.5 against 225 on 11.1.13-h3 - so the floor is a
+    # named set resolved at normalization, not a list in a query.
+    "stops_floor_file_types": build_boolean_compiler(
+        "stops_floor_file_types", "stops_floor_file_types"),
+    "stops_nested_encoding": build_boolean_compiler(
+        "stops_nested_encoding", "stops_nested_encoding"),
+    "expresses_unopenable_file_decision": build_boolean_compiler(
+        "expresses_unopenable_file_decision", "expresses_unopenable_file_decision"),
+    "confirm_rule_beyond_web_browsing": build_boolean_compiler(
+        "confirm_rule_beyond_web_browsing", "confirm_rule_beyond_web_browsing"),
+    "every_rule_carries_both_counts": build_boolean_compiler(
+        "every_rule_carries_both_counts", "every_rule_carries_both_counts"),
+    # The two graded columns. TEXT AND NOT A CHOICE COMPILER, deliberately: each stores the
+    # WEAKEST action in force on its file types across the profile's rules, over the three
+    # measured values (block, continue, alert) - and an EMPTY STRING for the fourth case, which
+    # is not a value of the field at all. An action key ABSENT from a committed rule is legal,
+    # measured on `oep-fdf6-07`, and must NOT be scored as the schema default `alert`: that
+    # would report a rule taking an unknown action as one known to deliver the file and log it.
+    # The baseline reports the empty case through the verdict boolean beside it, and `is_empty`
+    # reaches it here for a reader who wants the row.
+    "floor_file_type_action": build_text_compiler(
+        "floor_file_type_action", "floor_file_type_action"),
+    "nested_encoding_action": build_text_compiler(
+        "nested_encoding_action", "nested_encoding_action"),
+    # THE TWO-HOP REFERENCE WALK, and the pair exists because a boolean cannot hold the fourth
+    # value. The shipped `is_used` and `referrer_count` above are ONE hop and are measured wrong
+    # in this lab in BOTH directions: all eight standing file-blocking profiles on pan-fw-201 are
+    # named by a profile group and not one of those groups is named by any rule, so a one-hop
+    # predicate passes five profiles nothing enforces - while a rules-only audit calls a
+    # group-mediated profile unused, because a rule's profile setting is a CHOICE NODE,
+    # `group` XOR `profiles`, never both.
+    #
+    # `reference_reach` IS NON-NULLABLE AND DEFAULTS TO `undetermined`, which is stage 7
+    # departing from stage 5's declared `null` and saying so in its own `spec_gaps`. The
+    # consequence is asymmetric across this domain's clauses and worth stating where a query
+    # author reads it: an unresolved row satisfies `is not unreferenced`, so PAN-FIL-001 and -002
+    # do NOT suppress themselves on it and fall through to their assertion columns - but it does
+    # NOT satisfy `equals unreferenced`, so PAN-FIL-004 still reports nothing about a profile
+    # nobody could resolve. `reference_reach_resolved` is the companion stage 5 names for exactly
+    # that, false on the firing side, and all four controls carry a query on it.
+    "reference_reach": build_text_compiler("reference_reach", "reference_reach"),
+    "reference_reach_resolved": build_boolean_compiler(
+        "reference_reach_resolved", "reference_reach_resolved"),
+    # `has_rules` and `lowest_block_threshold` are NOT registered. Stage 5 marks both
+    # `needs_compiler_field` and no clause and no grading in this domain names either: stage 5's
+    # own `spec_surplus` records that "no clause in this domain reads `has_rules` at all", and
+    # `lowest_block_threshold` is "the number an assessor reads beside the verdict, not a column
+    # any clause here compares". Both are `presented: true`, which is stage 9's business.
+    # Registering them would ship a search surface no control asks for.
 }
 
 FIELD_OPERATOR_REGISTRY = {

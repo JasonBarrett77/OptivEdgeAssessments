@@ -32,6 +32,9 @@ from assessments.zone_findings import generate_zone_findings
 from assessments.rulebase_device_match_findings import (
     generate_rulebase_device_match_findings,
 )
+from assessments.data_filtering_posture_findings import (
+    generate_data_filtering_posture_findings,
+)
 from assessments.dhcp_interface_config_findings import (
     generate_dhcp_interface_config_findings,
 )
@@ -170,6 +173,11 @@ GENERATORS = (
     ("security zone", T.ZONE, generate_zone_findings),
     ("rulebase device match", T.RULEBASE_DEVICE_MATCH,
      generate_rulebase_device_match_findings),
+    # `file-data-filtering`. The posture is a verdict over an enforcement point, so it sits with
+    # the other per-point conclusions and before the policy below. Its three sibling controls
+    # need no line here: they target `SecurityProfile`, whose generator already exists.
+    ("data filtering posture", T.DATA_FILTERING_POSTURE,
+     generate_data_filtering_posture_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

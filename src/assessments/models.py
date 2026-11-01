@@ -52,6 +52,7 @@ from optivedge_integrations.integrations.models import (
     SanctionedApplicationMarking,
     DeviceIdentificationState,
     RulebaseDeviceMatchVerdict,
+    DataFilteringPosture,
     Zone,
 )
 
@@ -190,6 +191,34 @@ class Control(models.Model):
         DEVICE_IDENTIFICATION = "device_identification", "Device Identification"
         ZONE = "zone", "Security Zone"
         RULEBASE_DEVICE_MATCH = "rulebase_device_match", "Rulebase Device Match"
+        #: `file-data-filtering` adds ONE type, not two, and which one was decided from the
+        #: control's own language rather than from the model count. The domain's two models are
+        #: `SecurityProfile` - which already had `security_profile`, a finding model, a generator
+        #: and a full search surface - and `DataFilteringPosture`, which had none.
+        #:
+        #: PAN-FIL-001, -002 and -004 REUSE `security_profile`. A type maps to one model and many
+        #: controls may share a type, as PAN-IOT-001/003, PAN-NET-001/003 and PAN-AVW-006 already
+        #: do. Minting a second type for a model that has one is what this map's one-to-one
+        #: property forbids, and NOTHING IN THE SUITE CATCHES IT IN THAT DIRECTION.
+        #:
+        #: ONLY PAN-FIL-003 TOUCHES THE SECOND MODEL, and it is stated as two halves over the two
+        #: DIFFERENT models: "on the traffic that carries data out of the organisation's network,
+        #: a data filtering profile is in force ... and the pattern object it names actually
+        #: defines those patterns" - the control's own assertion at the control's own severity -
+        #: and "a data filtering profile that is watching also carries both counts", which is
+        #: stage 3's `preferred_gap_severity` half and carries an explicit `depends_on` back to
+        #: the first. Standing ruling 6 says decide the target from the LANGUAGE: the first
+        #: half's subject is THE TRAFFIC LEAVING ONE ENFORCEMENT POINT, and the commonest failing
+        #: state is no data-filtering profile at all - three of four lab appliances - where a
+        #: profile-row control has no row to report on at all. So the row is a verdict per
+        #: enforcement point, the same shape as the three SaaS postures and `RULEBASE_DEVICE_MATCH`
+        #: above. The second half stays SILENT and the stage 8 artifact says so in
+        #: `subjects_in_two_models`: its clauses are per profile, `SecurityProfile.enforcement_point`
+        #: is NULLABLE because a shared-scope profile hangs off the appliance group instead, so
+        #: the downward relation walk ruling 6 prescribes cannot reach three of that half's five
+        #: measured subjects at their own scope - and at this grain one point's row cannot name
+        #: which profile failed.
+        DATA_FILTERING_POSTURE = "data_filtering_posture", "Data Filtering Posture"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -292,6 +321,13 @@ class Control(models.Model):
         "zone": "integrations.Zone",
         # One row per enforcement point: a conclusion about the rule SET, not about any rule.
         "rulebase_device_match": "integrations.RulebaseDeviceMatchVerdict",
+        # `file-data-filtering`. One row per enforcement point: a conclusion about whether the
+        # traffic leaving this point is watched for regulated data at all, NOT about any one
+        # profile. The commonest failing state is no data-filtering profile anywhere beneath the
+        # point - three of four lab appliances - so a profile-keyed row would report nothing on
+        # exactly the devices that fail. The domain's other three controls REUSE
+        # `security_profile` above rather than mint a second type for one model.
+        "data_filtering_posture": "integrations.DataFilteringPosture",
     }
 
     class Meta:
@@ -352,6 +388,7 @@ class Control(models.Model):
         "integrations.DeviceIdentificationState": "Device Identification",
         "integrations.Zone": "Security Zone",
         "integrations.RulebaseDeviceMatchVerdict": "Rulebase Device Match",
+        "integrations.DataFilteringPosture": "Data Filtering Posture",
     }
 
     @property
@@ -3171,3 +3208,84 @@ class RulebaseDeviceMatchFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.rulebase_device_match_finding_id} <- {self.control_query_id}"
+
+
+class DataFilteringPostureFinding(ObjectFindingBase):
+    """A finding against one enforcement point's outward data-filtering posture. PAN-FIL-003.
+
+    THE SUBJECT IS THE ENFORCEMENT POINT AND NOT THE PROFILE, and that is the whole reason this
+    model exists. The commonest failing state of this domain is NO DATA-FILTERING PROFILE AT ALL -
+    three of the four lab appliances, and `/config/predefined/profiles/data-filtering` is absent on
+    every one of them, so unlike file blocking there is nothing shipped to fall back on. A
+    profile-keyed finding reports nothing on exactly the devices that fail, which is the silence
+    this row replaces.
+
+    `subject_name` IS THE VSYS NAME, with the appliance in `subject_scope`: the row has no entry
+    name, and one profile's name would be the wrong thing to print on a verdict about whether any
+    of them is in force.
+
+    WHAT A PASS HERE DOES NOT MEAN, and a later stage must not render it as "sensitive data cannot
+    leave". The vendor's own disclaimer on this screen says the file-type selection "does not block
+    all possible file types, just the listed ones", and that list was measured at THIRTEEN members
+    on both lab platforms - office documents, PDFs and HTML. A zip, a CSV export, a plain text
+    file, a database dump or an image passes this mechanism unexamined. The verdict column's own
+    note in stage 5 carries the whole of it.
+
+    AND IT DOES NOT MEAN THE ORGANISATION HAS NO DATA-LOSS PROTECTION. Stage 3 deliberately
+    declined to make the licensing question an applicability clause, "because the suppressing form
+    would convert an unanswered licensing question into silence": an Enterprise DLP subscription
+    supersedes pattern-based data filtering where licensed, and the control's own evidence source
+    for that is another system. The finding says this firewall's own pattern matching is not in
+    force, and no more.
+
+    THE HALF OF PAN-FIL-003 THAT IS SILENT HERE. Its second record - every rule of a watching
+    profile carries both the alert and the block count - clauses on `integrations.SecurityProfile`,
+    a different model, so no query on this control can carry it. Standing ruling 6 would reach it
+    by a relation; `SecurityProfile.enforcement_point` is nullable because a shared-scope profile
+    hangs off the appliance group instead, so that walk misses three of that half's five measured
+    subjects, and a row at this grain cannot name which profile failed anyway. What would close it
+    is a column on THIS model carrying that quantifier at this grain, which stage 8 may not add.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="data_filtering_posture_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="data_filtering_posture_findings")
+    data_filtering_posture = models.ForeignKey(
+        DataFilteringPosture, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DataFilteringPostureFindingControlQuery",
+        related_name="data_filtering_posture_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["data_filtering_posture"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "data_filtering_posture"],
+                name="unique_dfp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on data filtering posture {self.subject_name}"
+
+
+class DataFilteringPostureFindingControlQuery(FindingControlQueryBase):
+    data_filtering_posture_finding = models.ForeignKey(
+        DataFilteringPostureFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="data_filtering_posture_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["data_filtering_posture_finding", "control_query"],
+                name="unique_dfp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.data_filtering_posture_finding_id} <- {self.control_query_id}"

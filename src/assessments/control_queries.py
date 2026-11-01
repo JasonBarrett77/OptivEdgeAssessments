@@ -48,6 +48,7 @@ CLOUD_APP_ENGINE_SETTING_MODEL = "integrations.CloudAppEngineSetting"
 DEVICE_IDENTIFICATION_MODEL = "integrations.DeviceIdentificationState"
 ZONE_MODEL = "integrations.Zone"
 RULEBASE_DEVICE_MATCH_MODEL = "integrations.RulebaseDeviceMatchVerdict"
+DATA_FILTERING_POSTURE_MODEL = "integrations.DataFilteringPosture"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -474,4 +475,12 @@ def evaluate_rulebase_device_match_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or RULEBASE_DEVICE_MATCH_MODEL,
+    )
+
+
+def evaluate_data_filtering_posture_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DATA_FILTERING_POSTURE_MODEL,
     )

@@ -262,11 +262,17 @@ from assessments.search.rulebase_device_match.compiler import (
     RULEBASE_DEVICE_MATCH_MODEL,
     compile_rulebase_device_match_search_node,
 )
+from assessments.search.data_filtering_posture.compiler import (
+    FIELD_OPERATOR_REGISTRY as DATA_FILTERING_POSTURE_FIELD_OPERATOR_REGISTRY,
+    DATA_FILTERING_POSTURE_MODEL,
+    compile_data_filtering_posture_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
     CloudAppEngineSetting,
     DeviceIdentificationState,
     RulebaseDeviceMatchVerdict,
+    DataFilteringPosture,
     Zone,
     NormalizationIssue,
     SaasApplicationPolicyPosture,
@@ -534,6 +540,15 @@ MODEL_REGISTRY = {
         "model_class": RulebaseDeviceMatchVerdict,
         "field_operators": RULEBASE_DEVICE_MATCH_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_rulebase_device_match_search_node,
+    },
+    # `file-data-filtering`. ONE new model of the domain's two: `SecurityProfile` already had a
+    # compiler here - the biggest in the tree - and this domain only added fields to it. The
+    # posture is a verdict per enforcement point, like the three SaaS entries above, because the
+    # commonest failing state is no data-filtering profile anywhere beneath the point.
+    DATA_FILTERING_POSTURE_MODEL: {
+        "model_class": DataFilteringPosture,
+        "field_operators": DATA_FILTERING_POSTURE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_data_filtering_posture_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.
