@@ -103,6 +103,12 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.IKE_CRYPTO_PROFILE, "IKE crypto profile"),
     FindingKind(m.IkeGatewayFinding, "ike_gateway",
                 m.Control.ControlType.IKE_GATEWAY, "IKE gateway"),
+    # PHASE 2, and two kinds rather than one: the proposal set and the tunnel that carries it
+    # are different objects at different xpaths and `_CONTROL_TYPE_TARGET_MODEL` is one-to-one.
+    FindingKind(m.IpsecCryptoProfileFinding, "ipsec_crypto_profile",
+                m.Control.ControlType.IPSEC_CRYPTO_PROFILE, "IPSec crypto profile"),
+    FindingKind(m.IpsecTunnelFinding, "ipsec_tunnel",
+                m.Control.ControlType.IPSEC_TUNNEL, "IPSec tunnel"),
     # "high availability" rather than "high availability configuration": the label goes into
     # prose and the subject is the relationship, not the node that describes it.
     FindingKind(m.HighAvailabilityFinding, "high_availability_config",

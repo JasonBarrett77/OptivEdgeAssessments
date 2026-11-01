@@ -892,6 +892,14 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: 2026-10-30 put the second one in. So the lifecycle has now run a full cycle: filled by a
 #: stage 8, emptied by the stage 9 it named, filled again.
 AWAITING_PRESENTATION: dict[str, str] = {
+    # `ipsec-crypto` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
+    # `IpsecCryptoProfile` and `IpsecTunnel` were both created by stage 7 for this domain and
+    # had never been queried from this repository at all. The rail's two IKE entries are the
+    # PHASE 1 objects at the adjacent xpath and reach neither of these. This entry is
+    # load-bearing for all nine PAN-IPS controls, and it fails once per catalogue QUERY rather
+    # than once per type - 33 queries ship here. Stage 9 for this domain is what gives the two
+    # models a page, and stage 8's contract forbids building one.
+    "PAN-IPS": "stage9-ipsec-crypto.json",
     # `user-id` reached stage 8 on 2026-11-01. FOUR models carry its six controls and none of
     # the four has a rail item: the two this domain created - the per-vsys User-ID collector
     # settings node and the per-vsys discovery bound - plus `integrations.Zone`, which has been

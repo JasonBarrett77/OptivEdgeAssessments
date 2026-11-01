@@ -31,6 +31,23 @@ from assessments.search.ssl_tls_service_profile.compiler import (
     SSL_TLS_SERVICE_PROFILE_MODEL,
     compile_ssl_tls_service_profile_search_node,
 )
+# PHASE 2, AND NOT THE PHASE 1 PAIR BELOW. `integrations.IpsecCryptoProfile` and
+# `integrations.IkeCryptoProfile` are different models at adjacent xpaths; so are
+# `IpsecTunnel` and `IkeGateway`. The compilers are kept apart and so are these imports.
+from assessments.search.ipsec_crypto_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as IPSEC_CRYPTO_PROFILE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.ipsec_crypto_profile.compiler import (
+    IPSEC_CRYPTO_PROFILE_MODEL,
+    compile_ipsec_crypto_profile_search_node,
+)
+from assessments.search.ipsec_tunnel.compiler import (
+    FIELD_OPERATOR_REGISTRY as IPSEC_TUNNEL_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.ipsec_tunnel.compiler import (
+    IPSEC_TUNNEL_MODEL,
+    compile_ipsec_tunnel_search_node,
+)
 from assessments.search.certificate.compiler import (
     FIELD_OPERATOR_REGISTRY as CERTIFICATE_FIELD_OPERATOR_REGISTRY,
 )
@@ -395,6 +412,8 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     IkeCryptoProfile,
     IkeGateway,
+    IpsecCryptoProfile,
+    IpsecTunnel,
     SslTlsServiceProfile,
     ManagementInterface,
     SecurityRule,
@@ -548,6 +567,21 @@ MODEL_REGISTRY = {
         "model_class": IkeGateway,
         "field_operators": IKE_GATEWAY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_ike_gateway_search_node,
+    },
+    # The two PHASE 2 objects at the sibling path. The registry is keyed by the dotted model
+    # path, so these four entries are what keeps the two phases apart at query time: a clause
+    # compiled against the wrong one of the four would read a field that exists on both models
+    # with a different stored shape - `dh-group` is a bare string here and a member list on the
+    # phase 1 profile, measured both ways.
+    IPSEC_CRYPTO_PROFILE_MODEL: {
+        "model_class": IpsecCryptoProfile,
+        "field_operators": IPSEC_CRYPTO_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ipsec_crypto_profile_search_node,
+    },
+    IPSEC_TUNNEL_MODEL: {
+        "model_class": IpsecTunnel,
+        "field_operators": IPSEC_TUNNEL_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ipsec_tunnel_search_node,
     },
     # Device-wide management-plane settings: one row per appliance, no vsys axis and no entry
     # name. The HA row is NOT expected to agree with its pair member's; the registration row is.

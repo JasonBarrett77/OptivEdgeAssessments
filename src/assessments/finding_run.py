@@ -95,6 +95,10 @@ from assessments.normalization_findings import generate_normalization_findings
 from assessments.certificate_profile_findings import generate_certificate_profile_findings
 from assessments.cloud_app_engine_findings import generate_cloud_app_engine_findings
 from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
+from assessments.ipsec_crypto_profile_findings import (
+    generate_ipsec_crypto_profile_findings,
+)
+from assessments.ipsec_tunnel_findings import generate_ipsec_tunnel_findings
 from assessments.ike_gateway_findings import generate_ike_gateway_findings
 from assessments.high_availability_findings import generate_high_availability_findings
 from assessments.panorama_registration_findings import (
@@ -181,6 +185,9 @@ GENERATORS = (
     # The two IKE objects, gateway after proposal set: a gateway's finding names the profile it
     # points at, so a reader meets the proposal before the binding that chooses it.
     ("ike crypto profile", T.IKE_CRYPTO_PROFILE, generate_ike_crypto_profile_findings),
+    ("ipsec crypto profile", T.IPSEC_CRYPTO_PROFILE,
+     generate_ipsec_crypto_profile_findings),
+    ("ipsec tunnel", T.IPSEC_TUNNEL, generate_ipsec_tunnel_findings),
     ("ike gateway", T.IKE_GATEWAY, generate_ike_gateway_findings),
     # App-ID Cloud Engine before the three SaaS verdicts, because its state is the PREMISE they
     # rest on: rules and filters naming cloud-delivered App-IDs stay visible in the policy while

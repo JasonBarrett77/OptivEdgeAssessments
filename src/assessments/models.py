@@ -35,6 +35,8 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     IkeCryptoProfile,
     IkeGateway,
+    IpsecCryptoProfile,
+    IpsecTunnel,
     HighAvailabilityConfig,
     PanoramaRegistration,
     ManagementInterface,
@@ -143,6 +145,16 @@ class Control(models.Model):
         #: control - see the stage 8 artifact for `ike-crypto`.
         IKE_CRYPTO_PROFILE = "ike_crypto_profile", "IKE Crypto Profile"
         IKE_GATEWAY = "ike_gateway", "IKE Gateway"
+        #: THE TWO IPSec OBJECTS - PHASE 2, AND NOT THE SAME THING AS THE TWO ABOVE. IKE and
+        #: IPSec are two phases of one tunnel and the four class names are near-identical, so
+        #: the trap is registering one against the other's model. PAN-IPS-001 to 005 assert
+        #: over the phase-2 proposal set; PAN-IPS-006 to 008 over the tunnel that carries it.
+        #: PAN-IPS-009 asserts over BOTH - a tunnel running on a profile nobody chose, and a
+        #: profile no tunnel names - and `_CONTROL_TYPE_TARGET_MODEL` is one-to-one, so it
+        #: ships as the PROFILE half and is silent about the tunnel half. See the stage 8
+        #: artifact for `ipsec-crypto`, which records why that half was chosen.
+        IPSEC_CRYPTO_PROFILE = "ipsec_crypto_profile", "IPSec Crypto Profile"
+        IPSEC_TUNNEL = "ipsec_tunnel", "IPSec Tunnel"
         #: The two `ha-panorama` subjects, SEPARATE types for the same one-to-one reason.
         #: PAN-HAP-001 to 004 assert over the high-availability relationship; PAN-HAP-005 over
         #: the channel to the management estate. PAN-HAP-006 and 007 assert over PANORAMA'S OWN
@@ -594,6 +606,8 @@ class Control(models.Model):
         # Device-wide network objects: one row per named entry per appliance, no vsys axis.
         "ike_crypto_profile": "integrations.IkeCryptoProfile",
         "ike_gateway": "integrations.IkeGateway",
+        "ipsec_crypto_profile": "integrations.IpsecCryptoProfile",
+        "ipsec_tunnel": "integrations.IpsecTunnel",
         # Device-wide management-plane settings: one row per appliance, no entry name at all.
         # On an HA pair each yields two rows for one real configuration and nothing
         # deduplicates them - which is correct for the HA subject, whose two rows genuinely
@@ -770,6 +784,8 @@ class Control(models.Model):
         "integrations.NormalizationIssue": "Normalization Issue",
         "integrations.IkeCryptoProfile": "IKE Crypto Profile",
         "integrations.IkeGateway": "IKE Gateway",
+        "integrations.IpsecCryptoProfile": "IPSec Crypto Profile",
+        "integrations.IpsecTunnel": "IPSec Tunnel",
         "integrations.HighAvailabilityConfig": "High Availability",
         "integrations.PanoramaRegistration": "Panorama Registration",
         "integrations.Interface": "Interface",
@@ -1866,6 +1882,135 @@ class IkeGatewayFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.ike_gateway_finding_id} <- {self.control_query_id}"
+
+
+class IpsecCryptoProfileFinding(ObjectFindingBase):
+    """A finding against one named IPSec crypto profile. PAN-IPS-001 to 005, and 009's half.
+
+    PHASE 2, NOT PHASE 1. The sibling `IkeCryptoProfileFinding` above is the same shape over a
+    different object at an adjacent xpath, and the two are easy to cross-wire: `network/ike/
+    crypto-profiles/ipsec-crypto-profiles` is this one, `.../ike-crypto-profiles` is that one.
+    What distinguishes them in the data is the stored shape of `dh-group` - a bare string here
+    and a `{"member": [...]}` list there, measured both ways - so a reader who reuses the phase-1
+    shape at this path reads nothing and reads it silently.
+
+    One row per named entry per appliance. The collection sits under `network`, so it is neither
+    vsys nor shared and there is exactly one of it for the whole appliance even on the multi-vsys
+    PA-5220 - measured by stage 4 of the `ipsec-crypto` domain. `subject_scope` is therefore NOT
+    declared: a profile name is unique per appliance and there is no second scope to collide
+    across. ON AN HA PAIR THIS YIELDS TWO FINDINGS FOR ONE REAL PROFILE and nothing deduplicates
+    them; stage 5 recorded that the lab's PA-5220 pair was NOT synchronising at the time it was
+    read, so the two rows are two measurements rather than a copy.
+
+    THE SUBJECT NAME IS NOT EVIDENCE OF STRENGTH, and this object is where that bites hardest.
+    `default`, `Suite-B-GCM-128` and `Suite-B-GCM-256` arrive with the firewall and are ORDINARY
+    WRITABLE LOCAL CONFIGURATION rather than predefined objects - `action=get` at
+    /config/predefined/ipsec-crypto-profiles answers None on all four lab appliances - so they
+    are deletable, renameable and hardenable in place. Every assertion here reads a derived
+    column and none reads the name.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ipsec_crypto_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ipsec_crypto_profile_findings")
+    ipsec_crypto_profile = models.ForeignKey(
+        IpsecCryptoProfile, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="IpsecCryptoProfileFindingControlQuery",
+        related_name="ipsec_crypto_profile_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ipsec_crypto_profile"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ipsec_crypto_profile"],
+                name="unique_ipseccp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on IPSec crypto profile {self.subject_name}"
+
+
+class IpsecCryptoProfileFindingControlQuery(FindingControlQueryBase):
+    ipsec_crypto_profile_finding = models.ForeignKey(
+        IpsecCryptoProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ipsec_crypto_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ipsec_crypto_profile_finding", "control_query"],
+                name="unique_ipseccp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ipsec_crypto_profile_finding_id} <- {self.control_query_id}"
+
+
+class IpsecTunnelFinding(ObjectFindingBase):
+    """A finding against one named IPSec tunnel. PAN-IPS-006, 007 and 008.
+
+    One row per named entry per appliance, device-wide like the crypto profile beside it, so no
+    `subject_scope`.
+
+    NO APPLICABILITY CLAUSE SUPPRESSES A DISABLED TUNNEL HERE, which is the opposite of the
+    sibling `IkeGatewayFinding` and is deliberate: PAN-IPS-008 asserts ON the disabled state -
+    a tunnel left switched off is the finding, not a reason to stay quiet - so the three
+    controls over this model all fire on tunnels nothing is routed through.
+
+    AND THE ABSENCE OF A FINDING ON AN APPLIANCE IS NOT A STATEMENT ABOUT ITS TUNNELS. The row
+    grain is the entry, so an appliance terminating NO tunnel produces no row, every query over
+    it returns nothing, and all three controls read as satisfied. Stage 5 of the `ipsec-crypto`
+    domain recorded that as the domain's one wrong-direction limit and named the remedy - a
+    per-appliance coverage subject carrying a tunnel count and whether the collection was
+    reached - which is a fourth model and not a column of this one.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ipsec_tunnel_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ipsec_tunnel_findings")
+    ipsec_tunnel = models.ForeignKey(
+        IpsecTunnel, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="IpsecTunnelFindingControlQuery",
+        related_name="ipsec_tunnel_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ipsec_tunnel"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ipsec_tunnel"],
+                name="unique_ipsectun_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on IPSec tunnel {self.subject_name}"
+
+
+class IpsecTunnelFindingControlQuery(FindingControlQueryBase):
+    ipsec_tunnel_finding = models.ForeignKey(
+        IpsecTunnelFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ipsec_tunnel_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ipsec_tunnel_finding", "control_query"],
+                name="unique_ipsectun_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ipsec_tunnel_finding_id} <- {self.control_query_id}"
 
 
 class HighAvailabilityFinding(ObjectFindingBase):
