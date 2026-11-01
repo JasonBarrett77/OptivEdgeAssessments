@@ -135,6 +135,101 @@ def _url_filtering_gaps(obj) -> list[str]:
     return gaps
 
 
+#: THE TWELVE BLOCK SWITCHES PAN-DCP-003, -004 and -005 ASSERT ON, each labelled as the vendor's
+#: own dialog labels it, because an engineer has to find the checkbox to tick it and the forward-
+#: and inbound-proxy tabs carry near-identical wording. The two containers are NOT symmetric:
+#: `block-expired-certificate` and `block-untrusted-issuer` exist on the forward tab only,
+#: because an inbound-proxy session presents the organisation's own certificate and there is no
+#: issuer to distrust.
+_DECRYPTION_BLOCK_CHECKS = (
+    ("fwd_block_expired_certificate", "forward proxy: block sessions with expired certificates"),
+    ("fwd_block_untrusted_issuer", "forward proxy: block sessions with untrusted issuers"),
+    ("fwd_block_unsupported_version", "forward proxy: block sessions with unsupported versions"),
+    ("fwd_block_unsupported_cipher", "forward proxy: block sessions with unsupported cipher suites"),
+    ("inb_block_unsupported_version", "inbound inspection: block sessions with unsupported versions"),
+    ("inb_block_unsupported_cipher",
+     "inbound inspection: block sessions with unsupported cipher suites"),
+    ("fwd_block_if_no_resource", "forward proxy: block sessions if resources not available"),
+    ("fwd_block_tls13_downgrade_no_resource",
+     "forward proxy: block downgrade from TLS 1.3 to 1.2 if resources not available"),
+    ("inb_block_if_no_resource", "inbound inspection: block sessions if resources not available"),
+    ("inb_block_tls13_downgrade_no_resource",
+     "inbound inspection: block downgrade from TLS 1.3 to 1.2 if resources not available"),
+    ("fwd_block_if_hsm_unavailable", "forward proxy: block sessions if HSM not available"),
+    ("inb_block_if_hsm_unavailable", "inbound inspection: block sessions if HSM not available"),
+)
+
+
+def _decryption_gaps(obj) -> list[str]:
+    """What a DECRYPTION profile still permits, by the question each control asks. PAN-DCP-001 to
+    -005 and -007.
+
+    THE SAME DEFECT SHAPE `_antivirus_gaps` AND `_url_filtering_gaps` EXIST TO PREVENT, met a
+    third time and recorded as such by both of their docstrings. A decryption profile writes no
+    severity-verdict satellite row, so `_gaps` returns nothing for it, the two DNS verdicts and
+    `brute_force_blocked_by_source` are all None, and `_subject`'s closing clause asserted that
+    the profile "blocks critical and high threats" - printed on the finding reporting it as
+    failing. Guarding the VALUES was not enough for antivirus and not enough for url-filtering:
+    the CALLER has to stop asking this kind the threat-rule question, which is what the
+    `KIND_DECRYPTION` guard below does.
+
+    THE TWO POLARITIES ARE BOTH HERE AND THE COLUMN NAMES DO NOT ANNOUNCE THE CHANGE. The three
+    verdicts are written in the FIRING direction, so TRUE is the defect; the twelve `*_block_*`
+    switches are the vendor's own BLOCK keys, so FALSE is the defect - the check is not performed.
+    Each clause below says which it is reading.
+
+    EACH PRIMITIVE CLAUSE NAMES THE WORST MEMBER AND IS SILENT ABOUT THE REST, which is the
+    composed column's own documented cost: where two broken primitives are permitted the column
+    holds only the worse, so a sentence naming RC4 says nothing about SHA-1 on the same profile.
+    The seven per-primitive booleans exist to be READ for exactly that reason, which is stage 9's
+    business and not this sentence's.
+
+    `is True` / `is False` throughout rather than truthiness, for the reason the threat-rule
+    clauses give: these are non-null columns today, but a null would mean this kind writes no
+    value and makes no claim, which is not the same as a gap.
+    """
+    gaps = []
+    if obj.ssl_min_version_below_tls12 is True:
+        floor = obj.ssl_min_version or "a floor that was not recorded"
+        gaps.append("lets a decrypted session negotiate below TLS 1.2 "
+                    f"(protocol floor {floor})")
+    if obj.ssl_max_version_restrictive is True:
+        ceiling = obj.ssl_max_version or "a ceiling that was not recorded"
+        resolved = obj.ssl_max_version_resolved
+        # BLANK IS NOT A PASS. The resolver returns nothing for a build its mapping does not
+        # cover, and the verdict beside it stays TRUE so an unresolvable ceiling reports rather
+        # than passing. Saying which of the two happened is the whole point of the third column.
+        how = (f"resolves to {resolved}" if resolved
+               else "could not be resolved against this appliance's own build, so what the "
+                    "literal means here was never established")
+        gaps.append("holds a protocol ceiling that excludes a version the appliance implements "
+                    f"(ceiling {ceiling}, {how})")
+    broken = obj.weakest_broken_primitive_permitted
+    if broken and broken != SecurityProfile.PRIMITIVE_NONE:
+        gaps.append(f"leaves the broken primitive {broken} negotiable")
+    weaker = obj.weakest_non_pfs_or_unauthenticated_permitted
+    if weaker and weaker != SecurityProfile.PRIMITIVE_NONE:
+        gaps.append(f"leaves {weaker} negotiable, which is either a key exchange with no forward "
+                    "secrecy or a cipher mode without authenticated encryption")
+    unchecked = [label for field, label in _DECRYPTION_BLOCK_CHECKS
+                 if getattr(obj, field) is False]
+    if unchecked:
+        gaps.append("does not perform these checks, so a session it cannot inspect is waved "
+                    f"through rather than stopped: {'; '.join(unchecked)}")
+    # THE REFERENCE PAIR, AND THE ORDER IS LOAD-BEARING. `is_used` false means "no referrer in
+    # what was collected", which on an appliance whose decryption rulebase was never read is not
+    # the same statement at all - so the companion is read FIRST and the unassessed arm says so
+    # instead of calling the profile unused. PAN-DCP-007 carries the same pair as two queries.
+    if obj.decryption_rulebase_collected is False:
+        gaps.append("was not assessed for references, because no decryption rulebase was "
+                    "collected from its appliance - which is not the same as nothing using it, "
+                    "and no deletion follows from it")
+    elif obj.is_used is False and not obj.is_predefined:
+        gaps.append(f"is named by no decryption rule ({obj.referrer_count} referrers), so "
+                    "whatever it was built for either changed or never arrived")
+    return gaps
+
+
 def _subject(obj) -> str:
     kind = KIND_LABELS.get(obj.kind, obj.kind)
     if obj.is_predefined:
@@ -165,6 +260,25 @@ def _subject(obj) -> str:
         # what was actually checked and no more.
         return (f"{what} refuses the confirmed-hostile categories, logs what it permits, "
                 "restricts corporate credentials and runs both inline analysis engines")
+
+    # DECRYPTION DOES NOT ANSWER THE SEVERITY QUESTION EITHER. Same reasoning as antivirus and
+    # url-filtering above, and the same measured defect for the third time in this function:
+    # without this branch a failing decryption profile fell through to "blocks critical and high
+    # threats". The shipped kinds that reach the fallback below are untouched by this guard.
+    if obj.kind == SecurityProfile.KIND_DECRYPTION:
+        gaps = "; ".join(_decryption_gaps(obj))
+        if gaps:
+            return f"{what} {gaps}"
+        # NOT "this profile is fine", and the url-filtering branch above records why the
+        # distinction matters: PAN-DCP-007 reports a decryption profile for being referenced by no
+        # rule while every protocol and primitive verdict on it passes, so the no-gap sentence has
+        # to say what was actually checked and no more. It does not say anything about the
+        # decryption PATH the profile is attached to - forward proxy, inbound inspection or SSH
+        # proxy - because nothing stored records it; see the stage 8 artifact's `needs_human`.
+        return (f"{what} requires TLS 1.2 or better, reaches the newest protocol version this "
+                "appliance implements, leaves no broken primitive and no unauthenticated or "
+                "non-forward-secret option negotiable, and performs every forward-proxy and "
+                "inbound-inspection block check")
 
     # TWO INDEPENDENT QUESTIONS, and a profile can fail either alone. Blocking the threat
     # (PAN-VLN-001) and blocking its SOURCE (PAN-VLN-002) are different: `reset-both` passes the

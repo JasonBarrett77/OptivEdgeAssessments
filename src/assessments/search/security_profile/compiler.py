@@ -618,6 +618,123 @@ FIELD_COMPILERS = {
     # `lowest_block_threshold` is "the number an assessor reads beside the verdict, not a column
     # any clause here compares". Both are `presented: true`, which is stage 9's business.
     # Registering them would ship a search surface no control asks for.
+    # ---------------------------------------------------------------------------- `decryption`
+    # PAN-DCP-001 to -005 and -007, over the `decryption` kind of this model. ADDITIVE ONLY: not
+    # one line above this block was renamed, retyped or re-scoped, because PAN-AVW-006, the three
+    # PAN-FIL controls and the five PAN-URL controls compile their queries through this same table
+    # and a changed field changes their results silently.
+    #
+    # EVERY QUERY OF THIS DOMAIN CARRIES `kind eq decryption` AND THE REASON IS IN THE MODEL's
+    # OWN WORDS. `SecurityProfile.DECRYPTION_KINDS` says this family is the loudest case of the
+    # shared-model hazard: the permitted-primitive columns default TRUE and
+    # `weakest_broken_primitive_permitted` defaults `rc4`, so a `virus` row reads as permitting
+    # RC4 and a clause written without the kind fires on every antivirus profile in the estate.
+    # Nothing downstream enforces the clause - not this compiler, not the catalogue schema, not a
+    # test - so it is a convention held by the query author alone.
+    #
+    # THE TWO POLARITIES MEET HERE AND THE COLUMN NAMES DO NOT ANNOUNCE IT. The twelve `*_block_*`
+    # columns are BLOCK switches where FALSE is the weak side (the check is not performed); the
+    # three verdicts and `rule_destination_unrestricted` are written in the FIRING direction where
+    # TRUE is the defect. A query author reading this list top to bottom meets both.
+    "ssl_min_version_below_tls12": build_boolean_compiler(
+        "ssl_min_version_below_tls12", "ssl_min_version_below_tls12"),
+    "ssl_max_version_restrictive": build_boolean_compiler(
+        "ssl_max_version_restrictive", "ssl_max_version_restrictive"),
+    # PAN-DCP-001 AND -002's APPLICABILITY CLAUSE, and the one column of this domain whose
+    # QUANTIFIER is disputed in writing. The shipped docstring is "TRUE where every rule naming it
+    # leaves the destination open", which the normaliser spells `not any(narrows)` - so ONE
+    # narrowed rule among ten wide-open ones makes this FALSE and SUPPRESSES both controls on a
+    # profile nine rules still expose. Stage 7's `spec_gaps` for this domain records the
+    # disagreement and a pinned OEI test asserts the declared behaviour so it cannot be flipped
+    # quietly. Registered to match what is stored, not what either side wishes were stored.
+    "rule_destination_unrestricted": build_boolean_compiler(
+        "rule_destination_unrestricted", "rule_destination_unrestricted"),
+    # THE TWO GRADED PROTOCOL COLUMNS, TEXT AND NOT CHOICE COMPILERS, and NOT because the empty
+    # string is reachable - both are `blank=True` with a non-empty measured default. The reason is
+    # that a closed-choice builder would have to carry a value set the two leaves DO NOT SHARE:
+    # `max` is a member of the ceiling and the device refuses it at the floor with code=12. Each
+    # query is an `eq` on one member, so no ordering is asked of either column - which is the
+    # model's own instruction, since lexicographic order is right for the floor by coincidence and
+    # INVERTED for the ceiling, where `max` sorts first while meaning the strongest setting.
+    #
+    # `ssl_max_version_resolved` IS DELIBERATELY NOT REGISTERED. Stage 5 marks it
+    # `needs_compiler_field` and `presented: true`, and no clause, no grading column and no
+    # `undetermined` of this domain names it - stage 7's own `spec_surplus` says so in terms:
+    # "PAN-DCP-001 clauses on `ssl_max_version_restrictive`, the verdict. NOTHING clauses on
+    # either of the other two." It is the number a reader is shown beside the verdict, which is
+    # stage 9's business, and registering it would ship a search surface no control asks for.
+    "ssl_min_version": build_text_compiler("ssl_min_version", "ssl_min_version"),
+    "ssl_max_version": build_text_compiler("ssl_max_version", "ssl_max_version"),
+    # THE TWO COMPOSED PRIMITIVE VERDICTS, each one token naming the WORST primitive its class
+    # still leaves negotiable, with `none` as the only compliant member. Text for the same reason
+    # as the two above: every query is an `eq` on one member and the severity varies with WHICH
+    # member it is, which is what a grading over the values of one column needs. The member sets
+    # are `BROKEN_PRIMITIVE_ORDER` and `NON_PFS_OR_UNAUTHENTICATED_ORDER` on the model, plus
+    # `PRIMITIVE_NONE` - composed by the normaliser out of seven booleans rather than read off any
+    # single device key, which is why no closed choice set the device offers could back them.
+    "weakest_broken_primitive_permitted": build_text_compiler(
+        "weakest_broken_primitive_permitted", "weakest_broken_primitive_permitted"),
+    "weakest_non_pfs_or_unauthenticated_permitted": build_text_compiler(
+        "weakest_non_pfs_or_unauthenticated_permitted",
+        "weakest_non_pfs_or_unauthenticated_permitted"),
+    # THE FOUR CERTIFICATE AND VERSION BLOCK SWITCHES PAN-DCP-003, -004 AND -005[0] ASSERT ON.
+    # FALSE means the profile does not perform the check, which is the finding, and false is also
+    # what an absent key asserts - measured on the dialog's own checkboxes - so the materialised
+    # default, the measured absent value and the firing side are one answer. `fwd_` is
+    # `ssl-forward-proxy` and `inb_` is `ssl-inbound-proxy`; the two containers are NOT symmetric,
+    # which is why `block-expired-certificate` and `block-untrusted-issuer` have no `inb_` twin.
+    "fwd_block_expired_certificate": build_boolean_compiler(
+        "fwd_block_expired_certificate", "fwd_block_expired_certificate"),
+    "fwd_block_untrusted_issuer": build_boolean_compiler(
+        "fwd_block_untrusted_issuer", "fwd_block_untrusted_issuer"),
+    "fwd_block_unsupported_version": build_boolean_compiler(
+        "fwd_block_unsupported_version", "fwd_block_unsupported_version"),
+    "fwd_block_unsupported_cipher": build_boolean_compiler(
+        "fwd_block_unsupported_cipher", "fwd_block_unsupported_cipher"),
+    "inb_block_unsupported_version": build_boolean_compiler(
+        "inb_block_unsupported_version", "inb_block_unsupported_version"),
+    "inb_block_unsupported_cipher": build_boolean_compiler(
+        "inb_block_unsupported_cipher", "inb_block_unsupported_cipher"),
+    # THE SIX RESOURCE, DOWNGRADE AND HSM BLOCK SWITCHES, PAN-DCP-005[1] and [2]. Both records
+    # are INVERTED - `finding_when_clauses_fail` over four and two clauses - so their baselines
+    # fire on the DISJUNCTION of the negations and are written as `or` groups of negated
+    # equalities. A negated `eq true` on a non-nullable boolean is exactly `= false`, so no
+    # `is_empty` member is needed and none is offered: the boolean builder takes `eq` alone.
+    "fwd_block_if_no_resource": build_boolean_compiler(
+        "fwd_block_if_no_resource", "fwd_block_if_no_resource"),
+    "fwd_block_tls13_downgrade_no_resource": build_boolean_compiler(
+        "fwd_block_tls13_downgrade_no_resource", "fwd_block_tls13_downgrade_no_resource"),
+    "inb_block_if_no_resource": build_boolean_compiler(
+        "inb_block_if_no_resource", "inb_block_if_no_resource"),
+    "inb_block_tls13_downgrade_no_resource": build_boolean_compiler(
+        "inb_block_tls13_downgrade_no_resource", "inb_block_tls13_downgrade_no_resource"),
+    "fwd_block_if_hsm_unavailable": build_boolean_compiler(
+        "fwd_block_if_hsm_unavailable", "fwd_block_if_hsm_unavailable"),
+    "inb_block_if_hsm_unavailable": build_boolean_compiler(
+        "inb_block_if_hsm_unavailable", "inb_block_if_hsm_unavailable"),
+    # THE COMPANION THAT TELLS A REFERRER COUNT OF ZERO FROM A COUNT NOBODY TOOK. PAN-DCP-007
+    # carries it BOTH WAYS: `eq true` as an applicability clause on the baseline, which suppresses
+    # the control where no decryption rulebase was collected, and `eq false` on a second query
+    # that picks the suppressed rows up and reports them as not assessed rather than as unused.
+    # Without the pair, `is_used eq false` reports every profile on an uncollected appliance as
+    # unreferenced with a deletion remediation attached. The model's own docstring says the
+    # pairing is stage 8's to write and that this column only makes it possible.
+    "decryption_rulebase_collected": build_boolean_compiler(
+        "decryption_rulebase_collected", "decryption_rulebase_collected"),
+    # THE SEVEN PER-PRIMITIVE ALLOW SWITCHES - `enc_algo_rc4`, `enc_algo_3des`, `auth_algo_sha1`,
+    # `auth_algo_md5`, `keyxchg_algo_rsa`, `enc_algo_aes_128_cbc`, `enc_algo_aes_256_cbc` - ARE
+    # NOT REGISTERED, and that is the same narrow rule the `has_rules` note above applies. Stage 5
+    # marks all seven `needs_compiler_field` and `presented: true`, and no clause and no grading
+    # of this domain names one: PAN-DCP-002's two records each clause on the COMPOSED verdict
+    # instead, because `clauses` is one conjunction with no OR and the assertion is a disjunction
+    # over four and three booleans. They are what a READER is shown so a report naming RC4 is not
+    # silent about SHA-1 on the same profile, which is stage 9's business.
+    #
+    # `namespace_value`, `precedence_rank` and `vsys_name` are not registered for this domain
+    # either. `vsys_name` already ships above; the other two are `presented` only, and stage 7
+    # recorded `vsys_name` in `columns_not_built` on its own model spec because every shared and
+    # predefined row reaches an EMPTY vsys name through the traversal, so a clause on it silently
+    # drops every shared-scoped row.
 }
 
 FIELD_OPERATOR_REGISTRY = {

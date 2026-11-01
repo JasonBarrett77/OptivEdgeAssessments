@@ -957,6 +957,21 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # assertion records is discharged `expression`, so every control owes at least one query and
     # none of them is engineer-answered.
     "PAN-URL": "stage9-url-filtering.json",
+    # `decryption-profiles` reached stage 8 on 2026-11-01. ONE PREFIX COVERS BOTH OF THIS
+    # DOMAIN's MODELS. `integrations.DecryptionSettings` was created by stage 7 for this domain
+    # and has never been queried from this repository, so it has no rail item - and
+    # `SecurityProfile`'s results pages are per profile KIND, mirroring PAN-OS's own tabs, so the
+    # `decryption` kind that PAN-DCP-001 to -005 and -007 query has no page either. Stage 9 for
+    # this domain is what gives both of them one, and stage 8's contract forbids building it.
+    #
+    # THIS DEBT IS FOR ALL SEVEN OF THE DOMAIN's CONTROLS, and it is worth saying that PAN-DCP-006
+    # is included rather than exempt: two of its four stage 5 assertion records are discharged
+    # `not_in_configuration` and `engineer_answers` and owe no query, but its other two are
+    # `expression` over the signing model and carry three queries between them, so the control
+    # has a catalog entry and links that go nowhere. The entry fails once per catalog QUERY
+    # rather than once per control, which for this domain is twenty-five queries - twenty-three
+    # over the profile model and two over the signing model.
+    "PAN-DCP": "stage9-decryption-profiles.json",
 }
 
 

@@ -311,6 +311,11 @@ from assessments.search.user_id_discovery_bound.compiler import (
     USER_ID_DISCOVERY_BOUND_MODEL,
     compile_user_id_discovery_bound_search_node,
 )
+from assessments.search.decryption_settings.compiler import (
+    DECRYPTION_SETTINGS_MODEL,
+    FIELD_OPERATOR_REGISTRY as DECRYPTION_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    compile_decryption_settings_search_node,
+)
 from assessments.search.licence_inventory.compiler import (
     FIELD_OPERATOR_REGISTRY as LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
     LICENCE_INVENTORY_MODEL,
@@ -374,6 +379,7 @@ from optivedge_integrations.integrations.models import (
     CustomUrlCategory,
     UserIdCollectorSettings,
     UserIdDiscoveryBound,
+    DecryptionSettings,
 )
 
 
@@ -710,6 +716,20 @@ MODEL_REGISTRY = {
         "model_class": UserIdDiscoveryBound,
         "field_operators": USER_ID_DISCOVERY_BOUND_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_user_id_discovery_bound_search_node,
+    },
+    # `decryption-profiles`. ONE entry for ONE new model. The domain's other six controls query
+    # `integrations.SecurityProfile`, registered above, whose existing compiler is extended with
+    # twenty new fields rather than given a package of its own - that model already carries the
+    # `security_profile` control type and nine shipped controls compile through its table.
+    #
+    # `integrations.Certificate` GETS NOTHING. PAN-DCP-006's two certificate-side assertion
+    # records are discharged `not_in_configuration` and `engineer_answers`, so neither owes a
+    # query, and that model is already registered with eighteen fields in any case. See the
+    # stage 8 artifact for `decryption-profiles`, `subjects_in_two_models`.
+    DECRYPTION_SETTINGS_MODEL: {
+        "model_class": DecryptionSettings,
+        "field_operators": DECRYPTION_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_decryption_settings_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

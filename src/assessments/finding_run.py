@@ -35,6 +35,9 @@ from assessments.user_id_collector_findings import (
 from assessments.user_id_discovery_bound_findings import (
     generate_user_id_discovery_bound_findings,
 )
+from assessments.decryption_settings_findings import (
+    generate_decryption_settings_findings,
+)
 from assessments.rulebase_device_match_findings import (
     generate_rulebase_device_match_findings,
 )
@@ -155,6 +158,11 @@ GENERATORS = (
     ("ssl/tls service profile", T.SSL_TLS_SERVICE_PROFILE, generate_ssl_tls_service_profile_findings),
     ("certificate profile", T.CERTIFICATE_PROFILE, generate_certificate_profile_findings),
     ("certificate", T.CERTIFICATE, generate_certificate_findings),
+    # Beside `certificate` on purpose, and AFTER it: the forward-proxy signing designation is a
+    # POINTER into the certificate store, so a reader meets the certificates before the node that
+    # names two of them. `decryption-profiles` reached stage 8 on 2026-11-01; the domain's other
+    # six controls report through `security profile` below, over the `decryption` kind.
+    ("decryption settings", T.DECRYPTION_SETTINGS, generate_decryption_settings_findings),
     # The two IKE objects, gateway after proposal set: a gateway's finding names the profile it
     # points at, so a reader meets the proposal before the binding that chooses it.
     ("ike crypto profile", T.IKE_CRYPTO_PROFILE, generate_ike_crypto_profile_findings),

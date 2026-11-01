@@ -59,6 +59,7 @@ CONTENT_UPDATE_SCHEDULE_MODEL = "integrations.ContentUpdateSchedule"
 CUSTOM_URL_CATEGORY_MODEL = "integrations.CustomUrlCategory"
 USER_ID_COLLECTOR_MODEL = "integrations.UserIdCollectorSettings"
 USER_ID_DISCOVERY_BOUND_MODEL = "integrations.UserIdDiscoveryBound"
+DECRYPTION_SETTINGS_MODEL = "integrations.DecryptionSettings"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -246,6 +247,20 @@ def evaluate_security_profile_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or SECURITY_PROFILE_MODEL,
+    )
+
+
+def evaluate_decryption_settings_control_queries(queryset, control):
+    """PAN-DCP-006's half, over one appliance's forward-proxy signing designation.
+
+    THE DOMAIN's OTHER SIX CONTROLS DO NOT COME THROUGH HERE. They target the `decryption` kind
+    of `integrations.SecurityProfile` and go through
+    `evaluate_security_profile_control_queries`, because they reuse the `security_profile` type.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DECRYPTION_SETTINGS_MODEL,
     )
 
 

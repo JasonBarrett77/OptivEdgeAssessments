@@ -254,6 +254,29 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.USER_ID_COLLECTOR, "User-ID collector"),
     FindingKind(m.UserIdDiscoveryBoundFinding, "user_id_discovery_bound",
                 m.Control.ControlType.USER_ID_DISCOVERY_BOUND, "User-ID discovery bound"),
+    # `decryption-profiles`. ONE kind for ONE new model, and the domain's other SIX controls
+    # need no line here at all: PAN-DCP-001 to -005 and -007 report through `security_profile`
+    # above, over the `decryption` kind of the profile model, which already has a kind, a
+    # generator and a search surface - exactly as the five url-filtering controls and
+    # PAN-FIL-001/-002/-004 reuse it.
+    #
+    # THE SUBJECT IS THE APPLIANCE, so this model declares NO `subject_scope` - unlike the two
+    # User-ID kinds above, whose subject is an enforcement point and whose `subject_name` is
+    # therefore a vsys name that repeats across the estate. A hostname does not.
+    #
+    # `integrations.Certificate` ALREADY HAS A KIND (`certificate`, above) AND GETS NOTHING FROM
+    # THIS DOMAIN. PAN-DCP-006's two certificate-side assertion records are discharged
+    # `not_in_configuration` and `engineer_answers`, so neither owes a query and neither can
+    # produce a finding; there is no second control id to register and nothing to add.
+    #
+    # THE LABEL IS `forward-proxy signing designation` AND NOT `decryption settings`, because
+    # `test_labels_are_unique_and_prose_shaped` requires a SINGULAR label and the plural
+    # allowlist beside it is for a subject that genuinely is a CLUSTER of settings on one panel.
+    # This one is not: the node holds ONE designation pair, which is the thing a finding is about
+    # and the thing an engineer changes. The control type keeps the model's own name.
+    FindingKind(m.DecryptionSettingsFinding, "decryption_settings",
+                m.Control.ControlType.DECRYPTION_SETTINGS,
+                "forward-proxy signing designation"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

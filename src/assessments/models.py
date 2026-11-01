@@ -63,6 +63,7 @@ from optivedge_integrations.integrations.models import (
     CustomUrlCategory,
     UserIdCollectorSettings,
     UserIdDiscoveryBound,
+    DecryptionSettings,
     Zone,
 )
 
@@ -375,6 +376,29 @@ class Control(models.Model):
         #: for `user-id`, `subjects_in_two_models`.
         USER_ID_COLLECTOR = "user_id_collector", "User-ID Collector"
         USER_ID_DISCOVERY_BOUND = "user_id_discovery_bound", "User-ID Discovery Bound"
+        #: `decryption-profiles`. ONE MINT FOR SEVEN CONTROLS, and the arithmetic is the point:
+        #: six of the domain's seven controls REUSE `security_profile` above, because their
+        #: subject is a `decryption`-kind row of `integrations.SecurityProfile` and
+        #: `rev(_CONTROL_TYPE_TARGET_MODEL)` already answers `security_profile` for that model.
+        #: Minting a second type for a model that already has one is what this map's one-to-one
+        #: property forbids and NOTHING IN THE SUITE CATCHES IT IN THAT DIRECTION, so the reverse
+        #: map was measured before this line was written: 55 types, 55 map entries, 55 DISTINCT
+        #: targets, no duplicate, and `integrations.DecryptionSettings` answering nothing.
+        #:
+        #: PAN-DCP-006 IS THE ONLY CONTROL OF THE SEVEN THAT NEEDS IT. Its first two assertion
+        #: records name the appliance's forward-proxy SIGNING designation -
+        #: `/config/shared/ssl-decrypt`, one row per appliance - which is a different model from
+        #: the profile the other six assert over.
+        #:
+        #: `integrations.Certificate` GETS NOTHING FROM THIS RUN. PAN-DCP-006's other two records
+        #: name a signing certificate, and neither is discharged `expression`: one is
+        #: `not_in_configuration` (key exportability has no configuration node) and one is
+        #: `engineer_answers`. So there was never a query to place at that grain, `certificate`
+        #: already exists as a type anyway, and `probe.relation_between DecryptionSettings
+        #: Certificate` finds NO RELATION IN EITHER DIRECTION - six to-many paths through shared
+        #: ancestors, each leaving a scope field unconstrained. See the stage 8 artifact for
+        #: `decryption-profiles`, `subjects_in_two_models`.
+        DECRYPTION_SETTINGS = "decryption_settings", "Decryption Settings"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -544,6 +568,10 @@ class Control(models.Model):
         # One row per VSYS: a verdict over the whole include/exclude discovery list, including
         # the commonest state, which is that the list holds nothing. PAN-UID-002 only.
         "user_id_discovery_bound": "integrations.UserIdDiscoveryBound",
+        # One row per APPLIANCE: which certificate the firewall signs with when it stands in for
+        # a destination it is decrypting. PAN-DCP-006 only - the other six PAN-DCP controls are
+        # `security_profile` above, over the `decryption` kind of the profile model.
+        "decryption_settings": "integrations.DecryptionSettings",
     }
 
     class Meta:
@@ -615,6 +643,7 @@ class Control(models.Model):
         "integrations.CustomUrlCategory": "Custom URL Category",
         "integrations.UserIdCollectorSettings": "User-ID Collector",
         "integrations.UserIdDiscoveryBound": "User-ID Discovery Bound",
+        "integrations.DecryptionSettings": "Decryption Settings",
     }
 
     @property
@@ -4357,3 +4386,74 @@ class UserIdDiscoveryBoundFindingControlQuery(FindingControlQueryBase):
     def __str__(self) -> str:
         return f"{self.user_id_discovery_bound_finding_id} <- {self.control_query_id}"
 
+
+class DecryptionSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's forward-proxy signing designation. PAN-DCP-006.
+
+    THE SUBJECT IS THE APPLIANCE AND NOT THE DESIGNATION SLOT, and the commonest failing state
+    decides it: NO certificate designated at all. `/config/shared/ssl-decrypt` was absent on
+    three of the lab's four appliances, and the firewall says so in its own words - `show system
+    setting ssl-decrypt certificate` answers `No SSL Decryption CERT`. A finding keyed on a slot
+    would have NO ROW in exactly the state the control exists for. The row this reports on
+    always exists and can say that nothing is designated.
+
+    `subject_scope` IS NOT DECLARED HERE, and that is a decision rather than an omission.
+    `ObjectFindingBase` adds it only on the models whose objects can collide on name across
+    scopes, and this subject is the appliance itself: `subject_name` carries the hostname, which
+    is unique in an estate, so there is nothing for a scope field to disambiguate. Compare
+    `UserIdDiscoveryBoundFinding` above, whose `subject_name` is a vsys name - `vsys1` on every
+    single-vsys firewall - and which therefore needs one.
+
+    ON AN HA PAIR THIS YIELDS TWO ROWS FOR ONE REAL CONFIGURATION. The designation is
+    device-wide, so the integrations model takes an appliance directly rather than an appliance
+    group, and writing to either peer writes to both; nothing deduplicates them. That is the
+    OPPOSITE of the decryption profile six of this domain's controls report on, where a
+    shared-scoped definition anchors to the appliance GROUP and an HA pair is one row.
+
+    BOTH OF THIS CONTROL'S ASSERTIONS ARE VERDICTS THAT FOLLOW A REFERENCE, which is why they
+    are columns on the integrations row rather than clauses over it: one walks the designated
+    name into `Certificate` to ask whether the target is a locally-held authority, and the other
+    compares four columns of the row to each other. A predicate compares one field to one
+    literal and can do neither.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="decryption_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="decryption_settings_findings")
+    decryption_settings = models.ForeignKey(
+        DecryptionSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DecryptionSettingsFindingControlQuery",
+        related_name="decryption_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["decryption_settings"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "decryption_settings"],
+                name="unique_decryption_settings_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on decryption settings {self.subject_name}"
+
+
+class DecryptionSettingsFindingControlQuery(FindingControlQueryBase):
+    decryption_settings_finding = models.ForeignKey(
+        DecryptionSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="decryption_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["decryption_settings_finding", "control_query"],
+                name="unique_decryption_settings_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.decryption_settings_finding_id} <- {self.control_query_id}"

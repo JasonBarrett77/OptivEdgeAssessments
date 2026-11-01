@@ -11462,6 +11462,1019 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-DCP-001",
+          "name": "Decryption Profile Protocol Version Range",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A decryption profile that lets the sessions it governs negotiate a protocol version below TLS 1.2, or that caps them below the newest version the appliance implements.\n\nTWO ASSERTIONS OVER ONE OBJECT, AND THE CEILING IS THE ONE A READER DOES NOT EXPECT. The floor half is the familiar one: a deprecated protocol version left negotiable makes the firewall's own decryption path the weakest link on the connection, so an attacker who can influence the handshake gets a session whose confidentiality is broken by published attacks while the traffic still reads, to the user and in the logs, as protected and inspected. The ceiling half reports the opposite shape: a cap below what both ends support discards the newer protocol's protections on every session the profile touches, and a cap set below the same profile's own floor leaves the two settings contradicting each other, so whichever one the firewall honours is not the one the configuration appears to state and nobody reviewing it can tell which.\n\nTHE TWO LEAVES DO NOT SHARE A VALUE SET AND NEITHER IS COMPARED AS A STRING. The floor offers five members and the ceiling six, the extra one being the literal that means no maximum - which the device refuses at the floor outright. Lexicographic order happens to be right for the floor and is INVERTED for the ceiling, where that literal sorts first while meaning the strongest setting available, so the assertion rests on two stored verdicts and each rank is an equality on one member.\n\nTHE CEILING IS RESOLVED BEFORE IT IS JUDGED. Two appliances storing the no-maximum literal can negotiate different ceilings, and an appliance upgraded between two collections changes what that literal means without the stored value moving - so the verdict is computed against the version that appliance's own build implements, and a build the resolution does not cover leaves the verdict firing rather than passing.\n\nWHY A WEAKER PROFILE IS NOT AUTOMATICALLY A FINDING. The vendor recommends applying a separate, weaker profile by rule to the specific destinations that demonstrably require it, so a control asserting the floor over every profile unconditionally would report the vendor's own remediation. The floor half therefore applies only where no decryption rule naming the profile narrows its destination to a named set. Which destinations the business actually requires is not in the configuration and is an engineer's answer.\n\nTHE CEILING HALF CARRIES NO SUCH EXCEPTION, deliberately: the vendor's one named reason for a capped ceiling is certificate-pinned mobile applications, which nothing on the firewall records, so that exception is graded rather than claused - a ceiling of TLS 1.2 reports at LOW while a ceiling below the asserted floor reports at HIGH.",
+          "rationale": "Both halves are invisible on the session record. A session negotiated down to TLS 1.0 and a session negotiated at TLS 1.3 are both logged as decrypted and inspected, and an assessor reading the policy cannot see which versions the profile behind a rule permits without opening every profile. The ceiling is worse again, because nothing presents the stored literal beside what that literal means on that appliance's build.",
+          "audit": "Objects > Decryption Profile, the SSL Protocol Settings tab of the profile the finding names, at the scope the finding names. Min Version is the floor and Max Version the ceiling; the finding prints both, and prints what the ceiling resolved to on that appliance where the stored value is the no-maximum literal.",
+          "remediation": "Set Min Version to TLSv1.2 or better and Max Version to Max. Where an application cannot tolerate the newer version, do not cap this profile: build a second profile with the narrower range and attach it by rule to just those destinations, which is the vendor's own recommendation and is what this control's applicability clause exists to respect. Record which destinations those are and who owns them, because nothing in the configuration distinguishes a deliberate cap from a forgotten one.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles that let a decrypted session negotiate below TLS 1.2, where no decryption rule naming the profile narrows its destination to a named set.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version_below_tls12",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_min_version_below_tls12"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The protocol floor is SSLv3",
+              "short_description": "The configured floor is the worst value the leaf can hold: every session this profile governs may be negotiated on a protocol broken in public for a decade.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version_below_tls12",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version",
+                    "op": "eq",
+                    "value": "sslv3",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_min_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol floor is TLS 1.0",
+              "short_description": "The configured floor is TLS 1.0, deprecated by RFC 8996. It is also the value an unconfigured profile materialises, so a profile storing no floor at all reports here.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version_below_tls12",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version",
+                    "op": "eq",
+                    "value": "tls1-0",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_min_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol floor is TLS 1.1",
+              "short_description": "The configured floor is TLS 1.1, deprecated by RFC 8996 alongside TLS 1.0 and graded level with it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version_below_tls12",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_min_version",
+                    "op": "eq",
+                    "value": "tls1-1",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_min_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol ceiling is SSLv3",
+              "short_description": "The ceiling forces every session this profile governs onto a broken protocol, and contradicts any floor above it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version_restrictive",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version",
+                    "op": "eq",
+                    "value": "sslv3",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_max_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol ceiling is TLS 1.0",
+              "short_description": "The ceiling is below the floor this control's other half asserts, so the two settings on one profile contradict each other.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version_restrictive",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version",
+                    "op": "eq",
+                    "value": "tls1-0",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_max_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol ceiling is TLS 1.1",
+              "short_description": "The ceiling is below the floor this control's other half asserts, so the two settings on one profile contradict each other.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version_restrictive",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version",
+                    "op": "eq",
+                    "value": "tls1-1",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_max_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The protocol ceiling is TLS 1.2",
+              "short_description": "The newest protocol version is unreachable on every session this profile governs. LOW because the vendor recommends exactly this ceiling where certificate-pinned mobile applications are in scope - and it is the value an unconfigured profile materialises.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version_restrictive",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ssl_max_version",
+                    "op": "eq",
+                    "value": "tls1-2",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ssl_max_version"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-002",
+          "name": "Decryption Profile Negotiable Primitives",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A decryption profile that still leaves a broken encryption or authentication primitive negotiable, or that still permits a key exchange without forward secrecy or a cipher mode that does not authenticate what it encrypts.\n\nTWO ASSERTIONS AND TWO SEVERITIES. A cipher or hash with a practical attack against it means the firewall will complete, inspect, re-encrypt and record as clean a session whose contents can be recovered or whose integrity can be forged - so the inspection the organisation paid for is performed on a channel an adversary can rewrite underneath it. That half is HIGH. The second half is MEDIUM and is about a different kind of loss: without a throwaway secret per session, one disclosure of the server's long-term key retrospectively decrypts every session an adversary has been recording under it, so the exposure is not the traffic after the breach but all the traffic before it; and a cipher mode that does not authenticate its own output leaves open the padding and record-splitting attacks the authenticated modes were introduced to end.\n\nEACH HALF IS ONE COMPOSED VERDICT AND NOT A LIST OF SWITCHES. The assertion is a disjunction - any one of four primitives permitted is the finding - and a query clause list is one conjunction with no OR, so each half rests on a stored column holding the WORST member its class still leaves negotiable, with `none` as the only compliant value. That is also what carries the severity ordering the grading needs.\n\nTHE COLLAPSE COSTS SOMETHING AND THE FINDING SAYS SO. Where two broken primitives are permitted the column holds only the worse, so a finding naming RC4 is silent about SHA-1 on the same profile. The seven per-primitive switches are presented beside the verdict for exactly that reason.\n\nSHA-1 IS GRADED BELOW ITS NEIGHBOURS because the vendor's own instruction for it is conditional where theirs are unconditional - block it if no necessary site uses it - and the block-chaining modes are graded below the broken primitives because the primitive is not broken and the mode is weaker. The larger-key block-chaining mode is graded with the smaller one although no corpus names it.\n\nWHAT THIS CONTROL CANNOT SEE, AND IT IS A FALSE-POSITIVE DIRECTION. The vendor states that the firewall blocks two of these primitives of its own accord once the profile's protocol floor is TLS 1.2 or better. Nothing stored records the effective primitive set, so on a profile whose floor already meets PAN-DCP-001 this reports a weakness the device may not have. The switches really do say permitted and the column really does hold the value; what is missing is a measurement of the vendor's rule.",
+          "rationale": "Every one of these is a checkbox on a tab an assessor has to open per profile, and the defaults are the permissive side on six of the seven - so an unconfigured profile permits RC4, 3DES, SHA-1 and a static RSA key exchange without anybody having chosen any of them. Nothing in the session record shows which primitive was negotiated.",
+          "audit": "Objects > Decryption Profile, the SSL Protocol Settings tab of the profile the finding names. The finding names the worst member of each class that is still permitted; the seven individual switches are printed beside it, because the verdict holds only the worst and a profile may be permitting more than one.",
+          "remediation": "Clear the algorithm checkboxes the finding names. Where a necessary destination still requires one of them, do not loosen this profile: build a second profile and attach it by rule to just those destinations, which is the vendor's own recommendation and what this control's applicability clause respects. Raising the profile's protocol floor to TLS 1.2 or better is worth doing first in any case - the vendor states the firewall then blocks two of these primitives whatever their own switches hold.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles still leaving a publicly broken encryption or authentication primitive negotiable, where no decryption rule naming the profile narrows its destination to a named set.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_broken_primitive_permitted"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "RC4 is still negotiable",
+              "short_description": "The worst broken primitive this profile permits is RC4, a stream cipher with practical plaintext-recovery attacks. It is also what an unconfigured profile permits.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "rc4",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_broken_primitive_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "3DES is still negotiable",
+              "short_description": "The worst broken primitive this profile permits is 3DES, a 64-bit block cipher with a practical birthday bound.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "3des",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_broken_primitive_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "MD5 is still negotiable",
+              "short_description": "The worst broken primitive this profile permits is MD5. The vendor states this one is blocked by default, which makes it the one member of the set an unconfigured profile already satisfies - so a profile reporting here was configured to permit it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "md5",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_broken_primitive_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "SHA-1 is still negotiable",
+              "short_description": "The worst broken primitive this profile permits is SHA-1. MEDIUM and not high because the vendor's instruction for this one is conditional where its neighbours' are unconditional: block SHA-1 if no necessary site uses SHA-1 authentication.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_destination_unrestricted",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_broken_primitive_permitted",
+                    "op": "eq",
+                    "value": "sha1",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_broken_primitive_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A static RSA key exchange is still negotiable",
+              "short_description": "This profile permits a key exchange that gives no session its own throwaway secret, so one disclosure of a server's long-term key retrospectively decrypts every session recorded under it. All three key exchanges are enabled on an unconfigured profile.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "rsa",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_non_pfs_or_unauthenticated_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "AES-128-CBC is still negotiable",
+              "short_description": "This profile permits a block-chaining cipher mode, which does not authenticate what it encrypts. LOW because the primitive is not broken and the mode is weaker.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "aes-128-cbc",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_non_pfs_or_unauthenticated_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "AES-256-CBC is still negotiable",
+              "short_description": "This profile permits the same block-chaining mode at the larger key size, which no corpus names and which the control's own preferred value reaches.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "weakest_non_pfs_or_unauthenticated_permitted",
+                    "op": "eq",
+                    "value": "aes-256-cbc",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_non_pfs_or_unauthenticated_permitted"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-003",
+          "name": "Decryption Profile Blocks Expired Server Certificates",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A decryption profile that does not terminate a forward-proxy session whose destination presented an expired certificate.\n\nLetting the session continue moves the decision from policy to whoever is at the keyboard when the warning appears - the party with the least information and the strongest reason to click through - so the cheapest available signal that a destination is unmaintained, or is not the destination at all, is accepted at the one point in the estate where refusing it was free.\n\nTHE SWITCH'S ABSENT STATE IS THE FINDING AND THAT IS MEASURED, not inferred: on a profile that stores no forward-proxy key at all the vendor's own dialog shows this checkbox unticked. So a profile with no decryption keys whatever reports here, as do the vendor's predefined profile and a Panorama-pushed profile that omits the key.\n\nTHIS IS THE FORWARD-PROXY PATH ONLY and the omission is the vendor's rather than this control's: the inbound-inspection container carries no equivalent switch, because an inbound-proxy session presents the organisation's own certificate and there is no destination certificate to have expired.",
+          "rationale": "The check costs nothing and is off unless somebody turned it on. An expired certificate is the one validation failure a user will click through fastest, and it is also the cheapest tell that a connection is not going where it appears to.",
+          "audit": "Objects > Decryption Profile, the SSL Decryption > SSL Forward Proxy tab of the profile the finding names. Block sessions with expired certificates is the setting; the finding fires where it is unticked, which includes a profile that stores no key at all.",
+          "remediation": "Tick Block sessions with expired certificates on the SSL Forward Proxy tab. Where a destination with an expired certificate is genuinely required, exclude that destination by rule rather than switching the check off for every session the profile governs.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles that do not block a forward-proxy session whose destination presented an expired certificate, including every profile storing no key at all.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "fwd_block_expired_certificate",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fwd_block_expired_certificate"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-004",
+          "name": "Decryption Profile Blocks Untrusted Certificate Issuers",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A decryption profile that does not terminate a forward-proxy session whose destination presented a certificate from an authority the firewall does not trust.\n\nAn untrusted issuer is the signature of the very attack decryption exists to expose - somebody else terminating the connection upstream - so a firewall that inspects such a session and passes it on records the traffic as inspected while leaving the interception in place. Where its own stand-in certificate is one the clients already trust, it has re-signed the interceptor's identity with an authority the client will accept without a murmur.\n\nWHAT THIS CONTROL ASSERTS IS THE ACTION AND NOT THE TRUST BOUNDARY. The switch decides what happens when the test fails; the list of authorities the firewall trusts for decryption is a separate node that NO control in the catalogue asserts anything about, so this control is exactly as good as a list nothing checks. That is recorded rather than implied.\n\nTHE DESIGNATION REQUIREMENT BELONGS TO PAN-DCP-006. A reading of this switch says nothing about whether the certificate the firewall presents for a destination it could not validate is one no client trusts - without which the user-visible warning this control relies on as its last line never appears at all. That half is asserted once, there, and carried here as a dependency.\n\nTHE ABSENT STATE IS THE FINDING, measured on the vendor's own dialog: the checkbox is unticked on a profile that stores no forward-proxy key.",
+          "rationale": "This is the check that distinguishes decryption-as-inspection from decryption-as-interception-laundering, and it is off unless somebody turned it on. A session that fails it and is forwarded anyway reaches the user behind the firewall's own trusted certificate, which is the one warning an endpoint would otherwise have shown.",
+          "audit": "Objects > Decryption Profile, the SSL Decryption > SSL Forward Proxy tab of the profile the finding names. Block sessions with untrusted issuers is the setting. Check the firewall's trusted-CA list for decryption separately: nothing in this assessment does.",
+          "remediation": "Tick Block sessions with untrusted issuers on the SSL Forward Proxy tab. Then confirm that the forward-untrust authority is distinct from the forward-trust one and is in no client trust store, which is PAN-DCP-006 - this check's last line is the certificate warning the user sees, and that warning only exists if the untrust authority is untrusted.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles that do not block a forward-proxy session whose destination presented a certificate from an issuer the firewall does not trust.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "fwd_block_untrusted_issuer",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fwd_block_untrusted_issuer"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-005",
+          "name": "Decryption Profile Fails Closed On Uninspectable Sessions",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A decryption profile that carries an uninspectable session through instead of stopping it, on any of the three conditions the vendor's own Failure Checks groups name: the protocol version or cipher suite is one the firewall does not implement, the firewall is short of the capacity decryption needs, or the separate signing module it depends on is unreachable.\n\nAN UNINSPECTABLE SESSION ALLOWED THROUGH IS A BYPASS THE CLIENT CHOOSES FOR ITSELF by offering something the firewall cannot read, and the vendor records that the outcome is cached for twelve hours for that client and server pair - so a single handshake buys half a day of uninspected traffic on a path the organisation believes is covered, and nothing in the session record distinguishes it from traffic that was inspected and found clean. Under load the same shape hands an adversary a switch: generate enough decryptable traffic and inspection stops for everything behind it. And a dependency that fails open turns an outage in one piece of equipment into a silent estate-wide inspection gap that lasts as long as the outage does.\n\nTHREE ASSERTIONS, TEN SWITCHES, AND ONE FINDING PER PROFILE. Each assertion is INVERTED - it asks that every switch in its group be set - so each fires on the NEGATION of its group, which is a disjunction: ANY one switch unset is the finding. A profile with all four of the first group unset produces ONE finding and not four.\n\nBOTH DECRYPTION DIRECTIONS ARE IN SCOPE, which is the vendor's own scope: the field table opens by saying the settings it describes are for traffic decrypted by either forward proxy or inbound inspection, and prints the unsupported-mode rows twice, once per tab, with the recommendation identical and unconditional in both.\n\nWHAT THIS CONTROL REPORTS THAT IT SHOULD NOT, AND IT IS STATED RATHER THAN HIDDEN. WHICH decryption path a profile is actually attached to is not measured anywhere, so a profile used only on forward-proxy rules is reported for leaving the two inbound switches unset - a finding on a configuration that is complete for the path it is used on. The over-report is in the loud direction and an engineer sent to tick two inbound boxes on a profile that never inspects inbound traffic is entitled to discount the control for it.\n\nONE SWITCH'S POLARITY IS CONTESTED BY THE VENDOR WITH ITSELF. For the TLS 1.3 downgrade switch the field table says setting it terminates the session instead of downgrading, while the device's own completion help-string says the opposite - and every one of its thirteen siblings in the same device listing is phrased the other way round. This control asserts the field table's reading. A profile reported only on that switch is worth reading the stored value against the device's own help before remediating.\n\nTHE SIGNING-MODULE ASSERTION APPLIES TO EVERY FIREWALL, including ones that hold their decryption keys locally and can never meet the condition it is about. Whether a separate module is attached at all is asserted by no control in the catalogue, and stage 3's own wording sanctions the direction: where it cannot be established which of the two is the case, the control applies.",
+          "rationale": "Fail-open is the default on all ten switches and none of them is visible from the policy. The conditions they cover are exactly the conditions an attacker can induce on purpose, and the resulting bypass is cached per destination pair with no event anywhere saying inspection was skipped rather than passed - so the one failure mode the organisation most needs to see is the one it cannot.",
+          "audit": "Objects > Decryption Profile, the SSL Decryption tab of the profile the finding names, on both the SSL Forward Proxy and SSL Inbound Inspection sub-tabs. The finding names every unticked switch by the label the dialog uses. A profile that stores no key at all has all ten unticked.",
+          "remediation": "Tick every Failure Checks box the finding names, on both sub-tabs. Before switching the capacity checks closed, confirm decryption capacity is monitored with thresholds: fail-closed without the monitoring converts a security control into an outage, which is the tradeoff the vendor attaches to those two rows. Where a profile is used on only one decryption path, the switches for the other path are harmless to set and setting them clears the finding; nothing stored records which path it is used on.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles leaving ANY of the four unsupported-version or unsupported-cipher switches unset, on either decryption path - so a session the firewall cannot read is carried uninspected and the outcome is cached for twelve hours.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "fwd_block_unsupported_version",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "fwd_block_unsupported_cipher",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "inb_block_unsupported_version",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "inb_block_unsupported_cipher",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fwd_block_unsupported_version",
+                "fwd_block_unsupported_cipher",
+                "inb_block_unsupported_version",
+                "inb_block_unsupported_cipher"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Overload or a TLS 1.3 downgrade is not failed closed",
+              "short_description": "This profile leaves at least one of the four capacity and downgrade switches unset, on either decryption path, so running short of decryption capacity becomes an inspection bypass an adversary can induce on purpose.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "fwd_block_if_no_resource",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "fwd_block_tls13_downgrade_no_resource",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "inb_block_if_no_resource",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "inb_block_tls13_downgrade_no_resource",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fwd_block_if_no_resource",
+                "fwd_block_tls13_downgrade_no_resource",
+                "inb_block_if_no_resource",
+                "inb_block_tls13_downgrade_no_resource"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "An unavailable signing module is not failed closed",
+              "short_description": "This profile leaves at least one of the two HSM switches unset, on either decryption path, so an outage in one piece of equipment becomes a silent estate-wide inspection gap for as long as it lasts.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "fwd_block_if_hsm_unavailable",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      },
+                      {
+                        "field": "inb_block_if_hsm_unavailable",
+                        "op": "eq",
+                        "value": true,
+                        "negated": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "fwd_block_if_hsm_unavailable",
+                "inb_block_if_hsm_unavailable"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-006",
+          "name": "Forward Proxy Signing Authority Designation",
+          "control_type": "decryption_settings",
+          "default_severity": "critical",
+          "is_active": true,
+          "description": "A firewall that has designated no forward-trust signing authority of its own, or whose designated authority is not a locally-held certificate authority, or that has no separate forward-UNTRUST authority distinct from the trust one.\n\nTHE SIGNING KEY CAN MINT AN ACCEPTABLE CERTIFICATE FOR ANY NAME ON THE INTERNET. If it chains to an authority the wider world trusts, a copy taken off the firewall impersonates any site to anybody rather than only to the organisation's own endpoints - and the blast radius of one firewall compromise stops being the estate and becomes everyone.\n\nTHE UNTRUST HALF IS THE SAFETY NET BEHIND EVERY BLOCKING CHECK. If the two designations are the same certificate, or the second has found its way into the endpoints' trust stores, then every destination the firewall could not validate arrives at the user behind a clean padlock and the certificate warning PAN-DCP-004 relies on never appears - so the organisation is relying on a net it has quietly removed, and the removal looks like nothing at all.\n\nTHE SUBJECT IS THE APPLIANCE AND NOT THE CERTIFICATE, and the commonest failing state decides it: no certificate designated at all. A finding keyed on a designation slot would have no row to report on in exactly that case. On an HA pair this reports twice for one real configuration, because the designation is device-wide.\n\nTHE DESIGNATION IS NOT A FLAG ON THE CERTIFICATE, whatever the vendor's interface suggests. The certificate entry carries no usage field of any kind; the designation is a pointer held with the firewall's other decryption settings, and the interface presents it as something you select while editing the certificate. Same subject, reference running the other way - which matters in one direction: a reading that goes looking on the certificate finds nothing and concludes nothing is designated.\n\nTWO MORE ASSERTIONS OF THIS CONTROL ARE NOT REPORTED HERE AT ALL and the reason is not a relation. Whether the signing key can be exported is an argument to an operational request at the moment a certificate is generated: there is no configuration node for it anywhere in the grammar and the certificate entry carries no corresponding field. And whether the authority is short-lived with a rehearsed replacement procedure is a question for a person - the firewall holds nothing about the interval the organisation intended. Neither is a measurable expression and neither owes a query.\n\nA NAME THAT RESOLVES TO NO CERTIFICATE READS AS A FAILURE rather than as unknown, deliberately: a designation pointing at nothing is a worse state than no designation, not a better-evidenced one. The quantifier on the trust half is that at least one slot is filled AND every filled slot qualifies - an RSA slot naming a local self-signed authority beside an ECDSA slot naming a third-party certificate does not pass, because the weaker of the two is what a session can end up negotiating and nothing in the configuration says which it will be.",
+          "rationale": "This is the highest-value key on the appliance and the one with the least ceremony around it: it is selected on a dialog, stored on a node an engineer looking for 'where is the forward trust certificate set' does not find, and reported nowhere. The absent state - no designation at all - is also the firewall's own out-of-the-box state, so nothing distinguishes an appliance that has not been set up from one that was set up wrongly.",
+          "audit": "Device > Certificate Management > Certificates on the appliance the finding names, then open the certificate and read the Certificate Use for selections; the stored designation is at /config/shared/ssl-decrypt. Confirm that the forward-trust certificate is a certificate authority the appliance itself holds and that it is self-signed, and that a DIFFERENT certificate is designated forward-untrust. The two further halves of this control are not assessed from configuration at all: ask whether the signing key is exportable, and for the validity interval and replacement procedure.",
+          "remediation": "Generate a self-signed certificate authority on the firewall and designate it Forward Trust Certificate, then generate a SECOND, different authority and designate it Forward Untrust Certificate. Distribute only the first to client trust stores; the second must be trusted by nothing, because the certificate warning it produces is the last line behind every blocking check. Do not designate an authority that chains to a publicly trusted root. Fill both the RSA and the ECDSA slot or neither - a half-filled pair leaves which authority a session negotiates to chance.",
+          "implementation_version": "v1",
+          "target_model": "integrations.DecryptionSettings",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Appliances with no forward-trust signing authority designated, or whose designation does not resolve to a self-signed certificate authority the appliance itself holds - including a designation naming a certificate that does not exist.",
+              "canonical_query": {
+                "model": "integrations.DecryptionSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "forward_trust_is_designated_local_ca",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "forward_trust_is_designated_local_ca"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No distinct forward-untrust authority",
+              "short_description": "No forward-untrust authority is designated on this appliance, or one is and a forward-trust slot names the same certificate - so a destination the firewall could not validate reaches the user behind a certificate the client already trusts.",
+              "canonical_query": {
+                "model": "integrations.DecryptionSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "untrust_distinct_from_trust",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "untrust_distinct_from_trust"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "critical",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-DCP-007",
+          "name": "Unused Decryption Profiles (Hygiene)",
+          "control_type": "security_profile",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A decryption profile the firewall holds that no decryption rule names.\n\nA profile nobody owns is the one that gets attached during the next urgent change, so the settings every other assertion in this domain checks arrive in production by a route no review covered; and because a profile reaches a firewall whether or not anything references it, the stale set grows quietly instead of being pruned.\n\nTHE REFERENCE COUNT IS A LOWER BOUND AND THIS CONTROL SAYS SO. An object present on a firewall with no rule referencing it may be genuinely unused or may be referenced only by a switched-off management-station rule, and both look identical from the device. So the finding is that nothing in what was collected names the profile, which is a reason to review it rather than a proof that it is dead.\n\nTHE VENDOR'S PREDEFINED PROFILE IS OUT OF SCOPE. One profile is configured on the firewall, is automatically included in new decryption policies and CANNOT be modified. A count of profiles no rule references returns it on any firewall with no decryption rules, and this control's remediation cannot be applied to it.\n\nA PROFILE ON AN APPLIANCE WHOSE RULEBASE WAS NEVER READ IS NOT REPORTED AS UNUSED, and that is the pairing the second query exists for. An absent decryption rulebase is not distinguishable from one that was never collected, so the reference reading is suppressed where no rulebase read reached the appliance - and the suppressed rows are picked up by a SECOND query which reports, at the same tier, that the profile was NOT ASSESSED for references. Without the pair there is no honest option: a deletion remediation would travel with every profile on an uncollected appliance.\n\nIT SAYS NOTHING ABOUT THE PROFILE'S CONTENTS. An unreferenced profile that permits nothing weak reports here exactly like an unreferenced one that permits everything; the finding is that it is unattached. LOW, and deliberately - nothing is exposed by a profile nobody uses, and it belongs in the same sweep as the other unused-object controls rather than in a remediation queue.",
+          "rationale": "Nothing in the interface distinguishes a decryption profile in service from one abandoned three migrations ago, and the list grows with every change that touched decryption. An assessor can clear the list quickly once it exists; nobody produces it by hand.",
+          "audit": "Objects > Decryption Profile at the scope the finding names, and Policies > Decryption for the rules. The finding names the profile and its scope and prints its referrer count. Where the finding says the profile was NOT ASSESSED, the rulebase read did not reach that appliance and the referrer count means nothing - collect it and re-run rather than acting on the row.",
+          "remediation": "Delete it, or attach it where it was meant to go. If it is kept deliberately - a pre-staged profile for a planned change, say - record that, because nothing in the configuration distinguishes it from one that was forgotten. Check the management station for a disabled rule naming it before deleting: a profile referenced only by a switched-off rule looks identical to an unused one from the firewall.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Decryption profiles that the appliance's own collected decryption rulebase does not name, excluding the vendor's predefined profile, which cannot be modified or deleted.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "decryption_rulebase_collected",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "is_used"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The profile was not assessed for references",
+              "short_description": "No decryption rulebase was collected from this profile's appliance, so whether anything names it was never established. Reported rather than passed, because a zero referrer count would otherwise carry a deletion remediation.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "decryption",
+                    "negated": false
+                  },
+                  {
+                    "field": "is_predefined",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "decryption_rulebase_collected",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "decryption_rulebase_collected"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
         }
       ]
     }
