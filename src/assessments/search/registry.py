@@ -257,6 +257,16 @@ from assessments.search.zone.compiler import (
     ZONE_MODEL,
     compile_zone_search_node,
 )
+from assessments.search.zone_protection_profile.compiler import (
+    FIELD_OPERATOR_REGISTRY as ZONE_PROTECTION_PROFILE_FIELD_OPERATOR_REGISTRY,
+    ZONE_PROTECTION_PROFILE_MODEL,
+    compile_zone_protection_profile_search_node,
+)
+from assessments.search.dos_policy_rule.compiler import (
+    FIELD_OPERATOR_REGISTRY as DOS_POLICY_RULE_FIELD_OPERATOR_REGISTRY,
+    DOS_POLICY_RULE_MODEL,
+    compile_dos_policy_rule_search_node,
+)
 from assessments.search.rulebase_device_match.compiler import (
     FIELD_OPERATOR_REGISTRY as RULEBASE_DEVICE_MATCH_FIELD_OPERATOR_REGISTRY,
     RULEBASE_DEVICE_MATCH_MODEL,
@@ -398,6 +408,8 @@ from optivedge_integrations.integrations.models import (
     UserIdCollectorSettings,
     UserIdDiscoveryBound,
     DecryptionSettings,
+    ZoneProtectionProfile,
+    DosPolicyRule,
 )
 
 
@@ -787,6 +799,26 @@ MODEL_REGISTRY = {
         "model_class": DecryptionSettings,
         "field_operators": DECRYPTION_SETTINGS_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_decryption_settings_search_node,
+    },
+    # `zone-dos-protection`. TWO entries for TWO new models, out of the domain's four. The
+    # other two were already registered and are EXTENDED rather than added: `integrations.Zone`
+    # gains three fields on the compiler the `device-id-iot` run created for it (8 -> 11), and
+    # `integrations.SecurityProfile` gains NOTHING AT ALL - both columns PAN-ZON-008 clauses on
+    # already ship under other names, `reference_reach` and `reference_reach_resolved`, which
+    # stage 7 recorded in `columns_not_built` rather than duplicating.
+    #
+    # THE ZONE PROTECTION PROFILE'S OWNER IS AN APPLIANCE AND NOT AN ENFORCEMENT POINT, which is
+    # unusual in this map and is measured: that collection has exactly one scope on a firewall,
+    # so there is no either-owner branch in its lookups.
+    ZONE_PROTECTION_PROFILE_MODEL: {
+        "model_class": ZoneProtectionProfile,
+        "field_operators": ZONE_PROTECTION_PROFILE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_zone_protection_profile_search_node,
+    },
+    DOS_POLICY_RULE_MODEL: {
+        "model_class": DosPolicyRule,
+        "field_operators": DOS_POLICY_RULE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_dos_policy_rule_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

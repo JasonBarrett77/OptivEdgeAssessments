@@ -308,6 +308,16 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 "globalprotect_gateway_agent_config",
                 m.Control.ControlType.GLOBALPROTECT_GATEWAY_AGENT_CONFIG,
                 "GlobalProtect gateway agent configuration"),
+    # `zone-dos-protection`. TWO kinds for a domain of eight controls, because its other two
+    # subjects reuse kinds that already ship: PAN-ZON-001 reuses `security zone` and PAN-ZON-008
+    # reuses `security profile`. Shared by PAN-ZON-002 to -006 - five controls, one model, one
+    # kind, which is what `KIND_BY_MODEL` requires: a finding model may appear here exactly once.
+    FindingKind(m.ZoneProtectionProfileFinding, "zone_protection_profile",
+                m.Control.ControlType.ZONE_PROTECTION_PROFILE, "zone protection profile"),
+    # PAN-ZON-007 only, and only one of its two halves - the other is discharged onto the
+    # customer's asset inventory and has no configurational form at all.
+    FindingKind(m.DosPolicyRuleFinding, "dos_policy_rule",
+                m.Control.ControlType.DOS_POLICY_RULE, "DoS policy rule"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

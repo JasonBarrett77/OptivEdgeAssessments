@@ -56,6 +56,12 @@ from assessments.globalprotect_gateway_client_auth_findings import (
 from assessments.globalprotect_gateway_agent_config_findings import (
     generate_globalprotect_gateway_agent_config_findings,
 )
+from assessments.zone_protection_profile_findings import (
+    generate_zone_protection_profile_findings,
+)
+from assessments.dos_policy_rule_findings import (
+    generate_dos_policy_rule_findings,
+)
 from assessments.globalprotect_enforcement_point_findings import (
     generate_globalprotect_enforcement_point_findings,
 )
@@ -249,6 +255,16 @@ GENERATORS = (
      generate_globalprotect_gateway_client_auth_findings),
     ("GlobalProtect gateway agent configuration", T.GLOBALPROTECT_GATEWAY_AGENT_CONFIG,
      generate_globalprotect_gateway_agent_config_findings),
+    # `zone-dos-protection`. TWO generators for eight controls: PAN-ZON-001 is written by
+    # `zone_findings` and PAN-ZON-008 by `security_profile_findings`, both of which this domain
+    # had to REPAIR rather than merely reuse - each defaulted to describing a different
+    # control's question, and both repairs are in those modules with the measurement attached.
+    #
+    # The profile before the rule, which is the ordering the rest of this tuple follows: the
+    # object an engineer configures, then the policy row that consults it.
+    ("zone protection profile", T.ZONE_PROTECTION_PROFILE,
+     generate_zone_protection_profile_findings),
+    ("DoS policy rule", T.DOS_POLICY_RULE, generate_dos_policy_rule_findings),
     # `platform-lifecycle`, in this tuple's own ordering rule: what the appliance is ENTITLED to
     # first, then what it has actually LOADED, then the mechanism that would say a log database
     # filled. A reader meets "this appliance's licence table could not be read" before "its

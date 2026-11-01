@@ -131,6 +131,39 @@ FIELD_COMPILERS = {
     # bounds User-ID discovery is PAN-UID-002's own subject, which is a separate model.
     "enable_user_identification": build_boolean_compiler(
         "enable_user_identification", "enable_user_identification"),
+    # ------------------------------------------------------ PAN-ZON-001's three fields
+    #
+    # `zone-dos-protection`, 2026-11-01. THE THIRD CONTROL OVER THIS MODEL and the first that is
+    # not about identification at all: whether any zone defence is in force where traffic
+    # enters. These three are added to a shipped compiler rather than given a package of their
+    # own, because the model already has one.
+    #
+    # PAN-ZON-001's APPLICABILITY. TRUE is IN the population: the zone carries one of the six
+    # type subtrees and either names an interface or is an inter-vsys `external` zone, which has
+    # no interfaces of its own and still offers the attachment. The column's default is TRUE and
+    # the model's own comment says why - a zone nobody has recomputed would otherwise compute
+    # false and drop out of the control silently, which is the direction rules.md refuses.
+    "can_receive_traffic": build_boolean_compiler(
+        "can_receive_traffic", "can_receive_traffic"),
+    # PAN-ZON-001's ASSERTION, and the reason this control is not `zone_protection_profile
+    # is_empty`. TRUE FIRES. The attachment leaf is a free string with no referential integrity
+    # the configuration expresses - measured - so a zone naming a profile that does not exist
+    # reads as configured and meters nothing. This column is the RESOLVED answer: the leaf is
+    # empty, or it names a profile absent from this appliance's device-local collection under a
+    # case-SENSITIVE comparison. `zone_protection_profile` is deliberately NOT registered: it is
+    # the naive reading, a clause on it PASSES exactly the dangling-name case this column exists
+    # to catch, and registering it would ship that trap as a search surface.
+    "zone_protection_unresolved": build_boolean_compiler(
+        "zone_protection_unresolved", "zone_protection_unresolved"),
+    # PAN-ZON-001's GRADING AXIS, which is a clause NOWHERE in stage 5 and is what five
+    # calibration queries assert on. A PROXY, AND THE ARTIFACT SAYS SO: what stage 3 grades on
+    # is the zone's EXPOSURE - which side of the perimeter it faces - and no column of any model
+    # holds that, so the nearest thing the configuration offers is which subtree carried the
+    # interfaces. Text rather than boolean because the column is a seven-member enum, and the
+    # placements are mutually exclusive equalities on it, which is what makes a calibration
+    # query at the baseline's own tier safe to build here: no row can match two of them, so the
+    # worst matched calibration is the only matched one.
+    "zone_type": build_text_compiler("zone_type", "zone_type"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

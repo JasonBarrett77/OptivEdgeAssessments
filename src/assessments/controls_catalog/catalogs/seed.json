@@ -13268,6 +13268,848 @@
               }
             }
           ]
+        },
+        {
+          "control_id": "PAN-ZON-001",
+          "name": "Every Traffic-Bearing Zone Resolves A Zone Protection Profile",
+          "control_type": "zone",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A security zone that can receive traffic and has no zone protection profile actually in force on it. None of the flood, reconnaissance or packet-based defences applies at that entry point, and nothing on the firewall reports the gap: a zone with no profile has no entry in the dataplane's own zone-protection table at all.\n\nTHE TEST IS A RESOLUTION AND NOT AN EMPTINESS CHECK, which is the whole of what the measurement bought. The attachment is a free string and the configuration expresses NO referential integrity on it - measured - so a zone naming a profile that does not exist reads as configured and meters nothing, and the join is case-sensitive and unnormalised, so a name differing only in case is also a dangling one. The clause a reviewer would write - the attachment leaf is empty - PASSES every one of those zones. This control therefore reports a strictly larger set, and the rows it adds are the dangerous ones: a zone somebody believed they had protected.\n\nTHE POPULATION IS EVERY ZONE THAT CAN RECEIVE TRAFFIC, which is wider than the catalogue row's 'Layer-3 zone' and rests on a measurement: a zone's type is WHICH SUBTREE EXISTS rather than a field, and the attachment leaf is a SIBLING of the type subtree rather than inside it. So every type that bears traffic is in scope, and an inter-vsys external zone is in scope with no interfaces of its own because it still offers and documents the attachment.\n\nTHE SEVERITY IS GRADED ON THE ZONE'S TYPE AND THE TYPE IS A PROXY. What decides the real exposure is whether the zone faces a network the customer does not control, and no column of any model holds that - so the four ordinary traffic-bearing types all take the high band on the rule that where exposure is not established the higher band applies, the inter-vsys type takes the low band, and the middle band appears nowhere. A TAP ZONE IS NOT REPORTED AT ALL: it receives mirrored traffic and can drop nothing, so a missing profile there is a note rather than a finding and nobody has yet decided what to call it.\n\nA ZONE ON A SHARED GATEWAY IS IN THIS CONTROL'S POPULATION ON THE DEVICE AND HAS NO ROW HERE. It is neither reported nor excluded - it is invisible - and that is the one part of the population this control silently drops.\n\nWHAT IT DOES NOT ASSERT: anything about what an attached profile enforces. Whether the profile a zone resolves turns on flood protection, reconnaissance detection or the packet drops is five separate controls over a separate object.",
+          "rationale": "A zone with no defence in force is where a volumetric flood, a reconnaissance sweep and a malformed-packet attack all arrive unmetered, and the configuration of such a zone reads identically to a protected one when the attachment names a profile that is not there.",
+          "audit": "Network > Zones, and read the Zone Protection Profile column for every zone on the firewall the finding names. Two cases and the finding says which: the column is empty, or it names a profile that is not in Network > Network Profiles > Zone Protection. Compare the name CHARACTER BY CHARACTER including case - the firewall does not fold it, and a name differing only in case resolves to nothing. Then establish whether the zone faces a network you do not control: the firewall holds nothing that answers it, and it is what decides whether the severity reported here is the right one.",
+          "remediation": "Attach a zone protection profile that exists, by its exact name, to every zone that can receive traffic. Where the attachment already names a profile, create the profile or correct the name - a dangling attachment protects nothing while reading as configured. Where the zone is pushed from a Panorama template, the attachment can only be changed where the zone is defined. Attaching a profile is not the end of it: what the profile then enforces is assessed separately, and an empty profile in force enforces nothing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone that can receive traffic and resolves no zone protection profile - the attachment is empty or names a profile that does not exist.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_protection_unresolved"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Inter-vsys external zone",
+              "short_description": "An external (inter-vsys) zone with no profile in force. Stage 3's low band: it carries traffic between virtual systems and has no interfaces of its own.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_type",
+                    "op": "eq",
+                    "value": "external",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Layer 3 zone",
+              "short_description": "A routed zone bearing traffic with no profile in force. At the control's own tier, so that the zone type behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_type",
+                    "op": "eq",
+                    "value": "layer3",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Layer 2 zone",
+              "short_description": "A bridged zone bearing traffic with no profile in force, at the control's own tier.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_type",
+                    "op": "eq",
+                    "value": "layer2",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Virtual wire zone",
+              "short_description": "A transparent zone bearing traffic with no profile in force, at the control's own tier.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_type",
+                    "op": "eq",
+                    "value": "virtual-wire",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Tunnel zone",
+              "short_description": "A tunnel zone with no profile in force, at the control's own tier. Stage 3 names no rank for this type and it bears traffic, so it takes the band the other traffic-bearing types take.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "can_receive_traffic",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_protection_unresolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "zone_type",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "zone_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.Zone"
+        },
+        {
+          "control_id": "PAN-ZON-002",
+          "name": "Zone Protection Profiles In Force Enable SYN Flood Protection",
+          "control_type": "zone_protection_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A zone protection profile that is in force on at least one zone and has SYN flood protection switched off. The zones it protects meter no half-open TCP connection rate at all, so a SYN flood reaches the firewall's own session table unthrottled.\n\nTHE ABSENCE OF THE ENABLE KEY IS A VENDOR FACT HERE AND NOT AN ASSUMPTION. An earlier reading had an absent key as an unknown that fires, which would have needed a companion column; it was then measured as `no` on two independent oracles, one of them operational, so an untouched profile is genuinely unprotected rather than merely unread.\n\nTHE PROFILE MUST BE IN FORCE, and that gate is not tidiness. The attachment and the profile are two different objects joined by a NAME, with the profile holding no record of which zone references it - so a profile that exists and is attached to nothing enforces nothing however it is set. That is a hygiene finding rather than a flood protection one and PAN-ZON-008 is the control that reports it; without this gate one profile produces two findings about one fact.\n\nTHE RATES AND THE RESPONSE ARE NOT ASSERTED, and that is a decision rather than an omission. The vendor's own formulas are expressed in terms of the zone's measured average and peak new-connection rates over at least a full business week, which is not in any configuration; the documented defaults differ by WHICH RESPONSE BRANCH is configured, so a comparison against the published numbers would pass a profile holding the vendor's own figures and fail one holding the right ones; and the vendor contradicts itself about which response to prefer. A fact no column holds at all: a firewall with several dataplane processors divides a threshold EQUALLY ACROSS THEM, so a stored 20,000 on a five-processor firewall fires at 4,000 per processor.\n\nAND A PROFILE SATISFYING THIS CONTROL CAN STILL BE INERT. The vendor disables SYN cookies on an external zone, and the profile holds no record of which zone type it is attached to, so no column of any subject can say whether that is this profile's case.",
+          "rationale": "SYN flood protection is the one defence on this object that acts on the firewall's own session capacity rather than on a protocol detail, and a profile with it off protects the zones it is attached to against nothing of that kind.",
+          "audit": "Network > Network Profiles > Zone Protection > the profile the finding names > Flood Protection, and read whether SYN is enabled. Then read the three rates beside it against this zone's own measured average and peak new-connection rates - the published defaults are not a target, and they differ by which Action is selected.",
+          "remediation": "Enable SYN flood protection on every zone protection profile that is in force, and set the alarm, activate and maximum rates from this zone's own measured traffic rather than from the shipped numbers. Where a dedicated scrubbing appliance does not sit upstream, the vendor's guidance is random early drop rather than SYN cookies. On a firewall with several dataplane processors, divide the intended threshold by the processor count to work out what each one will apply.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone protection profile in force on at least one zone with SYN flood protection switched off.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "syn_flood_enabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "syn_flood_enabled"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ZoneProtectionProfile"
+        },
+        {
+          "control_id": "PAN-ZON-003",
+          "name": "Zone Protection Profiles In Force Enable Every Volumetric Flood Type",
+          "control_type": "zone_protection_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A zone protection profile in force on at least one zone where ANY ONE of the four volumetric flood types is switched off - UDP, ICMP, ICMPv6 or other-IP. Each is an independent leaf with its own response branch and its own three rates, so switching one on protects against one flood.\n\nTHE CATALOGUE ROW CARRIES A PATH FOR ONE OF THE FOUR, so a reading derived from the row alone audits a QUARTER of this control while reading as complete. All four were derived and each of the four implicits was measured separately.\n\nTHE OBJECT HAS SIX FLOOD BRANCHES AND THIS CONTROL ASSERTS FOUR. SYN is PAN-ZON-002's, and the sixth - the stream-control transport's initiation flood - is named by the vendor, carried by the grammar, EXCLUDED from the other-protocol branch by the vendor's own definition of it, and asserted by no control anywhere. `other_ip_flood_enabled` must not be read as a catch-all that covers it.\n\nONE COLUMN FOR A FOUR-WAY DISJUNCTION, and the reason is this project's own query language rather than the device: a control query's clause list is one conjunction. The language does ship nested OR groups, so the alternative was four arms each repeating the in-force gate; the verdict is computed at normalisation instead and the finding's sentence names which of the four it found.\n\nTHE RATES ARE NOT ASSERTED, for the reason PAN-ZON-002 gives and one more that is worse here: the documented defaults differ PER FLOOD TYPE, so 'still at the default' is four comparisons against a table the CLI grammar does not carry and which was never licensed.",
+          "rationale": "A zone metering only one kind of datagram flood is unmetered against the other three, and the configuration shows a flood-protection tab that reads as configured.",
+          "audit": "Network > Network Profiles > Zone Protection > the profile the finding names > Flood Protection, and read the enable box for UDP, ICMP, ICMPv6 and Other IP - all four, not the one the row names. The finding says which are off.",
+          "remediation": "Enable all four volumetric flood types on every zone protection profile in force, and set each type's own three rates from this zone's measured traffic. The defaults differ per flood type, so a profile left at the shipped numbers is not a profile that has been set.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone protection profile in force where at least one of the four volumetric flood types - UDP, ICMP, ICMPv6, other-IP - is not enabled.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "volumetric_flood_gap",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "volumetric_flood_gap"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ZoneProtectionProfile"
+        },
+        {
+          "control_id": "PAN-ZON-004",
+          "name": "Reconnaissance Detection Covers Every Scan Type And Is Not Exempted Away",
+          "control_type": "zone_protection_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A zone protection profile in force on at least one zone where reconnaissance detection does not fire on every scan type the profile can carry, or where the sensitivity of the detection that does exist could not be read, or where the exemption list hands the protection back.\n\nTHE DEVICE OFFERS FOUR SCAN TYPES AND THE CATALOGUE ROW NAMES THREE - measured identically on three firewall builds and on a Panorama at both template scopes - so an assertion written over the row leaves the IP protocol scan entirely unaudited. The id-to-name join the row relies on is in no documentation and in no configuration read; it was settled by writing a distinct value to each of the four entries and reading the dialog back. Written over 'every scan type the profile can carry' the assertion needs no mapping at all.\n\nTHE TWO ABSENCES ARE DIFFERENT AND A SINGLE CLAUSE GETS ONE OF THEM BACKWARDS. An absent scan ENTRY means the scan type is not detected at all; an absent `action` ON an entry means `alert`, measured separately on an entry whose action child was deleted and committed. A control asserting 'at least records the event' must pass the second and fail the first.\n\nAND THE ENABLE CHECKBOX IS NOT A FIELD. A scan entry has exactly three children and no enable key, so the box in the inner grid IS THE ENTRY'S EXISTENCE - a reader looking for an enable key under a scan entry will not find one and must test for the entry.\n\nTHE SENSITIVITY HALF IS A SEPARATE GROUP AND CAN FIRE ON THE SAME ROW, which is deliberate and is the opposite of the usual shape: a profile can have a detection gap AND an unread sensitivity, and the two are separate remediations - create the missing entry, and read the thresholds. The reason it is a group rather than a comparison is that the interval and threshold store a genuine ABSENCE and no operator in this query language reaches one, so a threshold comparison would silently pass every unedited profile in the estate.\n\nTHE EXEMPTION HALF REPORTS EXISTENCE FOR CONFIRMATION AND ASSERTS NOTHING ABOUT ANY ADDRESS. Nothing in a configuration says which hosts are the customer's own vulnerability-testing hosts, which is the vendor's own bound on this list. The count is of ADDRESSES rather than entries, because the vendor's help describes one address field and the configuration holds TWO separate leaves - a count that reads one of them sees half the list, and half a list on an exemption surface reports a blind spot as clean. How BROAD each exemption is, is not asserted: a wide netmask is visible in the stored list and no column carries it.\n\nWHAT AN UNCOUNTED EXEMPTION LIST DOES HERE IS REPORT NOTHING, and that is a decision rather than a default. The finding this control carries is 'confirm each of these exempted sources is a testing host you own', and a confirmation request manufactured out of an uncounted list would name addresses nobody has read. It is acceptable here and nowhere else in this domain because the same profile is still examined by the detection half above and still reported by PAN-ZON-008 if nothing references it.",
+          "rationale": "Reconnaissance is what precedes the attack, and a profile that detects three of four scan types, or detects them at a threshold nothing ever reaches, or exempts the sources doing the scanning, reads on screen as a configured defence.",
+          "audit": "Network > Network Profiles > Zone Protection > the profile the finding names > Reconnaissance Protection. Read all FOUR rows of the grid - TCP Port Scan, UDP Port Scan, Host Sweep and IP Protocol Scan - and note that a row's Enable box being available means the entry exists: a scan type with no entry is not in the grid as a disabled row, it is absent. For each row read the Action, the Interval and the Threshold; a threshold at its ceiling detects almost nothing. Then open Source Address Exclusion and read every entry in both address lists.",
+          "remediation": "Create a scan entry for every scan type the profile can carry, set each one's action to block the source, and set the interval and threshold tight enough that the action is actually reached. For the exemption list, confirm every address is a trusted internal host performing vulnerability testing and remove anything else - an exemption is a source this profile will not detect a scan from however the entries above are set.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone protection profile in force where at least one of the four scan types is not detected, or is detected with an action that does not record the event.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_detection_gap",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "scan_detection_gap"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Weakest scan action allows the scan",
+              "short_description": "The weakest scan entry allows the scan, so it proceeds and is not even recorded. At the control's own tier, so that the action behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_detection_gap",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_weakest_action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "scan_weakest_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A scan type has no entry at all",
+              "short_description": "The weakest action reads as the empty sentinel, which means a scan type with no entry on the profile rather than an entry with no action - the device reads the second as alert. `is_empty` is the only operator that reaches this state positively.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_detection_gap",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_weakest_action",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "scan_weakest_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Scan sensitivity was never read",
+              "short_description": "The interval and threshold on this profile's scan entries were never read, so whether the action is ever reached is unknown rather than answered. Reported rather than passed because no operator in this query language reaches an absent number.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_sensitivity_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "scan_sensitivity_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Detection exempts at least one source address",
+              "short_description": "Reconnaissance detection is configured and the profile exempts at least one source address from it. A request for confirmation rather than a defect: no configuration says which hosts are the customer's own vulnerability-testing hosts.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_detection_gap",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "scan_white_list_count",
+                    "op": "gt",
+                    "value": 0,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "scan_white_list_count"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ZoneProtectionProfile"
+        },
+        {
+          "control_id": "PAN-ZON-005",
+          "name": "Zone Protection Profiles In Force Drop Spoofed IP Addresses",
+          "control_type": "zone_protection_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A zone protection profile in force on at least one zone with the spoofed IP address drop switched off. A packet arriving on a zone the profile protects is forwarded even where this firewall's own routing table says its source address belongs somewhere else.\n\nTHE VENDOR SCOPES THIS NARROWER THAN THE CATALOGUE ROW DOES, and says so twice in two documents that agree with each other: the drop belongs on INTERNAL zones only. Two agreeing vendor documents are a recommendation that outranks a catalogue minimum, so the control's real population is a subset of every zone.\n\nAND THAT SCOPE COULD NOT BECOME A CLAUSE, which is the most important sentence in this entry. The predicate needs to know that a zone carries traffic from a network whose addresses this firewall also routes toward, and the configuration shows a zone's interfaces and the routing table without saying which direction the trust runs. Worse, the gate could not sit on this subject even if the fact existed: THE PROFILE HOLDS NO RECORD OF WHICH ZONE IT IS ATTACHED TO, so a single profile may be in force on an internal zone and an internet-facing one at once and there is no row on which the predicate could be true or false. So this control fires on every profile in force, which is the fail-safe direction, AND THE FINDING SAYS THE POPULATION WAS NOT ESTABLISHED rather than implying it was.\n\nTHERE IS A REASON A CUSTOMER MAY HAVE TURNED IT OFF DELIBERATELY, and it is remediation context rather than an exception to the assertion: the check consults the ROUTING TABLE ONLY and ignores policy-based forwarding, so on a zone whose return path is chosen by policy rather than by route this setting discards legitimate traffic.\n\nTHE STRICT IP ADDRESS CHECK ON THE SAME TAB IS NOT ASSERTED by this control or by any other in the catalogue. It is stored so that a later reader of the wrong leaf is visibly reading a different column rather than silently answering a different question.",
+          "rationale": "An address-spoofing packet admitted at the edge defeats every control that reasons about where traffic came from, including the policy that decides what it may reach.",
+          "audit": "Network > Network Profiles > Zone Protection > the profile the finding names > Packet Based Attack Protection > IP Drop, and read the Spoofed IP Address box. Then establish which zones this profile is in force on and which of those are internal: the firewall holds nothing that answers it, the profile itself holds no record of its zones, and the vendor asks for this drop on internal zones only. If any of those zones chooses its return path by policy-based forwarding rather than by route, read the vendor's note before switching it on - the check ignores PBF.",
+          "remediation": "Switch on Spoofed IP Address dropping in the zone protection profiles in force on internal zones. Where a zone's return traffic is directed by a policy-based forwarding rule rather than by the routing table, the check will discard legitimate traffic on that zone - use a separate profile for it and record the exception rather than leaving the drop off estate-wide.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone protection profile in force on at least one zone with the spoofed IP address drop switched off.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "discard_ip_spoof",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "discard_ip_spoof"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ZoneProtectionProfile"
+        },
+        {
+          "control_id": "PAN-ZON-006",
+          "name": "Zone Protection Profiles In Force Refuse Non-SYN TCP And Drop Malformed Packets",
+          "control_type": "zone_protection_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A zone protection profile in force on at least one zone that does not refuse a TCP session whose opening the firewall never saw, or that leaves the option and segment drops off.\n\nTHE NON-SYN REFUSAL IS A THREE-VALUED POINTER AND THE NAIVE READING IS WRONG IN BOTH DIRECTIONS AT ONCE. The profile's leaf holds `yes`, `no` or `global`, and both the schema default and the measured implicit are `global` - A POINTER, not a value - so the commonest state of an untouched profile is the one a boolean scale cannot score at all. Comparing the leaf to `yes` reports a profile at `global` as non-compliant on a device whose device-wide setting rejects non-SYN TCP, which is a false finding; treating `global` as satisfied reports it as compliant on a device whose device-wide setting is `no`, which is a missed exposure. The resolution was measured as a chain in both directions on the device, and this control asserts over what the chain RESOLVES TO. The profile's own leaf is the severity axis instead: the deferral is graded below the explicit refusal because it may well resolve to the asserted state and the remedy is a SECOND READING before it is a change.\n\nTHE VENDOR DOCUMENTS ONE CASE WHERE THE REFUSAL SHOULD BE OFF AND THIS CONTROL DOES NOT EXCLUDE IT, in three documents: a zone that controls the security policy for traffic a tunnel inspection rule opens, on a firewall where session rematch is enabled. The predicate needs three facts no column of this subject holds - whether a tunnel inspection policy exists, whether rematch is on, and WHICH zones control that policy's rules - and the third is a judgement rather than a value. So the control fires on every profile in force and the finding owes the sentence that the exception was not excluded. Only one of the three sources says WHICH zones, and a scope written off the other two would have suppressed this control on every zone carrying a tunnel inspection policy instead of on the zones carrying its security policy.\n\nTHE FOUR PACKET DROPS ARE THE FOUR THE ROW'S DESCRIPTION NAMES AND NOT THE SIX ITS LONGER PROSE DOES. The description names the unknown-and-malformed option drop, strict and loose source routing, and the mismatched overlapping TCP segment; the longer list adds the Record Route and network-layer Timestamp drops, and NO VENDOR HARDENING LINE asks for either of those two. They are stored as columns with no clause on them. The likeliest reason the timestamp leaf is in the row at all is a conflation of two fields: the leaf drops a packet carrying the network-layer Timestamp option, while the vendor's line is about STRIPPING the transport-layer timestamp, which is a different field on a different tab.\n\nTHREE THINGS THE VENDOR ASKS FOR ON THIS SAME TAB ARE ASSERTED BY NO CONTROL AT ALL: the unknown IP option drop, the TCP split-handshake drop, and stripping the transport-layer TCP timestamp. No configuration path was derived for any of the three, so none of them is in this control either way - and the vendor asks for them on the same page it asks for the four that are.\n\nAND THE VENDOR DISAGREES WITH ITSELF ACROSS TWO CONTROLS OF THIS CATALOGUE, recorded rather than ranked: the page that explains why permitting non-SYN TCP breaks file blocking also instructs the reader to disable the refusal on the zone class above, which is another control's subject read from the other side. No vendor line PRESCRIBES switching the refusal on - the vendor gives a reason for it without asking for it.",
+          "rationale": "A firewall that builds a session from a packet whose opening it never saw has no TCP state to reason from, and a zone that forwards malformed and source-routed packets hands an attacker control of the path.",
+          "audit": "Network > Network Profiles > Zone Protection > the profile the finding names > Packet Based Attack Protection > TCP Drop, and read Reject Non-SYN TCP. If it reads `global`, the answer is at Device > Setup > Session > Reject Non-SYN TCP and that is the value that applies - read it there, and note that changing it moves every profile pointing at it. On the same tab and the IP Drop tab beside it, read Mismatched overlapping TCP segment, Malformed Option, Strict Source Routing and Loose Source Routing. Then establish whether any zone this profile is in force on carries the security policy for a tunnel inspection rule while session rematch is enabled: the vendor requires the refusal OFF on exactly those zones and the firewall holds nothing that identifies them.",
+          "remediation": "Set Reject Non-SYN TCP to `yes` on the zone protection profiles in force, rather than leaving them pointed at the device-wide setting - an explicit value is readable and a pointer is not. Switch on the malformed option, strict and loose source routing and mismatched overlapping TCP segment drops. Where a zone controls the security policy for traffic a tunnel inspection rule opens and session rematch is on, the vendor requires the refusal disabled for that zone only: build a separate profile for it rather than leaving the refusal off everywhere.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A zone protection profile in force whose non-SYN TCP refusal does not resolve to yes - the profile's own leaf, or the device-wide setting it defers to.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "non_syn_reject_effective",
+                    "op": "eq",
+                    "value": "yes",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "non_syn_reject_effective"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Refusal deferred to the device-wide setting",
+              "short_description": "The profile's leaf reads `global`, deferring the refusal to a device-wide setting that must be read separately - neither the asserted state nor a readable refusal, and the schema default. Below the baseline: the remedy is a second reading.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "non_syn_reject_effective",
+                    "op": "eq",
+                    "value": "yes",
+                    "negated": true
+                  },
+                  {
+                    "field": "non_syn_reject_configured",
+                    "op": "eq",
+                    "value": "global",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "non_syn_reject_configured"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Refusal explicitly switched off",
+              "short_description": "The profile's own leaf reads `no`, so non-SYN TCP is explicitly accepted. At the control's own tier, so that the configured state behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "non_syn_reject_effective",
+                    "op": "eq",
+                    "value": "yes",
+                    "negated": true
+                  },
+                  {
+                    "field": "non_syn_reject_configured",
+                    "op": "eq",
+                    "value": "no",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "non_syn_reject_configured"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Option and segment drops are off",
+              "short_description": "A zone protection profile in force where at least one of the four packet drops this control asserts is off - malformed option, strict source routing, loose source routing, mismatched overlapping TCP segment.",
+              "canonical_query": {
+                "model": "integrations.ZoneProtectionProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_in_force",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "packet_drop_gap",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "packet_drop_gap"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ZoneProtectionProfile"
+        },
+        {
+          "control_id": "PAN-ZON-007",
+          "name": "DoS Protection Rules That Name A Profile Enforce It",
+          "control_type": "dos_policy_rule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A DoS Protection policy rule that names a protection profile and whose action is not `protect`. The rule matches, the profile it names is never consulted, and the configuration reads as protected while metering nothing. Only `protect` applies a DoS Protection profile, which the vendor states without hedging in two documents.\n\nTHE RULE MUST NAME A PROFILE, and that gate is load-bearing rather than tidy: the vendor permits `deny` DELIBERATELY to carve an exception out of a group, so a rule carrying no profile and set to deny is a legitimate configuration and firing on it would be a false finding.\n\nTHE TWO FAILING ACTIONS ARE NOT EQUALLY BAD, which is the distinction the catalogue row has no field for. `allow` passes everything while the profile sits inert, and `deny` drops the traffic - so the service is protected by refusal rather than by metering, which is a misconfiguration rather than an exposure and is graded below the baseline.\n\nTHE OTHER HALF OF THIS CONTROL IS NOT HERE AND CANNOT BE. That each business-critical service is covered by a DoS rule carrying a classified profile ranges over a population the configuration cannot enumerate: the firewall holds the rules, the profiles and the destination addresses, and NOTHING IN IT SAYS WHICH DESTINATION IS A CROWN-JEWEL SERVICE. A finding naming a service without the inventory behind it is a guess dressed as a gap, so that half is a question for the engineer rather than a query.\n\nAND ONE THING THAT IS DELIVERABLE HAS NO SUBJECT TO BE REPORTED ON. That no DoS rule exists ANYWHERE on an appliance is deliverable without the inventory, because then no service is covered whatever the inventory says - but it is a verdict per APPLIANCE where this control is a row per RULE. On an appliance with no DoS rules at all this control produces nothing, and nothing reads from the outside exactly like an appliance whose rules are all correct.\n\nWHETHER THE PROFILE COUNTS PER DEVICE OR PER MATCHED GROUP IS NOT ASSERTED HERE, and the catalogue row points at the wrong object for it: the `classified` property is a field of the PROFILE and the row's asserted path is the RULE's aggregate profile reference, so a reading taken from the row reports the preferred state as absent on a rule that satisfies it. A vendor rule for a field the row says nothing about, recorded because it is a resource hazard rather than a protection gap: a classified rule must count on the destination address only where the zone faces the internet, because the firewall cannot store counters for all possible internet addresses - and the dialog PREFILLS the value that page warns against.\n\nAND A RULE MAY BE SWITCHED OFF WITHOUT THIS CONTROL KNOWING. No implicit was measured for the disable key on this object, and if an absent key were taken to mean 'disabled' the control would suppress every rule in the estate, silently. So it fires regardless, and a finding naming a disabled rule is a false finding checkable in seconds.",
+          "rationale": "A DoS rule whose action is not `protect` is a rule that reads as protection and consults nothing, which is worse than no rule at all: it is the configuration somebody will point at when asked whether the service is defended.",
+          "audit": "Policies > DoS Protection > the rule the finding names, and read the Action on its Options tab. Read the rulebase in ORDER as well: a DoS rulebase resolves by position, so a rule above this one may already match the traffic in question. On the Option/Protection tab read which profile is named in the Aggregate and Classified slots, and then open that profile - whether its ceilings count each device or the whole matched group is a property of the profile and not of this rule. Check whether the rule is disabled before acting.",
+          "remediation": "Set the action to `protect` on every DoS Protection rule that names a profile, so that the profile is actually consulted. Where a rule is deliberately `deny` to carve an exception out of a broader group, remove the profile from it - a rule that denies and names a profile is ambiguous to every later reader. Where a classified profile counts on the destination address on an internet-facing zone, change it: the firewall cannot hold counters for all possible internet addresses.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A DoS Protection rule that names a protection profile and whose action is not `protect`, so the profile it names is never consulted.",
+              "canonical_query": {
+                "model": "integrations.DosPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "names_a_profile",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_action",
+                    "op": "eq",
+                    "value": "protect",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "rule_action"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Rule denies rather than protects",
+              "short_description": "The rule drops the traffic it matches, so the service is protected by refusal rather than by metering - a misconfiguration rather than an exposure, and something the vendor permits deliberately to carve an exception out of a group.",
+              "canonical_query": {
+                "model": "integrations.DosPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "names_a_profile",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_action",
+                    "op": "eq",
+                    "value": "protect",
+                    "negated": true
+                  },
+                  {
+                    "field": "rule_action",
+                    "op": "eq",
+                    "value": "deny",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "rule_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Rule allows rather than protects",
+              "short_description": "The rule matches and passes everything while naming a profile that is never consulted. At the control's own tier, so that the action behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "canonical_query": {
+                "model": "integrations.DosPolicyRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "names_a_profile",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "rule_action",
+                    "op": "eq",
+                    "value": "protect",
+                    "negated": true
+                  },
+                  {
+                    "field": "rule_action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "rule_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.DosPolicyRule"
+        },
+        {
+          "control_id": "PAN-ZON-008",
+          "name": "DoS Protection Profiles Nothing References Are Identified For Review",
+          "control_type": "security_profile",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A DoS Protection profile that no DoS policy rule names, in either of a rule's two protection slots, across the scopes that were read - or one whose reference surfaces could not all be walked, which is reported separately and says so.\n\nTHIS CONTROL'S REMEDIATION IS A DELETION AND THAT REVERSES THE DIRECTION OF SAFETY. Everywhere else in this domain a finding raised where the estate is fine is the cheap error: it is checkable in a minute and arrives with its evidence. Here the cheap error is the other one - a false 'nothing references this' ends in a profile deleted out from under the rule that was using it, which is neither checkable by reading nor reversible. So the baseline STAYS SILENT where the walk cannot be shown to have been complete, and a second query reports that silence out loud rather than letting it pass for a pass.\n\nTHE FINDING NAMES CANDIDATES RATHER THAN DECISIONS. Whether an unreferenced profile is being kept deliberately, and where that decision is recorded, is in no configuration; what is deliverable without that answer is the LIST.\n\nTHE WALK IS TWO SLOTS AND NOT ONE. A rule's aggregate and classified profile references are sibling nodes with no exclusivity the grammar expresses - measured - so a rule may carry one of each, and a count that reads only the aggregate slot would call EVERY CLASSIFIED PROFILE unreferenced. That is a deletion recommendation against the profiles doing the most specific work on the device.\n\nAND IT CROSSES THE VSYS AND SHARED SCOPES. A shared DoS profile reaches the firewall whether anything references it or not, is visible per vsys and INVISIBLE device-wide, so a count taken per vsys calls a shared profile unreferenced in every vsys that does not happen to use it. Two earlier measurements in this project's own record said a shared profile nothing references is never pushed, and both are contradicted by a read that found Panorama-shared profiles present in the per-vsys pushed reads and absent only from the device-wide one.\n\nTHE PROFILE'S CONTENTS ARE NOT ASSESSED HERE AT ALL - not the flood ceilings, not the block durations, not the concurrent-session limit. An unused profile's contents are another question, and this control is only about whether anything points at it.\n\nTHE SAME STAGE 3 RECORD ASSERTS THIS OVER THE ZONE PROTECTION PROFILE COLLECTION TOO AND THIS CONTROL DOES NOT REPORT THAT HALF. The two profile kinds are two models - one a device-local network profile with no namespace token, the other a vsys-and-shared-scoped policy object - and a control carries queries for exactly one model. The DoS half is the one the catalogue row named in its own title and reached with no path; the zone-profile half is unreported and is recorded as such in the pipeline artifact rather than left to be inferred.\n\nWHETHER A PREDEFINED PROFILE BELONGS IN THIS CONTROL'S POPULATION IS NOT SETTLED. A sibling hygiene control excludes predefined objects by description, this model does hold predefined rows for its other kinds, and nobody has established whether the DoS collection has any. The exclusion was NOT written as a clause, because it is not in the measured restatement - and the finding says so when it lands on a predefined profile, which cannot be deleted at all.",
+          "rationale": "A profile nothing references is either a defence somebody built and never wired up, or configuration left behind by a change - and on a DoS profile the first reading is a service that was meant to be protected and is not.",
+          "audit": "Objects > Security Profiles > DoS Protection, and find the profile the finding names under the scope it names. Then search Policies > DoS Protection for that profile name in BOTH the Aggregate and Classified slots, in every vsys and in the shared scope, and in any device group that pushes rules to this firewall - a shared profile referenced from one vsys is referenced. Where the finding says the walk could not be completed, that is the state to resolve first: it is not a statement that nothing uses the profile.",
+          "remediation": "For each profile confirmed to be referenced by nothing, decide whether it is being kept deliberately and record that decision, or delete it. Do not delete on the strength of this finding alone where it reports that the reference walk could not be completed - that is a collection gap and not a configuration one. A predefined profile cannot be deleted; there the remediation is to stop naming it, and an unreferenced one already names nothing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A DoS Protection profile that no DoS policy rule names in either protection slot, where the reference walk behind that answer completed.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "dos-protection",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach_resolved",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "unreferenced",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Reference walk could not be completed",
+              "short_description": "A DoS Protection profile whose reference surfaces could not all be walked, so whether anything names it is unknown rather than answered. Reported on its own because the baseline must stay silent here: this control's remediation is a deletion.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "dos-protection",
+                    "negated": false
+                  },
+                  {
+                    "field": "reference_reach",
+                    "op": "eq",
+                    "value": "undetermined",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "reference_reach"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile"
         }
       ]
     }

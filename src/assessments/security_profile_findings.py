@@ -230,6 +230,75 @@ def _decryption_gaps(obj) -> list[str]:
     return gaps
 
 
+def _dos_protection_gaps(obj) -> list[str]:
+    """What a DOS PROTECTION profile's hygiene verdict found. PAN-ZON-008.
+
+    THE SAME DEFECT SHAPE `_antivirus_gaps`, `_url_filtering_gaps` AND `_decryption_gaps` EXIST TO
+    PREVENT, met a FOURTH time, and all three of their docstrings record the earlier rounds. A
+    dos-protection profile answers no severity question at all: it writes no severity-verdict
+    satellite row, so `critical_blocked` and `high_blocked` are None and `_gaps` returns `[]`; it
+    has no DNS tree, so both DNS verdicts are None; and it has no category verdict row, so
+    `brute_force_blocked_by_source` is None. Every clause in the fallback is `is False`-guarded,
+    none of them fires, and `_subject`'s closing clause therefore asserted that the profile
+    "blocks critical and high threats" - measured byte for byte on 2026-11-01, printed on the
+    finding reporting the profile as failing. Guarding the VALUES was not enough for the three
+    kinds before this one and it is not enough here: the CALLER has to stop asking this kind the
+    threat-rule question, which is what the `KIND_DOS_PROTECTION` guard below does.
+
+    THE ONLY THING PAN-ZON-008 ASSERTS IS WHETHER ANYTHING REFERENCES THE PROFILE, and this
+    function says nothing else on purpose. An unused profile's CONTENTS are other controls'
+    business - the flood ceilings, the block durations and the concurrent-session limit are stored
+    for a reader in `flood_and_resource_settings` and no control in this domain clauses on any of
+    them.
+
+    THE COMPANION IS READ FIRST AND THE ORDER IS LOAD-BEARING, on the `_decryption_gaps`
+    precedent. `reference_reach` holds `undetermined` where the walk could not be shown to have
+    seen every surface, and that is NOT the same statement as `unreferenced`: this control's
+    remediation is a DELETION, so a false "nothing references this" ends in a profile deleted out
+    from under the rule that was using it - which, unlike a finding raised where the estate is
+    fine, is neither checkable in a minute nor reversible by reading.
+
+    AND THE SENTENCE NAMES CANDIDATES RATHER THAN DECISIONS, which stage 5 requires in those terms
+    and says nothing downstream will add unless a later stage writes it. Whether an unreferenced
+    profile is being kept deliberately, and where that decision is recorded, is the engineer's
+    question; what is deliverable without the answer is the LIST.
+    """
+    gaps = []
+    if obj.reference_reach == SecurityProfile.REACH_UNDETERMINED:
+        gaps.append(
+            "WAS NOT SHOWN TO BE EITHER REFERENCED OR UNREFERENCED - the walk over this profile's "
+            "reference surfaces could not be established as complete, so whether any DoS policy "
+            "rule names it is unknown rather than answered. It is reported instead of passed "
+            "because an unanswered walk stores the same zero as a profile nothing uses, and "
+            "DELETING ON THE STRENGTH OF THAT ZERO is the one error on this control that cannot "
+            "be undone by reading. Nothing is recommended here: establish the reference first")
+    elif obj.reference_reach == SecurityProfile.REACH_UNREFERENCED:
+        gaps.append(
+            f"is named by nothing - {obj.referrer_count} referrers across either protection slot "
+            "of any DoS policy rule in the scopes that were read, aggregate and classified alike "
+            "- so it is a CANDIDATE FOR REMOVAL and not a decision: whether it is being kept "
+            "deliberately, and where that decision is recorded, is in no configuration. Confirm "
+            "before deleting anything")
+        if obj.profile_type:
+            article = "an" if obj.profile_type[:1].lower() in "aeiou" else "a"
+            gaps.append(
+                f"it is {article} {obj.profile_type} profile, which is worth knowing before "
+                "acting: a "
+                "count walking only the slot the sibling DoS rule control asserts would call "
+                "every CLASSIFIED profile unreferenced, and a count taken per vsys would call a "
+                "SHARED profile unreferenced in every vsys that does not happen to use it. This "
+                "verdict is taken across both slots and across the vsys and shared scopes")
+        if obj.is_predefined:
+            gaps.append(
+                "AND THIS PROFILE IS PREDEFINED, SO IT CANNOT BE DELETED AT ALL - the remediation "
+                "would be to stop naming it, and nothing names it. Whether a hygiene control of "
+                "this shape should exclude the predefined collection outright is an open question "
+                "on this subject: stage 4 established there is no predefined ZONE protection "
+                "profile and did not ask the same of this collection, so the clause that would "
+                "have excluded it was not written and this sentence carries the consequence")
+    return gaps
+
+
 def _subject(obj) -> str:
     kind = KIND_LABELS.get(obj.kind, obj.kind)
     if obj.is_predefined:
@@ -279,6 +348,26 @@ def _subject(obj) -> str:
                 "appliance implements, leaves no broken primitive and no unauthenticated or "
                 "non-forward-secret option negotiable, and performs every forward-proxy and "
                 "inbound-inspection block check")
+
+    # DOS PROTECTION DOES NOT ANSWER THE SEVERITY QUESTION EITHER. Same reasoning as antivirus,
+    # url-filtering and decryption above, and the same measured defect for the FOURTH time in this
+    # function: without this branch a failing DoS protection profile fell through to "blocks
+    # critical and high threats", measured byte for byte at HEAD on 2026-11-01. The shipped kinds
+    # that reach the fallback below are untouched by this guard, which was checked rather than
+    # argued - `_subject` was called on one stub per kind before and after and the output is
+    # byte-identical for all eight others.
+    if obj.kind == SecurityProfile.KIND_DOS_PROTECTION:
+        gaps = "; ".join(_dos_protection_gaps(obj))
+        if gaps:
+            return f"{what} {gaps}"
+        # NOT "this profile is fine", for the reason the three branches above give. The ONLY
+        # question any control in this domain asks of this kind is whether anything references it,
+        # so the no-gap sentence may claim that and nothing more. In particular it says nothing
+        # about the flood ceilings, the block durations, the block probabilities or the
+        # concurrent-session limit: those are stored for a reader and no control clauses on them.
+        return (f"{what} is named by at least one DoS policy rule, which is the only question any "
+                "control here asks of it - nothing is asserted about the ceilings or durations it "
+                "holds")
 
     # TWO INDEPENDENT QUESTIONS, and a profile can fail either alone. Blocking the threat
     # (PAN-VLN-001) and blocking its SOURCE (PAN-VLN-002) are different: `reset-both` passes the

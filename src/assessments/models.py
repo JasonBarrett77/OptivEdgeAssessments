@@ -68,6 +68,8 @@ from optivedge_integrations.integrations.models import (
     UserIdDiscoveryBound,
     DecryptionSettings,
     Zone,
+    ZoneProtectionProfile,
+    DosPolicyRule,
 )
 
 
@@ -469,6 +471,37 @@ class Control(models.Model):
         #: of this type's controls ship unexercised.
         GLOBALPROTECT_GATEWAY_AGENT_CONFIG = (
             "globalprotect_gateway_agent_config", "GlobalProtect Gateway Agent Configuration")
+        #: `zone-dos-protection`. TWO MINTS FOR FIVE CONTROLS, with TWO REUSES beside them, and
+        #: the reverse map was measured BEFORE either line was written because nothing in the
+        #: suite checks one-to-one-ness in the direction a mint can break it: the shipped test
+        #: asserts enum SUBSET of map, and no test anywhere asserts that two types do not share
+        #: one target model. Measured 2026-11-01, before the first edit: 59 types, 59 map
+        #: entries, 59 DISTINCT targets, no duplicate, and `rev(_CONTROL_TYPE_TARGET_MODEL)`
+        #: answering NO TYPE for both `integrations.ZoneProtectionProfile` and
+        #: `integrations.DosPolicyRule`. The domain's other two models already answered:
+        #: `integrations.Zone` -> `zone` and `integrations.SecurityProfile` ->
+        #: `security_profile`, so PAN-ZON-001 and PAN-ZON-008 REUSE those types and mint nothing.
+        #: Both reuses are as load-bearing as the mints, and both carried a live defect that
+        #: reuse alone would have shipped: see `zone_findings._no_zone_defence` and
+        #: `security_profile_findings._dos_protection_gaps`.
+        #:
+        #: SITE 8 WAS MEASURED AND DOES NOT BITE. `control_type.max_length` is 64, the longest
+        #: shipped value is `globalprotect_gateway_agent_config` at 34, and these two are 23 and
+        #: 15 characters.
+        #:
+        #: One named zone protection profile of one appliance - the device-local object an
+        #: engineer opens to turn a flood protection, a packet drop or a scan action on.
+        #: PAN-ZON-002, -003, -004, -005 and -006 share it, which is the ordinary case this map's
+        #: own comment describes: the number of types a domain needs is the number of distinct
+        #: MODELS its controls assert over, not the number of controls. PAN-ZON-008's FIRST half
+        #: names this subject too and THAT HALF IS SILENT - the control's own target is
+        #: `integrations.SecurityProfile`, chosen because stage 6 exercises that half with four
+        #: expectation rows against this one's two, and a control has exactly one target model.
+        ZONE_PROTECTION_PROFILE = "zone_protection_profile", "Zone Protection Profile"
+        #: One DoS Protection policy rule of one rulebase of one vsys. PAN-ZON-007 only, and only
+        #: ONE OF ITS TWO HALVES: the other is discharged onto the customer's asset inventory,
+        #: because nothing in a firewall says which destination is a business-critical service.
+        DOS_POLICY_RULE = "dos_policy_rule", "DoS Policy Rule"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -677,6 +710,21 @@ class Control(models.Model):
         "globalprotect_gateway_client_auth": "integrations.GlobalProtectGatewayClientAuth",
         # One agent client-settings row of one gateway. PAN-GPG-003 and PAN-GPG-004 share it.
         "globalprotect_gateway_agent_config": "integrations.GlobalProtectGatewayAgentConfig",
+        # `zone-dos-protection`. TWO models and TWO types, because neither had one:
+        # `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for both before this change,
+        # measured against 59 types and 59 DISTINCT targets, so neither line is a second type for
+        # a model that already has one. The domain's other two models already answered - `zone`
+        # for `integrations.Zone` and `security_profile` for `integrations.SecurityProfile` - and
+        # PAN-ZON-001 and PAN-ZON-008 reuse those.
+        #
+        # One named zone protection profile of one appliance. PAN-ZON-002 to -006 share it. THE
+        # OWNER IS THE APPLIANCE AND NOT AN ENFORCEMENT POINT: `network/profiles/zone-protection-
+        # profile` has exactly one scope on a firewall, measured - `action=complete` answers
+        # code=6 Invalid sequence at both the shared and the vsys spellings - so there is no
+        # per-vsys copy to tell apart.
+        "zone_protection_profile": "integrations.ZoneProtectionProfile",
+        # One DoS Protection policy rule of one rulebase of one vsys. PAN-ZON-007 only.
+        "dos_policy_rule": "integrations.DosPolicyRule",
     }
 
     class Meta:
@@ -752,6 +800,8 @@ class Control(models.Model):
         "integrations.GlobalProtectGateway": "GlobalProtect Gateway",
         "integrations.GlobalProtectGatewayClientAuth": "GlobalProtect Gateway Client Authentication",
         "integrations.GlobalProtectGatewayAgentConfig": "GlobalProtect Gateway Agent Configuration",
+        "integrations.ZoneProtectionProfile": "Zone Protection Profile",
+        "integrations.DosPolicyRule": "DoS Policy Rule",
     }
 
     @property
@@ -4817,3 +4867,177 @@ class GlobalProtectGatewayAgentConfigFindingControlQuery(FindingControlQueryBase
     def __str__(self) -> str:
         return (f"{self.globalprotect_gateway_agent_config_finding_id} "
                 f"<- {self.control_query_id}")
+
+
+class ZoneProtectionProfileFinding(ObjectFindingBase):
+    """A finding against one zone protection profile. PAN-ZON-002, -003, -004, -005, -006.
+
+    FIVE CONTROLS ON ONE SUBJECT, each asserting on a disjoint column of the same row: the SYN
+    flood enable, the four volumetric flood enables rolled into one verdict, reconnaissance
+    detection and its exemption list, the spoofed-address drop, and the non-SYN refusal with the
+    four packet drops. One profile can legitimately carry five findings.
+
+    THE SUBJECT IS OWNED BY AN APPLIANCE AND NOT BY AN ENFORCEMENT POINT, which is unusual on this
+    page and is measured rather than assumed. `network/profiles/zone-protection-profile` has
+    exactly ONE scope on a firewall: `action=complete` answers code=6 Invalid sequence at both the
+    shared and the vsys spellings of the collection, so there is no per-vsys or shared copy and no
+    second namespace a name could collide in. `subject_scope` therefore carries the appliance
+    alone, and the shipped uniqueness constraint on the integrations row is `(appliance,
+    profile_name)` - which is what makes that enough rather than a guess.
+
+    WHAT THIS SUBJECT CANNOT SAY, AND IT BEARS ON EVERY ONE OF THE FIVE CONTROLS. The profile
+    holds NO RECORD OF WHICH ZONE IT IS ATTACHED TO, let alone of which zone TYPE - and the vendor
+    disables three of its mechanisms on an external zone (help p.663). So three of the columns
+    these controls assert on can read true on a profile that enforces none of them where it is
+    actually in force, one profile may be on an internal zone and an internet-facing one at once,
+    and no column of any subject in this estate can say so. Two of the five controls are scoped by
+    the vendor to a zone class for exactly that reason - PAN-ZON-005 to internal zones and
+    PAN-ZON-006's exception to tunnel-inspection zones - and neither scope could become a clause.
+    Both fire on every profile in force instead, which is the fail-safe direction, and both
+    findings owe the sentence that the population was not established. The generator carries it.
+
+    PAN-ZON-008's FIRST HALF WOULD HAVE LIVED HERE AND DOES NOT. Its assertion that no zone names
+    the profile is over THIS model - `is_unreferenced` and `attachment_sweep_complete` are columns
+    of it - but PAN-ZON-008's target is `integrations.SecurityProfile`, because a control has
+    exactly one `target_model` and `ControlQuery.clean()` refuses a query on any other. The DoS
+    profile half was built because stage 6 exercises it with four expectation rows against this
+    half's two, including the only rows that test the kind clause and the shared scope. So this
+    model carries no PAN-ZON-008 finding, the two columns are registered in the search layer
+    anyway so that the day a control owns them it has a surface, and the silence is recorded in
+    that control's `subjects_in_two_models`.
+
+    A PROFILE ON A SHARED GATEWAY HAS NO ROW HERE AT ALL. Stage 5 records it under
+    `not_representable`: such a zone is in PAN-ZON-001's population on the device and has nowhere
+    to be stored, so it is neither reported nor excluded - it is invisible. That is also what
+    `attachment_sweep_complete` is about from the other end.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="zone_protection_profile_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="zone_protection_profile_findings")
+    zone_protection_profile = models.ForeignKey(
+        ZoneProtectionProfile, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ZoneProtectionProfileFindingControlQuery",
+        related_name="zone_protection_profile_findings", blank=True)
+    #: The appliance, and nothing finer - see the class docstring. A profile name is unique per
+    #: appliance and this collection has one scope, so two findings about two appliances cannot
+    #: collapse into one row the way they would without any scope at all.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["zone_protection_profile"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "zone_protection_profile"],
+                name="unique_zpp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on zone protection profile {self.subject_name}"
+
+
+class ZoneProtectionProfileFindingControlQuery(FindingControlQueryBase):
+    zone_protection_profile_finding = models.ForeignKey(
+        ZoneProtectionProfileFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="zone_protection_profile_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["zone_protection_profile_finding", "control_query"],
+                name="unique_zpp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.zone_protection_profile_finding_id} <- {self.control_query_id}"
+
+
+class DosPolicyRuleFinding(ObjectFindingBase):
+    """A finding against one DoS Protection policy rule. PAN-ZON-007.
+
+    THE RULE IS THE SUBJECT AND THE PROFILE IS NOT, and stage 5 records that as a choice between
+    two defensible answers rather than as the only one. The finding this control wants names a
+    SERVICE, and a service is no model's subject anywhere in this estate; what an engineer creates
+    or edits to close the finding is the rule, so the rule is what the finding names and the
+    profile is read rather than named.
+
+    ONLY ONE OF THE CONTROL'S TWO HALVES REACHES THIS MODEL. That each business-critical service
+    is covered by a DoS rule carrying a classified profile ranges over a population the
+    configuration cannot enumerate - the firewall holds the rules, the profiles and the
+    destination addresses and nothing in it says which destination is a crown-jewel service - so
+    stage 5 discharges that half onto a question for a person and it owes no query. What is left,
+    and what every row of this model is about, is that the rules which DO exist enforce the
+    profile they name.
+
+    THE HALF THAT IS DELIVERABLE AND HAS NO SUBJECT: that no DoS rule exists ANYWHERE on an
+    appliance. Stage 3 says that one IS deliverable without the inventory, because then no service
+    is covered whatever the inventory says - but it is a verdict per APPLIANCE and this is a row
+    per RULE, so on an appliance with no DoS rules at all this control produces nothing, and
+    nothing is indistinguishable from an appliance whose rules are all correct. No model holds
+    that verdict; the gap is recorded in the stage 8 artifact rather than invented here.
+
+    `subject_scope` CARRIES THE RULEBASE AS WELL AS THE APPLIANCE AND THE VSYS, because the
+    shipped uniqueness constraint is `(enforcement_point, config_source, rule_name)`: a local rule
+    and a Panorama pre-rule of the same name in the same vsys are different objects, and a reader
+    sent to the wrong rulebase does not find the row.
+
+    AND THE POSITION IS PART OF WHAT A ROW IS WITHOUT BEING PART OF ITS IDENTITY. A DoS rulebase
+    resolves by order, no configuration key holds that order, and it cannot be recovered from a
+    stored row later - so stage 7 stores `rule_position` as plumbing and deliberately keeps it out
+    of the constraint, for the reason `DecryptionRule` gives: a rule keeps its name across a move,
+    so keying on position would make a reorder look like a delete and an insert.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="dos_policy_rule_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="dos_policy_rule_findings")
+    dos_policy_rule = models.ForeignKey(
+        DosPolicyRule, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DosPolicyRuleFindingControlQuery",
+        related_name="dos_policy_rule_findings", blank=True)
+    #: The appliance, the vsys and the rulebase - see the class docstring for why the rulebase is
+    #: not optional here.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["dos_policy_rule"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "dos_policy_rule"],
+                name="unique_dospr_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on DoS Protection rule {self.subject_name}"
+
+
+class DosPolicyRuleFindingControlQuery(FindingControlQueryBase):
+    dos_policy_rule_finding = models.ForeignKey(
+        DosPolicyRuleFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="dos_policy_rule_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dos_policy_rule_finding", "control_query"],
+                name="unique_dospr_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dos_policy_rule_finding_id} <- {self.control_query_id}"

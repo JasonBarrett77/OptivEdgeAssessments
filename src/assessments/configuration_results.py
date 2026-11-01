@@ -985,6 +985,21 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # Stage 9 for this domain is what gives the three new models a page, and stage 8's contract
     # forbids building one.
     "PAN-GPG": "stage9-globalprotect-gateway.json",
+    # `zone-dos-protection` reached stage 8 on 2026-11-01. FOUR models carry its eight controls
+    # and NONE of the four has a rail item: the two this domain's stage 7 created - the zone
+    # protection profile and the DoS policy rule - plus `integrations.Zone`, whose own debt the
+    # `PAN-IOT` and `PAN-UID` entries above already name, plus `integrations.SecurityProfile`,
+    # whose results pages are per profile KIND, mirroring PAN-OS's own tabs, so the
+    # `dos-protection` kind that PAN-ZON-008 queries has no page either. Stage 9 for this domain
+    # is what gives all four of them one, and stage 8's contract forbids building it.
+    #
+    # THIS DEBT IS FOR SEVEN OF THE DOMAIN'S EIGHT CONTROLS AND ONE LINE CLEARS TWENTY-FIVE
+    # FAILURES, because `test_configuration_links` fails once per catalog QUERY of a homeless
+    # model rather than once per model. The eighth control is PAN-ZON-007, whose queries are over
+    # a model created by the same stage 7 and are therefore homeless too - so in practice all
+    # eight are covered and none of this domain's twenty-five queries has anywhere to go until
+    # stage 9 lands.
+    "PAN-ZON": "stage9-zone-dos-protection.json",
 }
 
 

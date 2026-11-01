@@ -63,6 +63,8 @@ CUSTOM_URL_CATEGORY_MODEL = "integrations.CustomUrlCategory"
 USER_ID_COLLECTOR_MODEL = "integrations.UserIdCollectorSettings"
 USER_ID_DISCOVERY_BOUND_MODEL = "integrations.UserIdDiscoveryBound"
 DECRYPTION_SETTINGS_MODEL = "integrations.DecryptionSettings"
+ZONE_PROTECTION_PROFILE_MODEL = "integrations.ZoneProtectionProfile"
+DOS_POLICY_RULE_MODEL = "integrations.DosPolicyRule"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -629,4 +631,36 @@ def evaluate_custom_url_category_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or CUSTOM_URL_CATEGORY_MODEL,
+    )
+
+
+def evaluate_zone_protection_profile_control_queries(queryset, control):
+    """One zone protection profile of one appliance. PAN-ZON-002, -003, -004, -005, -006.
+
+    FIVE CONTROLS REACH THIS HELPER and each asserts on a disjoint column of the same row, which
+    is the ordinary many-controls-one-type case. PAN-ZON-008's first record names this model too
+    and does NOT reach here: that control's target is `integrations.SecurityProfile`, a control
+    has exactly one target model, and `ControlQuery.clean()` refuses a query on any other - so
+    the zone-profile half of it is silent and the stage 8 artifact's `subjects_in_two_models`
+    says so.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or ZONE_PROTECTION_PROFILE_MODEL,
+    )
+
+
+def evaluate_dos_policy_rule_control_queries(queryset, control):
+    """One DoS Protection policy rule of one rulebase of one vsys. PAN-ZON-007.
+
+    ONE CONTROL AND ONE OF ITS TWO RECORDS reach this helper. The other is discharged onto a
+    question for a person - which services behind this firewall are business-critical - and owes
+    no query at all, so nothing here is silent for want of a model: the half simply has no
+    configurational form.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DOS_POLICY_RULE_MODEL,
     )

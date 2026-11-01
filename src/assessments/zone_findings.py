@@ -175,13 +175,71 @@ def _user_identification_on(obj) -> list[str]:
     return parts
 
 
+def _no_zone_defence(obj) -> list[str]:
+    """PAN-ZON-001's only half: does any zone protection profile actually resolve on this zone.
+
+    ADDED 2026-11-01 BY THE `zone-dos-protection` STAGE 8 RUN, for the reason the User-ID arm
+    above gives and with the same measurement behind it. PAN-ZON-001 REUSES the `zone` control
+    type - the type-to-model map is one-to-one, `integrations.Zone` already answers `zone`, and a
+    second type for a model that already has one breaks the map in a direction no shipped test
+    catches. Reuse is correct and it is also silent: measured at HEAD before this arm existed,
+    `_subject(zone, "PAN-ZON-001")` returned PAN-IOT-002's three arms BYTE-IDENTICALLY, so a
+    finding about a zone with no flood or scan defence in force was described as a zone with
+    device identification switched off. Two different switches, one sentence.
+
+    TRUE FIRES, AND THE COLUMN IS A RESOLUTION RATHER THAN AN EMPTINESS TEST. The attachment leaf
+    is a free string with NO referential integrity the configuration expresses - measured - so a
+    zone naming a profile that does not exist reads as configured and meters nothing, and the
+    join is case-sensitive and unnormalised. `zone_protection_unresolved` is true for BOTH of
+    those states, and the sentence says which one it found because the remediations differ: one
+    is "attach a profile", the other is "the name you attached reaches nothing".
+
+    WHAT THIS ARM MUST NOT CLAIM. The severity on the row comes from the zone's TYPE, which is a
+    proxy for the exposure stage 3 actually grades on - a zone facing a network the customer does
+    not control. Nothing on a firewall says which side of a perimeter a zone faces, so the
+    sentence reports the type it found and leaves the exposure to the reviewer. It also says
+    nothing about what the profile WOULD have enforced: PAN-ZON-002 to -006 are the controls about
+    a profile's contents, and this one is only about whether there is one.
+    """
+    if not obj.zone_protection_unresolved:
+        return []
+    named = (obj.zone_protection_profile or "").strip()
+    if named:
+        found = (f"this zone's attachment leaf NAMES the zone protection profile `{named}` and no "
+                 "profile of that name exists in this appliance's own profile collection, so the "
+                 "zone meters nothing while reading as protected - the attachment is a free "
+                 "string the configuration does not reference-check, and the comparison is "
+                 "case-sensitive, so a name differing only in case is also a dangling one")
+    else:
+        found = ("NO zone protection profile is attached to this zone at all, so none of the "
+                 "flood, reconnaissance and packet-based defences is in force where traffic "
+                 "enters")
+    return [
+        found,
+        f"this is a {obj.zone_type} zone carrying {obj.interface_count} "
+        f"interface{'s' if obj.interface_count != 1 else ''}, and THE TYPE IS WHY THE SEVERITY IS "
+        "WHAT IT IS - a proxy, because what decides the real exposure is whether this zone faces "
+        "a network the customer does not control and nothing on a firewall records that. Where "
+        "that has not been established the higher band applies rather than the lower",
+        "THIS SAYS NOTHING ABOUT WHAT A PROFILE WOULD HAVE ENFORCED. Whether an attached profile "
+        "turns on flood protection, reconnaissance detection or the packet drops is a separate "
+        "question about a separate object; this finding is only that no profile is in force",
+        "AND CHECK WHERE THIS ZONE'S CONFIGURATION COMES FROM BEFORE ACTING. Nothing stored about "
+        "a zone says whether it was configured on this firewall or pushed to it from a template, "
+        "so the attachment may only be changeable where the zone is defined",
+    ]
+
+
 #: WHICH FACTS EACH CONTROL'S FINDING MAY STATE. PAN-IOT-002: one control, three arms over two
 #: halves, and no row can match the first arm together with either of the others. PAN-UID-001:
 #: one arm, asserting the opposite polarity on a different switch of the same row - see that
 #: arm's docstring for why reusing this type made the entry necessary rather than optional.
+#: PAN-ZON-001: one arm again, about a THIRD switch on the same row, and the third control to
+#: reuse this type - so the default below is now reached by no shipped control at all.
 PARTS_BY_CONTROL = {
     "PAN-IOT-002": (_identification_off, _narrowed, _lists_unread),
     "PAN-UID-001": (_user_identification_on,),
+    "PAN-ZON-001": (_no_zone_defence,),
 }
 
 
