@@ -145,6 +145,8 @@ from assessments.snmp_settings_findings import generate_snmp_settings_findings
 from assessments.ssl_tls_service_profile_findings import (
     generate_ssl_tls_service_profile_findings,
 )
+from assessments.dns_settings_findings import generate_dns_settings_findings
+from assessments.service_route_findings import generate_service_route_findings
 from assessments.system_identity_findings import generate_system_identity_findings
 from assessments.update_server_settings_findings import generate_update_server_settings_findings
 
@@ -177,6 +179,8 @@ GENERATORS = (
     ("NTP", T.NTP_SETTINGS, generate_ntp_settings_findings),
     ("SNMP", T.SNMP_SETTINGS, generate_snmp_settings_findings),
     ("system identity", T.SYSTEM_IDENTITY, generate_system_identity_findings),
+    ("management resolvers", T.DNS_SETTINGS, generate_dns_settings_findings),
+    ("management service paths", T.SERVICE_ROUTE, generate_service_route_findings),
     # Device-wide management-plane settings, so they sit with the settings above: one row per
     # appliance. High availability first, because PAN-HAP-005's applicability turns on whether
     # the MANAGEMENT estate is a pair and a reader meets the firewall's own pair first.

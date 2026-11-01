@@ -2693,7 +2693,7 @@
           "name": "Redundant NTP Servers Configured",
           "control_type": "ntp_settings",
           "default_severity": "high",
-          "description": "Two NTP servers must be configured. PAN-OS has exactly two slots - `ntp-servers/primary-ntp-server` and `secondary-ntp-server`, measured 2026-09-14 on 11.1 (PA-5220) and 11.2 (PA-VM) - so this fires when fewer than two are set.\n\nTWO THINGS THE CORPUS ASKS FOR ARE NOT DECIDABLE HERE, and the control says so rather than implying it checked them. The preferred value is \"primary plus secondary from independent trusted internal sources\": the device records two addresses and nothing about who operates them, so TRUSTED and INDEPENDENT are the assessor's judgement. And SYNCHRONIZATION is operational - `show ntp` reports `reachable` and `status: synched` per server, which is why the corpus marks this control live-device-state - while this reads configuration. A server that is configured and answering nothing satisfies this control, and every finding carries that caveat.\n\nThe lab holds both states without any change being made for it: pan-fw-111 configures one server and fires, both PA-5220s configure two and pass.",
+          "description": "Two NTP servers must be configured. PAN-OS has exactly two slots - `ntp-servers/primary-ntp-server` and `secondary-ntp-server`, measured 2026-09-14 on 11.1 (PA-5220) and 11.2 (PA-VM) - so this fires when fewer than two are set.\n\nTWO THINGS THE CORPUS ASKS FOR ARE NOT DECIDABLE HERE, and the control says so rather than implying it checked them. The preferred value is \"primary plus secondary from independent trusted internal sources\": the device records two addresses and nothing about who operates them, so TRUSTED and INDEPENDENT are the assessor's judgement. AND SYNCHRONIZATION IS NOW ASSESSED, which this paragraph said it was not until 2026-11-01. `show ntp`'s `synched` member is collected as its own operational snapshot and compared with the configured slot addresses, so the control carries a SECOND assertion beside the count: whether the clock is actually anchored to a server this configuration names. An appliance whose operational read was never taken reads as NOT anchored rather than as compliant - the two are deliberately one rank, because nothing downstream could act on the difference and the safe answer is the same either way. Measured in this lab: one appliance holds two servers, both on a symmetric key, both rejected, and keeps its own local time - a configuration that passes the countable half and is keeping no time at all.\n\nThe lab holds both states without any change being made for it: pan-fw-111 configures one server and fires, both PA-5220s configure two and pass.\n\nTHE SEVERITY NOW VARIES. One configured server rather than none reports at medium rather than high: the floor is met and the redundancy is not. A clock anchored to an address the configuration does not name also reports at medium, because the device is keeping time and the source is unvetted rather than absent.\n\nTHE SEVERITY NOW VARIES. One configured server rather than none reports at medium rather than high: the floor is met and the redundancy is not. A clock anchored to an address the configuration does not name also reports at medium, because the device is keeping time and the source is unvetted rather than absent.\n\nAND THE WORST CASE CARRIES ITS OWN QUERY RATHER THAN INHERITING THIS CONTROL'S DEFAULT, which looks redundant and is not. The severity of a finding is the worst MATCHED calibration, and the control's own default applies only where none matched - so a firewall with no NTP server at all, whose clock is being kept by some address the configuration does not name, would match the medium calibration alone and report one rank below what the count earns. The two assertions are graded on different columns and a single row can match one query from each, which is the condition that makes an at-tier query load-bearing.",
           "rationale": "A single time source is a single point of failure for log timestamps, certificate validity and scheduled jobs - and the corpus notes STIG requires two authoritative sources.",
           "audit": "Device > Setup > Services > NTP. Confirm both NTP Server Address fields are populated, and confirm with the operator that the two are independent trusted sources.",
           "remediation": "Configure a second NTP server from a different trusted internal source: `set deviceconfig system ntp-servers secondary-ntp-server ntp-server-address <ntp2>`.",
@@ -2712,8 +2712,117 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "server_count"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No configured time source at all",
+              "short_description": "No NTP server is configured, so there is no time source to fail over from and the clock is running on nothing but itself.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "server_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "server_count",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "server_count"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "One configured time source and no second",
+              "short_description": "Exactly one NTP server is configured: the floor is met and the redundancy is not.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "server_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "server_count",
+                    "op": "eq",
+                    "value": 1
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "server_count"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The clock is anchored to nothing the configuration names",
+              "short_description": "`show ntp` reports no upstream source keeping the clock - or that reading was never taken, which this reports the same way on purpose.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "synched_to_a_configured_server",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "time_source_in_force",
+                    "op": "eq",
+                    "value": "not_synchronised_or_never_read"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "synched_to_a_configured_server",
+                "time_source_in_force"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The clock is anchored to a source the configuration does not name",
+              "short_description": "The clock is synchronised, to an address no configured slot holds.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "synched_to_a_configured_server",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "time_source_in_force",
+                    "op": "eq",
+                    "value": "synchronised_to_a_source_the_configuration_does_not_name"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "synched_to_a_configured_server",
+                "time_source_in_force"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
               "is_active": true
             }
           ],
@@ -2726,7 +2835,7 @@
           "name": "NTP Authentication Enabled",
           "control_type": "ntp_settings",
           "default_severity": "medium",
-          "description": "Every configured NTP server must authenticate its time updates with a symmetric key. `authentication-type` is a choice node completing to exactly `none`, `symmetric-key` and `autokey` on 11.1 and 11.2, and Help p.751 states None is the default - which is the state of all three lab devices.\n\nASSERTS THE PREFERRED VALUE. The corpus minimum is explicitly no requirement at all (\"unauthenticated NTP from trusted internal sources meets the floor\"), so asserting it would give a control that can never fire; the preferred value is the literal `symmetric-key`.\n\nAUTOKEY DOES NOT SATISFY IT. It is a different mechanism rather than a stronger grade of the same one, and the corpus names the symmetric-key literal. A device using autokey reports, and the finding names it as autokey rather than as unauthenticated, because the remediation differs.\n\nA DEVICE WITH NO NTP SERVER ALSO FIRES: it has no authenticated time source. PAN-SVC-001 is what reports the absence itself, so the two are separate findings about one cause.\n\nThe ALGORITHM is recorded and not asserted. PAN-OS offers `sha1` and `md5` and nothing else, so there is no stronger choice to require.",
+          "description": "Every configured NTP server must authenticate its time updates with a symmetric key. `authentication-type` is a choice node completing to exactly `none`, `symmetric-key` and `autokey` on 11.1 and 11.2, and Help p.751 states None is the default - which is the state of all three lab devices.\n\nASSERTS THE PREFERRED VALUE. The corpus minimum is explicitly no requirement at all (\"unauthenticated NTP from trusted internal sources meets the floor\"), so asserting it would give a control that can never fire; the preferred value is the literal `symmetric-key`.\n\nAUTOKEY DOES NOT SATISFY IT. It is a different mechanism rather than a stronger grade of the same one, and the corpus names the symmetric-key literal. A device using autokey reports, and the finding names it as autokey rather than as unauthenticated, because the remediation differs.\n\nA DEVICE WITH NO NTP SERVER ALSO FIRES: it has no authenticated time source. PAN-SVC-001 is what reports the absence itself, so the two are separate findings about one cause.\n\nThe ALGORITHM is recorded and not asserted. PAN-OS offers `sha1` and `md5` and nothing else, so there is no stronger choice to require.\n\nTHE FINDING NAMES WHICH OF FOUR STATES IT FOUND, all three failing ones at this control's own severity: no configured server authenticates, some do and some do not, or autokey is in use. They are separate queries rather than one because the remediation differs and a reader cannot infer which from the severity.\n\nONE MIXTURE IS GRADED AS COMPLIANT AND STILL FIRES, which is a defect in the shipped normalizer rather than in this control: a slot carrying an address and NO `authentication-type` node at all is dropped from the grading's own token list, so a firewall with one symmetric-key slot and one such slot grades `symmetric_key_on_every_configured_server` while `all_servers_symmetric_key` is false. The baseline reports it correctly at this control's default severity and none of the three queries above claims it. Measured 2026-11-01 over all 21 reachable slot combinations: two are in that state.",
           "rationale": "Unauthenticated NTP lets an attacker on the path skew device time, which defeats log correlation and certificate expiry checks.",
           "audit": "Device > Setup > Services > NTP > Authentication Type, on BOTH servers. None is the default.",
           "remediation": "Set Authentication Type to Symmetric Key on each configured server, with a Key ID, an algorithm and a shared key: `set deviceconfig system ntp-servers primary-ntp-server authentication-type symmetric-key key-id <id> algorithm sha1 authentication-key <key>`.",
@@ -2745,8 +2854,92 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "all_servers_symmetric_key"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No configured server authenticates",
+              "short_description": "Either no NTP server is configured at all, or none of those configured authenticates.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "all_servers_symmetric_key",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "server_authentication_mechanism",
+                    "op": "eq",
+                    "value": "none"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_servers_symmetric_key",
+                "server_authentication_mechanism"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A symmetric key on some configured servers and not others",
+              "short_description": "At least one configured server authenticates with a symmetric key and at least one does not.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "all_servers_symmetric_key",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "server_authentication_mechanism",
+                    "op": "eq",
+                    "value": "symmetric_key_on_some_configured_servers_and_not_others"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_servers_symmetric_key",
+                "server_authentication_mechanism"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Autokey, which is a different mechanism rather than a weaker key",
+              "short_description": "A configured server uses autokey. The remediation is not 'turn authentication on'.",
+              "canonical_query": {
+                "model": "integrations.NtpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "all_servers_symmetric_key",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "server_authentication_mechanism",
+                    "op": "eq",
+                    "value": "autokey"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_servers_symmetric_key",
+                "server_authentication_mechanism"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
               "is_active": true
             }
           ],
@@ -2755,18 +2948,135 @@
           "target_model": "integrations.NtpSettings"
         },
         {
+          "control_id": "PAN-SVC-003",
+          "name": "Management DNS Resolvers Explicitly Configured",
+          "control_type": "dns_settings",
+          "default_severity": "medium",
+          "description": "The firewall's own management plane must resolve names through resolvers the organisation chose, by whichever of the two mechanisms the device offers, and not through addresses that arrived with the management interface's network lease. Fires when fewer than two resolvers are in force.\n\nTHE PAIR OF ADDRESSES HAS A SIBLING BRANCH, which is the thing a reading of this screen most easily gets wrong. `dns-setting` is a choice container: `servers` holds a primary and a secondary, and `dns-proxy-object` points at a DNS proxy this firewall hosts. A device on the second branch is configured and holds nothing in the pair, so a check that treats an empty pair as unconfigured reports it without looking at which branch is in force.\n\nA BOUND PROXY OBJECT COUNTS AS ONE RESOLVER AND NOT AS ITS LIST. The object's own server list is a further hop, nothing in the measured estate binds one, and a traversal written against no instance is a traversal proved against its author - so the count cannot reach the compliant rank on the strength of a list nobody has read. That under-reports deliberately.\n\nAN EMPTY RESOLVER PAIR ON A LEASED MANAGEMENT ADDRESS IS NOT 'NOTHING IS RESOLVING'. The vendor says of the resolvers what it says of the time servers: if the DHCP server returns DNS addresses the firewall considers them, and only where none is manually configured. So such a firewall IS resolving, through an address nobody here chose and which can change with no configuration change - a different finding and a different remediation from a fixed-address firewall with no resolver, and the severity grading carries both separately.\n\nWHETHER THOSE RESOLVERS ARE TRUSTED IS NOT DECIDABLE HERE and is not asserted. The configuration records addresses and nothing whatever about who answers at them. Every finding carries the configuration state with the trust claim marked unverified, which is why the corpus classes this control as architecture-review.",
+          "rationale": "Whoever controls the resolver chooses which host the firewall reaches when it goes for a content update, a cloud verdict or a log destination, and the firewall will believe the answer - so an unvetted resolver quietly selects what the device trusts.",
+          "audit": "Device > Setup > Services > Services > DNS. Confirm which of the two settings is in force - Servers, with a primary and a secondary, or DNS Proxy Object - and confirm with the operator who runs the resolvers named. On a firewall whose management interface is a DHCP client, check Device > Setup > Interfaces > Management as well: an empty pair there means the lease's resolvers are in use.",
+          "remediation": "Name two resolvers the organisation controls: `set deviceconfig system dns-setting servers primary <ip>` and `... secondary <ip>`. Where the firewall should resolve through a DNS proxy object it hosts, bind that instead: `set deviceconfig system dns-setting dns-proxy-object <name>`, and give the proxy object two upstream servers of its own.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Fewer than two resolvers are in force for the management plane.",
+              "canonical_query": {
+                "model": "integrations.DnsSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "chosen_resolver_count",
+                    "op": "lt",
+                    "value": 2
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "chosen_resolver_count"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No resolver chosen, on a leased management address",
+              "short_description": "No resolver is configured by either mechanism and the management address is leased, so the firewall is resolving through an address nobody here chose.",
+              "canonical_query": {
+                "model": "integrations.DnsSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "chosen_resolver_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "management_resolver_posture",
+                    "op": "eq",
+                    "value": "no_resolver_chosen_on_a_leased_management_address"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "chosen_resolver_count",
+                "management_resolver_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "No resolver chosen, on a fixed management address",
+              "short_description": "No resolver is configured by either mechanism and the management address is fixed, so nothing is resolving management names at all.",
+              "canonical_query": {
+                "model": "integrations.DnsSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "chosen_resolver_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "management_resolver_posture",
+                    "op": "eq",
+                    "value": "no_resolver_chosen_on_a_fixed_management_address"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "chosen_resolver_count",
+                "management_resolver_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "One resolver only",
+              "short_description": "One resolver is in force, which is a single point of failure for every update and cloud lookup.",
+              "canonical_query": {
+                "model": "integrations.DnsSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "chosen_resolver_count",
+                    "op": "lt",
+                    "value": 2
+                  },
+                  {
+                    "field": "management_resolver_posture",
+                    "op": "eq",
+                    "value": "one_resolver_only"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "chosen_resolver_count",
+                "management_resolver_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.DnsSettings"
+        },
+        {
           "control_id": "PAN-SVC-004",
           "name": "SNMP v3 Only (v1/v2c Disabled)",
           "control_type": "snmp_settings",
           "default_severity": "high",
-          "description": "SNMP monitoring access must use v3. `snmp-setting/access-setting/version` is a choice node completing to exactly `v2c` and `v3` on 11.1 and 11.2, so the control fires on a device configured for v2c.\n\nTHE TITLE NAMES A STATE PAN-OS CANNOT BE IN. There is no v1 in the schema on either measured release, so \"v1/v2c disabled\" is v2c in practice; the title is the corpus's and is left alone.\n\nAN UNCONFIGURED DEVICE DOES NOT FIRE. controls.json says it outright - \"If SNMP is unused, leave snmp-setting unconfigured entirely\" - so the baseline requires `is_configured` as well as `uses_v2c`, and a device with no SNMP at all is compliant rather than unassessed. That is the state of all three lab devices, which is why this control needed a subject built for it.\n\nAN ACCESS-SETTING WITH NO VERSION CHILD IS READ AS v2c, from Help p.740 (\"Version: V2c (default) or V3\"), and the row records that the version was inferred rather than read - a finding resting on a vendor sentence should say so.\n\nThe preferred value is the same literal, `v3`, with the description adding SHA-256/AES-256, scoped MIB views and dedicated monitoring accounts. That is remediation guidance rather than a second assertion - the same reading PAN-CRT-005 takes of its own preferred state.",
+          "description": "SNMP monitoring access must use v3. `snmp-setting/access-setting/version` is a choice node completing to exactly `v2c` and `v3` on 11.1 and 11.2, so the control fires on a device configured for v2c.\n\nTHE TITLE NAMES A STATE PAN-OS CANNOT BE IN. There is no v1 in the schema on either measured release, so \"v1/v2c disabled\" is v2c in practice; the title is the corpus's and is left alone.\n\nAN UNCONFIGURED DEVICE DOES NOT FIRE. controls.json says it outright - \"If SNMP is unused, leave snmp-setting unconfigured entirely\" - so the baseline requires `is_configured` as well as the version verdict, and a device with no SNMP at all is compliant rather than unassessed. That is the state of all three lab devices, which is why this control needed a subject built for it.\n\nAN ACCESS-SETTING WITH NO VERSION CHILD IS READ AS v2c, from Help p.740 (\"Version: V2c (default) or V3\"), and the row records that the version was inferred rather than read - a finding resting on a vendor sentence should say so.\n\nThe preferred value is the same literal, `v3`, with the description adding SHA-256/AES-256, scoped MIB views and dedicated monitoring accounts. That is remediation guidance rather than a second assertion - the same reading PAN-CRT-005 takes of its own preferred state.\n\nTHE BASELINE CLAUSE CHANGED ON 2026-11-01, from `uses_v2c` to `answers_on_an_unauthenticated_version`, and THE POPULATION DID NOT. The new column stores what the clause grammar cannot say in one conjunction - on the cleartext version, OR configured with the version unrecorded - and the second member turns out to be contained in the first: `uses_v2c` is `effective == \"v2c\"`, and an access-setting with no version child materialises `v2c` as the effective version before `uses_v2c` is computed. Measured over all five reachable states of the normalizer, the two clauses select the same rows, and `uses_v2c` implies `is_configured`. `uses_v2c` remains stored and searchable.\n\nTHE SEVERITY DOES NOT VARY HERE. Both failing states of the version verdict carry this control's own severity; the two queries exist so the finding can say which of them it read, and `snmp_version_in_force` is the column that separates an explicit cleartext choice from a materialised vendor default.",
           "rationale": "SNMP v2c authenticates with a cleartext community string and offers no encryption, so anyone on the path can read the community and then the device's statistics.",
           "audit": "Device > Setup > Operations > SNMP Setup > Version. Also confirm whether any management surface actually enables the SNMP service - the two are configured apart.",
           "remediation": "Select V3 and define views and users: `set deviceconfig system snmp-setting access-setting version v3 views {NAME} view {NAME} oid 1.3.6.1 option include`. If SNMP is not used, delete `snmp-setting` entirely instead.",
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "SNMP is configured and answers v2c.",
+              "short_description": "SNMP is configured and would answer on a version that authenticates nothing.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -2777,14 +3087,81 @@
                     "value": true
                   },
                   {
-                    "field": "uses_v2c",
+                    "field": "answers_on_an_unauthenticated_version",
                     "op": "eq",
                     "value": true
                   }
                 ]
               },
+              "asserted_fields": [
+                "answers_on_an_unauthenticated_version"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The cleartext version is chosen explicitly",
+              "short_description": "`access-setting/version` names v2c, read off the device rather than inferred.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "answers_on_an_unauthenticated_version",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "snmp_version_in_force",
+                    "op": "eq",
+                    "value": "v2c"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "answers_on_an_unauthenticated_version",
+                "snmp_version_in_force"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Configured with no version recorded",
+              "short_description": "An access-setting with no version child. PAN-OS defaults the dialog to V2c, so this rests on the vendor's stated default rather than on a value read from the device.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "answers_on_an_unauthenticated_version",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "snmp_version_in_force",
+                    "op": "eq",
+                    "value": "configured_with_no_version_recorded"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "answers_on_an_unauthenticated_version",
+                "snmp_version_in_force"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
               "is_active": true
             }
           ],
@@ -2797,7 +3174,7 @@
           "name": "No Default or Weak SNMP Community Strings (Hygiene)",
           "control_type": "snmp_settings",
           "default_severity": "high",
-          "description": "Where v2c is still in use, the community string must not be one of the published defaults. Fires when a configured device's community string is `public` or `private`, compared case-insensitively.\n\n\"GUESSABLE\" IS NOT DECIDABLE and is not asserted. The corpus minimum is \"no default community strings ('public'/'private') and any remaining v2c exposure documented with an expiry date\": the first half is a string comparison, the second is a document. Help p.740 names the same two strings (\"Don't use the default community string public\").\n\nTHE COMMUNITY STRING IS NOT STORED by this project. It is a live credential that grants read access to the device's statistics, and the control answers without its value - the row carries only whether it is set and whether it is a default. It appears in the configuration backup either way, which is the reason the control exists.\n\nEVERY FINDING SAYS WHETHER SNMP IS REACHABLE. `snmp-setting` and the per-surface `disable-snmp` are configured apart, and `disable-snmp` is implicit YES - so a device can hold a default community string that no surface exposes. That is latent rather than live, and it becomes live the moment SNMP is enabled on a surface.",
+          "description": "Where v2c is still in use, the community string must not be one of the published defaults. Fires when a configured device's community string is `public` or `private`, compared case-insensitively.\n\n\"GUESSABLE\" IS NOT DECIDABLE and is not asserted. The corpus minimum is \"no default community strings ('public'/'private') and any remaining v2c exposure documented with an expiry date\": the first half is a string comparison, the second is a document. Help p.740 names the same two strings (\"Don't use the default community string public\").\n\nTHE COMMUNITY STRING IS NOT STORED by this project. It is a live credential that grants read access to the device's statistics, and the control answers without its value - the row carries only whether it is set and whether it is a default. It appears in the configuration backup either way, which is the reason the control exists.\n\nEVERY FINDING SAYS WHETHER SNMP IS REACHABLE. `snmp-setting` and the per-surface `disable-snmp` are configured apart, and `disable-snmp` is implicit YES - so a device can hold a default community string that no surface exposes. That is latent rather than live, and it becomes live the moment SNMP is enabled on a surface.\n\nAND ONE OF THE THREE FAILING STATES REPORTS LOWER. A default community string on an appliance every one of whose management surfaces was WALKED and shown to have the SNMP service off reports at medium rather than at this control's own severity. An appliance whose surfaces were not walked keeps the higher severity: only a measured refusal earns the reduction, because the per-surface switch's behaviour when absent is not obtainable from any corpus this project can reach and an unknown must not relax a finding.",
           "rationale": "A default community string is a published password, and v2c sends it in cleartext on every poll.",
           "audit": "Device > Setup > Operations > SNMP Setup > SNMP Community String, on a device using V2c.",
           "remediation": "Move to v3 (PAN-SVC-004). Where v2c must remain, replace the community string with an unguessable value and restrict which sources may poll it: `delete deviceconfig system snmp-setting access-setting version v2c`.",
@@ -2821,8 +3198,107 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "community_is_default"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Set, and a surface accepts queries",
+              "short_description": "The default community string is set and at least one management surface enables the SNMP service, so it is live now.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "community_is_default",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "default_community_exposure",
+                    "op": "eq",
+                    "value": "set_and_a_surface_accepts_queries"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "community_is_default",
+                "default_community_exposure"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Set, and reachability not established",
+              "short_description": "The default community string is set and no management surface of this appliance was walked, so nothing has shown whether anything is listening.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "community_is_default",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "default_community_exposure",
+                    "op": "eq",
+                    "value": "set_and_reachability_not_established"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "community_is_default",
+                "default_community_exposure"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Set, and every surface refuses",
+              "short_description": "The default community string is set and every walked surface of this appliance has the SNMP service off, so the credential is latent rather than live.",
+              "canonical_query": {
+                "model": "integrations.SnmpSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_configured",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "community_is_default",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "default_community_exposure",
+                    "op": "eq",
+                    "value": "set_and_every_surface_refuses"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "community_is_default",
+                "default_community_exposure"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
               "is_active": true
             }
           ],
@@ -2831,11 +3307,116 @@
           "target_model": "integrations.SnmpSettings"
         },
         {
+          "control_id": "PAN-SVC-006",
+          "name": "Management Service Routes Pinned",
+          "control_type": "service_route",
+          "default_severity": "medium",
+          "description": "Every management-plane service the firewall originates - its updates, name resolution, logging, authentication and monitoring traffic - must leave by a path somebody chose. Fires when a service this assessment can attribute to the firewall has no source interface and source address set.\n\nTWO HALVES AND ONE SUBJECT EACH, which is why the finding names the enforcement point before it names anything else. The firewall-wide paths are one row per appliance; a divided firewall's virtual systems each hold their own set, with their own service list and their own inheritance rule, and a multi-system firewall can be correct at one level and wrong at the other. The second half asks a different question - whether the virtual system recorded a choice AT ALL - and every query on it is scoped to a virtual-system row, because the firewall-wide row holds those columns at their firing defaults by construction and the question has no answer there.\n\nTHE SERVICE LIST IS A TABLE THIS ASSESSMENT KEEPS, NOT ONE THE DEVICE OFFERS. Whether a firewall originates a flow for a given service is derived from the configuration that creates it - the syslog, LDAP, RADIUS, TACACS+ and Kerberos profiles, the NetFlow collectors, the update-server and telemetry settings, the Panorama connection, the resolvers and the time servers. SEVENTEEN of the service identifiers the device offers are deliberately unclaimed, because this configuration cannot attest a flow for them; that under-reports, and the finding says how many services it could attribute rather than implying a complete inventory.\n\nA MANAGEMENT STATION'S PUSH REPLACES THIS CONTAINER WHOLE rather than merging it: one local route was measured making a pushed route disappear entirely. So on a managed estate a reading that unions pushed and local paths reports paths that are not in force, and this reads the merged configuration the device itself is running.\n\nWHETHER A PATH WAS CHOSEN DELIBERATELY IS NOT DECIDABLE HERE. Nothing in the configuration distinguishes a deliberate choice from a default that happens to work, and on the per-system screen a deliberate inheritance and an omission are identical - which is why that rank's name covers both and the corpus classes this control as architecture-review.",
+          "rationale": "A management service that leaves by whatever the route table happens to offer can carry credentials and log content across a data-plane segment or back by an asymmetric path, and because nothing on the device marks a path as unintended the exposure survives every review that only checks where the traffic was going.",
+          "audit": "Device > Setup > Services > Service Route Configuration, with Customize selected: confirm each management service the firewall originates names both a Source Interface and a Source Address, and check the IPv6 tab as well as IPv4. On a multi-virtual-system firewall, check Device > Setup > Services per virtual system too and ask whether an inheriting system is inheriting on purpose.",
+          "remediation": "Pin each originated management service to an interface and an address on the management segment: `set deviceconfig system route service <service> source interface <interface> address <ip>`, and set `source-v6` as well wherever that service's servers are reachable on IPv6. Where a virtual system should inherit the firewall-wide paths, record that decision somewhere a reviewer can find it - the device cannot.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A service this firewall originates has no chosen source path, firewall-wide.",
+              "canonical_query": {
+                "model": "integrations.ServiceRoute",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "scope",
+                    "op": "eq",
+                    "value": "device-local"
+                  },
+                  {
+                    "field": "every_originated_service_has_a_chosen_path",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "every_originated_service_has_a_chosen_path"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No path set for a sensitive service, firewall-wide",
+              "short_description": "At least one management service attributed to this firewall leaves by whatever the routing table decides.",
+              "canonical_query": {
+                "model": "integrations.ServiceRoute",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "scope",
+                    "op": "eq",
+                    "value": "device-local"
+                  },
+                  {
+                    "field": "every_originated_service_has_a_chosen_path",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "service_path_posture",
+                    "op": "eq",
+                    "value": "no_path_set_for_a_sensitive_service"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "every_originated_service_has_a_chosen_path",
+                "service_path_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A virtual system records no service-path choice of its own",
+              "short_description": "This virtual system has no route/service subtree, so nothing says whether it inherits the firewall-wide paths deliberately or whether nobody looked.",
+              "canonical_query": {
+                "model": "integrations.ServiceRoute",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "scope",
+                    "op": "eq",
+                    "value": "vsys"
+                  },
+                  {
+                    "field": "per_system_path_choice_recorded",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "per_system_path_posture",
+                    "op": "eq",
+                    "value": "neither_inheritance_nor_a_customised_path_recorded"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "per_system_path_choice_recorded",
+                "per_system_path_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ServiceRoute"
+        },
+        {
           "control_id": "PAN-SVC-007",
           "name": "Static IP on Management Interface",
           "control_type": "system_identity",
           "default_severity": "medium",
-          "description": "The management interface must not take its address from DHCP. `deviceconfig/system/type` is a choice node completing to exactly `static` and `dhcp-client`, and the corpus sets minimum and preferred to the same value: \"DHCP on a management interface has no acceptable production use\".\n\nAN ABSENT `type` NODE IS STATIC, measured 2026-09-14 rather than assumed, and this is the unusual direction: absence is the SAFE state here. fw-core-tpa-b carries no `type` node at all and its compiled interface state reads `'ip-type': static` with `'disable-dhcp': True`, while `show system info` reports `is-dhcp: no`. A reader treating absence as undetermined would report a compliant device. The row records whether static was read or resolved, and the tab shows it.\n\nTHIS IS AN APPLIANCE FACT, NOT A PER-SURFACE ONE. `aux-1` accepts ip-address, netmask, default-gateway and permitted-ip but has NO `type` - completing it returns `code=6 Invalid sequence` - so addressing mode exists only for MGT and does not belong beside the aux and data-plane surfaces.\n\npan-fw-111 is a `dhcp-client` and fires; both PA-5220s pass, one explicitly and one by absence.",
+          "description": "The management interface must not take its address from DHCP. `deviceconfig/system/type` is a choice node completing to exactly `static` and `dhcp-client`, and the corpus sets minimum and preferred to the same value: \"DHCP on a management interface has no acceptable production use\".\n\nAN ABSENT `type` NODE IS STATIC, measured 2026-09-14 rather than assumed, and this is the unusual direction: absence is the SAFE state here. fw-core-tpa-b carries no `type` node at all and its compiled interface state reads `'ip-type': static` with `'disable-dhcp': True`, while `show system info` reports `is-dhcp: no`. A reader treating absence as undetermined would report a compliant device. The row records whether static was read or resolved, and the tab shows it.\n\nTHIS IS AN APPLIANCE FACT, NOT A PER-SURFACE ONE. `aux-1` accepts ip-address, netmask, default-gateway and permitted-ip but has NO `type` - completing it returns `code=6 Invalid sequence` - so addressing mode exists only for MGT and does not belong beside the aux and data-plane surfaces.\n\npan-fw-111 is a `dhcp-client` and fires; both PA-5220s pass, one explicitly and one by absence.\n\nTHE SEVERITY REDUCTION STAGE 3 GRANTS A CLOUD-HOSTED VIRTUAL APPLIANCE CANNOT BE EARNED TODAY, and the control ships the query anyway so that it can be the moment it can. Nothing on the device distinguishes a virtual appliance in a public cloud from one on a laptop - the model string is `PA-VM` for both - and neither repository carries a platform-kind column, so a leased address lands on the hardware-appliance rank whatever the platform. That is the direction stage 3 asks for: an unclassified appliance must not receive the reduction. Both virtual appliances in this lab are in a public cloud and both report at this control's own severity.",
           "rationale": "A rogue DHCP server on the management segment can reassign the firewall's address, gateway and DNS, which moves management traffic to attacker-controlled infrastructure.",
           "audit": "Device > Setup > Interfaces > Management > IP Type. Static is the required value; a device with nothing written is already static.",
           "remediation": "Set a static management address: `set deviceconfig system type static`, with ip-address, netmask and default-gateway.",
@@ -2854,8 +3435,65 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "addressing_mode"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Leased, on an appliance no input classifies as cloud-hosted",
+              "short_description": "The management address is leased and nothing available says the appliance is a virtual one in a public cloud, so it does not receive that reduction.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "addressing_mode",
+                    "op": "eq",
+                    "value": "dhcp-client"
+                  },
+                  {
+                    "field": "addressing_mode_posture",
+                    "op": "eq",
+                    "value": "leased_on_a_hardware_appliance"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "addressing_mode",
+                "addressing_mode_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Leased, on a virtual appliance in a public cloud",
+              "short_description": "The reduction stage 3 grants a cloud-hosted virtual appliance. No input in either repository classifies one, so this matches nothing until one exists.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "addressing_mode",
+                    "op": "eq",
+                    "value": "dhcp-client"
+                  },
+                  {
+                    "field": "addressing_mode_posture",
+                    "op": "eq",
+                    "value": "leased_on_a_virtual_appliance_in_a_public_cloud"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "addressing_mode",
+                "addressing_mode_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
               "is_active": true
             }
           ],
@@ -2868,27 +3506,112 @@
           "name": "Timezone Standardized on UTC",
           "control_type": "system_identity",
           "default_severity": "low",
-          "description": "The device's time zone is UTC, so correlating its logs with another device's needs no offset arithmetic.\n\nUTC IS THE CORPUS PREFERRED VALUE - \"UTC timezone estate-wide so multi-device log correlation needs no offset math\" - and `timezone` is a 566-value enum on both measured platforms. The corpus minimum asks instead for a time zone that is merely CONSISTENT estate-wide, which is not a property of any one device: a row cannot tell whether it agrees with an estate it cannot see. Asserting the preferred value makes the control decidable per device as well as stricter, which is the 2026-09-14 preferred-value ruling applied to a case where the minimum was unusable rather than merely weaker.\n\nSPLIT FROM THE FACTORY-HOSTNAME HALF on 2026-09-15. The corpus bundles both assertions under this id, and firing on either produced ONE finding for two independent defects with different remediations - a device could not clear it by fixing one, and the finding count could not say how many devices had which. The hostname half is now PAN-SVC-010. This id keeps the time zone because the corpus entry's xpath, set command and `preferred_value` (UTC) all describe it.",
+          "description": "The device's time zone is UTC, so correlating its logs with another device's needs no offset arithmetic.\n\nUTC IS THE CORPUS PREFERRED VALUE - \"UTC timezone estate-wide so multi-device log correlation needs no offset math\" - and `timezone` is a 566-value enum on both measured platforms. The corpus minimum asks instead for a time zone that is merely CONSISTENT estate-wide, which is not a property of any one device: a row cannot tell whether it agrees with an estate it cannot see. Asserting the preferred value makes the control decidable per device as well as stricter, which is the 2026-09-14 preferred-value ruling applied to a case where the minimum was unusable rather than merely weaker.\n\nSPLIT FROM THE FACTORY-HOSTNAME HALF on 2026-09-15. The corpus bundles both assertions under this id, and firing on either produced ONE finding for two independent defects with different remediations - a device could not clear it by fixing one, and the finding count could not say how many devices had which. The hostname half is now PAN-SVC-010. This id keeps the time zone because the corpus entry's xpath, set command and `preferred_value` (UTC) all describe it.\n\nTHE BASELINE CLAUSE CHANGED ON 2026-11-01 AND THE CONTROL NOW REPORTS FEWER DEVICES, which is the opposite direction from what the word \"superseded\" suggests. It clauseed on `timezone_is_utc` - one spelling, `timezone.strip().upper() == \"UTC\"` - and the device offers EIGHTEEN time-zone keys that declare zero offset in their own text. So seventeen spellings (`GMT`, `Etc/UTC`, `Zulu`, `Universal` and the rest) fired the old clause while needing no offset arithmetic at all. The new clause is membership of that eighteen, which is what stage 3 restated this control as. `timezone_is_utc` remains stored and searchable.\n\nTHE TITLE NOW OVERSTATES WHAT IS ASSERTED and is left as the corpus wrote it, the same reading PAN-SVC-004's title gets: the assertion is a zone that DECLARES zero offset, not the single spelling `UTC`.\n\nAND ONE CLASS IS NEITHER: a geographic zone that sits at zero offset every month of the year and does not say so in its key. It reports, at this control's own severity, and the finding says why - it reads correctly now and can move with a vendor time-zone update and no configuration change here. `Atlantic/Reykjavik` is one, and an appliance in this lab is set to it.",
           "rationale": "A device on a local time zone makes multi-device log correlation manual and error-prone, and a mis-ordered timeline during an incident is the cost.",
           "audit": "Device > Setup > Management > General Settings > Time Zone.",
           "remediation": "Set the time zone to UTC: `set deviceconfig system timezone UTC`.",
           "queries": [
             {
               "name": "Baseline",
-              "is_baseline": true,
-              "is_active": true,
-              "adjusted_severity": null,
+              "short_description": "The device's time zone does not declare zero offset in its own name.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
                 "clauses": [
                   {
-                    "field": "timezone_is_utc",
+                    "field": "timezone_declares_zero_offset",
                     "op": "eq",
                     "value": false
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "timezone_declares_zero_offset"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No time zone recorded",
+              "short_description": "No time zone is stored, so the logs are written in whatever the platform default is.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "timezone_declares_zero_offset",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "timezone_offset_class",
+                    "op": "eq",
+                    "value": "no_zone_recorded"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "timezone_declares_zero_offset",
+                "timezone_offset_class"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Non-zero offset, or a zone that shifts under a daylight rule",
+              "short_description": "The stored zone is not at zero offset, or moves across the year, so correlation needs arithmetic that changes twice a year.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "timezone_declares_zero_offset",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "timezone_offset_class",
+                    "op": "eq",
+                    "value": "non_zero_offset_or_shifts_under_a_daylight_rule"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "timezone_declares_zero_offset",
+                "timezone_offset_class"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "Zero offset today, and the zone does not say so",
+              "short_description": "The stored zone sits at zero offset all year and does not declare it, so it reads correctly now and can move with a vendor time-zone update and no configuration change.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "timezone_declares_zero_offset",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "timezone_offset_class",
+                    "op": "eq",
+                    "value": "zero_offset_today_but_not_declared"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "timezone_declares_zero_offset",
+                "timezone_offset_class"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
             }
           ],
           "implementation_version": "v2",
@@ -2900,16 +3623,14 @@
           "name": "Hostname Not Left at Factory Default",
           "control_type": "system_identity",
           "default_severity": "low",
-          "description": "The device is not still answering to the name PAN-OS gave it.\n\nTHE FACTORY HOSTNAME IS THE MODEL, which is what makes this decidable. Help p.700: \"If you don't enter a value, PAN-OS uses the firewall model (for example, PA-5220_2) as the default.\" So the check compares the stored hostname with the appliance's model plus an optional NUMERIC suffix, rather than pattern-matching a name, and an absent hostname is the same state spelled differently.\n\nTHE SUFFIX IS MATCHED AS DIGITS. An earlier implementation accepted any suffix, which also matched deliberately chosen names leading with the model - `PA-5220_EDGE-01`, `PA-5220_DC1` - so on an estate using that convention every device reported as unnamed.\n\nORIGIN: split from PAN-SVC-009 on 2026-09-15, which the corpus bundles with the time-zone assertion. Two independent defects with different remediations produced one finding that could not be cleared by fixing either half. See scratch/control-changes.json.",
+          "description": "The device is not still answering to the name PAN-OS gave it.\n\nTHE FACTORY HOSTNAME IS THE MODEL, which is what makes this decidable. Help p.700: \"If you don't enter a value, PAN-OS uses the firewall model (for example, PA-5220_2) as the default.\" So the check compares the stored hostname with the appliance's model plus an optional NUMERIC suffix, rather than pattern-matching a name, and an absent hostname is the same state spelled differently.\n\nTHE SUFFIX IS MATCHED AS DIGITS. An earlier implementation accepted any suffix, which also matched deliberately chosen names leading with the model - `PA-5220_EDGE-01`, `PA-5220_DC1` - so on an estate using that convention every device reported as unnamed.\n\nORIGIN: split from PAN-SVC-009 on 2026-09-15, which the corpus bundles with the time-zone assertion. Two independent defects with different remediations produced one finding that could not be cleared by fixing either half. See scratch/control-changes.json.\n\nTHE FINDING NAMES WHICH OF TWO STATES IT FOUND - no name stored at all, or a stored name that is the model - both at this control's own severity, because the remediation reads differently and a reader cannot infer which from the severity.\n\nSTAGE 3'S THIRD RANK CANNOT BE REPORTED BY THIS CONTROL and that is recorded rather than quietly dropped. It grades a CHOSEN name on an appliance set to take its name from the network lease; a chosen name is by definition not the factory default, so this control's own assertion excludes it. Reporting it needs a different assertion, which is stage 3's to settle.",
           "rationale": "A device named for its model cannot be told apart from its siblings in a log line, and misattribution during incident response is the cost.",
           "audit": "Device > Setup > Management > General Settings > Hostname.",
           "remediation": "Give the device a meaningful unique hostname: `set deviceconfig system hostname <name>`.",
           "queries": [
             {
               "name": "Baseline",
-              "is_baseline": true,
-              "is_active": true,
-              "adjusted_severity": null,
+              "short_description": "The stored hostname is the appliance model, or there is none.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
@@ -2920,7 +3641,67 @@
                     "value": true
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "hostname_is_factory_default"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No name stored at all",
+              "short_description": "`deviceconfig/system/hostname` holds nothing, which PAN-OS renders as the model name.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "hostname_is_factory_default",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "hostname_posture",
+                    "op": "eq",
+                    "value": "no_name_stored"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "hostname_is_factory_default",
+                "hostname_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The stored name is the model, with or without a numeric suffix",
+              "short_description": "A name is stored and it is the appliance's own model, which is the factory default by a different spelling.",
+              "canonical_query": {
+                "model": "integrations.SystemIdentity",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "hostname_is_factory_default",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "hostname_posture",
+                    "op": "eq",
+                    "value": "stored_name_is_the_model_with_a_numeric_suffix"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "hostname_is_factory_default",
+                "hostname_posture"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
             }
           ],
           "implementation_version": "v1",

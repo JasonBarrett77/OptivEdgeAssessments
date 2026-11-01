@@ -31,6 +31,8 @@ SERVER_PROFILE_MODEL = "integrations.ServerProfile"
 NTP_SETTINGS_MODEL = "integrations.NtpSettings"
 SNMP_SETTINGS_MODEL = "integrations.SnmpSettings"
 SYSTEM_IDENTITY_MODEL = "integrations.SystemIdentity"
+DNS_SETTINGS_MODEL = "integrations.DnsSettings"
+SERVICE_ROUTE_MODEL = "integrations.ServiceRoute"
 IKE_CRYPTO_PROFILE_MODEL = "integrations.IkeCryptoProfile"
 IKE_GATEWAY_MODEL = "integrations.IkeGateway"
 # PHASE 2. Four near-identical names across the two phases; these two are the IPSec ones.
@@ -375,6 +377,22 @@ def evaluate_system_identity_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or SYSTEM_IDENTITY_MODEL,
+    )
+
+
+def evaluate_dns_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DNS_SETTINGS_MODEL,
+    )
+
+
+def evaluate_service_route_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or SERVICE_ROUTE_MODEL,
     )
 
 

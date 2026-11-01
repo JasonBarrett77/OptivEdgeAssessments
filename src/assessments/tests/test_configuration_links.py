@@ -160,16 +160,28 @@ class QueryDestinationTests(TestCase):
 
 
 class ControlDetailLinkTests(TestCase):
-    """The page the defect was seen on."""
+    """The page the defect was seen on.
+
+    `_baseline` RATHER THAN `control.queries.get()`, changed 2026-11-01. These tests use
+    PAN-SVC-010 as an ordinary non-rule control and asserted on its ONE query, which stopped
+    being one when stage 8 of `device-services` gave that control its grading's calibrations -
+    `get()` then raised `MultipleObjectsReturned` and the tests failed for a reason that has
+    nothing to do with the link they exist to check. Selecting the baseline keeps the control,
+    keeps the assertion and keeps the branch under test; pinning a different control would move
+    the assertion onto a control that happens not to be graded yet, which is a shrinking set.
+    """
 
     def _control(self, control_id):
         return seed_control(seed_specs()[control_id])
+
+    def _baseline(self, control):
+        return control.queries.get(is_baseline=True)
 
     def test_a_non_rule_control_links_to_its_own_object_page(self):
         control = self._control("PAN-SVC-010")
         html = self.client.get(f"/assessments/controls/{control.pk}/").content.decode()
         expected = reverse("assessment_configuration_object", args=["device", "system-identity"])
-        query = control.queries.get()
+        query = self._baseline(control)
         self.assertIn(f'href="{expected}?control_query={query.pk}"', html)
         self.assertNotIn("/assessments/security-rules/?control_query=", html)
 
@@ -203,7 +215,7 @@ class ControlDetailLinkTests(TestCase):
         html = self.client.get(f"/assessments/controls/{control.pk}/").content.decode()
         self.assertNotIn(f"?control={control.pk}", html)
         # The per-query link still works: a query is previewable wherever it can run.
-        self.assertIn(f"?control_query={control.queries.get().pk}", html)
+        self.assertIn(f"?control_query={self._baseline(control).pk}", html)
 
     def test_a_query_with_no_destination_renders_a_disabled_marker_not_a_gap(self):
         control = self._control("PAN-SVC-010")

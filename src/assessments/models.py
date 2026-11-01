@@ -22,7 +22,9 @@ from optivedge_integrations.integrations.models import (
     ManagementTlsBinding,
     ManagementSshSettings,
     MasterKey,
+    DnsSettings,
     NtpSettings,
+    ServiceRoute,
     SnmpSettings,
     SystemIdentity,
     UpdateServerSettings,
@@ -138,6 +140,26 @@ class Control(models.Model):
         NTP_SETTINGS = "ntp_settings", "NTP"
         SNMP_SETTINGS = "snmp_settings", "SNMP"
         SYSTEM_IDENTITY = "system_identity", "System Identity"
+        #: `device-services`, stage 8 on 2026-11-01. TWO MINTS for a domain that already
+        #: shipped seven of its ten controls, and the reverse map was measured BEFORE
+        #: either line was written, because nothing in this suite asserts one-to-one-ness
+        #: in the direction a mint can break it: `test_every_control_type_targets_a_
+        #: registered_model` asserts enum SUBSET of map and no test anywhere refuses two
+        #: types sharing one target. Measured 2026-11-01, before the first edit: 67 types,
+        #: 67 map entries, 67 DISTINCT targets, and `rev(_CONTROL_TYPE_TARGET_MODEL)`
+        #: answering NO TYPE for both `integrations.DnsSettings` and
+        #: `integrations.ServiceRoute`. The domain's five other subjects needed nothing:
+        #: three already had a type (`ntp_settings`, `snmp_settings`, `system_identity`)
+        #: and TWO ARE DELIBERATELY UNREGISTERED - `integrations.DeviceTelemetry`, whose
+        #: one assertion record stage 5 discharged `engineer_answers` so it owes no query
+        #: and ships no catalog entry at all, and `integrations.ManagementService`, which
+        #: no assertion of this domain names.
+        #:
+        #: `len("dns_settings")` is 12 and `len("service_route")` is 13 against
+        #: `control_type.max_length` 64, measured before writing these: a value too long
+        #: makes `makemigrations` REFUSE with `fields.E009` rather than truncate.
+        DNS_SETTINGS = "dns_settings", "Management Resolvers"
+        SERVICE_ROUTE = "service_route", "Management Service Paths"
         #: Coverage over OUR OWN record of a failed normalization rather than over a device
         #: object. A separate type from COVERAGE because `_CONTROL_TYPE_TARGET_MODEL` is
         #: one-to-one and that map's own comment says so: "a coverage control over another
@@ -664,6 +686,11 @@ class Control(models.Model):
         "ntp_settings": "integrations.NtpSettings",
         "snmp_settings": "integrations.SnmpSettings",
         "system_identity": "integrations.SystemIdentity",
+        "dns_settings": "integrations.DnsSettings",
+        # ONE ROW PER ENFORCEMENT POINT rather than per appliance - the firewall-wide
+        # paths and then every vsys - which is why its finding model carries
+        # `subject_scope` where the three device-wide siblings above do not.
+        "service_route": "integrations.ServiceRoute",
         # Device-wide network objects: one row per named entry per appliance, no vsys axis.
         "ike_crypto_profile": "integrations.IkeCryptoProfile",
         "ike_gateway": "integrations.IkeGateway",
@@ -862,6 +889,8 @@ class Control(models.Model):
         "integrations.NtpSettings": "NTP",
         "integrations.SnmpSettings": "SNMP",
         "integrations.SystemIdentity": "System Identity",
+        "integrations.DnsSettings": "Management Resolvers",
+        "integrations.ServiceRoute": "Management Service Paths",
         "integrations.NormalizationIssue": "Normalization Issue",
         "integrations.IkeCryptoProfile": "IKE Crypto Profile",
         "integrations.IkeGateway": "IKE Gateway",
@@ -2936,6 +2965,123 @@ class SystemIdentityFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.system_identity_finding_id} <- {self.control_query_id}"
+
+
+class DnsSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's MANAGEMENT-PLANE resolvers. PAN-SVC-003.
+
+    One row per appliance, device-wide like the NTP and SNMP models beside it, so NO
+    `subject_scope`: there is one `dns-setting` node per firewall and the appliance is the
+    subject. On an HA pair this yields two findings for one real configuration and nothing
+    deduplicates them - `deviceconfig/system` does not synchronise between peers, so the two
+    rows can genuinely differ and collapsing them would lose a finding.
+
+    WHAT THE SEVERITY TURNS ON IS NOT IN THIS MODEL. The grading separates "no resolver chosen
+    on a LEASED management address" from "no resolver chosen on a FIXED one", and the addressing
+    mode is a `SystemIdentity` column - the normalizer resolves it into
+    `management_resolver_posture` before this ever sees it, which is why the control can clause
+    on one model while the distinction rests on two.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="dns_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="dns_settings_findings")
+    dns_settings = models.ForeignKey(
+        DnsSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DnsSettingsFindingControlQuery",
+        related_name="dns_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["dns_settings"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "dns_settings"],
+                name="unique_dns_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on management resolvers {self.subject_name}"
+
+
+class DnsSettingsFindingControlQuery(FindingControlQueryBase):
+    dns_settings_finding = models.ForeignKey(
+        DnsSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="dns_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dns_settings_finding", "control_query"],
+                name="unique_dns_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dns_settings_finding_id} <- {self.control_query_id}"
+
+
+class ServiceRouteFinding(ObjectFindingBase):
+    """A finding against one enforcement point's management service paths. PAN-SVC-006.
+
+    `subject_scope` IS NOT OPTIONAL HERE and this is the one model of its domain that needs it.
+    The subject is an ENFORCEMENT POINT rather than an appliance: the firewall-wide paths are
+    one row and every virtual system the firewall names is another, so `subject_name` would be a
+    partition name like `vsys3` - which is not unique in an estate and is not unique even on one
+    Panorama. The scope carries the appliance, and the firewall-wide row's subject name is the
+    appliance itself with the scope saying which half it is.
+
+    THE TWO HALVES ARE ONE CONTROL AND ARE NOT THE SAME QUESTION. The firewall-wide half asks
+    whether every service the firewall originates has a source interface and address chosen; the
+    per-system half asks whether a virtual system recorded a choice at all. The per-system
+    columns hold their FIRING defaults on the device-local row, where the question has no answer
+    - which is why every query on that half carries `scope eq vsys`.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="service_route_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="service_route_findings")
+    service_route = models.ForeignKey(
+        ServiceRoute, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ServiceRouteFindingControlQuery",
+        related_name="service_route_findings", blank=True)
+    #: The appliance that owns the enforcement point. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["service_route"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "service_route"],
+                name="unique_service_route_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on service paths {self.subject_name}"
+
+
+class ServiceRouteFindingControlQuery(FindingControlQueryBase):
+    service_route_finding = models.ForeignKey(
+        ServiceRouteFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="service_route_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_route_finding", "control_query"],
+                name="unique_service_route_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service_route_finding_id} <- {self.control_query_id}"
 
 
 class GeneratedArtifact(models.Model):

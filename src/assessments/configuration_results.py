@@ -1022,6 +1022,17 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # count of QUERIES is what this clears, not the count of controls: `test_configuration_links`
     # fails once per catalog query of a homeless model, and this domain seeds 21.
     "PAN-DEC": "stage9-decryption-policy.json",
+    # `device-services` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
+    # `integrations.DnsSettings` and `integrations.ServiceRoute` were both created by stage 7 for
+    # this domain and had never been queried from this repository at all. The entry is keyed on
+    # the whole `PAN-SVC` prefix and is therefore wider than the debt - the seven controls this
+    # domain already shipped target NTP, SNMP and system identity, all three of which have a
+    # rail item and resolve on their own - and that is harmless, because `_awaiting` is consulted
+    # only where `query_results_url` returns nothing. So this is load-bearing for the seven
+    # queries of PAN-SVC-003 and PAN-SVC-006 and inert for the other twenty-five. Stage 9 for
+    # this domain is what gives the two models a page, and stage 8's contract forbids building
+    # one.
+    "PAN-SVC": "stage9-device-services.json",
 }
 
 

@@ -74,6 +74,28 @@ FIELD_COMPILERS = {
     "all_servers_symmetric_key": build_boolean_compiler(
         "all_servers_symmetric_key", "all_servers_symmetric_key"),
     "server_count": build_integer_compiler("server_count", "server_count"),
+    # PAN-SVC-001's SECOND assertion record and the two gradings, registered by stage 8 of
+    # `device-services` on 2026-11-01. Stage 5 marks all three `needs_compiler_field`; the five
+    # columns of this subject it marks `already` are the eight above.
+    #
+    # THE TWO VERDICT COLUMNS TAKE THE TEXT COMPILER AND NOT `build_choice_compiler`, which is
+    # the majority convention here and is a choice rather than an oversight. A choice compiler
+    # refuses a value the column cannot hold, which is better; it also accepts none of
+    # `tests/test_findings_rest_on_columns.py::PROBE_VALUES`, and this model carries a JSONField
+    # (`unauthenticated_servers`) so that test probes it rather than skipping it - so the
+    # closed form would make this domain's vocabulary a literal in a shared test of every other
+    # model. The values these columns are clauseed with are generated from stage 5's
+    # `grading.placements` and checked against a census, not typed by hand.
+    #
+    # `is_empty` COMES WITH THE TEXT COMPILER AND CAN NEVER MATCH EITHER OF THEM: both columns
+    # are non-null with a non-empty default, so no row holds "". Recorded rather than removed,
+    # because the operator set is the shared one.
+    "synched_to_a_configured_server": build_boolean_compiler(
+        "synched_to_a_configured_server", "synched_to_a_configured_server"),
+    "time_source_in_force": build_text_compiler(
+        "time_source_in_force", "time_source_in_force"),
+    "server_authentication_mechanism": build_text_compiler(
+        "server_authentication_mechanism", "server_authentication_mechanism"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

@@ -99,6 +99,13 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.SNMP_SETTINGS, "SNMP"),
     FindingKind(m.SystemIdentityFinding, "system_identity",
                 m.Control.ControlType.SYSTEM_IDENTITY, "system identity"),
+    # `device-services`, 2026-11-01. The labels are SINGULAR and are not the model names:
+    # `test_labels_are_unique_and_prose_shaped` refuses a plural, and the allowlist beside it is
+    # for a subject the vendor's own UI calls plural - neither of these is one.
+    FindingKind(m.DnsSettingsFinding, "dns_settings",
+                m.Control.ControlType.DNS_SETTINGS, "management resolver set"),
+    FindingKind(m.ServiceRouteFinding, "service_route",
+                m.Control.ControlType.SERVICE_ROUTE, "management service path set"),
     FindingKind(m.IkeCryptoProfileFinding, "ike_crypto_profile",
                 m.Control.ControlType.IKE_CRYPTO_PROFILE, "IKE crypto profile"),
     FindingKind(m.IkeGatewayFinding, "ike_gateway",

@@ -131,6 +131,16 @@ from assessments.search.system_identity.compiler import (
     SYSTEM_IDENTITY_MODEL,
     compile_system_identity_search_node,
 )
+from assessments.search.dns_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as DNS_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    DNS_SETTINGS_MODEL,
+    compile_dns_settings_search_node,
+)
+from assessments.search.service_route.compiler import (
+    FIELD_OPERATOR_REGISTRY as SERVICE_ROUTE_FIELD_OPERATOR_REGISTRY,
+    SERVICE_ROUTE_MODEL,
+    compile_service_route_search_node,
+)
 from assessments.search.address_object.compiler import (
     FIELD_OPERATOR_REGISTRY as ADDRESS_OBJECT_FIELD_OPERATOR_REGISTRY,
 )
@@ -424,7 +434,9 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSettings,
     LoggingSettings,
     LoginBanner,
+    DnsSettings,
     NtpSettings,
+    ServiceRoute,
     SnmpSettings,
     SystemIdentity,
     ManagementTlsBinding,
@@ -553,6 +565,16 @@ MODEL_REGISTRY = {
         "model_class": SystemIdentity,
         "field_operators": SYSTEM_IDENTITY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_system_identity_search_node,
+    },
+    DNS_SETTINGS_MODEL: {
+        "model_class": DnsSettings,
+        "field_operators": DNS_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_dns_settings_search_node,
+    },
+    SERVICE_ROUTE_MODEL: {
+        "model_class": ServiceRoute,
+        "field_operators": SERVICE_ROUTE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_service_route_search_node,
     },
     ADDRESS_OBJECT_MODEL: {
         "model_class": AddressObject,

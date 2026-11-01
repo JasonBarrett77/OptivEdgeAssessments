@@ -66,6 +66,29 @@ FIELD_COMPILERS = {
     "accept_dhcp_hostname": build_boolean_compiler(
         "accept_dhcp_hostname", "accept_dhcp_hostname"),
     "accept_dhcp_domain": build_boolean_compiler("accept_dhcp_domain", "accept_dhcp_domain"),
+    # PAN-SVC-009's superseding assertion column and the three gradings, registered by stage 8 of
+    # `device-services` on 2026-11-01. See the NTP compiler for why the verdict columns take the
+    # text compiler rather than the closed-choice one; this model carries no JSONField, so the
+    # shared probe test skips it either way and the choice is consistency with its siblings.
+    #
+    # `timezone_declares_zero_offset` IS NARROWER THAN `not timezone_is_utc`, and that direction
+    # is the opposite of what a reader expects from the word "superseded". `timezone_is_utc` is
+    # `timezone.strip().upper() == "UTC"` - ONE spelling - while this column is membership of the
+    # eighteen keys that declare zero offset in their own text. So the seventeen other spellings
+    # (`GMT`, `Etc/UTC`, `Zulu`, `Universal`, ...) fire the shipped clause and do not fire this
+    # one: the supersession REMOVES rows that were reported and were compliant. `timezone_is_utc`
+    # STAYS REGISTERED - it is a report column and nothing here is entitled to remove one.
+    "timezone_declares_zero_offset": build_boolean_compiler(
+        "timezone_declares_zero_offset", "timezone_declares_zero_offset"),
+    "timezone_offset_class": build_text_compiler(
+        "timezone_offset_class", "timezone_offset_class"),
+    "hostname_posture": build_text_compiler("hostname_posture", "hostname_posture"),
+    # THE `leased_on_a_virtual_appliance_in_a_public_cloud` MEMBER IS UNREACHABLE TODAY, and the
+    # normalizer says so in terms: nothing on the device distinguishes a PA-VM in a public cloud
+    # from one on a laptop, and that member is the one that REDUCES PAN-SVC-007's severity. A
+    # clause on it compiles and matches nothing until an input exists.
+    "addressing_mode_posture": build_text_compiler(
+        "addressing_mode_posture", "addressing_mode_posture"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

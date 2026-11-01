@@ -80,6 +80,28 @@ FIELD_COMPILERS = {
     "is_exposed": build_boolean_compiler("is_exposed", "is_exposed"),
     "v3_user_count": build_integer_compiler("v3_user_count", "v3_user_count"),
     "v3_view_count": build_integer_compiler("v3_view_count", "v3_view_count"),
+    # PAN-SVC-004's superseding assertion column and the two gradings, registered by stage 8 of
+    # `device-services` on 2026-11-01. See the NTP compiler for why the two verdict columns take
+    # the text compiler rather than the closed-choice one.
+    #
+    # `answers_on_an_unauthenticated_version` SELECTS EXACTLY THE ROWS `is_configured AND
+    # uses_v2c` DOES, measured over all five reachable states of the normalizer
+    # (`normalization/device_services.py::_snmp`): `uses_v2c` is `effective == "v2c"`,
+    # `effective` is `version_name or ("v2c" if implicit else "")`, and `implicit` requires an
+    # access-setting - so `implicit` implies `uses_v2c`, the stored disjunction has one reachable
+    # member, and `uses_v2c` implies `is_configured`. `uses_v2c` STAYS REGISTERED: it is a
+    # report column and a saved search may rest on it.
+    "answers_on_an_unauthenticated_version": build_boolean_compiler(
+        "answers_on_an_unauthenticated_version", "answers_on_an_unauthenticated_version"),
+    "default_community_exposure": build_text_compiler(
+        "default_community_exposure", "default_community_exposure"),
+    # READS `v2c` ON A ROW WHOSE `version` IS EMPTY, which a reader of the name would not expect:
+    # `snmp_version_in_force(configured=True, implicit=False, effective="")` falls through to
+    # `V2C`, the state of an `snmp-setting` node carrying no `access-setting` at all. Every query
+    # shipped over this column also carries PAN-SVC-004's assertion clause, which excludes that
+    # row, so the control cannot report it - but an ad-hoc search on this field alone will.
+    "snmp_version_in_force": build_text_compiler(
+        "snmp_version_in_force", "snmp_version_in_force"),
 }
 
 FIELD_OPERATOR_REGISTRY = {
