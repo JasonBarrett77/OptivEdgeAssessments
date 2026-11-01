@@ -921,6 +921,13 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # contract forbids building one. The portal and its client-auth ROW will want two pages rather
     # than one, because the row is the grain a PAN-GPP-002 finding names.
     "PAN-GPP": "stage9-globalprotect-portal.json",
+    # `platform-lifecycle` reached stage 8 on 2026-11-01. THREE models and none of them has a
+    # rail item: all three were created by stage 7 for this domain and had never been queried from
+    # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's
+    # contract forbids building one. THIS DEBT IS FOR THREE OF THE DOMAIN'S SIX CONTROLS, not six:
+    # PAN-PLT-001, -003 and -005 are discharged `engineer_answers` by stage 5, owe no query and
+    # have no catalog entry at all, so they have no link to go nowhere.
+    "PAN-PLT": "stage9-platform-lifecycle.json",
 }
 
 

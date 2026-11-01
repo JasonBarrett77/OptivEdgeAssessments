@@ -56,6 +56,9 @@ from optivedge_integrations.integrations.models import (
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
     GlobalProtectEnforcementPoint,
+    FirewallContentStreams,
+    LicenceInventory,
+    LogAlarmSettings,
     Zone,
 )
 
@@ -256,6 +259,39 @@ class Control(models.Model):
         #: fire one vsys's row for another vsys's portal.
         GLOBALPROTECT_ENFORCEMENT_POINT = (
             "globalprotect_enforcement_point", "GlobalProtect Enforcement Point")
+        #: `platform-lifecycle`. THREE SUBJECTS, THREE MODELS, THREE TYPES, for the one-to-one
+        #: reason above and measured the way this map's own comment now asks: the REVERSE map
+        #: answered NO TYPE for all three of `integrations.FirewallContentStreams`,
+        #: `integrations.LicenceInventory` and `integrations.LogAlarmSettings` before anything
+        #: here was touched, so nothing below reuses a type and nothing mints a second one for a
+        #: model that already has one.
+        #:
+        #: ALL THREE ARE DEVICE-WIDE SINGLETONS WITH NO VSYS AXIS AND NO ENTRY NAME - one row per
+        #: appliance - which is why none of them carries `subject_scope` on its finding model and
+        #: why each finding's `subject_name` is the appliance. ON AN HA PAIR EACH YIELDS TWO ROWS
+        #: FOR ONE REAL CONFIGURATION and nothing deduplicates them; stage 5 records it per
+        #: subject and the hostname is what tells the two rows apart.
+        #:
+        #: The appliance's content streams as ONE row carrying every stream as its own column,
+        #: which is stage 5's `identity.one_row_per` in terms: "carrying every content stream as
+        #: its own column rather than one row per stream". PAN-PLT-002 only. A stream-keyed row
+        #: would have nothing to report on exactly the streams that are absent, and
+        #: `content_currency_state` is a verdict over the set rather than over any one stream.
+        FIREWALL_CONTENT_STREAMS = "firewall_content_streams", "Firewall Content Streams"
+        #: One appliance's entitlement set as a CONCLUSION ABOUT its licence rows rather than one
+        #: row per licence. PAN-PLT-004 only, and BOTH of its assertion records target it - the
+        #: subscription half and the support half - so this is one type for one model carrying a
+        #: control stated twice over, not a two-model control. `integrations.LicenceEntitlement`
+        #: holds the per-licence rows and gets NO type here: no assertion record of this domain
+        #: names that subject, so a type over it would be a search surface no control asks for.
+        LICENCE_INVENTORY = "licence_inventory", "Licence Inventory"
+        #: One appliance's log-database alarm mechanism - the singleton node under
+        #: `deviceconfig/setting/management/common-criteria-alarm-generation`. PAN-PLT-006's
+        #: first half only. Its second half, dataplane utilisation, is discharged
+        #: `engineer_answers` by stage 5 and owes no query, so it needs no type and gets none:
+        #: there is no configuration node anywhere on the firewall holding a dataplane CPU or
+        #: session threshold, and the vendor's own procedure puts the comparison off-box.
+        LOG_ALARM_SETTINGS = "log_alarm_settings", "Log Database Alarms"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -381,6 +417,19 @@ class Control(models.Model):
         # The absence of a portal, of a published application or of a posture matcher has no
         # entry row to live on, which is what this grain exists for.
         "globalprotect_enforcement_point": "integrations.GlobalProtectEnforcementPoint",
+        # `platform-lifecycle`. THREE models and THREE types, because none of the three had a
+        # type: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for all three before this
+        # change, measured against 48 types and 48 DISTINCT targets, so nothing here is a second
+        # type for a model that already has one.
+        #
+        # One appliance's content streams, as one row over the whole set. PAN-PLT-002 only.
+        "firewall_content_streams": "integrations.FirewallContentStreams",
+        # One appliance's entitlement verdict. PAN-PLT-004 only - and both of that control's
+        # assertion records clause on THIS model, one on the subscription state and one on the
+        # support state, so the control has no silent half.
+        "licence_inventory": "integrations.LicenceInventory",
+        # One appliance's log-database alarm mechanism. PAN-PLT-006's first half only.
+        "log_alarm_settings": "integrations.LogAlarmSettings",
     }
 
     class Meta:
@@ -445,6 +494,9 @@ class Control(models.Model):
         "integrations.GlobalProtectPortal": "GlobalProtect Portal",
         "integrations.GlobalProtectPortalClientAuthRow": "GlobalProtect Portal Client Authentication",
         "integrations.GlobalProtectEnforcementPoint": "GlobalProtect Enforcement Point",
+        "integrations.FirewallContentStreams": "Firewall Content Streams",
+        "integrations.LicenceInventory": "Licence Inventory",
+        "integrations.LogAlarmSettings": "Log Database Alarms",
     }
 
     @property
@@ -3613,3 +3665,254 @@ class GlobalProtectEnforcementPointFindingControlQuery(FindingControlQueryBase):
         return (f"{self.globalprotect_enforcement_point_finding_id} "
                 f"<- {self.control_query_id}")
 
+
+class FirewallContentStreamsFinding(ObjectFindingBase):
+    """A finding against one appliance's content streams, taken as a set. PAN-PLT-002.
+
+    ONE ROW PER APPLIANCE CARRYING EVERY STREAM AS A COLUMN, which is stage 5's own
+    `identity.one_row_per` and not a convenience: a stream-keyed row would have nothing to report
+    on exactly the streams that are absent, and `stream_never_installed` is the commonest state in
+    this estate - WildFire reads the never-installed sentinel on three of four lab appliances and
+    antivirus on three of four. `content_currency_state` is a verdict over the SET.
+
+    IT IS THE AGE OF WHAT IS INSTALLED AND NOT THE DISTANCE FROM THE NEWEST RELEASE. Whether a
+    version is current needs the publication date of the newest AVAILABLE release, which the
+    appliance does not hold and no collector fetches; stage 5 records that in `not_stored`. So this
+    reports the appliance's own reported release date against the windows stage 3 named, and the
+    half that needs the vendor's catalogue is absent rather than guessed.
+
+    TWO SPELLINGS OF "NEVER INSTALLED" AND BOTH ARE TRUTHY. The four content streams answer `0`
+    and the URL filtering stream answers `0000.00.00.000`, so a truthiness test reports an
+    uninstalled stream as installed and a numeric comparison ranks `0` as the lowest version
+    rather than as no version. Only a comparison against the literals is right, and the
+    normaliser's `NEVER_INSTALLED_VERSIONS` is where it lives.
+
+    WHAT NO FINDING HERE CAN SAY, and both are stage 3 halves stage 5 could not place:
+
+    * WHETHER A DEVIATION ALERT IS WIRED TO ANYBODY WHO WOULD ACT ON IT. Stage 3's acceptable rank
+      requires it and no column of any subject can hold it, so a clean row means the device-readable
+      half of acceptable and says nothing about the alerting half.
+    * WHETHER THE ESTATE IS INTERNALLY CONSISTENT. PAN-UPD-006 owns the RELATIVE comparison - no
+      device more than one release behind - and this control owns the ABSOLUTE age per device. The
+      two fail in opposite directions and nothing in this row reaches across appliances.
+
+    AND THE ENTITLEMENT GATE IS DELIBERATELY ABSENT RATHER THAN LOST. Stage 3 scopes each stream to
+    "where the organisation has ever held the entitlement that delivers it", which is a fact about
+    `integrations.LicenceInventory` - another model, so no query of this control can carry it. The
+    absence errs in the safe direction and stage 5 says why: A LAPSED ENTITLEMENT DOES NOT SUPPRESS
+    THE STREAM AND IS NOT AN EXEMPTION, because the vendor keeps part of it flowing at a slower
+    cadence after expiry. A stream behind its window on an unlicensed appliance is a finding here.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="firewall_content_streams_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="firewall_content_streams_findings")
+    firewall_content_streams = models.ForeignKey(
+        FirewallContentStreams, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="FirewallContentStreamsFindingControlQuery",
+        related_name="firewall_content_streams_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["firewall_content_streams"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "firewall_content_streams"],
+                name="unique_fcs_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on content streams {self.subject_name}"
+
+
+class FirewallContentStreamsFindingControlQuery(FindingControlQueryBase):
+    firewall_content_streams_finding = models.ForeignKey(
+        FirewallContentStreamsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="firewall_content_streams_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["firewall_content_streams_finding", "control_query"],
+                name="unique_fcs_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.firewall_content_streams_finding_id} <- {self.control_query_id}"
+
+
+class LicenceInventoryFinding(ObjectFindingBase):
+    """A finding against one appliance's entitlement set. PAN-PLT-004, BOTH of its halves.
+
+    THE ROW IS A CONCLUSION ABOUT THE LICENCE TABLE AND NOT ONE LICENCE, which is what lets one
+    control report an entitlement that is MISSING. `integrations.LicenceEntitlement` holds the
+    per-licence rows and carries no control: an absent subscription has no row of its own to be
+    reported on, and the commonest failing state in this estate is exactly that.
+
+    BOTH OF THIS CONTROL'S ASSERTION RECORDS LAND ON THIS MODEL, so the control has no silent half
+    and the stage 8 artifact declares none. Record 0 grades the subscription set through
+    `entitlement_state`; record 1 grades the SUPPORT entitlement through `support_entitlement_state`,
+    and they are separate columns because the two lapse independently and carry different
+    consequences - a lapsed protection subscription stops a content stream, a lapsed support
+    entitlement stops software updates and the vendor's help with an incident.
+
+    ONE BASELINE QUERY, AND RECORD 1 IS CARRIED BY ITS CALIBRATIONS. A control has exactly one
+    baseline - `derive_control_query_severity_value` falls back to the control's default only where
+    no calibration matched - so the second record's assertion is expressed as the four `eq` queries
+    that partition its column's failing set, each carrying that record's own assertion clause. The
+    union is the record, because the column holds exactly one of five tokens and four of them fail.
+
+    THE EMPTY LICENCE ELEMENT IS THE TRAP THIS MODEL EXISTS TO REPORT HONESTLY. `request license
+    info` answers `{"licenses": null}` on both PA-5220s in this estate: the element is PRESENT and
+    EMPTY, `bool(result)` is true while `bool(result["licenses"])` is false, and
+    `result["licenses"]["entry"]` raises. That is NOT "no licences are needed" - it is UNKNOWN, and
+    `no_licence_rows_returned` reports it as what it is. A customer told their entitlements are fine
+    on the strength of a null element has been told they are safe on the strength of nothing.
+
+    HOW A SUPPORT ENTITLEMENT IS RECOGNISED, AND WHICH WAY THE ERROR RUNS. The normaliser matches a
+    word-boundary `support` in the feature name, which is the same test stage 6 made independently.
+    A name containing `support` that is not a support entitlement would be read as one and move an
+    appliance off `absent_from_inventory` and onto a pass - the UNSAFE direction - and it is
+    recorded here rather than hidden because no appliance in this estate holds a support row, so
+    neither reading is exercised today.
+
+    WHAT NO FINDING HERE CAN SAY. Whether the organisation ever HELD an entitlement it no longer
+    holds: the reply lists what is present, so a subscription cancelled last year is
+    indistinguishable from one never bought. And an unreadable expiry date lands on
+    `active_inside_90_days`, a finding at the lowest graded band, because the vendor's own `expired`
+    flag is read first and what an unreadable date leaves open is only HOW SOON a live entitlement
+    lapses - which is said without asserting a thirty-day claim the device did not support.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="licence_inventory_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="licence_inventory_findings")
+    licence_inventory = models.ForeignKey(
+        LicenceInventory, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LicenceInventoryFindingControlQuery",
+        related_name="licence_inventory_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["licence_inventory"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "licence_inventory"],
+                name="unique_licinv_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on licence inventory {self.subject_name}"
+
+
+class LicenceInventoryFindingControlQuery(FindingControlQueryBase):
+    licence_inventory_finding = models.ForeignKey(
+        LicenceInventoryFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="licence_inventory_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["licence_inventory_finding", "control_query"],
+                name="unique_licinv_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.licence_inventory_finding_id} <- {self.control_query_id}"
+
+
+class LogAlarmSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's log-database alarm mechanism. PAN-PLT-006's first half.
+
+    THE SUBJECT IS THE SINGLETON NODE under `deviceconfig/setting/management/
+    common-criteria-alarm-generation` - no entry name, no vsys axis, one row per appliance - so
+    `subject_name` is the appliance and this model declares no `subject_scope`.
+
+    THE ORDERING IS STAGE 3's AND NO SET OF CLAUSES EXPRESSES IT, which is why the control grades
+    one derived column rather than clausing the leaves. "On but with no threshold recorded" is
+    WORSE than "on with thresholds and no notification route", and a conjunction of the three
+    leaves says nothing about which is worse. `alarm_mechanism_state` resolves the node into one
+    ordered verdict and the control asserts a negated equality against its one passing token.
+
+    AN ABSENT NODE AND AN EMPTIED CONTAINER ARE DIFFERENT VERDICTS, measured. Deleting the leaves
+    alone leaves a container that reads as PRESENT, which is `generation_off` and not `node_absent`
+    - so a truthiness test on the container reports an alarm mechanism where there is none, and
+    stage 6's own teardown note says to delete the whole node for exactly this reason.
+
+    THE NODE IS ABSENT ON EVERY APPLIANCE THIS ESTATE SHIPPED WITH, which is why `node_absent` is
+    placed at the control's own severity rather than lower: an appliance with no alarm node raises
+    no alarm when a log database fills, and the oldest records are then discarded silently.
+
+    A SEVERITY DIRECTION THIS ROW CANNOT SETTLE, recorded because it is a live hazard and not a
+    doubt. A log-type threshold of `0` is STORABLE - written, validated and committed on one lab
+    appliance, and read back as `0` from the running view - and what it MEANS is unmeasured. "Alarm
+    always" and "alarm never" are both readings, nothing on the device says which, and a comparison
+    ranking lower-is-stricter would be exactly inverted at the one value an unconfigured-looking
+    appliance would hold. This control grades the COUNT of thresholds recorded and never their
+    magnitude, so it is unaffected; a later control that ranks the magnitude must measure it first.
+
+    AND WHAT A CLEAN ROW DOES NOT MEAN. `alarm_generation_enabled_known` is the column that says
+    whether the master switch was in the node at all, and it is a separate fact from the node
+    answering: the first version of the normaliser read them as one and stored "known" beside a
+    null on both PA-5220s, which is the exact circularity a companion column exists to prevent.
+
+    THE OTHER HALF OF PAN-PLT-006 IS NOT A SILENT HALF AND THE DISTINCTION MATTERS. Its second
+    assertion record - sustained dataplane load - is discharged `engineer_answers` by stage 5 and
+    owes NO query, because there is no configuration node anywhere on the firewall holding a
+    dataplane CPU or session-utilisation threshold, so "sustained" has no stored definition and the
+    vendor's own monitoring procedure puts the comparison on the SNMP manager. That is a measurable
+    expression nobody can write, not a model this control could not reach.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="log_alarm_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="log_alarm_settings_findings")
+    log_alarm_settings = models.ForeignKey(
+        LogAlarmSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="LogAlarmSettingsFindingControlQuery",
+        related_name="log_alarm_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["log_alarm_settings"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "log_alarm_settings"],
+                name="unique_logalarm_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on log database alarms {self.subject_name}"
+
+
+class LogAlarmSettingsFindingControlQuery(FindingControlQueryBase):
+    log_alarm_settings_finding = models.ForeignKey(
+        LogAlarmSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="log_alarm_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["log_alarm_settings_finding", "control_query"],
+                name="unique_logalarm_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.log_alarm_settings_finding_id} <- {self.control_query_id}"

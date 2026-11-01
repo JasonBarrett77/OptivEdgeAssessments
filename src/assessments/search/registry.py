@@ -282,6 +282,21 @@ from assessments.search.globalprotect_enforcement_point.compiler import (
     GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
     compile_globalprotect_enforcement_point_search_node,
 )
+from assessments.search.firewall_content_streams.compiler import (
+    FIELD_OPERATOR_REGISTRY as FIREWALL_CONTENT_STREAMS_FIELD_OPERATOR_REGISTRY,
+    FIREWALL_CONTENT_STREAMS_MODEL,
+    compile_firewall_content_streams_search_node,
+)
+from assessments.search.licence_inventory.compiler import (
+    FIELD_OPERATOR_REGISTRY as LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
+    LICENCE_INVENTORY_MODEL,
+    compile_licence_inventory_search_node,
+)
+from assessments.search.log_alarm_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as LOG_ALARM_SETTINGS_FIELD_OPERATOR_REGISTRY,
+    LOG_ALARM_SETTINGS_MODEL,
+    compile_log_alarm_settings_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
     CloudAppEngineSetting,
@@ -291,6 +306,9 @@ from optivedge_integrations.integrations.models import (
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
     GlobalProtectEnforcementPoint,
+    FirewallContentStreams,
+    LicenceInventory,
+    LogAlarmSettings,
     Zone,
     NormalizationIssue,
     SaasApplicationPolicyPosture,
@@ -596,6 +614,35 @@ MODEL_REGISTRY = {
         "model_class": GlobalProtectEnforcementPoint,
         "field_operators": GLOBALPROTECT_ENFORCEMENT_POINT_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_globalprotect_enforcement_point_search_node,
+    },
+    # `platform-lifecycle`. THREE entries for three models, none of which had a type, a compiler
+    # or a finding model before this change - so nothing here reuses and nothing here is a second
+    # surface over a model that already had one.
+    #
+    # ALL THREE ARE DEVICE-WIDE SINGLETONS: one row per appliance, no vsys axis, no entry name.
+    # They are three and not one because `_CONTROL_TYPE_TARGET_MODEL` is one-to-one and
+    # `test_every_control_type_targets_a_registered_model` iterates `ControlType`, reads that map
+    # and asserts the target is in THIS one - so a type with a map entry and no compiler fails a
+    # test whose message names the other map.
+    FIREWALL_CONTENT_STREAMS_MODEL: {
+        "model_class": FirewallContentStreams,
+        "field_operators": FIREWALL_CONTENT_STREAMS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_firewall_content_streams_search_node,
+    },
+    # A CONCLUSION ABOUT the licence table rather than one licence, which is what lets a control
+    # report an entitlement that is MISSING. `LicenceEntitlement` holds the per-licence rows and
+    # gets no entry here: no assertion record of this domain names that subject.
+    LICENCE_INVENTORY_MODEL: {
+        "model_class": LicenceInventory,
+        "field_operators": LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_licence_inventory_search_node,
+    },
+    # One singleton configuration node, as one ordered verdict over its six leaves. The ordering
+    # is stage 3's and is not expressible as a conjunction of them.
+    LOG_ALARM_SETTINGS_MODEL: {
+        "model_class": LogAlarmSettings,
+        "field_operators": LOG_ALARM_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_log_alarm_settings_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

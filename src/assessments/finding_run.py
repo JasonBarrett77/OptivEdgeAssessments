@@ -41,6 +41,15 @@ from assessments.globalprotect_portal_client_auth_findings import (
 from assessments.globalprotect_enforcement_point_findings import (
     generate_globalprotect_enforcement_point_findings,
 )
+from assessments.firewall_content_streams_findings import (
+    generate_firewall_content_streams_findings,
+)
+from assessments.licence_inventory_findings import (
+    generate_licence_inventory_findings,
+)
+from assessments.log_alarm_settings_findings import (
+    generate_log_alarm_settings_findings,
+)
 from assessments.data_filtering_posture_findings import (
     generate_data_filtering_posture_findings,
 )
@@ -197,6 +206,17 @@ GENERATORS = (
     ("GlobalProtect portal", T.GLOBALPROTECT_PORTAL, generate_globalprotect_portal_findings),
     ("GlobalProtect portal authentication row", T.GLOBALPROTECT_PORTAL_CLIENT_AUTH,
      generate_globalprotect_portal_client_auth_findings),
+    # `platform-lifecycle`, in this tuple's own ordering rule: what the appliance is ENTITLED to
+    # first, then what it has actually LOADED, then the mechanism that would say a log database
+    # filled. A reader meets "this appliance's licence table could not be read" before "its
+    # antivirus stream was never installed", because the first is a candidate explanation for the
+    # second - and meets both before the alarm node, which is about the device noticing its own
+    # storage rather than about protection.
+    ("licence inventory", T.LICENCE_INVENTORY, generate_licence_inventory_findings),
+    ("firewall content streams", T.FIREWALL_CONTENT_STREAMS,
+     generate_firewall_content_streams_findings),
+    ("log database alarm mechanism", T.LOG_ALARM_SETTINGS,
+     generate_log_alarm_settings_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

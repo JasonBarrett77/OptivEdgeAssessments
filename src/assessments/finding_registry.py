@@ -181,6 +181,29 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     FindingKind(m.GlobalProtectEnforcementPointFinding, "globalprotect_enforcement_point",
                 m.Control.ControlType.GLOBALPROTECT_ENFORCEMENT_POINT,
                 "GlobalProtect enforcement point"),
+    # `platform-lifecycle` adds THREE kinds for its three models, because each of them is a
+    # control's target and none of the three had a kind, a generator or a search surface before
+    # this change. All three are DEVICE-WIDE SINGLETONS - one row per appliance, no vsys axis and
+    # no entry name - so each finding's subject is the appliance and none declares `subject_scope`.
+    #
+    # The label is PLURAL and the reason is the one `test_labels_are_unique_and_prose_shaped`
+    # allows for: the subject is one row carrying EVERY content stream as its own column, which is
+    # stage 5's `identity.one_row_per` in terms, and the vendor's own screen (Device > Dynamic
+    # Updates) lists several. "firewall content stream" would name one stream, which is the thing
+    # this grain exists not to be.
+    FindingKind(m.FirewallContentStreamsFinding, "firewall_content_streams",
+                m.Control.ControlType.FIREWALL_CONTENT_STREAMS, "firewall content streams"),
+    # A CONCLUSION ABOUT the licence table rather than one licence, which is what lets one control
+    # report an entitlement that is MISSING. `LicenceEntitlement` holds the per-licence rows and
+    # has no kind: no assertion record of this domain names that subject, and an absent
+    # subscription has no row of its own to be reported on.
+    FindingKind(m.LicenceInventoryFinding, "licence_inventory",
+                m.Control.ControlType.LICENCE_INVENTORY, "licence inventory"),
+    # The label names the MECHANISM rather than the node's leaves, because the control grades one
+    # ordered verdict over them: stage 3's ordering - "on with no threshold" being worse than "on
+    # with thresholds and no route" - is not expressible as a conjunction of the leaves.
+    FindingKind(m.LogAlarmSettingsFinding, "log_alarm_settings",
+                m.Control.ControlType.LOG_ALARM_SETTINGS, "log database alarm mechanism"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

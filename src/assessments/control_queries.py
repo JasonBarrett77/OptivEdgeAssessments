@@ -52,6 +52,9 @@ DATA_FILTERING_POSTURE_MODEL = "integrations.DataFilteringPosture"
 GLOBALPROTECT_PORTAL_MODEL = "integrations.GlobalProtectPortal"
 GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL = "integrations.GlobalProtectPortalClientAuthRow"
 GLOBALPROTECT_ENFORCEMENT_POINT_MODEL = "integrations.GlobalProtectEnforcementPoint"
+FIREWALL_CONTENT_STREAMS_MODEL = "integrations.FirewallContentStreams"
+LICENCE_INVENTORY_MODEL = "integrations.LicenceInventory"
+LOG_ALARM_SETTINGS_MODEL = "integrations.LogAlarmSettings"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -510,4 +513,28 @@ def evaluate_globalprotect_enforcement_point_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
+    )
+
+
+def evaluate_firewall_content_streams_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or FIREWALL_CONTENT_STREAMS_MODEL,
+    )
+
+
+def evaluate_licence_inventory_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LICENCE_INVENTORY_MODEL,
+    )
+
+
+def evaluate_log_alarm_settings_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or LOG_ALARM_SETTINGS_MODEL,
     )

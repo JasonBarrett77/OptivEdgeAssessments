@@ -58,6 +58,12 @@ class FindingRegistryTests(TestCase):
         # `setting/session/ipv6-firewalling` - on the one panel an engineer opens, so "session
         # setting" would name neither of them and the finding is about the panel.
         "session settings",
+        # Device > Dynamic Updates. ONE ROW CARRIES EVERY CONTENT STREAM AS ITS OWN COLUMN -
+        # stage 5's `identity.one_row_per` for `platform-lifecycle` says so in terms - and the
+        # vendor's screen lists several. "firewall content stream" would name one stream, which
+        # is the grain this subject exists not to be: a stream-keyed row has nothing to report on
+        # exactly the streams that are absent, and that is the commonest state measured.
+        "firewall content streams",
     }
 
     def test_labels_are_unique_and_prose_shaped(self):

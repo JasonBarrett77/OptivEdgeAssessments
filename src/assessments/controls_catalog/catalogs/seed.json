@@ -8520,6 +8520,621 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-PLT-002",
+          "name": "Installed Content Is Recent Enough To Enforce With",
+          "control_type": "firewall_content_streams",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "An appliance whose applications-and-threats, antivirus or WildFire content is older than the window that content is published on, or was never installed at all, or cannot say when what it holds was published. A firewall enforces with the signatures it last received, and a frozen stream looks exactly like a working one: the configuration is correct, the schedule exists, and traffic that would have been blocked passes with nothing in the logs to say why.\n\nIT IS THE AGE OF WHAT IS INSTALLED AND NOT THE DISTANCE FROM THE NEWEST RELEASE, and that narrowing is deliberate. Establishing that a version is current needs the publication date of the newest AVAILABLE release, which the appliance does not hold and no collection fetches. So this control reads the appliance's OWN reported release date against the windows this control's ranks name - fourteen days minimum and seven preferred for applications and threats, seven and one for the malware stream - and the half that needs the vendor's catalogue is recorded as unavailable rather than guessed.\n\nGRADED ON ONE DERIVED COLUMN AND NOT ON TEN CLAUSES. The ranks are WINDOWS IN TIME, per stream, against two thresholds each, and a graded placement is a value-set member rather than a comparison - so the windows are computed into one ordered token at normalisation. A clause list is also one conjunction with no OR, and `any one of three streams is behind` is a disjunction no clause list expresses.\n\nTWO OF THE SIX GRADED STATES ARE STATES THE ORIGINAL RANKS DO NOT COVER, and both are placed at this control's own severity rather than smuggled in lower. `release_date_not_reported` is an appliance that reports a content version and no publication date, so the staleness arithmetic cannot be performed at all - measured on both PA-5220s in this lab, one of which carries a real non-zero applications version. It is reported at the baseline because the stream whose currency cannot be established may BE the applications-and-threats stream, and reporting below rank 1 for a row that might be rank 1 would under-report. `stream_never_installed` is a stream with no signatures on the box at all, which is strictly worse than one merely behind.\n\nTWO SPELLINGS OF NEVER-INSTALLED AND BOTH ARE TRUTHY. The four content streams answer `0` and the URL filtering stream answers `0000.00.00.000`, so a truthiness test passes an uninstalled stream and a numeric comparison ranks `0` as the lowest version rather than as no version. Only a comparison against those literals is right, and it is made at normalisation rather than in a clause.\n\nWHAT A CLEAN ROW DOES NOT MEAN, and both absences are deliberate. This control's acceptable rank ALSO requires a deviation alert wired to whoever would act on it, and no column anywhere can hold that - so a pass here is the device-readable half of acceptable and silent about the alerting half. And it says nothing about whether the rest of the estate agrees with this appliance: PAN-UPD-006 owns that relative comparison and the two fail in opposite directions, so an estate uniformly a month stale satisfies that one and fails this one.\n\nAND A LAPSED SUBSCRIPTION IS NOT AN EXEMPTION. This control's scope names an entitlement the organisation has held, which is a fact on another model and cannot be a clause here. The absence errs in the safe direction and the reason is the vendor's own behaviour: part of a content stream keeps flowing at a slower cadence after an entitlement expires, so a stream behind its window on an appliance whose licence ran out is a finding and not an inapplicable control. Whether the entitlement is live is PAN-PLT-004's subject.",
+          "rationale": "Content signatures are the only thing standing between a known exploit and the traffic carrying it, and they decay by the hour rather than by the release. A stream that stopped updating leaves a firewall enforcing last month's threat picture while every page of the configuration still reads as correct, so the gap is invisible to review and visible only to an attacker using something newer than the signatures on the box.",
+          "audit": "Device > Dynamic Updates on the appliance the finding names, and `show system info` for the same values as the device reports them. Read the VERSION and the RELEASE DATE together: a version of `0` is this platform's spelling of never-installed and is not a low version number, and a version present with no date is the state where the age cannot be computed at all rather than a state where it came out badly. The finding prints which stream and which of those two it is. Then establish the part no firewall holds: whether a deviation alert reaches whoever would act on it, which this control cannot see.",
+          "remediation": "Install the missing or stale content for the stream the finding names, then fix the reason it fell behind rather than only the symptom: a misfired schedule, a full disk, a lapsed entitlement or an appliance with no path to the update servers all present identically here. Where the finding says no publication date was reported, the content may be current and unverifiable - raise it with the vendor rather than reinstalling blind, because reinstalling will not add the date. Separately, wire a deviation alert to whoever would act on it; this control reports the device's state and cannot see that alert.",
+          "implementation_version": "v1",
+          "target_model": "integrations.FirewallContentStreams",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An appliance whose content currency is anything other than current - behind a window, never installed, or unable to report when what it holds was published.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Applications and threats content behind its minimum window",
+              "short_description": "The applications-and-threats stream is older than the fourteen-day minimum. That stream carries the vulnerability and spyware signatures and the emergency releases for vulnerabilities being exploited now.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  },
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "applications_and_threats_behind",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Malware stream behind its minimum window",
+              "short_description": "The antivirus stream is older than its seven-day minimum. Ranked at this control's own severity because a malware stream frozen for days is the same class of gap as a stale applications-and-threats stream.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  },
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "malware_stream_behind",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Content inside the minimum window and outside the preferred one",
+              "short_description": "Every asserted stream is inside its minimum window and at least one is outside its preferred one. What is exposed is hours of newly published signatures rather than an absent stream, which is why this is graded one tier lower.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  },
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "inside_minimum_outside_preferred",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "No publication date reported, so the age cannot be computed",
+              "short_description": "The appliance reports a content version and no release date, so the staleness arithmetic cannot be performed. Reported at this control's own severity because the stream whose currency is unestablished may be the applications-and-threats stream.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  },
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "release_date_not_reported",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "A content stream was never installed",
+              "short_description": "A stream reports this platform's spelling of never-installed - `0`, or `0000.00.00.000` for URL filtering. There are no signatures of that kind on the appliance at all, which is worse than a stream merely behind its window.",
+              "canonical_query": {
+                "model": "integrations.FirewallContentStreams",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "current",
+                    "negated": true
+                  },
+                  {
+                    "field": "content_currency_state",
+                    "op": "eq",
+                    "value": "stream_never_installed",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "content_currency_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-PLT-004",
+          "name": "Subscriptions And The Support Entitlement Are Active",
+          "control_type": "licence_inventory",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "An appliance holding an expired or soon-lapsing subscription, holding no support entitlement, or unable to say what it is entitled to at all. An expired subscription degrades protection silently - threat content stops updating, URL lookups fall back to whatever the configuration says, sample submission stops - and the configuration goes on reading as correct throughout.\n\nTHE SUBJECT IS A CONCLUSION ABOUT THE LICENCE TABLE AND NOT ONE LICENCE, which is the central decision here. The commonest failing state is an entitlement that is MISSING, and a licence-keyed control has no row to report that on. A row per appliance can say `no support entitlement appears here at all`; a row per licence cannot.\n\nTWO HALVES OVER ONE MODEL, GRADED ON TWO COLUMNS. The subscription half grades `entitlement_state` and the support half grades `support_entitlement_state`, because the two lapse independently and cost different things: a lapsed protection subscription stops a content stream, a lapsed support entitlement stops software updates - so a vulnerability in PAN-OS itself cannot be patched - and stops vendor assistance during an incident. Both halves are on this one model, so neither is silent.\n\nONE BASELINE AND THE SECOND HALF CARRIED BY ITS CALIBRATIONS. A control has exactly one baseline query, so the support half is expressed as the four equality queries that partition its column's failing set, each carrying that half's own assertion clause. The union is the half, because that column holds exactly one of five tokens and four of them fail. The queries are disjoint by construction and never nested, so no row takes a severity from a broader query than the one that describes it.\n\nTHE EMPTY LICENCE ELEMENT IS THE MOST IMPORTANT PLACEMENT HERE AND THE DIRECTION OF THE ERROR IS WHY. `request license info` can answer with a `licenses` element that is PRESENT and EMPTY - measured on both PA-5220s in this lab - which is truthy at the envelope and empty one level in, and is not the same reply as a read that failed. The answer that shape gives is not `no licences are needed`; it is UNKNOWN. So it fires, at this control's own severity, because the entitlement that might have lapsed is unknown too. A customer told their entitlements are fine on the strength of an empty element has been told they are safe on the strength of nothing.\n\nAN UNREADABLE EXPIRY LANDS ON THE LOWEST GRADED BAND RATHER THAN ON THE PASSING TOKEN, and that is placed rather than defaulted. The vendor's own expired flag is read first and covers the failure that matters, so what an unreadable date leaves open is only HOW SOON a live entitlement lapses - and the lowest band says that without asserting a thirty-day claim the device did not support. `Never` is a real answer and is not this case.\n\nHOW A SUPPORT ENTITLEMENT IS RECOGNISED, AND WHICH WAY THAT ERROR RUNS. A feature name carrying the word `support` is read as one. A name matching that way which is not a support entitlement would be read as present and turn a finding into a PASS, which is the unsafe direction; it is stated here because no appliance in this lab holds a support row, so neither reading is exercised and nobody should assume it is settled.\n\nWHAT THIS CONTROL CANNOT SAY: whether the organisation ever held an entitlement it no longer holds. The reply lists what is present, so a subscription cancelled last year and one never bought are the same absence, and only the purchase record separates them.",
+          "rationale": "Every subscription-delivered protection on the appliance fails quietly when its entitlement lapses, and the support entitlement is the one that decides whether the platform can be patched at all. Both are invisible on every configuration screen, so without a control reading the licence table an estate discovers a lapse when an update is refused or an incident needs the vendor.",
+          "audit": "`request license info` on the appliance the finding names, and Device > Licenses for the same table. Read the finding first for WHICH half failed - the subscriptions, the support entitlement, or the table being unreadable - because the three are different conversations. If the finding says the licence element came back empty, re-run the read before concluding anything: an empty element is a reply that carried no inventory, which is neither a failure nor an answer. Then check the organisation's purchase record, which is the only place a cancelled entitlement is distinguishable from one never bought.",
+          "remediation": "Renew the entitlement the finding names and retrieve the licence on the appliance so the table reflects it. Where no support entitlement appears at all, treat it as the first item: without one the platform cannot take a software update, so every later finding about the PAN-OS release is unfixable until it is in place. Where the finding says the licence table could not be read or came back empty, the work is to make it readable - that is an entitlement state nobody can act on, not a licence to renew. Track renewals against a horizon rather than an expiry date; this control grades thirty and ninety days ahead precisely because a renewal needs lead time.",
+          "implementation_version": "v1",
+          "target_model": "integrations.LicenceInventory",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An appliance whose subscription entitlements are anything other than active beyond the ninety-day renewal horizon - expired, lapsing, unreadable, or an inventory that could not be read at all.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "An entitlement has already expired",
+              "short_description": "At least one entitlement on this appliance carries the vendor's own expired flag. The protection it delivers is on a reduced cadence or stopped, and the firewall goes on enforcing with whatever it last received.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "expired_entitlement_present",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "An entitlement lapses within thirty days",
+              "short_description": "At least one live entitlement lapses inside thirty days. Nothing has stopped yet, which is why this is graded below this control's own severity - what it costs is the lead time a renewal needs.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "expiring_within_30_days",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "An entitlement lapses inside the renewal horizon, or its expiry is unreadable",
+              "short_description": "A live entitlement lapses inside ninety days, or its expiry date could not be parsed. Both land here: the vendor's expired flag already covered the failure that matters, so an unreadable date leaves open only how soon a live entitlement lapses.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_inside_90_days",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The licence table returned no rows",
+              "short_description": "The licence reply carried a `licenses` element that was present and empty, so no entitlement could be checked. Reported at this control's own severity because the answer is not that no licences are needed - it is unknown.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "no_licence_rows_returned",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The licence inventory was never read",
+              "short_description": "No licence reply exists for this appliance, so nothing is known about what it is entitled to. An unknown fires: a pass would report subscriptions as live on the strength of a reply nobody received.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "entitlement_state",
+                    "op": "eq",
+                    "value": "inventory_not_collected",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "No support entitlement appears in the licence table",
+              "short_description": "No feature in this appliance's licence table reads as a support entitlement. Without one there are no software updates - so PAN-OS itself cannot be patched - and no vendor assistance during an incident.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "absent_from_inventory",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "support_entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The support entitlement has expired",
+              "short_description": "The support entitlement carries the vendor's own expired flag. Software updates have stopped and so has vendor assistance; the appliance goes on enforcing at the release it already holds.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "expired",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "support_entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The support entitlement lapses inside the renewal horizon",
+              "short_description": "The support entitlement lapses inside ninety days. Nothing has stopped yet, which is why this is graded below this control's own severity.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "expires_within_90_days",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "support_entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The support entitlement could not be established",
+              "short_description": "The licence table was never read, so whether a support entitlement exists is unknown rather than absent. An unknown fires at this control's own severity, because the entitlement that might be missing is the one that delivers software updates.",
+              "canonical_query": {
+                "model": "integrations.LicenceInventory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "active_beyond_90_days",
+                    "negated": true
+                  },
+                  {
+                    "field": "support_entitlement_state",
+                    "op": "eq",
+                    "value": "inventory_not_collected",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "support_entitlement_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-PLT-006",
+          "name": "A Filling Log Database Raises An Alarm Somebody Receives",
+          "control_type": "log_alarm_settings",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "An appliance that would not raise an alarm when a log database fills, or would raise one that reaches nobody. When a log database is full the oldest records are discarded silently, so the evidence an investigation asks for is gone and nothing on the appliance says it went.\n\nTHIS ENTRY COVERS ONE OF THIS CONTROL'S TWO HALVES AND THE OTHER IS REPORTED NOWHERE, which a reader must not mistake for a pass. The half asserted here is the log-database alarm mechanism. The half that is NOT is sustained dataplane load: there is no configuration node anywhere on the firewall holding a dataplane CPU or session-utilisation threshold, so `sustained` has no stored definition, and the vendor's own monitoring procedure instructs the reader to configure the SNMP MANAGER to watch those identifiers. The comparison is off-box by the vendor's design, so that half is discharged to an engineer's question rather than to a query - it is a measurable expression nobody can write, not a subject this control failed to reach.\n\nGRADED ON ONE ORDERED VERDICT AND NOT ON THE NODE'S LEAVES, because the ordering is this control's and no conjunction expresses it: `on but with no threshold recorded` is WORSE than `on with thresholds and no notification route`. The master switch, the count of log types carrying a threshold and the two notification switches are resolved into one token at normalisation, and the assertion is a negated equality against the single passing one.\n\nAN ABSENT NODE AND AN EMPTIED CONTAINER ARE DIFFERENT VERDICTS, measured. Deleting the leaves alone leaves a container that reads as PRESENT, which grades as the master switch being off rather than as an absent node - so a truthiness test on the container reports an alarm mechanism where there is none. The node being absent entirely is placed at this control's own severity, because it is the state every appliance in this lab shipped with and an appliance with no alarm node raises nothing at all.\n\nONE TOKEN CANNOT KEEP OFF AND UNKNOWN APART, and that is stated rather than hidden. A node present without its master switch grades the same as a node whose switch is off, because what the device does in that state is unmeasured; the column recording whether the switch was in the node at all is what a reader consults, and the direction fires either way. That column is a separate fact from the read answering - conflating the two stored `known` beside a null on two appliances, which is the circularity a companion column exists to prevent.\n\nA SEVERITY DIRECTION THIS CONTROL DELIBERATELY DOES NOT ASSERT. A log-type threshold of `0` is storable - written, validated and committed on one lab appliance and read back as `0` from the running view - and what it MEANS is unmeasured: `alarm always` and `alarm never` are both readings and nothing on the device says which. So this control counts the log types that carry a threshold and never ranks their magnitudes. A later control that ranks the magnitude must measure that value first, because a comparison treating lower as stricter would be exactly inverted at the one value an unconfigured-looking appliance would hold.",
+          "rationale": "A log database that fills without warning discards the oldest records, so the first time anybody learns the appliance was over capacity is when an investigation asks for records that are no longer there. The mechanism that would have said so is one node with a master switch, a per-log-type occupancy threshold and two notification routes, and every part of it can be configured while the message still reaches nobody.",
+          "audit": "Device > Setup > Management > Logging and Reporting Settings on the appliance the finding names, and the node at `deviceconfig/setting/management/common-criteria-alarm-generation` for the same values. Read three things together: whether the node exists at all, whether alarm generation is on, and whether either notification route is on - the finding prints which of those failed, because the remediations differ. An EMPTY node is not an absent one, and that distinction decides which finding you are reading. Separately, this control says nothing about dataplane or session headroom; that is monitored off the appliance.",
+          "remediation": "Create the alarm node, switch alarm generation on, record an occupancy threshold for each log type the appliance writes, and switch on at least one notification route so a raised alarm leaves the box. ADD OR REMOVE THE WHOLE NODE RATHER THAN ITS LEAVES: an emptied container reads as present and grades differently from an absent one. Leave the parent `deviceconfig/setting/management` alone - it is shared furniture carrying settings this control does not own. Choose the threshold values from the appliance's own log volume; this control does not rank them, and what `0` means on this platform is not established. Separately, monitor dataplane and session headroom from the SNMP manager, which is where the vendor puts that comparison and where this control cannot look.",
+          "implementation_version": "v1",
+          "target_model": "integrations.LogAlarmSettings",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An appliance whose log-database alarm mechanism is anything other than on, with thresholds recorded and a notification route switched on.",
+              "canonical_query": {
+                "model": "integrations.LogAlarmSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_and_route",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "alarm_mechanism_state"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The alarm node is absent entirely",
+              "short_description": "No master switch, no log-database threshold and no notification switch is recorded anywhere in this appliance's configuration, so nothing raises an alarm when a log database fills and the oldest records are discarded silently.",
+              "canonical_query": {
+                "model": "integrations.LogAlarmSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_and_route",
+                    "negated": true
+                  },
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "node_absent",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "alarm_mechanism_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Alarm generation is not on",
+              "short_description": "The node is present and alarm generation is not on, so anything configured beneath it is inert. This also covers the master switch being absent from a present node, which is the state this verdict cannot keep apart from off.",
+              "canonical_query": {
+                "model": "integrations.LogAlarmSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_and_route",
+                    "negated": true
+                  },
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "generation_off",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "alarm_mechanism_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Alarm generation is on and no log type carries a threshold",
+              "short_description": "There is no occupancy at which anything would fire, so the switch being on is cosmetic. Ranked at this control's own severity rather than lower: this is worse than a configured mechanism whose message cannot leave the box.",
+              "canonical_query": {
+                "model": "integrations.LogAlarmSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_and_route",
+                    "negated": true
+                  },
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_without_thresholds",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "alarm_mechanism_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "An alarm would be raised and would reach nobody",
+              "short_description": "Alarm generation is on and thresholds are recorded, and neither notification route is switched on - so the alarm reaches nobody who is not already looking at the screen. Graded one tier lower because the mechanism works and the delivery fails.",
+              "canonical_query": {
+                "model": "integrations.LogAlarmSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_and_route",
+                    "negated": true
+                  },
+                  {
+                    "field": "alarm_mechanism_state",
+                    "op": "eq",
+                    "value": "on_with_thresholds_no_route",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "alarm_mechanism_state"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
         }
       ]
     }
