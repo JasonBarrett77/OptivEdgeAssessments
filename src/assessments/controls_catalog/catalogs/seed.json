@@ -1836,6 +1836,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "ciphers_below_preferred"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -1869,6 +1872,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "kex_below_preferred"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -1902,6 +1908,9 @@
                   }
                 ]
               },
+              "asserted_fields": [
+                "macs_below_preferred"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
@@ -1923,24 +1932,22 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The host key is not ECDSA, or is an ECDSA key below 256 bits.",
+              "short_description": "The host key type in force is not ECDSA - a type somebody chose that is not ECDSA, or no type chosen at all.",
               "canonical_query": {
                 "model": "integrations.ManagementSshSettings",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
                     "field": "host_key_type",
                     "op": "eq",
                     "value": "ECDSA",
                     "negated": true
-                  },
-                  {
-                    "field": "host_key_bits",
-                    "op": "lt",
-                    "value": 256
                   }
                 ]
               },
+              "asserted_fields": [
+                "host_key_type"
+              ],
               "is_baseline": true,
               "adjusted_severity": null,
               "is_active": true
