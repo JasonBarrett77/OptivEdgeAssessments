@@ -12475,6 +12475,799 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-GPG-001",
+          "name": "Gateway TLS Profile States A Protocol Floor",
+          "control_type": "globalprotect_gateway",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A GlobalProtect gateway whose bound SSL/TLS service profile does not resolve to a protocol floor anybody chose. A gateway with nothing effective selected negotiates on the platform's own terms, and when that was measured on the equivalent service on this product the platform accepted a protocol generation the vendor's own guidance deprecates - so the internet-facing end of the remote-access path is weaker than any other service on the device, and nothing on the firewall reports what a gateway actually offered.\n\nONE CLAUSE OVER A DERIVED COLUMN AND NOT TWO, because the failing condition is a DISJUNCTION: the bound name reaches no profile row this collection carries, OR the profile it reaches states no minimum version. A control query's clause list is one conjunction with no OR, so two clauses would fire only where both held. The resolution happens at normalisation and the finding's sentence names which of the two it found.\n\nTHE BINDING ITSELF IS MANDATORY AT COMMIT, measured: `validate full` refuses a gateway with no SSL/TLS service profile and names it. So a control written as \"the binding is absent or empty\" is dead code on every committed gateway in any estate, and an empty value in a collected row is evidence about the READ rather than about the device. This control asserts over what the binding RESOLVES TO instead.\n\nA VENDOR-PREDEFINED PROFILE RESOLVES TO NOTHING HERE AND THAT IS A KNOWN GAP. A predefined profile beats a same-named writable one whole, and no collector in this project issues the read that would carry the predefined namespace at this subtree - so the most plausible correctly hardened gateway, one naming a vendor profile, is also one this control reports. That direction is the safe one and it is not silent: the finding says the name resolved to nothing rather than that the floor is wrong.\n\nWHETHER THIS GATEWAY FACES A NETWORK YOU DO NOT CONTROL IS NOT A FIREWALL FACT. The configuration is identical on an internet-facing gateway and on one reachable only from inside, and nothing on the device tells them apart, so the exposure half of this control is the engineer's question and the finding carries it.\n\nAND THE CERTIFICATE THE GATEWAY PRESENTS IS NOT ASSESSED HERE AT ALL. Whether it chains to an authority every expected endpoint already trusts, and whether it names the address those endpoints connect to, is this control's other half - and neither is readable from any configuration node, so it is discharged as a question to the engineer and owes no query.",
+          "rationale": "The gateway is the internet-facing end of the remote-access path, so a protocol floor nobody chose is the weakest negotiation on the device, and the firewall records nothing about what any session actually agreed.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names > Authentication, and read the SSL/TLS Service Profile selected there. Then open Device > Certificate Management > SSL/TLS Service Profile and find that profile by name. Two cases and the finding says which: the name is not in that list at all - check whether it is a vendor PREDEFINED profile, which this project does not collect - or it is there and its Min Version is left at the platform default. Also establish whether this gateway accepts connections from a network you do not control; the firewall holds nothing that answers it.",
+          "remediation": "Bind an SSL/TLS service profile that states an explicit Min Version of TLS 1.2 or higher, on this gateway and on every other gateway of this firewall. Where the gateway names a predefined profile, replace it with a writable one stating the floor, so that what the gateway offers is recorded in the configuration rather than inherited. Setting the floor on some other profile on the device does not satisfy this: the question is which profile THIS gateway binds.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGateway",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A GlobalProtect gateway whose bound SSL/TLS service profile does not resolve to a protocol floor somebody chose.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tls_profile_resolves_to_an_explicit_floor",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tls_profile_resolves_to_an_explicit_floor"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-002",
+          "name": "Gateway Admission Demands More Than A Password",
+          "control_type": "globalprotect_gateway_client_auth",
+          "default_severity": "critical",
+          "is_active": true,
+          "description": "A GlobalProtect gateway client-authentication row that will admit a client platform on a password alone, or whose gateway treats a client certificate as an alternative to credentials rather than as a second factor. The gateway is the admission control for the whole internal network, so a password-only path turns one phished or sprayed credential into a routed position inside the estate.\n\nTHE SUBJECT IS THE ROW AND NOT THE GATEWAY, and that is this control's central decision. The table is keyed by the client OPERATING SYSTEM - eleven measured values, `Any` among them as a real value rather than a wildcard - so one gateway can point a Windows row at a strong identity service and an `Any` row at the firewall's own local database. A gateway-grain verdict would report one weak gateway without saying which platform to repoint, and would show the compliant row beside the failing one as though they agreed.\n\nTHIS CONTROL SPANS TWO MODELS AND REACHES BOTH BY A RELATION, which is unusual enough to state. Its first assertion is on the row's own resolved identity back end. Its second is on the GATEWAY above the row - whether a client certificate is a genuine second factor there - and it is reached through the row's own foreign key to its gateway, a to-one upward walk. The measured limit: THAT KEY IS NULLABLE, so on a row whose gateway did not resolve the second question is not asked, and the finding says so rather than passing.\n\nROWS SERVING THIRD-PARTY CLIENTS THROUGH EXTENDED AUTHENTICATION ARE EXCLUDED, in every query this control carries. That is a different admission path the vendor documents separately, and a rank query missing the exclusion would widen the control onto rows that never qualified.\n\nWHAT THIS CONTROL CANNOT SAY, and it is the acceptable minimum rather than an edge case: whether the identity service actually enforces a second factor. The firewall records WHICH service it asks and never what that service demands, so a row naming a SAML or RADIUS object is not evidence of MFA and no query here can award it. A configuration review reads the same whether the second factor is enforced or was switched off at the identity provider last month.\n\nAND THE FALLBACK PATH IS UNEXPRESSED RATHER THAN SATISFIED. The name a row points at may be an authentication PROFILE or an authentication SEQUENCE, and nothing stored can tell them apart. A sequence is tried member by member until one succeeds, so one whose last member is the firewall's own local user database accepts a locally held password whenever the identity service is unreachable. The finding names the bound object so an engineer can resolve it by hand.",
+          "rationale": "The gateway admits endpoints to the internal network, so a path that a working username and password opens on its own converts one phished credential into a routed position inside the estate, and the firewall holds nothing about the policy behind the identity service it names.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names > Authentication > Client Authentication, and open the row the finding names - it prints the row name, the gateway and the client operating system, because the row name alone is operator-chosen. Read the authentication profile it points at, then open that object and establish two things that are not firewall facts: whether it is a profile or a SEQUENCE, and whether the service behind it demands a second factor for GlobalProtect logins specifically. Then read `certificate-profile` on the gateway above the row and the and/or switch on the row itself, remembering that the affirmative value is the PERMISSIVE one.",
+          "remediation": "Point every row of the table at an identity service that demands a second factor for GlobalProtect logins, and confirm at that service that no population is exempted. Where client certificates are in use, set each row's and/or switch to require both factors - the value labelled `No (User Credentials AND Client Certificate Required)` - and bind a certificate profile on the gateway that refuses a certificate not issued to the presenting device. Both are needed: the switch alone demands a certificate the gateway cannot check, and the profile alone leaves rows admitting either factor. Repeat for every client platform, including `Any`.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGatewayClientAuth",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A gateway client-authentication row whose identity service cannot deliver a second factor, so a password alone admits that client platform.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayClientAuth",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "client_os",
+                    "op": "eq",
+                    "value": "X-Auth",
+                    "negated": true
+                  },
+                  {
+                    "field": "backend_can_deliver_a_second_factor",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "backend_can_deliver_a_second_factor"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "A client certificate is not a genuine second factor on the gateway",
+              "short_description": "The gateway above this row either binds no certificate profile, or binds one that admits a certificate not issued to the presenting device, or has a row accepting a certificate instead of credentials.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayClientAuth",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "client_os",
+                    "op": "eq",
+                    "value": "X-Auth",
+                    "negated": true
+                  },
+                  {
+                    "field": "gateway_client_certificate_is_a_second_factor",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gateway_client_certificate_is_a_second_factor"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "gateway_client_certificate_is_a_second_factor": [
+                  "globalprotect-gateway.client_certificate_is_a_second_factor"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-003",
+          "name": "Gateway Reconnection Cookie Is Short-Lived And Its Certificate Is Managed",
+          "control_type": "globalprotect_gateway_agent_config",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A GlobalProtect gateway agent configuration that accepts a stored reconnection cookie for longer than a working day, or that names no certificate to encrypt and decrypt the cookie at all. The cookie is a bearer token for the whole network: whoever holds a copy reconnects as that user with no password, no certificate and no second factor for as long as it is valid, and DISABLING THE USER'S ACCOUNT DOES NOT REVOKE IT.\n\nTHE LIFETIME IS ONE SPAN OF TIME WHICHEVER UNIT IT WAS ENTERED IN. The device accepts minutes, hours or days and this control compares a single converted number, because a clause compares one field to one literal. The finding prints the value the administrator actually typed and its unit beside the converted span, because the remediation is an edit to the number on the screen.\n\nTHE BANDS ARE WRITTEN AS BOUNDED RANGES AND THAT IS LOAD-BEARING RATHER THAN STYLISTIC. The worst MATCHED calibration decides a finding's severity and the control's own tier applies only where none matched, so an open-ended query carrying a gentler tier would capture every row a harsher band is for and report it below the severity its grading gives it. Each band is therefore closed at both ends except the highest, and no row can match two of them.\n\nTHE 13-TO-24-HOUR BAND SITS BELOW THIS CONTROL'S OWN THRESHOLD and still carries a query. Its rows do not fail the one-working-day assertion, so the baseline does not reach them; the band is the assertion for that query, which is how a grading extends a control's population rather than only calibrating its severity.\n\nA ROW THAT ACCEPTS A COOKIE AND BOUNDS NOTHING IS REPORTED RATHER THAN PASSED. An absent value in all three unit branches reads as nobody having looked and must not be graded as acceptable - and because a null matches no positive comparison, it would otherwise pass the threshold in silence. A separate query reaches those rows through a companion column, at this control's own severity, and the finding is worded as an absence rather than as a number.\n\nTURNING COOKIES OFF IS NOT A REMEDIATION YOU CAN OFFER EVERYWHERE. The vendor recommends the reconnection cookie specifically where a one-time-password or software-token service is in use, so on such a deployment the right answer is a SHORT cookie rather than none.\n\nTHE CERTIFICATE HALF APPLIES TO A ROW THAT MERELY ACCEPTS A COOKIE AS WELL AS ONE THAT GENERATES IT, which is why it is gated by the wider of the two switches: the certificate is a sibling of the accept setting and serves both sides. What the firewall holds is the NAME and nothing else - not when it was last replaced, not what else uses it, not who owns the schedule - and the same certificate has to serve the portal, so replacing it carelessly takes remote access down for everyone at once.",
+          "rationale": "A reconnection cookie is a password-less credential for the whole network that account disabling does not revoke, so a long lifetime keeps a lost endpoint connected to the estate and an unmanaged signing certificate makes that credential forgeable.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names > Agent > Client Settings > the row the finding names, then the Authentication Override section. Read three things: whether `Accept cookie for authentication override` is ticked, the cookie lifetime WITH ITS UNIT - the finding prints both the unit you will see and the converted span it compared - and the certificate selected to encrypt and decrypt the cookie. Then take the certificate's name to whoever owns certificate lifecycle and establish when it was last replaced, what else on the estate uses it, and who owns the schedule. None of those three is a firewall fact.",
+          "remediation": "Reduce the cookie lifetime to twelve hours or less on this row and on every other client settings row of this gateway, entering it in whichever unit is clearest - the control compares the converted span, not the unit. Where the deployment uses a one-time-password or software-token service, keep the cookie and shorten it rather than switching it off. Select a certificate to encrypt and decrypt the cookie wherever an authentication override is configured at all, including rows that only accept one, and record that certificate's owner and replacement schedule alongside the portal's, since one certificate serves both.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGatewayAgentConfig",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An agent configuration that accepts a reconnection cookie for longer than a working day.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "accept_cookie_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "gt",
+                    "value": 24,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_lifetime_hours"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The cookie is accepted for a week or more",
+              "short_description": "The reconnection cookie is honoured for 169 hours or more, which outlives most incident response and is effectively a standing credential.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "accept_cookie_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "gte",
+                    "value": 169,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The cookie is accepted for more than a day and less than a week",
+              "short_description": "The reconnection cookie is honoured for 25 to 168 hours, past the one-working-day baseline this control sets.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "accept_cookie_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "gte",
+                    "value": 25,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "lte",
+                    "value": 168,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The cookie is accepted for more than half a day",
+              "short_description": "The reconnection cookie is honoured for 13 to 24 hours, which meets the baseline and misses the half-day target this control prefers.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "accept_cookie_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "gte",
+                    "value": 13,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_hours",
+                    "op": "lte",
+                    "value": 24,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A cookie is accepted and no lifetime was read for it",
+              "short_description": "The row accepts a reconnection cookie and holds no lifetime in any of the three unit branches, so how long it is honoured was never established.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "accept_cookie_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_lifetime_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_lifetime_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "cookie_lifetime_known": [
+                  "globalprotect-gateway-agent-config.cookie_lifetime_hours"
+                ]
+              }
+            },
+            {
+              "name": "No certificate encrypts the reconnection cookie",
+              "short_description": "An authentication override is configured and the row names no certificate to encrypt and decrypt the cookie it issues or accepts.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "authentication_override_configured",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "cookie_encrypt_decrypt_cert",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cookie_encrypt_decrypt_cert"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-004",
+          "name": "Uninspected Egress From The Gateway Tunnel Is Documented",
+          "control_type": "globalprotect_gateway_agent_config",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A GlobalProtect gateway agent configuration with at least one path by which a connected endpoint's traffic reaches the internet or its own local network without passing through this firewall. Each of those paths carries none of the firewall's inspection, logging or policy, so each is a route in and out of the estate the firewall will never report on.\n\nTHE FINDING IS 'NO RECORD OF THE DECISION' AND NEVER 'THE POSTURE IS WRONG', and the distinction is the whole control. An approved, documented exclusion and an undocumented one read identically off this configuration: the firewall holds the lists and holds nothing at all about whether anybody decided them. What is owed is the approver's name and the review date for each path, not necessarily a change to the list.\n\nTHE COUNT COUNTS PATHS AND NOT LIST ENTRIES, and it includes two things an inventory built from the named exclusion lists alone would miss: the endpoint's own attached network, which is a screen of its own, and any traffic type excluded on a screen of its own. A check that reads only the exclusion lists reports a clean posture on a gateway leaving the endpoint's whole local network open, which means the gap is delivered to the customer as compliance.\n\nAN INCLUDE LIST OF EXACTLY `any` IS NOT COUNTED, because it routes everything into the tunnel. A missing local-network switch IS counted, because the key's name is the negation of what it permits, so an absence most likely leaves access in place. Both decisions are the normaliser's and both are recorded there; a second reader could reasonably have differed on them, which is why they are stated here.\n\nA ROW NOBODY COMPUTED IS REPORTED, by a separate query at this control's own severity. The count's honest empty value is ZERO, which is also the most compliant value the field can hold - a full tunnel with nothing excluded - so without that query a row the normalisation pass never reached would report itself as the best configuration in the estate.\n\nTHE SPLIT-TUNNEL LISTS THEMSELVES ARE NOT QUERYABLE and that is a property of the search language rather than a decision. They are stored as JSON collections and a JSON column may not be registered for querying at all, so this control asserts over the integer aggregate beside them and the finding's sentence prints the count and names the local-network case.",
+          "rationale": "Traffic leaving the tunnel is traffic the firewall cannot inspect, log or police, so every such path is an unreported route into the estate - and an exclusion nobody approved is indistinguishable from one somebody did, which is what makes the gap survive review.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names > Agent > Client Settings > the row the finding names > Split Tunnel, and read all of it: the Access Route include and exclude lists, the Domain and Application include and exclude lists, and - on its own screen - `No direct access to local network`. The finding prints the count it reached and names the local-network case separately, because an audit that reads only the exclusion lists will not find it. Then ask, for each path, who approved it and when the list was last reviewed.",
+          "remediation": "For each path this finding counts, either remove it from the exclusion lists so the traffic returns to the tunnel, or record it on an approved list naming who approved it and when it is next reviewed. Treat `No direct access to local network` as one of those paths rather than as a convenience setting. Where the inventory has never been computed for a row, re-run collection for that gateway before reading the count as zero.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGatewayAgentConfig",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An agent configuration with at least one path by which a connected endpoint reaches the internet or its own local network without passing through the firewall.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "uninspected_egress_path_count",
+                    "op": "gt",
+                    "value": 0,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "uninspected_egress_path_count"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The uninspected-egress inventory was never computed",
+              "short_description": "The count of paths leaving the tunnel has not been computed for this row, and the count's empty value is zero, which is also its most compliant value.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGatewayAgentConfig",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "egress_inventory_computed",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "egress_inventory_computed"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "egress_inventory_computed": [
+                  "globalprotect-gateway-agent-config.uninspected_egress_path_count"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-005",
+          "name": "Collected Host Posture Decides What An Endpoint May Reach",
+          "control_type": "globalprotect_enforcement_point",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A virtual system whose collected host posture is referenced by no security rule, so a non-compliant endpoint is given exactly the access a compliant one gets. Posture that is collected and never referenced is a report nobody acts on: the whole apparatus costs licence, agent and administrative effort and changes no outcome, while every screen and every report shows posture enforcement switched on.\n\nTHE SUBJECT IS THE VIRTUAL SYSTEM AND NOT A HIP OBJECT, because the commonest failing state is that NONE of the apparatus exists. The rows whose absence is the finding are the rows that do not exist, so at the entry grain there would be no row to report it with. The verdict is a conjunction over three counts on the virtual system's own row - a HIP object exists, a HIP profile exists, and at least one security rule names that profile - and the finding names which of the three is missing, because they are three different repairs on three different screens.\n\nNODE PRESENCE IS THE WRONG TEST AND AN ENTRY COUNT IS THE RIGHT ONE. The rule field that would reference a posture profile has a PERMISSIVE DEFAULT, so a rulebase nobody has touched reads as fully built while matching every posture state alike.\n\nTWO OF THIS CONTROL'S THREE HALVES ARE NOT ASSESSED HERE AND BOTH ABSENCES ARE DELIBERATE. Whether posture is being COLLECTED at all is a setting on a PORTAL's agent configuration, so where the portal serving these endpoints sits on another appliance the setting is not on this one and that appliance has to be asked - which is why that half is discharged as unmeasurable here rather than approximated.\n\nAND THE QUARANTINE HALF IS SILENT, which a reader of this control most needs to know. That half asserts that a failing endpoint is actually STOPPED and not merely told: that something puts it on the quarantine list automatically, and that the gateway refuses a login from a device on that list. Both are settings on a GATEWAY, which is a different model from this one, and a control carries queries for exactly one model. There is no relation between the two models in either direction - measured, not assumed - so the question cannot be reached from this grain by any clause. Without the refusal the vendor says the user is notified and connects anyway, so the quarantine mechanism produces a warning message and a tunnel. Read it by hand.\n\nA DEVICE WITH EVERY SETTING IN PLACE AND NO SUBSCRIPTION QUARANTINES NOTHING and looks fully compliant to any configuration read. The licence is readable and is not claused on here, because a clause on it would suppress this control on exactly the appliances whose licence state is unknown.",
+          "rationale": "Every posture decision downstream is taken on whatever was collected, so posture that no rule references grants a non-compliant endpoint the access a compliant one gets while every report shows enforcement on.",
+          "audit": "Objects > GlobalProtect > HIP Objects and HIP Profiles on the virtual system the finding names, then Policies > Security and the Source HIP Profile column across that rulebase. The finding says which of the three steps is missing. Separately, and by hand: open each gateway of this virtual system at Network > GlobalProtect > Gateways > Agent > Client Settings and read `block-quarantined-devices`, and check Device > Log Settings > HIP Match for an action that quarantines - that half of this control has no query and is not reported. Also confirm which portal serves these endpoints and whether it is on this firewall.",
+          "remediation": "Define the HIP objects the posture decision needs, group them into a HIP profile, and reference that profile from the security rules that decide what a connected endpoint may reach - all three, since the chain is only as built as its weakest step. Then, by hand, make a failing endpoint actually stop: configure a HIP Match log setting with a quarantine action, and set every gateway of this virtual system to refuse logins from quarantined devices. Confirm the GlobalProtect subscription is current, since none of the quarantine behaviour takes effect without it.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectEnforcementPoint",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A virtual system whose collected host posture is referenced by no security rule, so a non-compliant endpoint reaches exactly what a compliant one reaches.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectEnforcementPoint",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "posture_referenced_in_policy",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "posture_referenced_in_policy"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-006",
+          "name": "Gateway Builds An Inspected Tunnel Over The Chosen Transport",
+          "control_type": "globalprotect_gateway",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A GlobalProtect gateway that builds no tunnel for its endpoints, or builds one over the weaker of the two available transports, or prefers the stronger transport while offering a weaker algorithm first. Without a tunnel the remote population gets identity and nothing else: their traffic never reaches the firewall, so every policy, profile and log the organisation has bought applies to the office and not to the people outside it.\n\nTHREE ASSERTIONS THAT CASCADE AND CANNOT OVERLAP. The first fires where the gateway builds no tunnel; the second where it builds one and does not offer IPSec; the third where it does offer IPSec and the algorithm order is wrong. No row can match two of the three, which is what makes the grading below safe to state at this control's own tier as well as above it.\n\nTHE TUNNEL SETTING IS MANDATORY AT COMMIT, measured: the device refuses a gateway that omits it and names it. So the failing state a query looks for is a stored negative and never an absence, and a control written as 'absent or off' would be half dead code. An absence on a collected row is a collection failure, and the finding says so rather than reporting a setting.\n\nTHE NETWORKING HALF IS A SEPARATE READ AT A DIFFERENT SCOPE, which is why it has a query of its own. One dialog writes a vsys-scoped entry AND a device-local entry of the same name, and the second carries the transport and its crypto - so it is the half most likely to be missing while the gateway's own entry exists. An absent enable key stores nothing, a comparison over nothing matches nothing, and the two candidate readings of that absence are opposite postures, so it is reported rather than guessed.\n\nFALLBACK BETWEEN THE TWO TRANSPORTS IS SILENT AND PER ENDPOINT, so a fleet can sit entirely on the weaker one while the preference is switched on and every screen agrees - and one of the two causes the vendor names is this firewall's own address translation rather than anything on the network path. Nobody discovers that by asking whether a port is blocked, and no single read of the firewall answers it: a fallback rate is a trend over two readings and a window.\n\nTHE ALGORITHM ORDER IS THE ORDER THE FIREWALL APPLIES, which is why the grading ranks sequences and not sets. A gateway left at its shipped order negotiates the weakest algorithm it holds with every endpoint that will accept it, so the stated reason for preferring that transport is not delivered - and a check comparing algorithm SETS would report the shipped order and a hardened one as identical.\n\nTWO THINGS THE GRADING CANNOT RANK AND BOTH ARE REAL. The authentication half of this profile kind offers one algorithm and nothing else - measured on every appliance, and the vendor's own help says so in terms - so it has no rank, no remediation, and a finding against it would fire on every correctly configured gateway on this platform. And a gateway whose endpoints negotiate the newer key-exchange protocol takes its algorithms from a different profile kind entirely, which nothing here establishes.\n\nAND WHETHER A GATEWAY IS MEANT TO BUILD A TUNNEL AT ALL IS NOT RECORDED ANYWHERE ON IT. The vendor makes the tunnel optional for a gateway that exists only to give the firewall visibility of users already inside the network, and the distinction is made by which of the portal's two gateway lists names it. Confirm that before reading the first assertion as a defect.",
+          "rationale": "A gateway without a tunnel gives the remote population identity and no inspection, and a tunnel over the weaker transport or the shipped algorithm order delivers none of the posture that justified choosing it - while every screen reads as configured.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names, and read `tunnel-mode` on the Agent tab. Then open Network > Tunnels and find the device-local entry of the SAME NAME: that is where IPSec enable and the app crypto profile live, and a check that reads only the gateway entry misses them entirely - the finding says when that half was not read at all. Where IPSec is on, open Network > Network Profiles > GlobalProtect IPSec Crypto and read the ENCRYPTION ORDER of the bound profile, not merely its membership. Separately, ask who watches how often endpoints fall back to the other transport and what they would do about a change.",
+          "remediation": "Enable tunnel mode on every gateway that serves users outside your network, confirming first which of your gateways exist only to identify users already inside. Enable IPSec on the device-local half so endpoints get the stronger transport with SSL as fallback. Then reorder the bound GlobalProtect IPSec crypto profile so the 256-bit authenticated-encryption proposal is first - reordering, not merely adding it, since the order is what the firewall applies. Finally, put a standing review on the fallback rate between the two transports, which no single configuration read can answer.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGateway",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A GlobalProtect gateway that builds no tunnel for its endpoints, so their traffic never reaches this firewall to be inspected.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tunnel_mode",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "tunnel_mode"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The tunnel is built over the weaker transport",
+              "short_description": "The gateway builds a tunnel and does not offer IPSec, so every endpoint is served over the SSL transport.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "tunnel_mode",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ipsec_enabled",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ipsec_enabled"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The preferred transport offers a weaker algorithm first",
+              "short_description": "IPSec is offered and the bound app crypto profile does not put the 256-bit authenticated-encryption proposal first, which is the order this firewall applies.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ipsec_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "app_crypto_offers_gcm_first",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "app_crypto_offers_gcm_first"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The first proposal is the older block cipher",
+              "short_description": "The bound app crypto profile offers aes-128-cbc first or alone, which the vendor's own profile page ranks last of the three.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ipsec_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "app_crypto_offers_gcm_first",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "bound_app_crypto_first_encryption",
+                    "op": "eq",
+                    "value": "aes-128-cbc",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "bound_app_crypto_first_encryption"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The first proposal is the weaker authenticated-encryption option",
+              "short_description": "The bound app crypto profile offers aes-128-gcm ahead of the 256-bit option - authenticated encryption at the lower of the two strengths the vendor offers.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ipsec_enabled",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "app_crypto_offers_gcm_first",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "bound_app_crypto_first_encryption",
+                    "op": "eq",
+                    "value": "aes-128-gcm",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "bound_app_crypto_first_encryption"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The networking half of this gateway was never read",
+              "short_description": "Whether this gateway offers IPSec is unknown rather than no: the transport is a separate read at a different scope and an absent key matches no comparison.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "ipsec_enabled_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ipsec_enabled_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "ipsec_enabled_known": [
+                  "globalprotect-gateway.ipsec_enabled"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-GPG-007",
+          "name": "Gateway Session Lifetime And Idle Logout Are Bounded",
+          "control_type": "globalprotect_gateway",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A GlobalProtect gateway that lets a login last longer than a working day before requiring authentication again, or that holds an idle tunnel for hours without tearing it down. Until the login limit expires the tunnel survives everything the organisation might do about the user - disabling the account, revoking the certificate, changing the password, losing the laptop - so an unbounded lifetime means a leaver or a stolen endpoint keeps a routed position inside the network for as long as the session stays up.\n\nTHE PRODUCT'S OWN UNTOUCHED STATE IS THE WORST VALUE THIS SETTING CAN HOLD, and the vendor's documented default of thirty days sits in this grading's harshest band. That is why the control exists as a bound rather than as a comparison against a default.\n\nTHE LIMIT IS ONE SPAN OF TIME WHICHEVER UNIT IT WAS ENTERED IN, and the finding prints the number the administrator typed with its unit beside the converted span, because the remediation is an edit to the screen.\n\nTHE BANDS ARE BOUNDED RANGES AND THAT IS LOAD-BEARING. The worst MATCHED calibration decides a finding's severity and this control's own tier applies only where none matched, so an open-ended query carrying a gentler tier would capture a thirty-day login and report it below the severity its grading gives it. Each band is closed at both ends except the highest, and no row can match two of them.\n\nTHE COMMONEST FAILING STATE IS THAT NOBODY HAS BOUNDED ANYTHING, and that is why the subject is the gateway rather than an agent role entry. No agent role entry was found on any appliance in the estate this control was built against, so there is routinely no row at the role-entry grain to report the absence with - and because a null matches no positive comparison, an unbounded lifetime would pass the threshold in silence. Separate queries reach those rows through companion columns, each at its own half's severity, and each finding is worded as an absence rather than as a number.\n\nTHE IDLE LOGOUT IS NOT CLOSED WITH THE VENDOR'S DOCUMENTED DEFAULT, deliberately. The vendor documents 180 minutes, which would already satisfy this control - so materialising it would make this half PASS by default while its sibling FAILS by default, on a pair of guesses pointing in opposite directions. Neither guess is licensed by anything measured, so both absences are reported.\n\nTHE NUMBER ON THE GATEWAY IS A CEILING ONLY IF NOBODY HAS RAISED IT FROM THE OTHER SIDE. The vendor added an app setting letting end users extend their own GlobalProtect session; it lives on the PORTAL's app configuration and this gateway's configuration cannot see it.\n\nAND ON AN ESTATE THAT COLLECTS HOST POSTURE THE IDLE TIMER MEASURES SOMETHING ELSE. The vendor says it is reset by a posture check as well as by traffic, so the agent itself keeps the tunnel alive and the number stops describing idleness.",
+          "rationale": "A tunnel outlives every revocation the organisation can perform until its login lifetime expires, and an idle tunnel is a live route into the network attached to an endpoint nobody is sitting at - which the login lifetime is far too coarse to close.",
+          "audit": "Network > GlobalProtect > Gateways > the gateway the finding names > Agent > Client Settings, and read the Login Lifetime and the Inactivity Logout WITH THEIR UNITS; the finding prints both the unit you will see and the converted span it compared. Where the finding reports an absence rather than a number, check whether any agent role entry exists on this gateway at all - routinely none does, and that is the finding. Then open the PORTAL serving these endpoints and read whether end users may extend their own session, which this gateway cannot see.",
+          "remediation": "Set the login lifetime to twelve hours or less and the inactivity logout to three hours or less on this gateway, in whichever unit is clearest. Where no agent role entry exists, create one rather than relying on the product default, which is the worst value the field can hold. Then turn off the portal app setting that lets end users extend their own session, or the gateway's number is not a ceiling. On an estate that collects host posture, confirm what the idle timer is actually measuring, since a posture check resets it as traffic does.",
+          "implementation_version": "v1",
+          "target_model": "integrations.GlobalProtectGateway",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A GlobalProtect gateway that lets a login last longer than a working day before requiring authentication again.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "gt",
+                    "value": 24,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "login_lifetime_hours"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "A login lasts a week or more",
+              "short_description": "The login lifetime is 169 hours or more, the band the vendor's own documented default of 30 days sits in.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "gte",
+                    "value": 169,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "login_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A login lasts more than a day and less than a week",
+              "short_description": "The login lifetime is 25 to 168 hours, past the one-working-day baseline this control sets.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "gte",
+                    "value": 25,
+                    "negated": false
+                  },
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "lte",
+                    "value": 168,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "login_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "A login lasts more than half a day",
+              "short_description": "The login lifetime is 13 to 24 hours, which meets the baseline and misses the half-day target this control prefers.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "gte",
+                    "value": 13,
+                    "negated": false
+                  },
+                  {
+                    "field": "login_lifetime_hours",
+                    "op": "lte",
+                    "value": 24,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "login_lifetime_hours"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "No login lifetime is bounded on this gateway",
+              "short_description": "No login lifetime was read in any of the three unit branches, so nothing bounds how long a tunnel survives the organisation revoking the user's access.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "login_lifetime_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "login_lifetime_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "login_lifetime_known": [
+                  "globalprotect-gateway.login_lifetime_hours"
+                ]
+              }
+            },
+            {
+              "name": "An idle tunnel is held for more than three hours",
+              "short_description": "The idle-logout timer is over 180 minutes, so an unattended endpoint holds a route into the network well past the point anybody is using it.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "inactivity_logout_minutes",
+                    "op": "gt",
+                    "value": 180,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "inactivity_logout_minutes"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "No idle logout is bounded on this gateway",
+              "short_description": "No idle-logout value was read, so an abandoned endpoint keeps its tunnel for the whole of the login lifetime.",
+              "canonical_query": {
+                "model": "integrations.GlobalProtectGateway",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "inactivity_logout_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "inactivity_logout_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields_restated_from": {
+                "inactivity_logout_known": [
+                  "globalprotect-gateway.inactivity_logout_minutes"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

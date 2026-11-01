@@ -282,6 +282,21 @@ from assessments.search.globalprotect_enforcement_point.compiler import (
     GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
     compile_globalprotect_enforcement_point_search_node,
 )
+from assessments.search.globalprotect_gateway.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_GATEWAY_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_GATEWAY_MODEL,
+    compile_globalprotect_gateway_search_node,
+)
+from assessments.search.globalprotect_gateway_client_auth.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_GATEWAY_CLIENT_AUTH_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_GATEWAY_CLIENT_AUTH_MODEL,
+    compile_globalprotect_gateway_client_auth_search_node,
+)
+from assessments.search.globalprotect_gateway_agent_config.compiler import (
+    FIELD_OPERATOR_REGISTRY as GLOBALPROTECT_GATEWAY_AGENT_CONFIG_FIELD_OPERATOR_REGISTRY,
+    GLOBALPROTECT_GATEWAY_AGENT_CONFIG_MODEL,
+    compile_globalprotect_gateway_agent_config_search_node,
+)
 from assessments.search.firewall_content_streams.compiler import (
     FIELD_OPERATOR_REGISTRY as FIREWALL_CONTENT_STREAMS_FIELD_OPERATOR_REGISTRY,
     FIREWALL_CONTENT_STREAMS_MODEL,
@@ -335,6 +350,9 @@ from optivedge_integrations.integrations.models import (
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
     GlobalProtectEnforcementPoint,
+    GlobalProtectGateway,
+    GlobalProtectGatewayClientAuth,
+    GlobalProtectGatewayAgentConfig,
     FirewallContentStreams,
     LicenceInventory,
     LogAlarmSettings,
@@ -648,6 +666,45 @@ MODEL_REGISTRY = {
         "model_class": GlobalProtectEnforcementPoint,
         "field_operators": GLOBALPROTECT_ENFORCEMENT_POINT_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_globalprotect_enforcement_point_search_node,
+    },
+    # `globalprotect-gateway`. THREE entries for three models, and the entry above is the FOURTH
+    # model this domain asserts over - already registered by the portal run, reused by PAN-GPG-005
+    # and gaining one field from this one. So three new surfaces and no second surface over a
+    # model that already had one.
+    #
+    # NOT ONE OF THE THREE HAS A ROW ANYWHERE IN THE MEASURED ESTATE. No GlobalProtect gateway
+    # exists: the merged payload carries no `global-protect-gateway` key under any of the twelve
+    # virtual systems of the four appliances, and `action=show` raises `No such node` at that
+    # xpath on all twelve. These entries are what make `test_findings_rest_on_columns` able to
+    # compile and probe every field without one - which is the one guarantee a domain with no rows
+    # can still give - and what stops `evaluate_queryset_control_queries` skipping every query of
+    # six controls in silence.
+    #
+    # The gateway entry. PAN-GPG-001, -006 and -007 compile against it; PAN-GPG-005's third record
+    # would have and does not, because that control's target is the enforcement point above and
+    # there is no relation between the two models in either direction.
+    GLOBALPROTECT_GATEWAY_MODEL: {
+        "model_class": GlobalProtectGateway,
+        "field_operators": GLOBALPROTECT_GATEWAY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_gateway_search_node,
+    },
+    # One row of one gateway's client-auth table, keyed by client operating system. PAN-GPG-002
+    # only, and the one compiler in this repository that registers a column of ANOTHER model
+    # through a nullable relation walk: `gateway_client_certificate_is_a_second_factor` traverses
+    # the row's own to-one upward `gateway` FK, which is the walk standing ruling 6 permits, and
+    # cannot reach a row whose gateway did not resolve.
+    GLOBALPROTECT_GATEWAY_CLIENT_AUTH_MODEL: {
+        "model_class": GlobalProtectGatewayClientAuth,
+        "field_operators": GLOBALPROTECT_GATEWAY_CLIENT_AUTH_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_gateway_client_auth_search_node,
+    },
+    # One agent client-settings row of one gateway, shared by PAN-GPG-003 and PAN-GPG-004. SIX
+    # JSONFields on this model are deliberately NOT registered - a JSONField may not be - and
+    # `uninspected_egress_path_count` is the scalar aggregate that carries the reading instead.
+    GLOBALPROTECT_GATEWAY_AGENT_CONFIG_MODEL: {
+        "model_class": GlobalProtectGatewayAgentConfig,
+        "field_operators": GLOBALPROTECT_GATEWAY_AGENT_CONFIG_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_globalprotect_gateway_agent_config_search_node,
     },
     # `platform-lifecycle`. THREE entries for three models, none of which had a type, a compiler
     # or a finding model before this change - so nothing here reuses and nothing here is a second

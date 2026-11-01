@@ -179,6 +179,41 @@ FIELD_COMPILERS = {
     # suppress on `unknown` as well as on `no`, which is the trap the module docstring names.
     "globalprotect_portal_licensed": build_text_compiler(
         "globalprotect_portal_licensed", "globalprotect_portal_licensed"),
+
+    # --------------------------------- `globalprotect-gateway` adds ONE field, 2026-11-01
+    # THE ONLY CHANGE THIS DOMAIN MAKES TO A SHIPPED COMPILER, and it is additive: nothing above
+    # was renamed, removed or re-lookup-ed, and the OEA gate was taken immediately before and
+    # immediately after it. PAN-GPP-006 compiles through this same compiler and its four fields
+    # are untouched.
+    #
+    # PAN-GPG-005's ASSERTION, and the only assertion of the whole `globalprotect-gateway` domain
+    # with a stage 6 verdict to be graded against - which is why that control took this model as
+    # its target rather than the gateway its third record names. The verdict is a conjunction
+    # resolved at normalisation over THREE aggregates on this row: `hip_object_count`,
+    # `hip_profile_count` and `rules_referencing_a_hip_profile_count`. It is true only where a HIP
+    # object exists, a HIP profile exists, AND at least one security rule names that profile, so a
+    # clause list - which is one conjunction with no edge to walk into another model's rows -
+    # could not have expressed it.
+    #
+    # THE COMMONEST FAILING STATE IS THAT NONE OF THEM EXISTS, which is the grain this model is
+    # for: the rows whose absence IS the finding are the rows that do not exist, so at the entry
+    # grain there would be nothing to report it with. Measured on vsys1 of fw-core-tpa-a - the one
+    # standing subject this domain has - the hip-objects collection is absent in both views, the
+    # hip-profiles collection beside it is absent in both, and no rule in the vsys rulebase names
+    # a HIP profile. The column is false and the clause holds.
+    #
+    # `default=False` IS THE FIRING SIDE, so a row nobody recomputed reports itself rather than
+    # passing. Non-nullable, so `cannot_be_unknown` holds and no companion column is owed.
+    "posture_referenced_in_policy": build_boolean_compiler(
+        "posture_referenced_in_policy", "posture_referenced_in_policy"),
+    # AND NOTHING ELSE, DELIBERATELY. The three aggregates this verdict is resolved from -
+    # `hip_object_count`, `hip_profile_count` and `rules_referencing_a_hip_profile_count` - are
+    # NOT registered, because no clause and no grading of any control names them and the
+    # compiler's own rule is that a field earns its place by a control needing it. A finding that
+    # wants to say WHICH part of the posture apparatus is missing reads them off its own row in
+    # the generator, which needs no search surface; registering them would widen a SHIPPED
+    # compiler's probe surface for no control's benefit. This entry is the fourteenth field here
+    # and the only change `globalprotect-gateway` makes to a shipped compiler.
 }
 
 FIELD_OPERATOR_REGISTRY = {

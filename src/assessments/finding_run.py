@@ -47,6 +47,15 @@ from assessments.globalprotect_portal_findings import (
 from assessments.globalprotect_portal_client_auth_findings import (
     generate_globalprotect_portal_client_auth_findings,
 )
+from assessments.globalprotect_gateway_findings import (
+    generate_globalprotect_gateway_findings,
+)
+from assessments.globalprotect_gateway_client_auth_findings import (
+    generate_globalprotect_gateway_client_auth_findings,
+)
+from assessments.globalprotect_gateway_agent_config_findings import (
+    generate_globalprotect_gateway_agent_config_findings,
+)
 from assessments.globalprotect_enforcement_point_findings import (
     generate_globalprotect_enforcement_point_findings,
 )
@@ -226,6 +235,20 @@ GENERATORS = (
     ("GlobalProtect portal", T.GLOBALPROTECT_PORTAL, generate_globalprotect_portal_findings),
     ("GlobalProtect portal authentication row", T.GLOBALPROTECT_PORTAL_CLIENT_AUTH,
      generate_globalprotect_portal_client_auth_findings),
+    # `globalprotect-gateway`, in the same ordering rule the portal block above follows: the
+    # vsys-wide verdict first, then the entry, then the entry's children. The verdict for this
+    # domain IS the portal block's enforcement point above - PAN-GPG-005 reuses that type and
+    # adds no generator - so these three are the entry and its two child grains.
+    #
+    # NONE OF THE THREE HAS EVER PRODUCED A ROW. No GlobalProtect gateway exists in the measured
+    # estate, so `generate_object_findings` runs their queries against an empty queryset. That is
+    # not the same as a broken generator and it is not the same as a compliant estate, which is
+    # why the stage 8 artifact reports the zeroes as MEASURED zeroes and names which kind each is.
+    ("GlobalProtect gateway", T.GLOBALPROTECT_GATEWAY, generate_globalprotect_gateway_findings),
+    ("GlobalProtect gateway authentication row", T.GLOBALPROTECT_GATEWAY_CLIENT_AUTH,
+     generate_globalprotect_gateway_client_auth_findings),
+    ("GlobalProtect gateway agent configuration", T.GLOBALPROTECT_GATEWAY_AGENT_CONFIG,
+     generate_globalprotect_gateway_agent_config_findings),
     # `platform-lifecycle`, in this tuple's own ordering rule: what the appliance is ENTITLED to
     # first, then what it has actually LOADED, then the mechanism that would say a log database
     # filled. A reader meets "this appliance's licence table could not be read" before "its

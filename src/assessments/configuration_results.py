@@ -972,6 +972,19 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # rather than once per control, which for this domain is twenty-five queries - twenty-three
     # over the profile model and two over the signing model.
     "PAN-DCP": "stage9-decryption-profiles.json",
+    # `globalprotect-gateway` reached stage 8 on 2026-11-01. FOUR models carry its seven controls
+    # and none of the four has a rail item: the three this domain's stage 7 created - the gateway
+    # entry, its client-authentication row and its agent client-settings row - plus
+    # `integrations.GlobalProtectEnforcementPoint`, whose own debt the `PAN-GPP` entry above
+    # already names. So this entry is load-bearing for six of the seven controls and harmless for
+    # PAN-GPG-005, whose model is already declared: `_awaiting` is consulted only where
+    # `query_results_url` returns nothing.
+    #
+    # ONE LINE CLEARS TWENTY-FIVE FAILURES, because `test_configuration_links` fails ONCE PER
+    # CATALOG QUERY of a new type rather than once per type, and this domain seeds 25 queries.
+    # Stage 9 for this domain is what gives the three new models a page, and stage 8's contract
+    # forbids building one.
+    "PAN-GPG": "stage9-globalprotect-gateway.json",
 }
 
 

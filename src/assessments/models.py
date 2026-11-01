@@ -56,6 +56,9 @@ from optivedge_integrations.integrations.models import (
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
     GlobalProtectEnforcementPoint,
+    GlobalProtectGateway,
+    GlobalProtectGatewayClientAuth,
+    GlobalProtectGatewayAgentConfig,
     FirewallContentStreams,
     LicenceInventory,
     LogAlarmSettings,
@@ -399,6 +402,73 @@ class Control(models.Model):
         #: ancestors, each leaving a scope field unconstrained. See the stage 8 artifact for
         #: `decryption-profiles`, `subjects_in_two_models`.
         DECRYPTION_SETTINGS = "decryption_settings", "Decryption Settings"
+        #: `globalprotect-gateway`. THREE MINTS FOR SEVEN CONTROLS, with one REUSE beside them.
+        #: The reverse map was measured BEFORE any of these three lines was written, because
+        #: nothing in the suite checks one-to-one-ness in the direction a mint can break it:
+        #: `test_every_control_type_has_a_target_model` asserts enum SUBSET of map, and no test
+        #: anywhere asserts that two types do not share one target model. Measured 2026-11-01,
+        #: before the first edit: 56 types, 56 map entries, 56 DISTINCT targets, no duplicate,
+        #: and `rev(_CONTROL_TYPE_TARGET_MODEL)` answering NO TYPE for all three of
+        #: `integrations.GlobalProtectGateway`, `integrations.GlobalProtectGatewayClientAuth`
+        #: and `integrations.GlobalProtectGatewayAgentConfig`. The FOURTH model this domain
+        #: asserts over, `integrations.GlobalProtectEnforcementPoint`, already answered
+        #: `globalprotect_enforcement_point`, so PAN-GPG-005 REUSES that type and mints nothing -
+        #: which is as load-bearing as the three mints, because a second type for a model that
+        #: already has one passes every gate in this repository.
+        #:
+        #: NO GLOBALPROTECT GATEWAY EXISTS IN THE MEASURED ESTATE, so all three of these types
+        #: ship with no row of their model anywhere. That is deliberate and it follows the
+        #: `ha-panorama` precedent: registration is about the CATALOGUE, not about whether one
+        #: lab happens to hold rows. Stage 6 spent eleven lease windows trying to commit a
+        #: gateway, met a new commit requirement every time, and DECLARED the twelve expression
+        #: restatements it could not grade rather than fabricating them. Six of this domain's
+        #: seven controls therefore ship UNEXERCISED - the stage 8 artifact's `needs_human`
+        #: names the twelve, because no count in that artifact says it on its own.
+        #:
+        #: The gateway ENTRY, which three of the seven controls target: PAN-GPG-001 (is a TLS
+        #: service profile bound, and does what it resolves to state a protocol floor), -006 (is
+        #: the tunnel built, over which transport, and which algorithm is offered first) and
+        #: -007 (are the login lifetime and the idle logout bounded). PAN-GPG-005's third
+        #: record names this model too and THAT HALF IS SILENT: the control's own target is the
+        #: enforcement point, and `probe.relation_between GlobalProtectEnforcementPoint
+        #: GlobalProtectGateway` finds NO RELATION IN EITHER DIRECTION - the only paths run
+        #: to-many through shared ancestors and each leaves a scope field unconstrained - so
+        #: ruling 6's relation remedy has nothing to walk.
+        GLOBALPROTECT_GATEWAY = "globalprotect_gateway", "GlobalProtect Gateway"
+        #: One row of one gateway's client-authentication table, keyed by the client OPERATING
+        #: SYSTEM. PAN-GPG-002's subject and nothing else's, and A SEPARATE TYPE FROM THE GATEWAY
+        #: rather than a roll-up onto it, for the reason the sibling portal type already carries:
+        #: the commonest real defect is PER PLATFORM - a Windows row pointed at a strong identity
+        #: service and an `Any` row pointed at the firewall's own local database - so a
+        #: gateway-grain verdict would fire the parent for one child's fault, could not say which
+        #: platform was weak, and would show the compliant sibling beside it. That is exactly the
+        #: to-many DOWNWARD walk standing ruling 6 refuses.
+        #:
+        #: THE ROW'S `gateway` FK IS THE TO-ONE UPWARD WALK RULING 6 PERMITS, and it is how
+        #: PAN-GPG-002's OTHER half - the gateway-wide `client_certificate_is_a_second_factor` -
+        #: is reached at all. Measured 2026-11-01: the walk exists, is to-one, and is NULLABLE,
+        #: so it cannot reach a row whose gateway did not resolve and that half is silent for
+        #: exactly those rows rather than for the whole population. No earlier run had met the
+        #: nullable variant of ruling 6's own shape.
+        GLOBALPROTECT_GATEWAY_CLIENT_AUTH = (
+            "globalprotect_gateway_client_auth", "GlobalProtect Gateway Client Authentication")
+        #: One agent client-settings row of one gateway - the row an engineer opens at Agent >
+        #: Client Settings to change a cookie lifetime or a split-tunnel inventory. PAN-GPG-003
+        #: (how long a reconnection cookie is accepted, and whether the certificate encrypting it
+        #: is named) and PAN-GPG-004 (the inventory of paths leaving the tunnel uninspected) BOTH
+        #: share it, which is the ordinary case this map's own comment describes: the number of
+        #: types a domain needs is the number of distinct MODELS its controls assert over and not
+        #: the number of controls.
+        #:
+        #: THE GRAIN IS THE ROW BECAUSE EVERY REMEDIATION ON THIS GROUND IS AN EDIT TO ONE ROW,
+        #: and because absence here is the SAFE direction - a gateway with no settings row
+        #: accepts no cookie and excludes nothing from its tunnel. The two columns that SUPPRESS
+        #: on their own default, `accept_cookie_configured` and
+        #: `authentication_override_configured`, have NO DEVICE INSTANCE OF EITHER BRANCH
+        #: anywhere in this estate: stage 7 says so in terms, and it is the sharpest reason both
+        #: of this type's controls ship unexercised.
+        GLOBALPROTECT_GATEWAY_AGENT_CONFIG = (
+            "globalprotect_gateway_agent_config", "GlobalProtect Gateway Agent Configuration")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -409,8 +479,26 @@ class Control(models.Model):
 
     control_id = models.CharField(max_length=128, unique=True)
     name = models.CharField(max_length=255)
+    #: WIDENED FROM 32 TO 64 ON 2026-11-01 BY THE `globalprotect-gateway` STAGE 8 RUN, and this
+    #: is an EIGHTH registration site that the seven-place list in
+    #: `OptivEdgeProbe/pipeline/stage-8-findings.md` does not mention. The field had been at 32
+    #: with `globalprotect_portal_client_auth` - 32 characters exactly - already filling it, so
+    #: the next type value longer than that could not be added at all.
+    #:
+    #: WHAT CAUGHT IT IS WORTH KNOWING, because this file already carries a note about the silent
+    #: version of the same defect: a `CharField` too short for its own declared value set
+    #: truncates in SQLite with NO error. That is true of a column without `choices`. Here the
+    #: declared `choices` make it loud instead - `makemigrations` refused with
+    #: `fields.E009: 'max_length' is too small to fit the longest value in 'choices' (34
+    #: characters)` and generated nothing - so the trap for a type-minting run is a REFUSAL at
+    #: migration time rather than a truncated row.
+    #:
+    #: Widening is additive: a CharField grown wider never truncates or rewrites existing data,
+    #: nothing in this repository asserts the width, and `controls_catalog/drift.py` hashes the
+    #: control_type VALUE rather than the field, so the catalogue reads no drift from it. 64
+    #: rather than 35 so that the next domain to mint a long type does not pay this again.
     control_type = models.CharField(
-        max_length=32,
+        max_length=64,
         choices=ControlType.choices,
         default=ControlType.SECURITY_RULE,
     )
@@ -572,6 +660,23 @@ class Control(models.Model):
         # a destination it is decrypting. PAN-DCP-006 only - the other six PAN-DCP controls are
         # `security_profile` above, over the `decryption` kind of the profile model.
         "decryption_settings": "integrations.DecryptionSettings",
+        # `globalprotect-gateway`. THREE models and THREE types, because none of the three had
+        # one: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for all of them before this
+        # change, measured against 56 types and 56 DISTINCT targets, so nothing here is a second
+        # type for a model that already has one. The domain's FOURTH model,
+        # `integrations.GlobalProtectEnforcementPoint`, already answered
+        # `globalprotect_enforcement_point` and PAN-GPG-005 reuses it.
+        #
+        # One gateway entry of one vsys. PAN-GPG-001, -006 and -007 share it - many controls,
+        # one type, one model, which is the normal case.
+        "globalprotect_gateway": "integrations.GlobalProtectGateway",
+        # One row of one gateway's client-auth table, keyed by the client operating system.
+        # PAN-GPG-002 only. The child grain is the control's own grain: the parent cannot say
+        # which platform is weak, and firing the parent for one child is the downward walk
+        # ruling 6 refuses. The row's own nullable `gateway` FK is the upward walk it permits.
+        "globalprotect_gateway_client_auth": "integrations.GlobalProtectGatewayClientAuth",
+        # One agent client-settings row of one gateway. PAN-GPG-003 and PAN-GPG-004 share it.
+        "globalprotect_gateway_agent_config": "integrations.GlobalProtectGatewayAgentConfig",
     }
 
     class Meta:
@@ -644,6 +749,9 @@ class Control(models.Model):
         "integrations.UserIdCollectorSettings": "User-ID Collector",
         "integrations.UserIdDiscoveryBound": "User-ID Discovery Bound",
         "integrations.DecryptionSettings": "Decryption Settings",
+        "integrations.GlobalProtectGateway": "GlobalProtect Gateway",
+        "integrations.GlobalProtectGatewayClientAuth": "GlobalProtect Gateway Client Authentication",
+        "integrations.GlobalProtectGatewayAgentConfig": "GlobalProtect Gateway Agent Configuration",
     }
 
     @property
@@ -4457,3 +4565,255 @@ class DecryptionSettingsFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.decryption_settings_finding_id} <- {self.control_query_id}"
+
+
+class GlobalProtectGatewayFinding(ObjectFindingBase):
+    """A finding against one GlobalProtect gateway entry of one vsys. PAN-GPG-001, -006, -007.
+
+    NO ROW OF THIS SUBJECT EXISTS ANYWHERE IN THE MEASURED ESTATE, and that is recorded here
+    rather than only in the pipeline artifact, because a reader of this class would otherwise
+    take the three controls above for exercised ones. Stage 6 spent ELEVEN LEASE WINDOWS trying
+    to commit a gateway on the one candidate-clean appliance in the lab and met a new commit
+    requirement each time - the tunnel interface in a virtual router, `local-address` needing
+    `ip/ipv4`, the vsys half needing `remote-user-tunnel`, a unique local address refused at the
+    write. It declared the restatements it could not grade instead of inventing them. So every
+    column these controls clause on rests on a normaliser proved against constructed shapes, and
+    nothing here has been seen to fire.
+
+    ONE DIALOG, TWO SUBTREES. Network > GlobalProtect > Gateways writes a vsys-scoped entry AND a
+    device-local entry of the SAME NAME under `network/tunnel`, and the second carries the
+    transport - which is why PAN-GPG-006's three records divide the way they do. The integrations
+    row merges both halves and reports an unjoined one as `networking_half_present` false, so a
+    finding here can be about a gateway whose transport nobody read.
+
+    `subject_name` IS THE GATEWAY'S OWN ENTRY NAME and `subject_scope` carries the appliance and
+    the vsys, because a gateway name is operator-chosen and nothing makes it unique across the
+    twelve virtual systems of this estate. Without the scope two findings about two appliances
+    are one row to any presentation that groups by subject name - which is the defect
+    `ManagementInterfaceFinding` still carries and which this model does not repeat.
+
+    THE HALF OF PAN-GPG-005 THAT WOULD HAVE LIVED HERE DOES NOT. Its third record asserts that a
+    gateway refuses a login from a quarantined device and that something puts devices on that
+    list automatically - two columns of THIS model - but PAN-GPG-005's target is
+    `integrations.GlobalProtectEnforcementPoint`, chosen because that is the only record of the
+    whole domain with a stage 6 verdict to be graded against. There is NO RELATION between the
+    two models in either direction, introspected and not assumed, so ruling 6's remedy has
+    nothing to walk and no query of that control can reach `block_quarantined_devices` at any
+    clause. `block_quarantined_devices` and `automatic_quarantine_path_exists` are registered in
+    the search layer anyway, so that the day a control owns them it has a surface; nothing
+    queries them today.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="globalprotect_gateway_findings")
+    globalprotect_gateway = models.ForeignKey(
+        GlobalProtectGateway, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectGatewayFindingControlQuery",
+        related_name="globalprotect_gateway_findings", blank=True)
+    #: The appliance and the vsys. A gateway's entry name is operator-chosen and this estate's
+    #: four appliances carry twelve virtual systems between them, so the name alone cannot
+    #: identify the row a reader has to open.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_gateway"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "globalprotect_gateway"],
+                name="unique_gpgw_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on GlobalProtect gateway {self.subject_name}"
+
+
+class GlobalProtectGatewayFindingControlQuery(FindingControlQueryBase):
+    globalprotect_gateway_finding = models.ForeignKey(
+        GlobalProtectGatewayFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_gateway_finding", "control_query"],
+                name="unique_gpgw_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.globalprotect_gateway_finding_id} <- {self.control_query_id}"
+
+
+class GlobalProtectGatewayClientAuthFinding(ObjectFindingBase):
+    """A finding against one row of one gateway's client-authentication table. PAN-GPG-002.
+
+    NOT THE PORTAL'S CLIENT-AUTH TABLE. `client-auth` is a leaf name both GlobalProtect objects
+    carry under different parents, and `GlobalProtectPortalClientAuthFinding` above is the other
+    one. The two subjects are not interchangeable and neither are their normalisers.
+
+    THE ROW IS THE SUBJECT AND THE GATEWAY IS NOT, because the commonest real defect on this
+    control is PER PLATFORM: a Windows row pointed at a strong identity service and an `Any` row
+    pointed at the firewall's own local database. A gateway-grain verdict reports one weak
+    gateway without saying which platform to repoint, and shows the compliant row beside the
+    failing one as though they agreed.
+
+    `subject_name` IS THE ROW'S OWN ENTRY NAME, which is free text and not the operating system;
+    `client_os` is what a reader goes by and the finding's sentence names it. `subject_scope`
+    carries the appliance, the vsys and the GATEWAY name, without which a reader cannot find the
+    row - the entry name is not unique within a vsys.
+
+    PAN-GPG-002's SECOND HALF IS REACHED BY A NULLABLE UPWARD WALK, and this is the model where
+    that is visible. The gateway-wide question - is a client certificate a genuine second factor
+    at all - is a column of `integrations.GlobalProtectGateway`, and the row's own `gateway`
+    foreign key is the to-ONE UPWARD relation standing ruling 6 permits. It is `null=True`, so a
+    row whose gateway did not resolve is unreachable by that query and that half is silent FOR
+    THOSE ROWS - not for the population. The search layer registers the walked column as
+    `gateway_client_certificate_is_a_second_factor` for exactly this.
+
+    AND A FINDING HERE CANNOT SAY WHETHER THE IDENTITY SERVICE ENFORCES A SECOND FACTOR. The
+    firewall records WHICH service it asks and never what that service demands, so stage 3's
+    acceptable minimum is not a value of any column. `authentication_backend_method` names the
+    object an engineer repoints and cannot say whether the name is a profile or a SEQUENCE, whose
+    last member may be the firewall's own local database.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_client_auth_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="globalprotect_gateway_client_auth_findings")
+    globalprotect_gateway_client_auth_row = models.ForeignKey(
+        GlobalProtectGatewayClientAuth, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectGatewayClientAuthFindingControlQuery",
+        related_name="globalprotect_gateway_client_auth_findings", blank=True)
+    #: The appliance, the vsys and the GATEWAY name. The row's own entry name is free text and
+    #: not unique within a vsys, so the scope is what tells two rows of two gateways apart.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_gateway_client_auth_row"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control",
+                        "globalprotect_gateway_client_auth_row"],
+                name="unique_gpgca_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on GlobalProtect gateway authentication row "
+                f"{self.subject_name}")
+
+
+class GlobalProtectGatewayClientAuthFindingControlQuery(FindingControlQueryBase):
+    globalprotect_gateway_client_auth_finding = models.ForeignKey(
+        GlobalProtectGatewayClientAuthFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_client_auth_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_gateway_client_auth_finding", "control_query"],
+                name="unique_gpgca_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.globalprotect_gateway_client_auth_finding_id} "
+                f"<- {self.control_query_id}")
+
+
+class GlobalProtectGatewayAgentConfigFinding(ObjectFindingBase):
+    """A finding against one agent client-settings row of one gateway. PAN-GPG-003, -004.
+
+    THE ROW AN ENGINEER OPENS, which is the whole reason for this grain: every remediation on
+    this ground - shortening a reconnection cookie, naming the certificate that encrypts it,
+    removing a split-tunnel exclusion - is an edit to one of these rows, and a gateway-wide
+    verdict would name none of them.
+
+    ABSENCE HERE IS THE SAFE DIRECTION and that is why no finding exists for it. A gateway with
+    no settings row at all accepts no cookie and excludes nothing from its tunnel, so there is
+    nothing to report and no row to report it on.
+
+    TWO COLUMNS SUPPRESS ON THEIR OWN DEFAULT AND NEITHER BRANCH HAS A DEVICE INSTANCE.
+    `accept_cookie_configured` gates PAN-GPG-003's cookie-lifetime assertion and
+    `authentication_override_configured` gates its certificate assertion; both are
+    `default=False`, both are applicability clauses, and an applicability clause that is false
+    drops the row out of the control silently. Stage 7 measured that no gateway exists in this
+    estate and therefore no instance of either branch does either, so the suppression is
+    untested in both directions. It is the sharpest single reason both controls over this model
+    ship unexercised.
+
+    THE SPLIT-TUNNEL INVENTORY IS SIX JSON COLUMNS AND NO FINDING READS THEM. A JSONField may not
+    be registered in the search layer - `test_findings_rest_on_columns` compiles every registered
+    field and walks the query tree for one - so PAN-GPG-004 asserts over
+    `uninspected_egress_path_count`, the integer aggregate beside them, and the finding's own
+    sentence prints that count. `egress_inventory_computed` is what tells a count of zero that
+    nobody computed from a tunnel with genuinely nothing excluded, and the two are different
+    facts with different remediations.
+
+    `subject_name` IS THE ROW'S OWN NAME and `subject_scope` carries the appliance, the vsys and
+    the gateway, for the same reason as the client-authentication row beside it.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_agent_config_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="globalprotect_gateway_agent_config_findings")
+    globalprotect_gateway_agent_config = models.ForeignKey(
+        GlobalProtectGatewayAgentConfig, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="GlobalProtectGatewayAgentConfigFindingControlQuery",
+        related_name="globalprotect_gateway_agent_config_findings", blank=True)
+    #: The appliance, the vsys and the gateway name, for the same reason as the
+    #: client-authentication row: the settings row's own name is operator-chosen.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["globalprotect_gateway_agent_config"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "globalprotect_gateway_agent_config"],
+                name="unique_gpgac_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on GlobalProtect gateway agent configuration "
+                f"{self.subject_name}")
+
+
+class GlobalProtectGatewayAgentConfigFindingControlQuery(FindingControlQueryBase):
+    globalprotect_gateway_agent_config_finding = models.ForeignKey(
+        GlobalProtectGatewayAgentConfigFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="globalprotect_gateway_agent_config_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["globalprotect_gateway_agent_config_finding", "control_query"],
+                name="unique_gpgac_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.globalprotect_gateway_agent_config_finding_id} "
+                f"<- {self.control_query_id}")

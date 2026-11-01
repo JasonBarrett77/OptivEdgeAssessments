@@ -52,6 +52,9 @@ DATA_FILTERING_POSTURE_MODEL = "integrations.DataFilteringPosture"
 GLOBALPROTECT_PORTAL_MODEL = "integrations.GlobalProtectPortal"
 GLOBALPROTECT_PORTAL_CLIENT_AUTH_MODEL = "integrations.GlobalProtectPortalClientAuthRow"
 GLOBALPROTECT_ENFORCEMENT_POINT_MODEL = "integrations.GlobalProtectEnforcementPoint"
+GLOBALPROTECT_GATEWAY_MODEL = "integrations.GlobalProtectGateway"
+GLOBALPROTECT_GATEWAY_CLIENT_AUTH_MODEL = "integrations.GlobalProtectGatewayClientAuth"
+GLOBALPROTECT_GATEWAY_AGENT_CONFIG_MODEL = "integrations.GlobalProtectGatewayAgentConfig"
 FIREWALL_CONTENT_STREAMS_MODEL = "integrations.FirewallContentStreams"
 LICENCE_INVENTORY_MODEL = "integrations.LicenceInventory"
 LOG_ALARM_SETTINGS_MODEL = "integrations.LogAlarmSettings"
@@ -548,6 +551,30 @@ def evaluate_globalprotect_enforcement_point_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or GLOBALPROTECT_ENFORCEMENT_POINT_MODEL,
+    )
+
+
+def evaluate_globalprotect_gateway_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_GATEWAY_MODEL,
+    )
+
+
+def evaluate_globalprotect_gateway_client_auth_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_GATEWAY_CLIENT_AUTH_MODEL,
+    )
+
+
+def evaluate_globalprotect_gateway_agent_config_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or GLOBALPROTECT_GATEWAY_AGENT_CONFIG_MODEL,
     )
 
 

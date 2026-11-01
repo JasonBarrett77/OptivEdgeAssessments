@@ -154,10 +154,73 @@ def _clientless_vpn(obj) -> list[str]:
     return parts
 
 
-#: One control, one reading. PAN-GPP-006 is the only control over this model - and only the first
-#: of its two records; see the module docstring.
+def _posture_pipeline(obj) -> list[str]:
+    """PAN-GPG-005's second record: is collected posture actually referenced by policy.
+
+    ADDED 2026-11-01 BY THE `globalprotect-gateway` STAGE 8 RUN, additively. PAN-GPP-006's entry
+    below, `_clientless_vpn` above and the summary builder are untouched: changing any of them
+    would alter a shipped control's finding prose, which is a catalogue decision and not this
+    run's. This arm exists because the dispatch below DEFAULTS to `(_clientless_vpn,)` - one
+    particular control's arms - so without an entry of its own PAN-GPG-005's finding would be
+    described with PAN-GPP-006's clientless-VPN claims about a different switch entirely.
+
+    THE VERDICT IS A CONJUNCTION OVER THREE AGGREGATES and the sentence has to say WHICH part is
+    missing, because the three carry three different remediations on three different screens. It
+    reads them off this row's own columns and follows nothing:
+    `test_query_service_boundary.py::test_asserted_models_are_filtered_only_in_the_search_service`
+    forbids a module outside `assessments/search/` from filtering an asserted model, and the
+    reason in its own docstring is that such a module "decides what the configuration means
+    privately, where no payload contract records it and no test pins it".
+    """
+    if obj.posture_referenced_in_policy:
+        return []
+    parts = [
+        "POSTURE DECIDES NOTHING ON THIS VIRTUAL SYSTEM: what is collected from endpoints is not "
+        "referenced by the rules that decide what a connected endpoint may reach, so a "
+        "non-compliant endpoint is given exactly the access a compliant one gets. The whole "
+        "posture apparatus then costs licence, agent and administrative effort and changes no "
+        "outcome, while every screen and every report shows posture enforcement switched on"]
+    objects, profiles, rules = (obj.hip_object_count, obj.hip_profile_count,
+                                obj.rules_referencing_a_hip_profile_count)
+    if objects == 0:
+        parts.append(
+            "NO HIP OBJECT IS DEFINED HERE AT ALL, so there is nothing for a profile to group and "
+            "nothing for a rule to match. This is the commonest failing state and it is why the "
+            "finding is about the virtual system rather than about a HIP object: the rows whose "
+            "absence IS the finding are the rows that do not exist, so at the entry grain there "
+            "would be no row to report it with")
+    elif profiles == 0:
+        parts.append(
+            f"{objects} HIP object(s) are defined AND NO HIP PROFILE GROUPS THEM, so nothing a "
+            f"security rule can reference exists - a rule's posture field takes a profile and not "
+            f"an object. The objects are the work already done and the profile is the missing step")
+    elif rules == 0:
+        parts.append(
+            f"{objects} HIP object(s) and {profiles} HIP profile(s) are defined AND NO SECURITY "
+            f"RULE IN THIS VIRTUAL SYSTEM'S RULEBASE REFERENCES ANY OF THEM. The posture is "
+            f"collected and read by nothing. The rule field that would reference it has a "
+            f"PERMISSIVE DEFAULT, so a rulebase nobody has touched reads as fully built while "
+            f"matching every posture state alike - which is why an entry count over the rules is "
+            f"the test here and node presence is not")
+    parts.append(
+        "WHETHER POSTURE IS BEING COLLECTED AT ALL IS NOT ANSWERED BY THIS FINDING, and it is a "
+        "separate half of the same control. The switch that enables collection lives on a "
+        "PORTAL's agent configuration, so where the portal serving these endpoints is on another "
+        "appliance the setting is not on this one and that appliance has to be asked. This "
+        "virtual system's own half is what is reported here")
+    return parts
+
+
+#: Keyed by control id. PAN-GPP-006 reads the clientless-VPN surface; PAN-GPG-005 reads the
+#: host-posture pipeline. THE DEFAULT IS STILL `(_clientless_vpn,)` AND WAS LEFT ALONE
+#: DELIBERATELY: changing it to `()` - the safe convention, and what a generator written for
+#: several controls from the start would use - would alter what an unrecognised control id gets
+#: from a SHIPPED generator, which is a catalogue decision rather than a build run's. It is raised
+#: in the `globalprotect-gateway` stage 8 artifact's `needs_human` instead, with the two control
+#: ids that reach this dispatch named.
 PARTS_BY_CONTROL = {
     "PAN-GPP-006": (_clientless_vpn,),
+    "PAN-GPG-005": (_posture_pipeline,),
 }
 
 

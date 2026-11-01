@@ -277,6 +277,37 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     FindingKind(m.DecryptionSettingsFinding, "decryption_settings",
                 m.Control.ControlType.DECRYPTION_SETTINGS,
                 "forward-proxy signing designation"),
+    # `globalprotect-gateway` adds THREE kinds for its three new models. The domain's fourth
+    # model, the GlobalProtect enforcement point, already has a kind above and PAN-GPG-005
+    # reuses it - which is why there are three entries here for a seven-control domain.
+    #
+    # EVERY LABEL HERE IS SINGULAR AND NONE IS IN THE PLURAL ALLOWLIST, which is a check worth
+    # making deliberately rather than discovering: `test_labels_are_unique_and_prose_shaped`
+    # asserts no label ends in `s` outside its own named exceptions, and the `decryption-profiles`
+    # run took one failure out of 994 from a label transcribed off a model whose class name ends
+    # in `Settings`. `GlobalProtectGatewayAgentConfig` ends in `Config`, which is already
+    # singular, so the transcription is safe here - but the label is still written as the noun
+    # phrase for what the row IS rather than as the class name.
+    #
+    # NONE OF THESE THREE KINDS HAS EVER PRODUCED A ROW, because no GlobalProtect gateway exists
+    # in the measured estate. They are registered because registration is about the catalogue and
+    # not about one lab's contents - the `ha-panorama` precedent - and because a query that cannot
+    # compile is catchable with no rows at all, which is the one guarantee this domain can give.
+    FindingKind(m.GlobalProtectGatewayFinding, "globalprotect_gateway",
+                m.Control.ControlType.GLOBALPROTECT_GATEWAY, "GlobalProtect gateway"),
+    # The row and not the gateway, for the per-platform reason the portal's own row kind carries:
+    # one gateway can point a Windows row at a strong identity service and an `Any` row at the
+    # firewall's own local database.
+    FindingKind(m.GlobalProtectGatewayClientAuthFinding,
+                "globalprotect_gateway_client_auth_row",
+                m.Control.ControlType.GLOBALPROTECT_GATEWAY_CLIENT_AUTH,
+                "GlobalProtect gateway authentication row"),
+    # Shared by PAN-GPG-003 and PAN-GPG-004 - two controls, one model, one kind, which is what
+    # `KIND_BY_MODEL` requires: a finding model may appear in this tuple exactly once.
+    FindingKind(m.GlobalProtectGatewayAgentConfigFinding,
+                "globalprotect_gateway_agent_config",
+                m.Control.ControlType.GLOBALPROTECT_GATEWAY_AGENT_CONFIG,
+                "GlobalProtect gateway agent configuration"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
