@@ -29,6 +29,12 @@ from assessments.device_identification_findings import (
     generate_device_identification_findings,
 )
 from assessments.zone_findings import generate_zone_findings
+from assessments.user_id_collector_findings import (
+    generate_user_id_collector_findings,
+)
+from assessments.user_id_discovery_bound_findings import (
+    generate_user_id_discovery_bound_findings,
+)
 from assessments.rulebase_device_match_findings import (
     generate_rulebase_device_match_findings,
 )
@@ -236,6 +242,19 @@ GENERATORS = (
     # category half - because the domain's other five controls target `SecurityProfile`, whose
     # generator already exists and picks them up by type on the next run.
     ("custom URL category", T.CUSTOM_URL_CATEGORY, generate_custom_url_category_findings),
+    # `user-id`. TWO lines for SIX controls: PAN-UID-003, -004 and -006 share the collector
+    # generator, PAN-UID-002 has the discovery bound to itself, and the domain's other two need
+    # no line here at all - PAN-UID-001 is picked up by `security zone` above and PAN-UID-005 by
+    # `management interface`, both by type on the next run, which is the cheap half of reusing a
+    # type. (The expensive half is the summary sentence, and `zone_findings` carries a
+    # PAN-UID-001 entry for exactly that reason.)
+    #
+    # The collector runs BEFORE the discovery bound because the collector is the thing that
+    # performs discovery: a reader meeting an unbounded discovery scope wants to know first
+    # whether the agent probing it is the credentialed kind, which is PAN-UID-003's row.
+    ("User-ID collector", T.USER_ID_COLLECTOR, generate_user_id_collector_findings),
+    ("User-ID discovery bound", T.USER_ID_DISCOVERY_BOUND,
+     generate_user_id_discovery_bound_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

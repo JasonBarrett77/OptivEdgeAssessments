@@ -61,6 +61,8 @@ from optivedge_integrations.integrations.models import (
     LogAlarmSettings,
     ContentUpdateSchedule,
     CustomUrlCategory,
+    UserIdCollectorSettings,
+    UserIdDiscoveryBound,
     Zone,
 )
 
@@ -348,6 +350,31 @@ class Control(models.Model):
         #: lives on this model: silence the category half and PAN-URL-006 can never report
         #: anything but `low`.
         CUSTOM_URL_CATEGORY = "custom_url_category", "Custom URL Category"
+        #: `user-id`. TWO types for TWO new models, and TWO REUSES that mint nothing.
+        #: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for
+        #: `integrations.UserIdCollectorSettings` and `integrations.UserIdDiscoveryBound`, and
+        #: answered `zone` and `management_interface` for this domain's other two subjects,
+        #: measured against 53 types and 53 DISTINCT targets. So this mints two and reuses two.
+        #:
+        #: PAN-UID-003, -004 and -006 SHARE `user_id_collector`: three controls over one
+        #: per-vsys agent settings node, which is one model and so one type - the same shape as
+        #: PAN-IOT-001/003 and PAN-NET-001/003 above.
+        #:
+        #: PAN-UID-001 REUSES `zone` and PAN-UID-005 REUSES `management_interface`. Minting a
+        #: second type for a model that already has one is what this map's one-to-one property
+        #: forbids, and NOTHING IN THE SUITE CATCHES IT IN THAT DIRECTION - so the reverse map
+        #: was measured before these two lines were written rather than after.
+        #:
+        #: `integrations.UserIdMonitoredServer` GETS NO TYPE, deliberately. It is the subject of
+        #: the one PAN-UID-005 assertion record this domain leaves SILENT: that control's own
+        #: configuration leaf is `deviceconfig/system/service/disable-userid-syslog-listener-udp`,
+        #: which is the management plane's listener and not the per-sender transport, and
+        #: `probe.relation_between ManagementInterface UserIdMonitoredServer` finds NO RELATION
+        #: IN EITHER DIRECTION - so no query at either grain can carry both halves. A type here
+        #: would be registrations spent on a row no finding references. See the stage 8 artifact
+        #: for `user-id`, `subjects_in_two_models`.
+        USER_ID_COLLECTOR = "user_id_collector", "User-ID Collector"
+        USER_ID_DISCOVERY_BOUND = "user_id_discovery_bound", "User-ID Discovery Bound"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -503,6 +530,20 @@ class Control(models.Model):
         # SecurityProfile` before this change, measured against 52 types and 52 DISTINCT
         # targets, so this mints one and reuses one.
         "custom_url_category": "integrations.CustomUrlCategory",
+        # `user-id`. TWO entries for TWO new models and SIX controls. PAN-UID-001 and
+        # PAN-UID-005 get NO entry here at all, because they carry the EXISTING `zone` and
+        # `management_interface` types and this map already points those at `integrations.Zone`
+        # and `integrations.ManagementInterface`. Measured against 53 types and 53 DISTINCT
+        # targets before the mint, so neither line below is a second type for a model that
+        # already has one.
+        #
+        # One row per VSYS: the PAN-OS integrated User-ID agent's settings node. PAN-UID-003
+        # (client probing), PAN-UID-004 (the service account and session reading) and
+        # PAN-UID-006 (mapping expiry) all share it.
+        "user_id_collector": "integrations.UserIdCollectorSettings",
+        # One row per VSYS: a verdict over the whole include/exclude discovery list, including
+        # the commonest state, which is that the list holds nothing. PAN-UID-002 only.
+        "user_id_discovery_bound": "integrations.UserIdDiscoveryBound",
     }
 
     class Meta:
@@ -572,6 +613,8 @@ class Control(models.Model):
         "integrations.LogAlarmSettings": "Log Database Alarms",
         "integrations.ContentUpdateSchedule": "Content Update Schedule",
         "integrations.CustomUrlCategory": "Custom URL Category",
+        "integrations.UserIdCollectorSettings": "User-ID Collector",
+        "integrations.UserIdDiscoveryBound": "User-ID Discovery Bound",
     }
 
     @property
@@ -4180,3 +4223,137 @@ class CustomUrlCategoryFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.custom_url_category_finding_id} <- {self.control_query_id}"
+
+
+class UserIdCollectorFinding(ObjectFindingBase):
+    """A finding against one vsys's PAN-OS integrated User-ID agent settings. PAN-UID-003/-004/-006.
+
+    ONE ROW PER VSYS, AND THE NODE EXISTS NOWHERE IN THE ESTATE IT WAS MEASURED AGAINST. Stage 4
+    for `user-id` measured `vsys/entry/user-id-collector/setting` absent on all four appliances
+    and all twenty vsys, so every assertion over this subject is today an assertion about an
+    IMPLICIT value rather than a stored one. That is not a defect in the control: the vendor's
+    implicits are what an unconfigured agent does, and three of this domain's six controls assert
+    over exactly that. It does mean a row's absence and a row's compliance are different states,
+    and only the second is a pass.
+
+    `subject_scope` IS REQUIRED HERE, for the reason `ObjectFindingBase` gives and the
+    `saas-security` run measured: the subject is an ENFORCEMENT POINT rather than a named entry,
+    so there is no entry key to put in `subject_name` and the partition name goes there instead.
+    `vsys1` is then the subject name on every single-vsys firewall in the estate, and without the
+    appliance in `subject_scope` two findings about two appliances are one row to any presentation
+    that groups by subject name.
+
+    THREE CONTROLS SHARE THIS MODEL AND THEY ASSERT OVER FOUR DIFFERENT COLUMNS, so the summary
+    dispatches on the control id rather than running one clause chain. A per-control dispatch
+    whose DEFAULT is some other control's arms is the defect `zone_findings` carries and this
+    module's `_subject` refuses to repeat: an unknown control id contributes NO claim here.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="user_id_collector_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="user_id_collector_findings")
+    user_id_collector = models.ForeignKey(
+        UserIdCollectorSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="UserIdCollectorFindingControlQuery",
+        related_name="user_id_collector_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["user_id_collector"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "user_id_collector"],
+                name="unique_uid_collector_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on User-ID collector {self.subject_name}"
+
+
+class UserIdCollectorFindingControlQuery(FindingControlQueryBase):
+    user_id_collector_finding = models.ForeignKey(
+        UserIdCollectorFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="user_id_collector_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user_id_collector_finding", "control_query"],
+                name="unique_uid_collector_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id_collector_finding_id} <- {self.control_query_id}"
+
+
+class UserIdDiscoveryBoundFinding(ObjectFindingBase):
+    """A finding against one vsys's User-ID discovery include/exclude list. PAN-UID-002.
+
+    THE SUBJECT IS A VERDICT OVER THE WHOLE LIST, NOT A LIST ENTRY, and the commonest failing
+    state is that the list holds NOTHING. A finding keyed on an entry would have no row to report
+    on in exactly the case the control exists for: help p.981 says a collector with no in-force
+    entry performs discovery in ALL subnetworks, so every address reachable through a monitored
+    server is eligible to become a named user in policy. `list_shape` carries that conclusion as
+    one of four values and the row exists per enforcement point whether any entry does or not.
+
+    `subject_scope` IS REQUIRED HERE for the same reason as the collector model above: the
+    subject is an enforcement point, so `subject_name` carries the partition name and the
+    appliance has nowhere else to go.
+
+    THE ASSERTION OVER THIS SUBJECT IS INVERTED, which is worth knowing when reading a row.
+    Stage 5 states it as `list_shape equals include_present` with
+    `sign: finding_when_clauses_fail`, so the finding fires on the NEGATION - every shape that is
+    not an in-force include list, the empty string among them. The empty string is what the
+    column holds when nobody looked, and a negated equality reaches it without help, so an
+    uncollected row FIRES here rather than passing. That is the direction `rules.md` requires and
+    it is the opposite of what an unknown normally does in SQL.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="user_id_discovery_bound_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="user_id_discovery_bound_findings")
+    user_id_discovery_bound = models.ForeignKey(
+        UserIdDiscoveryBound, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="UserIdDiscoveryBoundFindingControlQuery",
+        related_name="user_id_discovery_bound_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["user_id_discovery_bound"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "user_id_discovery_bound"],
+                name="unique_uid_discovery_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on User-ID discovery bound {self.subject_name}"
+
+
+class UserIdDiscoveryBoundFindingControlQuery(FindingControlQueryBase):
+    user_id_discovery_bound_finding = models.ForeignKey(
+        UserIdDiscoveryBoundFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="user_id_discovery_bound_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user_id_discovery_bound_finding", "control_query"],
+                name="unique_uid_discovery_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id_discovery_bound_finding_id} <- {self.control_query_id}"
+

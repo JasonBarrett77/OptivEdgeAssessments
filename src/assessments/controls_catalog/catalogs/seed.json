@@ -11030,6 +11030,438 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-UID-001",
+          "name": "User-ID Enabled Only on Trusted Internal Zones",
+          "control_type": "zone",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "Requires that User-ID is switched on only in zones carrying the organisation's own user populations, and is off in every zone carrying traffic from a network the customer does not control.\n\nWHAT THE SWITCH DOES AND WHY ITS DIRECTION IS THE FINDING. With User-ID enabled on a zone, the firewall maps usernames to the addresses it sees there and those mappings become names in policy, in the traffic log and in every report that reads from them. On an untrusted or Internet-facing zone that leaks internal identity outward and can be probed to enumerate it. So the state this control reports is the switch being ON, which is the opposite direction from the Device-ID control over the same object.\n\nTHE QUESTION THIS CONTROL DOES NOT ASK. Which side of the firewall a zone faces is not readable from a firewall, and it is deliberately NOT written as a qualifying condition: an unanswered question must leave the finding standing rather than suppress it. So this reports every zone with the switch on, and the engineer's answer narrows the report rather than the query.\n\nTHE PER-ZONE ADDRESS LISTS ARE CONTEXT AND NOT JUDGED HERE. A zone carries its own User-ID include and exclude lists, and the finding prints them, but what bounds User-ID discovery for a vsys is a different object with its own control. Both are JSON columns reachable from no query in this language, so neither is clausued.\n\nTHE REMEDIATION MAY BE ONE THIS FIREWALL REFUSES, AND THAT IS THE NORMAL CASE. Nothing stored about a zone records whether it was configured on the firewall or pushed to it from a template, so a finding on a pushed zone names a local zone while the switch can only be changed where the zone is defined.",
+          "rationale": "Identity is only as trustworthy as the zone it was learned in. A username-to-address mapping gathered on a zone the customer does not control is an attacker-supplied fact that the policy then enforces on and the log then attributes traffic to, and the same switch that gathers it is what makes the zone probeable for identity data. Switching it off on those zones costs nothing, because no user population lives there.",
+          "audit": "Network > Zones on the appliance and vsys named in the finding. The grid's User Identification column shows whether the switch is on; the zone's own tab shows the User-ID Include and Exclude address lists. Confirm against the site's addressing which zones carry the organisation's own user populations - that is the judgement this control cannot make and does not claim to have made.",
+          "remediation": "Where User-ID is on in a zone that carries traffic from a network the customer does not control, switch it off - Network > Zones, the zone's User Identification setting. Where the zone comes from a Panorama template, change it in the template, because a local edit will be refused or overwritten. Where the zone does carry the organisation's own users, leave the switch on and bound what it discovers, which is the discovery include/exclude list on that vsys and is a separate control.",
+          "implementation_version": "v1",
+          "target_model": "integrations.Zone",
+          "cis_ref": "5.1",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "User-ID is enabled on this zone, so the firewall maps usernames to the addresses it sees here and those mappings reach policy, the traffic log and every report reading from them.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_user_identification",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "enable_user_identification"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UID-002",
+          "name": "User-ID Include/Exclude Networks Scoped",
+          "control_type": "user_id_discovery_bound",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that the User-ID discovery include/exclude list bounds which subnets the collector will map, so that guest, server and external ranges are not mapped even where a zone is misconfigured.\n\nTHE SUBJECT IS A VERDICT OVER THE WHOLE LIST AND THE COMMONEST FAILURE IS AN EMPTY ONE. A collector with no in-force entry performs discovery in ALL subnetworks, so every address reachable through a monitored server is eligible to become a named user in policy and in the log. A control keyed on a list ENTRY would have had nothing to report in exactly that case, so the row is one per vsys and the conclusion is a stored shape.\n\nFOUR SHAPES, THREE DIFFERENT FAULTS, AND THE RANKS ARE NOT ORDERED THE WAY A READER EXPECTS. An in-force include list is the acceptable state and raises nothing. No in-force entry is the vendor default and the baseline failure. An EXCLUDE-ONLY list is the opposite fault and is graded BELOW the baseline: an exclude-only list excludes every subnetwork rather than only the ones it names, so user mapping stops entirely and identity enforcement matches nobody rather than the wrong body - a functional fault rather than an exposure. An include entry naming a PUBLIC range is graded ABOVE the baseline, because the collector excludes public addresses from probing by default and naming a public subnetwork with Discovery set to Include is what re-enables credentialed probing of it.\n\nAN UNCOLLECTED LIST REPORTS RATHER THAN PASSING, which is the opposite of what an unknown normally does. This control's assertion is inverted - it fires on every shape that is not an in-force include list - and a vsys whose list was never read carries no shape at all, which is not an in-force include list either. So it is reported, and the finding says that the bound could not be established rather than describing a shape nobody saw.\n\nWHAT THIS CONTROL CANNOT SAY. Whether an include list that exists bounds discovery to the RIGHT subnets is site-specific, and nothing on the firewall says which subnets carry the organisation's user population. An in-force include list therefore passes, and the finding prints its members for a reviewer to confirm against the site's addressing.",
+          "rationale": "The zone switch decides where identity is gathered and this list decides which addresses within reach are eligible at all, so it is the second and independent bound on how much identity the firewall invents. Unbounded, it maps guest and server ranges as though they were user populations and aims credentialed probes at whatever a monitored server can reach. The two failures at the ends of the scale are opposite in effect, which is why they do not share a severity.",
+          "audit": "Device > User Identification > User Mapping, the Include/Exclude Networks tab on the vsys named in the finding. Read an entry carrying Disabled as ABSENT - a disabled entry bounds nothing, and the finding counts in-force entries only. Check whether any included range is publicly routable, which is the state graded above the baseline, and whether the list holds excludes with no include, which stops mapping altogether.",
+          "remediation": "Add an explicit include list naming the subnets that carry the organisation's own user populations, so everything else is implicitly excluded, and remove any publicly routable range from it. Where the list holds excludes and no include, add the include entries: shortening the exclude list will not restore mapping, because an exclude-only list excludes every subnetwork. Where the finding says the bound could not be established, the configuration was not collected and the remedy is a collection one rather than a device change.",
+          "implementation_version": "v1",
+          "target_model": "integrations.UserIdDiscoveryBound",
+          "cis_ref": "5.2",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The discovery include/exclude list on this vsys is not an in-force include list, so nothing bounds which subnets the collector may map - the empty, exclude-only and public-range shapes and an unread list all report here.",
+              "canonical_query": {
+                "model": "integrations.UserIdDiscoveryBound",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "list_shape",
+                    "op": "eq",
+                    "value": "include_present",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "list_shape"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No in-force include or exclude entry",
+              "short_description": "No in-force entry bounds discovery on this vsys, which is the vendor default: the collector performs discovery in all subnetworks, so every address reachable through a monitored server may become a named user.",
+              "canonical_query": {
+                "model": "integrations.UserIdDiscoveryBound",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "list_shape",
+                    "op": "eq",
+                    "value": "no_entries",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "list_shape"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Exclude entries only, which stops user mapping entirely",
+              "short_description": "This list holds excludes and no include. An exclude-only list excludes every subnetwork rather than only those named, so the collector maps nobody and identity-based policy on this vsys matches nobody.",
+              "canonical_query": {
+                "model": "integrations.UserIdDiscoveryBound",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "list_shape",
+                    "op": "eq",
+                    "value": "exclude_only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "list_shape"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "An include entry names a public address range",
+              "short_description": "An include entry on this vsys names a publicly routable range, which re-enables credentialed probing of it: the collector excludes public addresses by default and naming one with Discovery set to Include is what turns that off.",
+              "canonical_query": {
+                "model": "integrations.UserIdDiscoveryBound",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "list_shape",
+                    "op": "eq",
+                    "value": "include_covers_public",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "list_shape"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UID-003",
+          "name": "WMI Client Probing Disabled",
+          "control_type": "user_id_collector",
+          "default_severity": "critical",
+          "is_active": true,
+          "description": "Requires that WMI/NetBIOS client probing is switched off on the PAN-OS integrated User-ID agent.\n\nWHAT PROBING DOES. With probing on, the agent sends its own credentials to endpoints to ask who is logged in. Anyone positioned on a probed segment can capture and relay those credentials, which is a documented lateral-movement primitive rather than a theoretical exposure, and the vendor itself recommends disabling the feature.\n\nTHE SEVERITY IS ABOUT THE CREDENTIAL AND NOT ABOUT THE MAPPING. What this control reports is not that identity data is imprecise; it is that the firewall is distributing an authenticated service account's credentials onto every segment it probes. Identity sourced from GlobalProtect, the Cloud Identity Engine or authentication logs needs no probe and carries no credential onto the probed segment.\n\nA SECOND HALF OF THIS ASSERTION IS NOT A CONFIGURATION QUESTION. Whether the environment has an alternative identity source in place, so that probing can be switched off without losing coverage, is the engineer's answer rather than a stored value, and it decides how the finding is reported rather than whether it fires.\n\nAN ABSENT SETTINGS NODE IS NOT A PASS AND IS NOT REPORTED EITHER. The agent settings node does not exist on an unconfigured vsys; the row carries the vendor implicit, which has probing off, so a vsys that configures nothing passes. A vsys whose configuration was never collected has no row at all and is reported by nothing, which is a collection question rather than a compliance one.",
+          "rationale": "Every other User-ID weakness costs accuracy. This one hands out credentials. The agent authenticates as a directory account in order to read who is logged in, and probing is the one feature that takes that account's credentials off the firewall and onto an arbitrary endpoint, where an attacker who controls or merely observes the endpoint can relay them. That is why it is graded above the rest of this domain.",
+          "audit": "Device > User Identification > User Mapping, the Palo Alto Networks User-ID Agent Setup dialog on the vsys named in the finding, Client Probing tab. Confirm Enable Probing is unticked. Where it is ticked, establish what identity sources the site has besides probing before planning the change, because switching it off without one loses mappings.",
+          "remediation": "Untick Enable Probing - Device > User Identification > User Mapping, the agent setup dialog on the vsys named, Client Probing tab - and commit. Where probing is the site's only identity source, put an alternative in place first: GlobalProtect, the Cloud Identity Engine, or server monitoring reading the security logs, none of which puts the agent's credentials on a probed segment.",
+          "implementation_version": "v1",
+          "target_model": "integrations.UserIdCollectorSettings",
+          "cis_ref": "5.3",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "WMI/NetBIOS client probing is enabled on this vsys, so the User-ID agent sends its own credentials to endpoints and anyone on a probed segment can capture and relay them.",
+              "canonical_query": {
+                "model": "integrations.UserIdCollectorSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_probing",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "enable_probing"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UID-004",
+          "name": "User-ID Service Account Least Privilege",
+          "control_type": "user_id_collector",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "Requires that the directory account the firewall uses for server monitoring is a minimal-rights service account: event-log reader rights and no more, no domain or enterprise admin, no interactive logon.\n\nWHAT THIS CONTROL CAN AND CANNOT ESTABLISH, which is the whole of how to read its findings. The firewall stores the principal it authenticates as and NOTHING about the rights that principal holds, because group memberships live in the directory. So the configuration half of this assertion is that a directory account IS configured for server monitoring, and the finding names it for a reviewer to check directory-side. It does not claim the account is over-privileged, and a finding here is a prompt to verify rather than a defect in itself.\n\nTHE SECOND HALF IS THE PRIVILEGE THAT MAKES THE RIGHTS MATTER. Session reading enumerates user sessions on the monitored servers rather than only reading their security logs, which needs more of the account than log reading does. It is reported at the same severity because it is the same exposure read from the other end: an account with wide rights matters most where the firewall is using them.\n\nTHE DIRECTORY-SIDE VERIFICATION IS NOT A CONFIGURATION READ AND IS NOT OPTIONAL. Whether the account is a domain admin, whether its password is rotated and whether interactive logon is denied are answers from the directory, not from the firewall, and this control exists to put the question in front of somebody who can answer it.",
+          "rationale": "Server monitoring is the identity source the vendor recommends in place of probing, and it works by authenticating to every monitored server as one account. That account is therefore a credential with reach across the estate's servers, held on a network device, and used continuously. Event-log reader rights are sufficient for what it does; anything more converts a monitoring integration into a standing lateral-movement path, and nothing on the firewall will ever report that it happened.",
+          "audit": "Device > User Identification > User Mapping, the Palo Alto Networks User-ID Agent Setup dialog on the vsys named in the finding, Server Monitor Account tab, which shows the configured principal. Then verify the account IN THE DIRECTORY: group memberships, interactive and remote-desktop logon rights, and password rotation. The firewall cannot answer any of those. The WMI Authentication and Server Monitor tabs show whether session reading is enabled.",
+          "remediation": "Replace a privileged principal with a dedicated minimal-rights account - a group-managed service account or a vaulted account with Event Log Readers membership only - and deny it interactive and remote-desktop logon. Where session reading is enabled and the site does not need session enumeration, switch it off and leave security-log reading in place, which needs less of the account.",
+          "implementation_version": "v1",
+          "target_model": "integrations.UserIdCollectorSettings",
+          "cis_ref": "5.4",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A directory account is configured for server monitoring on this vsys. The firewall stores the principal and nothing about its rights, so the account is named here for directory-side verification rather than reported as over-privileged.",
+              "canonical_query": {
+                "model": "integrations.UserIdCollectorSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wmi_account",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wmi_account"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Session reading enabled on the monitored servers",
+              "short_description": "Session reading is enabled on this vsys, so the firewall enumerates user sessions on the monitored servers rather than only reading their security logs - the privilege that makes the service account's rights matter.",
+              "canonical_query": {
+                "model": "integrations.UserIdCollectorSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_session",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "enable_session"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UID-005",
+          "name": "Syslog User Mapping from Authenticated Senders Only",
+          "control_type": "management_interface",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that no management surface permits the unauthenticated UDP syslog identity listener.\n\nWHAT THE LISTENER IS. Syslog-based identity mapping accepts username-to-address bindings from external systems. The UDP listener is connectionless and unauthenticated, so anyone who can reach the port can forge identity mappings and impersonate users in policy. The vendor's own guidance is explicit that a sender list is not a defence here, because the source address can be spoofed, and that SSL should always be used instead.\n\nTWO SURFACES, ONE ASSERTION. A management plane - the MGT port and, on the platforms that have them, the auxiliary ports - carries the listener as a negated switch under the device's own service node. A traffic-carrying interface carries it through an interface management profile bound to it. Those are opposite key polarities over the same fact, and the stored column resolves both, so one assertion spells both halves and the finding names whichever surface it found.\n\nA PROFILE BOUND TO NOTHING PERMITS NOTHING, which is why the dataplane half reports surfaces rather than profiles. A row for a traffic-carrying interface exists only because a profile is bound to it, so a profile that is merely defined produces no row and raises nothing.\n\nAN UNCOLLECTED SURFACE READS AS COMPLIANT UNLESS SOMETHING ASKS, so something does. An absent service record matches no membership test and SQL drops the row, which means a surface nobody collected would pass the listener question silently. A second query reports that the listener state could not be established, and it fires on the measured case: auxiliary planes whose service node exists with the listener keys absent, where the project's own read does not cover them.\n\nWHAT THIS CONTROL DOES NOT JUDGE. Whether the segment a management plane sits on is dedicated to management and reachable only by administrative hosts is not readable from the firewall; it decides how the finding is reported rather than whether it fires. The permitted-source list on these same surfaces is a separate control, so a surface with the listener up and no source restriction appears in both. The encrypted listener's own protocol floor, and the per-sender transport each configured sender uses, are also not judged here - the second is a different object that this control cannot reach.",
+          "rationale": "Every other control in this domain bounds identity the firewall gathers for itself. This one is about identity the firewall ACCEPTS from elsewhere, with no authentication on the path. A forged mapping is not a gap in coverage; it is an attacker choosing which username the firewall attributes their traffic to, which turns identity-based policy from a control into an instrument. The listener is also not an administrative service, so the control that reports administrative exposure on these surfaces deliberately does not cover it, and the judgement was unowned until this control.",
+          "audit": "For a management plane: Device > Setup > Management, the Management Interface Settings services list on the appliance named in the finding, and the same list on each auxiliary interface the platform has. For a traffic-carrying interface: Network > Network Profiles > Interface Mgmt, the profile named in the finding, and Network > Interfaces to see what it is bound to. Where the finding says the listener state could not be established, the service node for that plane was not covered by the read rather than found permissive.",
+          "remediation": "Disable the UDP syslog listener on the surface named - for a management plane, untick the User-ID syslog listener (UDP) service; for a traffic-carrying interface, untick it in the bound interface management profile, or unbind the profile where the interface does not need it. Where syslog identity mapping is needed, enable the SSL listener instead and give it a certificate profile, which is the vendor's own instruction. Leave it enabled only on the interface the firewall collects mappings on, and restrict the permitted sources on that surface.",
+          "implementation_version": "v1",
+          "target_model": "integrations.ManagementInterface",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A management plane on this appliance permits the unauthenticated UDP syslog identity listener, so anyone able to reach the port can forge username-to-address bindings and impersonate users in policy.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane",
+                    "negated": true
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "userid-syslog-listener-udp",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "A traffic-carrying interface permits the listener",
+              "short_description": "An interface management profile bound to a traffic-carrying interface permits the unauthenticated UDP syslog identity listener, so the forgery path is reachable from the traffic side rather than only from the management network.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane",
+                    "negated": false
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "userid-syslog-listener-udp",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Listener state on a management plane could not be established",
+              "short_description": "The User-ID listener state of a management plane on this appliance was never established, so its listener question is unanswered rather than answered compliant - the measured case is an auxiliary plane the read does not cover.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane",
+                    "negated": true
+                  },
+                  {
+                    "field": "userid_listener_state_established",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "userid_listener_state_established"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Listener state on a traffic-carrying interface could not be established",
+              "short_description": "The User-ID listener state of a traffic-carrying surface was never established. This should match nothing, so a row here means the bound profile's service node was not collected, which is a collection fault rather than a device setting.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane",
+                    "negated": false
+                  },
+                  {
+                    "field": "userid_listener_state_established",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "userid_listener_state_established"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UID-006",
+          "name": "User Mapping Timeout Bounded",
+          "control_type": "user_id_collector",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that IP-to-user mappings expire, and that the lifetime they expire after is bounded.\n\nTWO HALVES THAT CANNOT BOTH FIRE ON ONE ROW, and the first is the worse of them. The first half is about expiry being switched off, so a mapping never expires at all. The second is only about the lifetime WITHIN a vsys where expiry is in force, so the first half's assertion is the second half's qualifying condition, inverted.\n\nA STORED TIMEOUT VALUE BESIDE EXPIRY SWITCHED OFF IS NOT A MITIGATION, and it is the thing most likely to mislead a reader of the row. The lifetime column holds a number whether or not expiry is on, so a vsys with expiry off and a thirty-minute lifetime stored looks bounded and is not: the value is inert. The finding states the value and says so.\n\nTHE NEVER-EXPIRE STATE IS NOT A ZERO. The shape of a timeout field invites reading zero as the never-expire value and it is not that: the device refuses zero at the write gate, so no stored row can hold it. Never-expire is the sibling switch being off, which is this control's first half.\n\nWHY THE SECOND HALF REPORTS BELOW THE FIRST. Expiry switched off means identity never stops being attributed. A lifetime above the bound means identity outlives the lease that justified it by some margin, which is a degree of the same harm rather than the whole of it. The band is graded as one rank deliberately: a day-long mapping and a sixty-one-minute one differ in degree, and splitting them would be a decision about the control taken where nobody is reviewing the control.",
+          "rationale": "An IP-to-user mapping is a claim that an address belongs to a person, and DHCP makes that claim expire whether the firewall agrees or not. A mapping that outlives its lease attributes one person's traffic to another in policy and in the audit trail, so the failure is not that enforcement stops - it is that enforcement and logging keep working confidently on a fact that stopped being true. That makes it a data-integrity problem in the record the customer will later rely on.",
+          "audit": "Device > User Identification > User Mapping, the Palo Alto Networks User-ID Agent Setup dialog on the vsys named in the finding, Cache tab. Confirm Enable User Identification Timeout is ticked and read the timeout beside it. Where the finding reports expiry off, read the stored timeout as inert rather than as the effective lifetime. Compare the lifetime against the site's DHCP lease time rather than against the default.",
+          "remediation": "Tick Enable User Identification Timeout where it is off - Device > User Identification > User Mapping, the agent setup dialog on the vsys named, Cache tab - and set the timeout to sixty minutes or less. Where expiry is already in force and the lifetime is above the bound, reduce it; tuning it to the site's typical DHCP lease time, rather than to the bound, is what keeps identity accurate.",
+          "implementation_version": "v1",
+          "target_model": "integrations.UserIdCollectorSettings",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "IP-to-user mapping expiry is switched off on this vsys, so a mapping never expires and traffic keeps being attributed to a user after DHCP has reassigned the address. Any stored timeout beside it is inert.",
+              "canonical_query": {
+                "model": "integrations.UserIdCollectorSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_mapping_timeout",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "enable_mapping_timeout"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Mapping lifetime above the bound",
+              "short_description": "Mappings on this vsys expire, but only after more than sixty minutes, so identity outlives the DHCP lease that justified it by a margin nobody at the site has justified.",
+              "canonical_query": {
+                "model": "integrations.UserIdCollectorSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_mapping_timeout",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "ip_user_mapping_timeout",
+                    "op": "gt",
+                    "value": 60,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "ip_user_mapping_timeout"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
         }
       ]
     }

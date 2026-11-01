@@ -892,6 +892,16 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: 2026-10-30 put the second one in. So the lifecycle has now run a full cycle: filled by a
 #: stage 8, emptied by the stage 9 it named, filled again.
 AWAITING_PRESENTATION: dict[str, str] = {
+    # `user-id` reached stage 8 on 2026-11-01. FOUR models carry its six controls and none of
+    # the four has a rail item: the two this domain created - the per-vsys User-ID collector
+    # settings node and the per-vsys discovery bound - plus `integrations.Zone`, which has been
+    # stored for months and whose own debt the `PAN-IOT` entry above already names, and
+    # `integrations.ManagementInterface`, which DOES have a page. So this entry is load-bearing
+    # for five of the six controls and harmless for the sixth: `_awaiting` is consulted only
+    # where `query_results_url` returns nothing, and PAN-UID-005's management-interface queries
+    # resolve on their own. Stage 9 for this domain is what gives the other three a page, and
+    # stage 8's contract forbids building one.
+    "PAN-UID": "stage9-user-id.json",
     # PAN-HAP-001 to 005 target two device-wide management-plane models that no rail item
     # reaches yet. PAN-HAP-006 and 007 have no entry in the catalog at all - they assert over
     # Panorama's own configuration, which is out of assessment scope - so this debt is for five

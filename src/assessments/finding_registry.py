@@ -228,6 +228,32 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # URL Category screen names it, so it needs no entry in `PLURAL_BY_NAME`.
     FindingKind(m.CustomUrlCategoryFinding, "custom_url_category",
                 m.Control.ControlType.CUSTOM_URL_CATEGORY, "custom URL category"),
+    # `user-id`. TWO kinds for TWO new models, and the domain's other two controls need no line
+    # here at all: PAN-UID-001 reports through `zone` and PAN-UID-005 through
+    # `management_interface`, both of which already have a kind, a generator and a search
+    # surface - exactly as PAN-FIL-001/-002/-004 and the five url-filtering controls reuse
+    # `security_profile` above.
+    #
+    # BOTH NAME A VERDICT OVER AN ENFORCEMENT POINT rather than a named entry, like the SaaS
+    # three, the rulebase match and the data-filtering posture above, so both models declare
+    # `subject_scope`: the row has no entry name, `subject_name` carries the vsys and without
+    # the appliance beside it two findings about two appliances are one row to any presentation
+    # that groups by subject name.
+    #
+    # THREE CONTROLS SHARE THE FIRST KIND - PAN-UID-003 asserts over client probing, PAN-UID-004
+    # over the service account and session reading, PAN-UID-006 over mapping expiry - because
+    # all of them live on one per-vsys agent settings node.
+    #
+    # `integrations.UserIdMonitoredServer` GETS NO KIND. It is the subject of the one PAN-UID-005
+    # assertion record this domain leaves silent, so no control can produce a finding over it and
+    # a kind would register a generator nothing dispatches to. That is a deliberate omission and
+    # not this tuple falling behind - the failure mode the comment on the network-hardening block
+    # above describes - and the stage 8 artifact for `user-id` records it in
+    # `subjects_in_two_models` with `built: false`.
+    FindingKind(m.UserIdCollectorFinding, "user_id_collector",
+                m.Control.ControlType.USER_ID_COLLECTOR, "User-ID collector"),
+    FindingKind(m.UserIdDiscoveryBoundFinding, "user_id_discovery_bound",
+                m.Control.ControlType.USER_ID_DISCOVERY_BOUND, "User-ID discovery bound"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

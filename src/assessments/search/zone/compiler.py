@@ -118,6 +118,19 @@ FIELD_COMPILERS = {
     # The companion that answers "were this row's Device-ID lists ever read".
     "device_acl_lists_computed": build_boolean_compiler(
         "device_acl_lists_computed", "device_acl_lists_computed"),
+    # PAN-UID-001's assertion, and the FIRST USER-ID control over a zone. TRUE fires: the
+    # switch being on is what exposes internal username-to-IP mappings in a zone, and whether
+    # this zone faces a network the customer does not control is not readable from a firewall -
+    # so it is deliberately NOT a qualifying condition here, for the reason the Device-ID half
+    # above gives. The column is a non-nullable boolean whose absent key resolves to the
+    # measured implicit, so it has no unknown state and needs no companion.
+    #
+    # `include_acl` and `exclude_acl` - the zone's USER-ID address lists, distinct from the two
+    # Device-ID lists above - are NOT registered: both are JSON columns, a JSON column is
+    # reachable from no query in this language, and stage 5 marks them `not_searchable`. What
+    # bounds User-ID discovery is PAN-UID-002's own subject, which is a separate model.
+    "enable_user_identification": build_boolean_compiler(
+        "enable_user_identification", "enable_user_identification"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

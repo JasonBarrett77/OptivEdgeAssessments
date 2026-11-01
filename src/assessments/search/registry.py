@@ -301,6 +301,16 @@ from assessments.search.custom_url_category.compiler import (
     CUSTOM_URL_CATEGORY_MODEL,
     compile_custom_url_category_search_node,
 )
+from assessments.search.user_id_collector.compiler import (
+    FIELD_OPERATOR_REGISTRY as USER_ID_COLLECTOR_FIELD_OPERATOR_REGISTRY,
+    USER_ID_COLLECTOR_MODEL,
+    compile_user_id_collector_search_node,
+)
+from assessments.search.user_id_discovery_bound.compiler import (
+    FIELD_OPERATOR_REGISTRY as USER_ID_DISCOVERY_BOUND_FIELD_OPERATOR_REGISTRY,
+    USER_ID_DISCOVERY_BOUND_MODEL,
+    compile_user_id_discovery_bound_search_node,
+)
 from assessments.search.licence_inventory.compiler import (
     FIELD_OPERATOR_REGISTRY as LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
     LICENCE_INVENTORY_MODEL,
@@ -362,6 +372,8 @@ from optivedge_integrations.integrations.models import (
     PanOsTunnelInspectionCoverage,
     PanOsRoutingAdjacency,
     CustomUrlCategory,
+    UserIdCollectorSettings,
+    UserIdDiscoveryBound,
 )
 
 
@@ -679,6 +691,25 @@ MODEL_REGISTRY = {
         "model_class": CustomUrlCategory,
         "field_operators": CUSTOM_URL_CATEGORY_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_custom_url_category_search_node,
+    },
+    # `user-id`. TWO entries for TWO new models. The domain's other two controls get NO entry
+    # here: PAN-UID-001 queries `integrations.Zone` and PAN-UID-005 queries
+    # `integrations.ManagementInterface`, both registered above, and each is extended with one
+    # new field rather than a new package.
+    #
+    # `integrations.UserIdMonitoredServer` GETS NO ENTRY AT ALL. It is the subject of the one
+    # PAN-UID-005 assertion record this domain leaves silent, and a search surface no control
+    # asks for is one this repository's own convention refuses. See the stage 8 artifact for
+    # `user-id`, `subjects_in_two_models`.
+    USER_ID_COLLECTOR_MODEL: {
+        "model_class": UserIdCollectorSettings,
+        "field_operators": USER_ID_COLLECTOR_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_user_id_collector_search_node,
+    },
+    USER_ID_DISCOVERY_BOUND_MODEL: {
+        "model_class": UserIdDiscoveryBound,
+        "field_operators": USER_ID_DISCOVERY_BOUND_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_user_id_discovery_bound_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

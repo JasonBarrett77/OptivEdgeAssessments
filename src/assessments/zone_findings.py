@@ -124,10 +124,64 @@ def _lists_unread(obj) -> list[str]:
     ]
 
 
-#: WHICH FACTS THIS CONTROL'S FINDING MAY STATE. One control, three arms over two halves, and no
-#: row can match the first arm together with either of the others.
+def _user_identification_on(obj) -> list[str]:
+    """PAN-UID-001's only half: is the User-ID switch on in this zone.
+
+    ADDED 2026-11-01 BY THE `user-id` STAGE 8 RUN, AND THE REASON IT HAD TO BE IS THE DISPATCH
+    BELOW. PAN-UID-001 reuses the `zone` control type rather than minting a second type for
+    `integrations.Zone` - the type-to-model map is one-to-one and nothing in the suite asserts
+    that, so a duplicate would have passed every gate. Reuse is correct and it is also silent:
+    a reused type reuses this module's generator, and `_subject` DEFAULTS to PAN-IOT-002's three
+    arms for any control id it does not recognise. Without this arm and its entry below, a
+    PAN-UID-001 finding would have been described with PAN-IOT-002's claims - device
+    identification off, narrowed, lists unread - which are answers to a different question about
+    the same zone.
+
+    THE DIRECTION IS THE OPPOSITE OF THE DEVICE-ID HALVES ABOVE: `True` is the finding here.
+    User-ID being ON is what exposes internal username-to-IP mappings in a zone, where Device-ID
+    being OFF is what PAN-IOT-002 reports. One zone can legitimately be in both states, and
+    `build_zone_finding_summary` takes its control id from the FIRST matched query - so a zone
+    matched by both controls gets one control's arms arbitrarily. That is not fixed here; it is
+    raised in the stage 8 artifact for `user-id` under `needs_human`, because rewriting that loop
+    to serve this control would change PAN-IOT-002's finding prose, which is a catalogue
+    decision rather than a build one.
+    """
+
+    if not obj.enable_user_identification:
+        return []
+    parts = [
+        "USER-ID IS ENABLED on this zone, so the firewall maps usernames to the addresses it "
+        "sees here and those mappings become names in policy, in the traffic log and in every "
+        "report that reads from them - on an untrusted or Internet-facing zone that leaks "
+        "internal identity outward and can be probed to enumerate it",
+        "WHICH SIDE OF THE FIREWALL THIS ZONE FACES IS NOT READABLE FROM A FIREWALL and the "
+        "question is deliberately not asked as a condition here, for the reason the Device-ID "
+        "half above gives: an unanswered question must leave the finding standing rather than "
+        "suppress it. So this reports every zone with the switch on, and whether this zone "
+        "carries the organisation's own user population is the reviewer's to confirm",
+    ]
+    if obj.include_acl or obj.exclude_acl:
+        parts.append(
+            f"this zone's own User-ID address lists are included "
+            f"{_members(obj.include_acl) or '`none`'} and excluded "
+            f"{_members(obj.exclude_acl) or '`none`'} - PRINTED AS CONTEXT AND NOT JUDGED HERE. "
+            "What bounds User-ID discovery for a vsys is PAN-UID-002's subject, which is a "
+            "different object, and these per-zone lists are neither that control's rows nor "
+            "this control's assertion")
+    parts.append(
+        "AND CHECK WHERE THIS ZONE'S CONFIGURATION COMES FROM BEFORE ACTING. Nothing stored "
+        "about a zone says whether it was configured on this firewall or pushed to it from a "
+        "template, so the switch may only be changeable where the zone is defined")
+    return parts
+
+
+#: WHICH FACTS EACH CONTROL'S FINDING MAY STATE. PAN-IOT-002: one control, three arms over two
+#: halves, and no row can match the first arm together with either of the others. PAN-UID-001:
+#: one arm, asserting the opposite polarity on a different switch of the same row - see that
+#: arm's docstring for why reusing this type made the entry necessary rather than optional.
 PARTS_BY_CONTROL = {
     "PAN-IOT-002": (_identification_off, _narrowed, _lists_unread),
+    "PAN-UID-001": (_user_identification_on,),
 }
 
 

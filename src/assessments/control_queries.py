@@ -57,6 +57,8 @@ LICENCE_INVENTORY_MODEL = "integrations.LicenceInventory"
 LOG_ALARM_SETTINGS_MODEL = "integrations.LogAlarmSettings"
 CONTENT_UPDATE_SCHEDULE_MODEL = "integrations.ContentUpdateSchedule"
 CUSTOM_URL_CATEGORY_MODEL = "integrations.CustomUrlCategory"
+USER_ID_COLLECTOR_MODEL = "integrations.UserIdCollectorSettings"
+USER_ID_DISCOVERY_BOUND_MODEL = "integrations.UserIdDiscoveryBound"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -475,6 +477,22 @@ def evaluate_zone_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or ZONE_MODEL,
+    )
+
+
+def evaluate_user_id_collector_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or USER_ID_COLLECTOR_MODEL,
+    )
+
+
+def evaluate_user_id_discovery_bound_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or USER_ID_DISCOVERY_BOUND_MODEL,
     )
 
 
