@@ -903,6 +903,12 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # verdicts and the device-wide App-ID Cloud Engine. Stage 9 for this domain is what gives
     # them a page, and stage 8's contract forbids building one.
     "PAN-SAS-": "stage9-saas-security.json",
+    # `device-id-iot` reached stage 8 on 2026-10-31. THREE models and none of them has a rail
+    # item: the appliance's device-identification service state and the rulebase device-match
+    # verdict had never been queried from this repository at all, and `Zone` had been stored for
+    # months with no control, no page and no search surface over it. Stage 9 for this domain is
+    # what gives all three a page, and stage 8's contract forbids building one.
+    "PAN-IOT": "stage9-device-id-iot.json",
 }
 
 

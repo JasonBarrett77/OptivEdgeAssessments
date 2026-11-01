@@ -45,6 +45,9 @@ SANCTIONED_APPLICATION_MARKING_MODEL = "integrations.SanctionedApplicationMarkin
 SAAS_URL_FILTERING_POSTURE_MODEL = "integrations.SaasUrlFilteringPosture"
 SAAS_APPLICATION_POLICY_POSTURE_MODEL = "integrations.SaasApplicationPolicyPosture"
 CLOUD_APP_ENGINE_SETTING_MODEL = "integrations.CloudAppEngineSetting"
+DEVICE_IDENTIFICATION_MODEL = "integrations.DeviceIdentificationState"
+ZONE_MODEL = "integrations.Zone"
+RULEBASE_DEVICE_MATCH_MODEL = "integrations.RulebaseDeviceMatchVerdict"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -447,4 +450,28 @@ def evaluate_cloud_app_engine_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or CLOUD_APP_ENGINE_SETTING_MODEL,
+    )
+
+
+def evaluate_device_identification_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or DEVICE_IDENTIFICATION_MODEL,
+    )
+
+
+def evaluate_zone_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or ZONE_MODEL,
+    )
+
+
+def evaluate_rulebase_device_match_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or RULEBASE_DEVICE_MATCH_MODEL,
     )

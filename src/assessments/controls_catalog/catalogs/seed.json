@@ -6860,6 +6860,310 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.CloudAppEngineSetting"
+        },
+        {
+          "control_id": "PAN-IOT-001",
+          "name": "IoT Security Subscription Active Where IoT Present",
+          "control_type": "device_identification",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that where an estate carries equipment nobody administers - unmanaged or IoT devices - a named means of identifying it exists, is paid up, and is actually feeding the firewall.\n\nTWO HALVES, AND THE SECOND IS NOT IMPLIED BY THE FIRST. One asks whether the entitlement for the vendor's device-identification service is in force on this appliance. The other asks whether the firewall is wired to that service at all - a subscription that nothing points at delivers nothing.\n\nTHE QUESTION IS ABOUT THE ABSENCE OF A LICENCE ROW AND NO PREDICATE CAN EXPRESS THAT. The vendor returns NO ROW for an entitlement an appliance does not hold - the licence table has no row saying 'no' - so a clause asking whether that row reports `expired` finds nothing to compare on exactly the appliances this control is about, and the row would be dropped in silence. The control therefore rests on a per-appliance verdict computed over the whole table.\n\nAND 'NOT ENTITLED' IS INDISTINGUISHABLE FROM 'NOBODY ASKED'. An appliance holding nothing licensed answers the licence listing with an empty envelope, which is exactly what an appliance whose listing was never taken produces. Both states report, at the same severity, because one of them is a configuration defect and the other is a gap in what we looked at - and a reader has to be told which. An appliance can match both arms, and then the report shows two findings about it rather than one wrong one.\n\nWHAT A POPULATED EDGE-SERVICE ADDRESS DOES AND DOES NOT PROVE. It proves the WIRING exists. It says nothing about whether anything answers: a hostname that cannot resolve commits clean on this platform, so the finding reports that the firewall is pointed at nothing and never that delivery was tested.\n\nTHE ONE INPUT NOBODY HAS MEASURED is the exact feature name the vendor uses for this entitlement in the licence listing. No appliance available to this project holds it, so the match is against a candidate set rather than a literal anybody has read. The failure direction is the safe one - a wrong name leaves the control REPORTING rather than passing - but it reports on every appliance in every estate until the name is right, so a first estate should confirm it before acting on a fleet.\n\nAND THE HALF THIS CONTROL CANNOT READ. Whether the organisation has adopted this vendor's service as its chosen means of identifying equipment is on no firewall: nothing in a configuration says which means an organisation chose. So this fires on every appliance and the engineer's answer decides whether it is reported. Suppressing it instead would need an applicability clause on a column nothing fills, which would silence the control on every appliance in every estate - the worse of the two errors.",
+          "rationale": "Equipment nobody administers cannot be patched, cannot be logged into and is routinely shipped with credentials its owner never changes. A policy that cannot tell what a device IS can only name it by address, so it cannot be segmented from anything as the estate changes around it. The subscription is the vendor's answer to that, and an unlicensed or unwired firewall has no answer at all while the policy still reads as if it does.",
+          "audit": "Device > Licenses on the appliance named in the finding, to see whether a device-identification entitlement is present and in force - and read the absence carefully, because an entitlement an appliance does not hold appears as a missing row rather than as a row reporting expiry. Then Device > Setup > Management for the IoT edge-service address, which is what tells the firewall where to send its traffic records. Confirm with `request license info` and a configuration read of the edge-service node through the API if the screens disagree. Where the finding says the licence listing was never taken, the gap is in the collection and not on the appliance: issue the read before concluding anything.",
+          "remediation": "Where no entitlement is in force, buy and activate the device-identification subscription for this appliance - it is per serial, so an HA pair needs both members. Where the entitlement is in force and no edge-service address is set, set it, and confirm afterwards that records are actually reaching the service: a populated address proves only that the configuration exists, and an address that resolves to nothing commits without complaint. Where the value comes from a Panorama template, set it there, because the next push will otherwise overwrite a local edit. Where the finding reports that the licence listing was never taken, re-run the collection rather than changing anything on the device. And where this estate identifies its unmanaged equipment by some other means entirely, record that decision - this control cannot read it from any configuration and will keep reporting until a person says so.",
+          "implementation_version": "v1",
+          "target_model": "integrations.DeviceIdentificationState",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No in-force entitlement for the vendor's device-identification service exists on this appliance - the licence listing carries no unexpired row for that feature.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "device_id_licensed",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_id_licensed"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Licence listing never taken",
+              "short_description": "The licence listing was never taken for this appliance, so whether it holds the entitlement is unknown rather than answered - an appliance with nothing licensed and one nobody asked give the same reply.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "licence_read_taken",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "licence_read_taken"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "No edge service address configured",
+              "short_description": "This appliance is pointed at no device-identification edge service, so it sends the service no traffic records and retrieves no device mappings from it.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "edge_service_address",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "edge_service_address"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-IOT-002",
+          "name": "Device-ID Enabled on IoT-Hosting Zones",
+          "control_type": "zone",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that device identification is switched on in the zones that carry equipment nobody administers, and that it has not been narrowed away from that equipment afterwards.\n\nTWO HALVES THAT CANNOT BOTH FIRE ON ONE ZONE. The first is about a zone where identification is off. The second is only about narrowing WITHIN a zone where it is on, so the first half's assertion is the second half's qualifying condition, inverted.\n\nTHE FIRING STATE OF THE SECOND HALF IS A POPULATED LIST, WHICH IS THE OPPOSITE OF WHAT A REVIEWER LOOKS FOR. With no device address list configured, the zone's Included Networks render as `any` and its Excluded Networks as `none`: identification applies to EVERY address in the zone. That is the most permissive reading and it is the COMPLIANT one here. The state that needs reporting is a list that LIMITS identification to named addresses, because equipment outside the list sits in an identified zone and is not itself identified. An absent list and an empty one are the same state - deleting the last member leaves PAN-OS dropping the container - so there is no third reading.\n\nWHAT THE NARROWING HALF REPORTS IS NARROWING AND NOT A COVERAGE FAILURE. Whether the list still covers the equipment the zone was enabled for cannot be established from any configuration read: a member may be a literal address, a range, an address object or an address GROUP, and nothing on the firewall says what is plugged in. So the finding names the members and asks a reviewer to confirm them against the equipment. It does not claim anything is uncovered.\n\nAN UNREAD LIST REPORTS RATHER THAN PASSING. An address list that was never read is stored as an empty one, and an empty list is exactly the value of a zone that identifies everything - the most compliant state there is. So a zone whose lists nobody collected would have read as correctly configured. A separate arm reports that the scope could not be established, which is a statement about our visibility rather than about the configuration.\n\nTHE REMEDIATION MAY BE ONE THIS FIREWALL REFUSES, AND THAT IS THE NORMAL CASE. Nothing stored about a zone records whether it was configured on the firewall or pushed to it from a template, so a finding on a pushed zone names a local zone while the setting can only be changed where it is defined. A reader has to check the source before acting.\n\nAND THE QUESTION THIS CONTROL DOES NOT ASK. Which zones carry equipment nobody administers is not readable from a firewall, and it is deliberately NOT written as a qualifying condition: an unanswered question must leave the finding standing rather than suppress it. So this reports every zone with identification off - 48 of the 50 zones in the environment it was measured against - and the engineer's answer narrows the report rather than the query.",
+          "rationale": "A zone is where the traffic from unadministered equipment actually arrives, and identification is per zone rather than per device: switched off, nothing in that zone is identified by what it is, so the policy can only name it by address and a reader of the estate's own device reports sees nothing. Narrowing is the subtler failure of the two - the setting reads as on, the screen looks correct, and the equipment the zone was enabled for may be outside the list that was added later.",
+          "audit": "Network > Zones on the appliance and vsys named in the finding. The grid's Device-ID column shows whether identification is enabled; the zone's own Device-ID tab shows the Included and Excluded Networks. Read an EMPTY Included Networks as `any` rather than as nothing - the grid says so in those words, and it is the compliant state. Then check where the zone is configured: a zone pushed from a Panorama template cannot be edited on the firewall, and nothing in a finding on it can tell you that. Where the finding says the address lists were never read, the gap is in the collection rather than on the appliance.",
+          "remediation": "Where identification is off on a zone that carries equipment nobody administers, enable it - Network > Zones, the zone's Device-ID tab - and where the zone comes from a Panorama template, enable it in the template, because a local edit will be refused or overwritten. Where identification is narrowed, confirm the member list against what the zone actually carries and widen it, or remove the list entirely to identify everything in the zone; remember that a member may be an address group whose contents moved since somebody wrote it. Where the finding reports that the lists were never read, re-run the collection rather than changing the zone. And where a zone genuinely carries no unadministered equipment, record that: this control cannot read it and will keep reporting the zone until a person says so.",
+          "implementation_version": "v1",
+          "target_model": "integrations.Zone",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Device identification is not enabled on this zone, so nothing in it is identified by what the equipment is and the policy can name it only by address.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_device_identification",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "enable_device_identification"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Identification narrowed to a device address list",
+              "short_description": "Device identification is enabled on this zone and has been limited to a named set of addresses rather than applied to everything in it, so equipment outside that set is in an identified zone and is not identified.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_device_identification",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "device_identification_is_narrowed",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_identification_is_narrowed"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Device-ID address lists never read",
+              "short_description": "Device identification is enabled on this zone and its address lists were never read, so whether it applies to the whole zone or to a narrow set of addresses could not be established.",
+              "canonical_query": {
+                "model": "integrations.Zone",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "enable_device_identification",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "device_acl_lists_computed",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_acl_lists_computed"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-IOT-003",
+          "name": "Device Dictionary Current",
+          "control_type": "device_identification",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "Requires that the device classification data installed on an appliance is current, so that equipment types the vendor has published can actually be recognised.\n\nWHAT THIS MEASURES IS THE AGE OF WHAT IS INSTALLED, counted from the release date the appliance reports for it. It is NOT the distance behind the release the vendor is currently publishing, because nothing on a firewall carries that. The two coincide only while the vendor publishes continuously: during a quiet period a perfectly current appliance ages into this finding with nobody touching it, and that limit belongs to the measurement rather than to the estate.\n\nGRADED IN TWO BANDS. More than a week behind is reported at the baseline tier - the usual cause is a missed delivery rather than a broken mechanism. More than a quarter behind is reported higher: whole classes of equipment published since then cannot be matched at all, so rules written for them are inert and the estate's own device reports understate what is on the network. Within a week of the current release is acceptable and is not reported, because equipment types published in the last few days are the only ones that can be unrecognised.\n\nAN APPLIANCE THAT REPORTS NO RELEASE DATE IS REPORTED SEPARATELY AND NOT SILENTLY. A row with no computable age passes every staleness threshold that can be written over it, so without a second arm the appliances nobody could measure would read as the freshest in the estate. In the environment this control was measured against, two of four appliances reported no release date at all - and they were the two holding content 167 releases behind their siblings. The graded comparison therefore excludes them deliberately and the second arm reports that their currency could not be established.\n\nTWO INSTRUMENTS DISAGREE ABOUT THIS AND ONLY ONE IS GRADED. The appliance also reports a build version and build date for its classification data, and that instrument ranks an estate in the OPPOSITE order to the content release date: measured across four appliances, grading on the build date would have called the two most stale appliances the freshest and reported the two that were current. The build date is therefore presented beside the finding and never graded, so a reader can see the disagreement and check the conclusion. The content version is printed for the same reason: it says which of two appliances is older and never by how long.\n\nAND THE HALF THIS CONTROL CANNOT READ. Whether new releases arrive without anyone fetching them is not answerable from a configuration: the firewall's own content schedule has no entry for this content type at all, so automatic delivery and a change-controlled manual process are indistinguishable. That is the engineer's answer and this control's finding says nothing about it.",
+          "rationale": "Device classification data is what turns traffic into a statement about what a device IS, and it is the input every other part of device identification depends on. Stale data does not fail loudly: the feature stays switched on, the zones stay enabled, the reports keep listing devices, and the equipment types published since the last delivery are simply absent from all of it - so a policy written for them matches nothing and nobody is told.",
+          "audit": "Device > Dynamic Updates on the appliance named in the finding, for the installed device dictionary and when it was released. `show system info` carries the installed version and its release date as separate keys, and the release date is a LOCAL timestamp with a timezone abbreviation rather than an offset - it is not comparable across appliances and is not stable on one, because it moves when the appliance's own timezone setting moves. Read the age in the finding rather than comparing the strings. Where the finding says no release date was reported, check the version key instead and compare it against a sibling appliance: a version says which is older, and never by how long. Treat the classification-data build date as a second, incommensurable instrument and not as a currency measure.",
+          "remediation": "Install the current device dictionary on the appliance named in the finding - Device > Dynamic Updates, check now and install - and then confirm the installed release date actually moved, because the version and the release date come from different keys. Where the finding reports that no release date was reported at all, that is the state to fix first: compare the installed version against a sibling appliance to see how far behind it is, since no age can be computed without a date. Put the dictionary on a schedule if it is not on one, and record the cadence somewhere a reviewer can find: the firewall's own content schedule has no entry for this content type, so nothing on the device can show that deliveries are automatic. And where the estate is in a quiet publishing period, check what the vendor is currently publishing before acting - this control measures the age of what is installed and cannot see the comparator.",
+          "implementation_version": "v1",
+          "target_model": "integrations.DeviceIdentificationState",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The device classification data installed on this appliance is more than a week old, counted from the release date the appliance reports for it.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "device_dictionary_release_date_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "device_dictionary_age_days",
+                    "op": "gt",
+                    "value": 7,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_dictionary_age_days"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "More than a quarter behind",
+              "short_description": "The device classification data installed on this appliance is more than ninety days old, so whole classes of equipment published since then cannot be matched at all and rules written for them are inert.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "device_dictionary_release_date_known",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  },
+                  {
+                    "field": "device_dictionary_age_days",
+                    "op": "gt",
+                    "value": 90,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_dictionary_age_days"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Release date never reported",
+              "short_description": "This appliance reports no release date for its installed device classification data, so its currency could not be established - and a row with no age passes every staleness threshold.",
+              "canonical_query": {
+                "model": "integrations.DeviceIdentificationState",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "device_dictionary_release_date_known",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "device_dictionary_release_date_known"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-IOT-004",
+          "name": "Device-Based Segmentation Rules for IoT",
+          "control_type": "rulebase_device_match",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "Requires that the policy an enforcement point evaluates can match traffic on what a device IS, so that rules written for equipment nobody administers are about the equipment rather than about whichever addresses it happens to hold.\n\nTHE SUBJECT IS THE ENFORCEMENT POINT AND NOT THE RULE, deliberately. 'No rule names what a device is' cannot be said of a particular rule, and in the environment this was measured against 182 of 188 rules carried no device criterion at all - so keying the finding on the rule would have reported one condition 182 times and located nothing. The verdict is taken over everything the point evaluates: its own rulebase, anything pushed to it, and the vendor's default rules.\n\nTHE TEST IS NOT WHETHER THE DEVICE CRITERION IS FILLED IN. A rule may carry the element and still constrain nothing - every rule in that environment which carried it carried only a wildcard keyword - so a control asking whether the element is populated would pass a policy with no device dimension whatever. What is counted is a rule that permits traffic and names a device object that this point can actually resolve.\n\nWHAT THE FINDING REPORTS WITHOUT AN ENGINEER'S ANSWER is the absence of the dimension and not a list of gaps. Which classes of unadministered equipment exist and what each should be allowed to reach is a question only a person can answer; absent it, the finding says the policy cannot express the distinction at all.\n\nTWO COUNTS ARE PRINTED AND THEY ARE DIFFERENT REMEDIATIONS. Where this point can resolve no device objects in any scope, no rule COULD name one even if somebody wrote it, and the fix starts with defining the objects. Where objects exist and no rule uses them, the fix is in the policy. A second count of rules naming a device object is also printed, and ITS FILTER DIFFERS FROM THE VERDICT'S - it includes a rule that denies on a device, which the verdict deliberately does not - so the two numbers are not expected to reconcile.\n\nTWO THINGS THIS CONTROL CANNOT TELL A READER, both about remediation rather than detection. It cannot say WHICH rulebase the absence spans, because the verdict carries no scope - so on an estate whose policy is pushed centrally, a remediation read literally would have somebody adding rules to a rulebase the firewall will not accept them into. And it cannot say how much of the rule set was READ: a rule whose address references could not be resolved is dropped before the verdict is taken, and a verdict over part of a rulebase is indistinguishable in the result from a verdict over all of it. The per-enforcement-point normalisation records are what a reader should check beside this finding.\n\nAND ONE CLASS OF OBJECT IS NOT YET TOLD APART FROM ANOTHER. A device criterion's members hold device objects, host-posture profiles and bare keywords all as plain strings, and the only way to tell them apart is to resolve the member against the device-object namespace - so a host-posture profile sharing a name with a device object would be counted as a device match. No such profile existed in the environment measured, so the gap is inert there and wrong on the first estate that uses host posture.",
+          "rationale": "Address-based segmentation for equipment nobody administers decays the moment the estate changes: addresses move, ranges get reused, and a rule written for a class of equipment silently starts covering something else. Matching on what the device IS is what keeps the rule about the equipment. A policy with no device dimension looks complete, enforces something, and cannot express the distinction the control is about - so nothing fails and nobody is told.",
+          "audit": "Policies > Security on the appliance and vsys named in the finding, and look at the source and destination device criteria across the whole rule set rather than at any one rule. A criterion carrying only a wildcard keyword constrains nothing and does not count. Check Objects > Devices for the device objects this point can resolve - in the vsys, in firewall-local shared scope and in anything pushed to it - because a policy cannot name a device object that does not exist, and if the Objects page reports that a device-identification licence is required then the premise of this whole control is unmet and the appliance's own entitlement is the thing to read first. Then check each rule's source: the verdict spans the local rulebase and anything pushed together, and the finding cannot say which. Read the per-enforcement-point normalisation records beside this finding, because nothing in it says how much of the rule set was read.",
+          "remediation": "Where this enforcement point resolves no device objects at all, define them first - Objects > Devices - because no rule can name what does not exist, and that is a different fix from a policy that ignores objects which do. Where the objects exist, add the device criterion to the rules that are meant to be about unadministered equipment, and write them for the equipment rather than for its current addresses. Add rules where the policy is actually written: the verdict spans the firewall's own rulebase, anything pushed to it and the vendor's defaults together, so a firewall whose policy is pushed centrally will refuse a local edit. Confirm the device-identification subscription and the per-zone setting first, because a device criterion matches nothing without them. And re-run the collection before acting if the normalisation records show that rules were dropped: a verdict over part of a rulebase reads exactly like a verdict over all of it.",
+          "implementation_version": "v1",
+          "target_model": "integrations.RulebaseDeviceMatchVerdict",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No rule this enforcement point evaluates permits traffic on the basis of what the device is, so the policy has no device dimension and cannot distinguish unadministered equipment from anything sharing its addresses.",
+              "canonical_query": {
+                "model": "integrations.RulebaseDeviceMatchVerdict",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "has_no_rule_matching_on_device",
+                    "op": "eq",
+                    "value": true,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_no_rule_matching_on_device"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ]
         }
       ]
     }

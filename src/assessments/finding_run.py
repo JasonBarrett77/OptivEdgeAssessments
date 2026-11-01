@@ -25,6 +25,13 @@ from assessments.authentication_settings_findings import generate_authentication
 from assessments.findings import generate_rule_findings
 from assessments.certificate_findings import generate_certificate_findings
 from assessments.coverage_findings import generate_coverage_findings
+from assessments.device_identification_findings import (
+    generate_device_identification_findings,
+)
+from assessments.zone_findings import generate_zone_findings
+from assessments.rulebase_device_match_findings import (
+    generate_rulebase_device_match_findings,
+)
 from assessments.dhcp_interface_config_findings import (
     generate_dhcp_interface_config_findings,
 )
@@ -153,6 +160,16 @@ GENERATORS = (
      generate_dhcp_interface_config_findings),
     ("tunnel inspection coverage", T.TUNNEL_INSPECTION, generate_tunnel_inspection_findings),
     ("routing adjacency", T.ROUTING_ADJACENCY, generate_routing_adjacency_findings),
+    # `device-id-iot`, in this tuple's own ordering rule: the device-wide service state first,
+    # then the per-zone setting, then the verdict over the policy. The appliance's entitlement and
+    # installed classification data are the PREMISE the other two rest on - a zone with
+    # identification switched on identifies nothing without the service behind it - so a reader
+    # meets "there is no working means of identifying devices" before any finding that assumes
+    # there is.
+    ("device identification", T.DEVICE_IDENTIFICATION, generate_device_identification_findings),
+    ("security zone", T.ZONE, generate_zone_findings),
+    ("rulebase device match", T.RULEBASE_DEVICE_MATCH,
+     generate_rulebase_device_match_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

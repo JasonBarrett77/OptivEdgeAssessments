@@ -247,9 +247,27 @@ from assessments.search.cloud_app_engine_setting.compiler import (
     CLOUD_APP_ENGINE_SETTING_MODEL,
     compile_cloud_app_engine_setting_search_node,
 )
+from assessments.search.device_identification.compiler import (
+    FIELD_OPERATOR_REGISTRY as DEVICE_IDENTIFICATION_FIELD_OPERATOR_REGISTRY,
+    DEVICE_IDENTIFICATION_MODEL,
+    compile_device_identification_search_node,
+)
+from assessments.search.zone.compiler import (
+    FIELD_OPERATOR_REGISTRY as ZONE_FIELD_OPERATOR_REGISTRY,
+    ZONE_MODEL,
+    compile_zone_search_node,
+)
+from assessments.search.rulebase_device_match.compiler import (
+    FIELD_OPERATOR_REGISTRY as RULEBASE_DEVICE_MATCH_FIELD_OPERATOR_REGISTRY,
+    RULEBASE_DEVICE_MATCH_MODEL,
+    compile_rulebase_device_match_search_node,
+)
 from optivedge_integrations.integrations.models import (
     AddressObject,
     CloudAppEngineSetting,
+    DeviceIdentificationState,
+    RulebaseDeviceMatchVerdict,
+    Zone,
     NormalizationIssue,
     SaasApplicationPolicyPosture,
     SaasUrlFilteringPosture,
@@ -498,6 +516,24 @@ MODEL_REGISTRY = {
         "model_class": CloudAppEngineSetting,
         "field_operators": CLOUD_APP_ENGINE_SETTING_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_cloud_app_engine_setting_search_node,
+    },
+    # `device-id-iot`. Three models and three grains: the appliance's own service state, the
+    # zone, and a verdict over an enforcement point's whole rule set. `Zone` had shipped for
+    # months with no compiler at all, because no control had ever asserted over a zone.
+    DEVICE_IDENTIFICATION_MODEL: {
+        "model_class": DeviceIdentificationState,
+        "field_operators": DEVICE_IDENTIFICATION_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_device_identification_search_node,
+    },
+    ZONE_MODEL: {
+        "model_class": Zone,
+        "field_operators": ZONE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_zone_search_node,
+    },
+    RULEBASE_DEVICE_MATCH_MODEL: {
+        "model_class": RulebaseDeviceMatchVerdict,
+        "field_operators": RULEBASE_DEVICE_MATCH_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_rulebase_device_match_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

@@ -50,6 +50,9 @@ from optivedge_integrations.integrations.models import (
     SaasApplicationPolicyPosture,
     SaasUrlFilteringPosture,
     SanctionedApplicationMarking,
+    DeviceIdentificationState,
+    RulebaseDeviceMatchVerdict,
+    Zone,
 )
 
 
@@ -168,6 +171,25 @@ class Control(models.Model):
             "saas_application_policy_posture", "SaaS Application Policy Posture")
         CLOUD_APP_ENGINE_SETTING = (
             "cloud_app_engine_setting", "App-ID Cloud Engine")
+        #: The three `device-id-iot` subjects, THREE TYPES for the one-to-one reason above.
+        #: PAN-IOT-001 and PAN-IOT-003 SHARE `device_identification`: both assert over one
+        #: appliance's device-identification service state, which is one model and so one type -
+        #: the entitlement, the wiring and the installed classification data all print the same
+        #: appliance. PAN-IOT-002 asserts over the zone and PAN-IOT-004 over a verdict about an
+        #: enforcement point's whole rule set.
+        #:
+        #: `ZONE` IS A TYPE FOR A MODEL THAT HAS SHIPPED SINCE LONG BEFORE THIS DOMAIN. `Zone`
+        #: carried `enable_device_identification` and both Device-ID ACLs already and no control
+        #: had ever been written over it, so the model existed with no type, no finding model and
+        #: no page. PAN-IOT-002 is the first control to assert over a zone.
+        #:
+        #: `RULEBASE_DEVICE_MATCH` NAMES A VERDICT AND NOT A PAN-OS OBJECT, the same shape as the
+        #: three `saas-security` verdicts above: 182 of the 188 rules measured carry neither
+        #: device element, so keying the row on the rule would multiply the failure rather than
+        #: locate it, and the subject is the enforcement point.
+        DEVICE_IDENTIFICATION = "device_identification", "Device Identification"
+        ZONE = "zone", "Security Zone"
+        RULEBASE_DEVICE_MATCH = "rulebase_device_match", "Rulebase Device Match"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -261,6 +283,15 @@ class Control(models.Model):
         "saas_url_filtering_posture": "integrations.SaasUrlFilteringPosture",
         "saas_application_policy_posture": "integrations.SaasApplicationPolicyPosture",
         "cloud_app_engine_setting": "integrations.CloudAppEngineSetting",
+        # `device-id-iot`. One row per APPLIANCE for the service state - the licence table,
+        # `show system info` and the edge node are all device-wide, so on an HA pair both peers
+        # hold their own and the two may legitimately differ, because a licence is per serial.
+        "device_identification": "integrations.DeviceIdentificationState",
+        # One row per named zone per vsys. The only one of the three whose model predates this
+        # domain by months; it had no type because no control had ever asserted over a zone.
+        "zone": "integrations.Zone",
+        # One row per enforcement point: a conclusion about the rule SET, not about any rule.
+        "rulebase_device_match": "integrations.RulebaseDeviceMatchVerdict",
     }
 
     class Meta:
@@ -318,6 +349,9 @@ class Control(models.Model):
         "integrations.SaasUrlFilteringPosture": "SaaS URL Filtering Posture",
         "integrations.SaasApplicationPolicyPosture": "SaaS Application Policy Posture",
         "integrations.CloudAppEngineSetting": "App-ID Cloud Engine",
+        "integrations.DeviceIdentificationState": "Device Identification",
+        "integrations.Zone": "Security Zone",
+        "integrations.RulebaseDeviceMatchVerdict": "Rulebase Device Match",
     }
 
     @property
@@ -2929,3 +2963,211 @@ class CloudAppEngineFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.cloud_app_engine_finding_id} <- {self.control_query_id}"
+
+
+class DeviceIdentificationFinding(ObjectFindingBase):
+    """A finding against one appliance's device-identification service state. PAN-IOT-001, -003.
+
+    THREE UNRELATED INSTRUMENTS LAND ON ONE ROW and two controls assert over it: the licence
+    table (is the entitlement in force), the edge-service configuration node (is the firewall
+    wired to the service at all) and `show system info`'s classification-data keys (is the
+    installed data current). They share a row because all three are device-wide, which is the
+    merge `integrations.DeviceIdentificationState` argues in its own docstring.
+
+    `subject_name` IS THE HOSTNAME, because the row is a conclusion about the appliance and has
+    no entry name of its own - the licence table's entries have no identity a finding would
+    print, and the edge node is a singleton container.
+
+    WHAT NO FINDING HERE PROVES. Two of the three readings are operational replies that carry
+    no provenance decoration of any kind, and the companion booleans
+    (`licence_read_taken`, `device_dictionary_release_date_known`) are the only things that
+    separate "we asked and it was fine" from "nobody asked". Both controls carry a query that
+    fires on those companions at false, so the unread state reports rather than passing - but an
+    appliance with NO ROW AT ALL is absent rather than unknown, and no column of that model can
+    say so.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="device_identification_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="device_identification_findings")
+    device_identification_state = models.ForeignKey(
+        DeviceIdentificationState, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="DeviceIdentificationFindingControlQuery",
+        related_name="device_identification_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["device_identification_state"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "device_identification_state"],
+                name="unique_devid_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on device identification {self.subject_name}"
+
+
+class DeviceIdentificationFindingControlQuery(FindingControlQueryBase):
+    device_identification_finding = models.ForeignKey(
+        DeviceIdentificationFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="device_identification_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["device_identification_finding", "control_query"],
+                name="unique_devid_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.device_identification_finding_id} <- {self.control_query_id}"
+
+
+class ZoneFinding(ObjectFindingBase):
+    """A finding against one security zone. PAN-IOT-002.
+
+    THE FIRST CONTROL EVER WRITTEN OVER A ZONE, which is why this model arrives years after
+    `integrations.Zone` did. The zone already stored `enable_device_identification` and both
+    Device-ID ACLs; nothing had ever queried them.
+
+    `subject_scope` IS REQUIRED HERE. A zone name is unique only per enforcement point
+    (`integrations_unique_zone_per_enforcement_point`), so the same name legitimately exists in
+    several vsys and a finding that printed the name alone would not say which zone it found.
+
+    THE REMEDIATION THIS FINDING IMPLIES MAY BE ONE THE FIREWALL REFUSES, and it is the normal
+    case rather than the edge one. `Zone` carries no scope, `config_source` or provenance column,
+    so a zone pushed from a Panorama template is indistinguishable in the row from a
+    firewall-local one - 48 of the 50 zones measured in the lab are unidentified, and a finding
+    on a pushed zone names a local zone and tells an engineer to tick a box this firewall will
+    not accept. Stage 6 for `device-id-iot` grades that case as a verdict of its own
+    (`iot6-16-zone-pushed-unidentified`) precisely so that somebody can ask about it.
+
+    WHAT THE NARROWING HALF CANNOT SAY. A populated Device-ID ACL is the firing state, and what
+    the finding reports is that identification in the zone is NARROWED - never that the list
+    fails to cover the equipment. A member may be a literal address, a CIDR, an address object
+    or an address GROUP, and nothing on the firewall says what is plugged in, so coverage is a
+    reviewer's judgement and the finding names the members for them to check.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="zone_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="zone_findings")
+    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ZoneFindingControlQuery",
+        related_name="zone_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["zone"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "zone"],
+                name="unique_zone_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on zone {self.subject_name}"
+
+
+class ZoneFindingControlQuery(FindingControlQueryBase):
+    zone_finding = models.ForeignKey(
+        ZoneFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE, related_name="zone_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["zone_finding", "control_query"],
+                name="unique_zone_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.zone_finding_id} <- {self.control_query_id}"
+
+
+class RulebaseDeviceMatchFinding(ObjectFindingBase):
+    """A finding against one enforcement point's rule set, about the device dimension. PAN-IOT-004.
+
+    THE SUBJECT IS THE ENFORCEMENT POINT AND NOT THE RULE, deliberately. "No rule names what a
+    device IS" cannot be said of a particular rule, and 182 of the 188 rules measured in the lab
+    carry neither device element - so keying the finding on the rule would multiply one failure
+    across the whole rulebase instead of locating it.
+
+    `subject_name` IS THE VSYS NAME, with the appliance in `subject_scope`: the row has no entry
+    name, and a rule's own name would be the wrong thing to print on a verdict about all of them.
+
+    WHAT THIS FINDING CANNOT TELL A READER, and both are remediation problems rather than
+    detection ones:
+
+    * WHICH RULEBASE THE ABSENCE SPANS. The verdict is computed over the point's whole rule set -
+      the firewall-local vsys rulebase, the Panorama pre- and post-rulebases pushed to it, and
+      the vendor's two predefined defaults - and carries no scope column, so an estate whose
+      policy is pushed from Panorama is told to edit a vsys rulebase the firewall will not accept
+      rules into. The distinction IS stored, on `SecurityRule.config_source`.
+    * A DEVICE OBJECT FROM A GLOBALPROTECT HIP PROFILE. One `source-hip` member list holds device
+      objects, HIP profiles and the bare keywords any/no-hip/quarantine all as plain strings, and
+      the only discriminator is resolving the member against the device-object namespace. No HIP
+      profile exists anywhere in the lab, so the gap is inert here and wrong on the first estate
+      that uses host posture.
+
+    AND THE COMPANION THIS SUBJECT DOES NOT HAVE. Every other uncertain reading in this domain
+    carries a "was this read" flag; the verdict - the most expensive reading of the four - has
+    none, so a verdict taken over six rules of 109 is indistinguishable in the row from one taken
+    over all 109. Stage 7 recorded that gap and the only existing signal beside it:
+    `integrations.NormalizationIssue` rows are written per enforcement point by the rule pass, so
+    a finding here should be read beside them. Nothing in the row says so.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="rulebase_device_match_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="rulebase_device_match_findings")
+    rulebase_device_match_verdict = models.ForeignKey(
+        RulebaseDeviceMatchVerdict, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="RulebaseDeviceMatchFindingControlQuery",
+        related_name="rulebase_device_match_findings", blank=True)
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["rulebase_device_match_verdict"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "rulebase_device_match_verdict"],
+                name="unique_rbdm_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on rulebase device match {self.subject_name}"
+
+
+class RulebaseDeviceMatchFindingControlQuery(FindingControlQueryBase):
+    rulebase_device_match_finding = models.ForeignKey(
+        RulebaseDeviceMatchFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="rulebase_device_match_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rulebase_device_match_finding", "control_query"],
+                name="unique_rbdm_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rulebase_device_match_finding_id} <- {self.control_query_id}"

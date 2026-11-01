@@ -140,6 +140,19 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 "SaaS application policy posture"),
     FindingKind(m.CloudAppEngineFinding, "cloud_app_engine_setting",
                 m.Control.ControlType.CLOUD_APP_ENGINE_SETTING, "App-ID Cloud Engine"),
+    # The three `device-id-iot` subjects. TWO CONTROLS SHARE THE FIRST KIND - PAN-IOT-001 asserts
+    # over the entitlement and the wiring, PAN-IOT-003 over the currency of the installed
+    # classification data - because all three instruments are device-wide and land on one row.
+    # The zone is the one model here that shipped long before its control: nothing had ever
+    # asserted over a zone, so it had no kind. The third names a VERDICT rather than an object,
+    # like the SaaS three above, because the commonest state is a rule set with no device
+    # dimension anywhere in it and the subject is the enforcement point.
+    FindingKind(m.DeviceIdentificationFinding, "device_identification_state",
+                m.Control.ControlType.DEVICE_IDENTIFICATION, "device identification"),
+    FindingKind(m.ZoneFinding, "zone",
+                m.Control.ControlType.ZONE, "security zone"),
+    FindingKind(m.RulebaseDeviceMatchFinding, "rulebase_device_match_verdict",
+                m.Control.ControlType.RULEBASE_DEVICE_MATCH, "rulebase device match"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
