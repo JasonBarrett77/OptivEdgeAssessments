@@ -53,6 +53,9 @@ from assessments.log_alarm_settings_findings import (
 from assessments.content_update_schedule_findings import (
     generate_content_update_schedule_findings,
 )
+from assessments.custom_url_category_findings import (
+    generate_custom_url_category_findings,
+)
 from assessments.data_filtering_posture_findings import (
     generate_data_filtering_posture_findings,
 )
@@ -228,6 +231,11 @@ GENERATORS = (
      generate_firewall_content_streams_findings),
     ("log database alarm mechanism", T.LOG_ALARM_SETTINGS,
      generate_log_alarm_settings_findings),
+    # `url-filtering`. The OBJECT a profile's action list points at, so it sits with the other
+    # named objects and before the policy below. ONE line for ONE control - PAN-URL-006's
+    # category half - because the domain's other five controls target `SecurityProfile`, whose
+    # generator already exists and picks them up by type on the next run.
+    ("custom URL category", T.CUSTOM_URL_CATEGORY, generate_custom_url_category_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )

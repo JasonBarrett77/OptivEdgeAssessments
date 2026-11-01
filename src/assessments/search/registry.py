@@ -294,6 +294,13 @@ from assessments.search.content_update_schedule.compiler import (
     CONTENT_UPDATE_SCHEDULE_MODEL,
     compile_content_update_schedule_search_node,
 )
+from assessments.search.custom_url_category.compiler import (
+    FIELD_OPERATOR_REGISTRY as CUSTOM_URL_CATEGORY_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.custom_url_category.compiler import (
+    CUSTOM_URL_CATEGORY_MODEL,
+    compile_custom_url_category_search_node,
+)
 from assessments.search.licence_inventory.compiler import (
     FIELD_OPERATOR_REGISTRY as LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
     LICENCE_INVENTORY_MODEL,
@@ -354,6 +361,7 @@ from optivedge_integrations.integrations.models import (
     PanOsDhcpInterfaceConfig,
     PanOsTunnelInspectionCoverage,
     PanOsRoutingAdjacency,
+    CustomUrlCategory,
 )
 
 
@@ -662,6 +670,15 @@ MODEL_REGISTRY = {
         "model_class": ContentUpdateSchedule,
         "field_operators": CONTENT_UPDATE_SCHEDULE_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_content_update_schedule_search_node,
+    },
+    # `url-filtering`. ONE entry for ONE control - PAN-URL-006's category half. The domain's
+    # other five controls get NO entry here: they query `integrations.SecurityProfile`, whose
+    # surface is registered above and which they extend with sixteen new fields rather than a
+    # new package.
+    CUSTOM_URL_CATEGORY_MODEL: {
+        "model_class": CustomUrlCategory,
+        "field_operators": CUSTOM_URL_CATEGORY_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_custom_url_category_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

@@ -76,6 +76,65 @@ def _antivirus_gaps(obj) -> list[str]:
     return gaps
 
 
+def _url_filtering_gaps(obj) -> list[str]:
+    """What a URL FILTERING profile permits, by the question each control asks. PAN-URL-001 to
+    -005.
+
+    THE SAME DEFECT SHAPE `_antivirus_gaps` EXISTS TO PREVENT, met a second time. A url-filtering
+    profile has no severity rules, so `_gaps` returns nothing for it, the DNS and brute-force
+    verdicts are None, and `_subject`'s final clause asserted that the profile "blocks critical
+    and high threats" - printed on the finding that was reporting it as failing. Measured on this
+    domain's census, 2026-11-01. Guarding the values was not enough for antivirus and it is not
+    enough here: the CALLER has to stop asking this kind the threat-rule question.
+
+    EVERY VERDICT READ HERE IS A STORED CONCLUSION over the device's own category catalogue minus
+    the profile's member lists, so each clause names the WORST member as well as the verdict - a
+    reader has to know which category or header to go and change, and the catalogue is not in the
+    profile.
+
+    `is False` rather than falsy throughout, for the reason the threat-rule clauses give: these
+    are non-null booleans today, but a null would mean this kind writes no row and makes no
+    claim, which is not the same as a gap.
+    """
+    gaps = []
+    if obj.all_hostile_categories_blocked is False:
+        worst = obj.weakest_hostile_category_action or "an action that was not established"
+        gaps.append("does not refuse the confirmed-hostile categories "
+                    f"(command-and-control, malware, phishing; weakest action {worst})")
+    if obj.all_reachable_categories_logged is False:
+        worst = obj.worst_reachable_unlogged_category or "a category that was not established"
+        gaps.append(f"permits categories without logging them (worst: {worst})")
+    if obj.credential_detection_mode == SecurityProfile.CREDENTIAL_MODE_DISABLED:
+        gaps.append("detects no corporate credential submissions at all")
+    elif obj.all_reachable_categories_credential_restricted is False:
+        worst = obj.worst_credential_permissive_category or "a category that was not established"
+        gaps.append("accepts corporate credentials on categories it permits "
+                    f"(worst: {worst})")
+    if obj.records_all_request_headers is False:
+        missing = ", ".join(obj.unrecorded_request_headers or []) or "a header not established"
+        gaps.append(f"does not record the request headers {missing}")
+    if obj.cloud_inline_categorization is False:
+        gaps.append("has cloud-side inline categorization switched off")
+    if obj.local_inline_categorization_on is False:
+        # THE ONE CLAUSE THAT MAY BE WRONG ON THE ROW IT IS PRINTED ON, and it says so. On a
+        # PA-VM an absent `local-inline-cat` key means the on-box engine IS ON; on a PA-5220 it
+        # means off. Stage 4 measured the condition as the APPLIANCE and the normalizer stores
+        # false for the absence, so this is a FALSE POSITIVE on every PA-VM profile that stores
+        # nothing. `local_inline_categorization_undetermined` is true on exactly those rows.
+        if obj.local_inline_categorization_undetermined:
+            gaps.append("may have on-box inline categorization switched off - the key is absent "
+                        "and what an absence means here depends on the platform, so this one "
+                        "needs a look at the profile rather than a change to it")
+        else:
+            gaps.append("has on-box inline categorization switched off")
+    if obj.inline_analysis_exemption_count:
+        broadest = obj.broadest_inline_analysis_exemption_type or "a type that was not resolved"
+        gaps.append(f"exempts {obj.inline_analysis_exemption_count} custom "
+                    f"categor{'y' if obj.inline_analysis_exemption_count == 1 else 'ies'} from "
+                    f"real-time analysis (broadest: {broadest})")
+    return gaps
+
+
 def _subject(obj) -> str:
     kind = KIND_LABELS.get(obj.kind, obj.kind)
     if obj.is_predefined:
@@ -92,6 +151,20 @@ def _subject(obj) -> str:
         gaps = "; ".join(_antivirus_gaps(obj))
         return (f"{what} lets malware through ({gaps})" if gaps
                 else f"{what} blocks malware on every decoder")
+
+    # URL FILTERING DOES NOT ANSWER THE SEVERITY QUESTION EITHER. Same reasoning as antivirus
+    # immediately above, and the same measured defect: without this branch a failing
+    # url-filtering profile fell through to "blocks critical and high threats". The four shipped
+    # kinds that reach this function are untouched by this guard.
+    if obj.kind == SecurityProfile.KIND_URL_FILTERING:
+        gaps = "; ".join(_url_filtering_gaps(obj))
+        if gaps:
+            return f"{what} {gaps}"
+        # NOT "this profile is fine". A url-filtering profile can be reported by PAN-URL-006 for
+        # being unreferenced while every verdict above passes, so the no-gap sentence must say
+        # what was actually checked and no more.
+        return (f"{what} refuses the confirmed-hostile categories, logs what it permits, "
+                "restricts corporate credentials and runs both inline analysis engines")
 
     # TWO INDEPENDENT QUESTIONS, and a profile can fail either alone. Blocking the threat
     # (PAN-VLN-001) and blocking its SOURCE (PAN-VLN-002) are different: `reset-both` passes the

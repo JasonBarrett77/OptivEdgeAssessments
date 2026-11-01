@@ -936,6 +936,17 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # `engineer_answers`, so neither owes a query, neither has a catalog entry, and neither has a
     # link to go nowhere.
     "PAN-UPD": "stage9-updates.json",
+    # `url-filtering` reached stage 8 on 2026-11-01. ONE PREFIX COVERS BOTH OF THIS DOMAIN'S
+    # MODELS, and that is not a shortcut: `integrations.CustomUrlCategory` was created by stage 7
+    # for this domain and has never been queried from this repository, so it has no rail item -
+    # and `SecurityProfile`'s results pages are per profile KIND, mirroring PAN-OS's own tabs, so
+    # the `url-filtering` kind that PAN-URL-001 to -005 query has no page either. Stage 9 for
+    # this domain is what gives both of them one, and stage 8's contract forbids building it.
+    #
+    # THIS DEBT IS FOR ALL SIX OF THE DOMAIN'S CONTROLS. Every one of its eleven stage 5
+    # assertion records is discharged `expression`, so every control owes at least one query and
+    # none of them is engineer-answered.
+    "PAN-URL": "stage9-url-filtering.json",
 }
 
 

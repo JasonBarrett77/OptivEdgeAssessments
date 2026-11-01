@@ -9906,6 +9906,1130 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-URL-001",
+          "name": "Malicious URL Categories Blocked",
+          "control_type": "security_profile",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A URL filtering profile that does not refuse all three of the confirmed-hostile categories - command-and-control, malware and phishing - outright. Anything short of the refusal permits a connection to infrastructure that is hostile by definition.\n\nGRADED BY THE WEAKEST ACTION ANY OF THE THREE HOLDS, not by which category is weak. The refusal is the asserted state and compiles to no query at all - a query for it would report the most compliant profile in the estate. The four permitting actions are ranked by what still stands between the user and the site: a password prompt, a warning page, a log entry, or nothing.\n\nTHE CRITICAL RANK IS THE STATE AN UNTOUCHED PROFILE IS IN, which is why it is ranked above a logged permit rather than beside it. A predefined category named in none of the profile's member lists resolves to the permit that writes no log entry, measured - so a profile nobody has edited reaches the worst rank on this control, and neither the connection nor the absence of any record of it is visible afterwards.\n\nTHE PERMIT SET IS NOT IN THE PROFILE. Which categories a profile refuses is the device's own catalogue of 88-to-90 names MINUS the profile's member lists, so the verdict is computed at normalization and no clause here can be written over a member list.\n\nWHAT IS NOT ASSERTED: the vendor names eleven categories as dangerous enough to refuse and this control asserts three, which is a scope decision taken deliberately upstream. The override password itself is configured per vsys on another screen and no column here holds it, so a profile at the password-prompt rank is ranked on the prompt existing and not on the password being set.\n\nONE ACTION IS DELIBERATELY UNRANKED AND A PROFILE HOLDING IT STILL REPORTS. The isolation action was ruled out of scope upstream as absent from the vendor's own list and configurable on one platform only. Measured, it is worse than out of scope: a category can be put at isolation by API, the interface then renders it as the bare permit, and no screen shows otherwise. So such a profile fails this control's assertion and is reported at this control's own severity, neither escalated nor softened, and ranking it is a decision for a person rather than a value this catalogue may invent.",
+          "rationale": "A category that is malicious by definition has no legitimate destination in it, so every session the profile permits there reaches an attacker's infrastructure. Where the action also writes no log entry, the firewall holds no record that the connection happened at all.",
+          "audit": "Objects > Security Profiles > URL Filtering. Open the profile the finding names, at the scope the finding names, and read the Categories tab: find command-and-control, malware and phishing and read the Site Access column on each. The finding names the weakest of the three. A category that appears in no list at all takes the device's own default for a predefined category, which is the permit - so read the three rows explicitly rather than looking for them among the entries somebody added.",
+          "remediation": "Set Site Access to the refusal on command-and-control, malware and phishing in the profile the finding names. Where the profile is pushed from a management station, change it at the scope it is defined at rather than overriding it on the firewall. A category left at the isolation action must be changed too: the interface renders it as the bare permit and it is not a restriction.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "URL filtering profiles that do not refuse all three confirmed-hostile categories.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_hostile_categories_blocked",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_hostile_categories_blocked"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "Hostile categories permitted behind a password prompt",
+              "short_description": "The weakest action on a confirmed-hostile category permits the session once a password is given.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_hostile_categories_blocked",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_hostile_category_action",
+                    "op": "eq",
+                    "value": "override",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_hostile_category_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Hostile categories permitted behind a warning page",
+              "short_description": "The weakest action on a confirmed-hostile category permits the session once the user dismisses a warning page.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_hostile_categories_blocked",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_hostile_category_action",
+                    "op": "eq",
+                    "value": "continue",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_hostile_category_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Hostile categories permitted and logged",
+              "short_description": "The weakest action on a confirmed-hostile category permits the session in full and writes a log entry, so the only product is a record.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_hostile_categories_blocked",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_hostile_category_action",
+                    "op": "eq",
+                    "value": "alert",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_hostile_category_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "Hostile categories permitted with no log entry",
+              "short_description": "The weakest action on a confirmed-hostile category permits the session and writes no log entry. This is the state an unedited profile is in.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_hostile_categories_blocked",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "weakest_hostile_category_action",
+                    "op": "eq",
+                    "value": "allow",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "weakest_hostile_category_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "critical",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-URL-002",
+          "name": "No URL Category Reachable Without Logging",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A URL filtering profile that leaves at least one category reachable and unlogged. The permit that writes no log entry and the permit that logs behave identically for the user and differently for everyone investigating afterwards, so a permitted category should be at the logging action or stronger.\n\nGRADED BY THE WORST CATEGORY LEFT UNLOGGED, over the device's own catalogue minus the three categories the hostile-category control owns. A refused category is not reachable; a custom category at the inert action matches nothing and is not reachable either.\n\nSIX OF THE CATALOGUE'S NAMES ARE PLACED AND THE REST TAKE THIS CONTROL'S OWN SEVERITY. The member set is the device's catalogue of 88-to-90 names, moving with the content release, so placing all of them would write one release's content into a contract. An unplaced category is returned as the device gave it and matches no rank query, which is what makes this control's own severity the right answer for it.\n\nTHE ISOLATION ACTION COUNTS AS UNLOGGED HERE, and that is a measurement rather than a reading of the vendor's table: the interface renders an isolated category as the bare permit and no screen shows otherwise, so it cannot be treated as a restriction.\n\nWHAT IS NOT ASSERTED: the lookup timeout, and whether a request is held while the lookup runs, are device-wide settings that no column of this subject holds. The category this control reports as worst is the worst one left unlogged and not necessarily the one carrying the most traffic.",
+          "rationale": "Web activity that is permitted and unlogged cannot be reconstructed, so an investigation into a compromise reaches the firewall and finds no record that the session took place. The firewall's own logs are usually the only place that record would have existed.",
+          "audit": "Objects > Security Profiles > URL Filtering. Open the profile the finding names and read the Site Access column across the Categories tab: the finding names the worst category left at a permit that writes no log entry. Categories in no member list take the device's own default for a predefined category, so the unlogged set is usually larger than the entries somebody added.",
+          "remediation": "Move every permitted category to the logging action or stronger in the profile the finding names, which permits the session exactly as before and writes a log entry. Where the finding names a category the organisation means to refuse outright, refuse it instead.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "URL filtering profiles leaving at least one category reachable with no log entry written.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_reachable_categories_logged"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "A closely-associated-with-malicious category is unlogged",
+              "short_description": "The worst unlogged category is the tier the vendor describes as not confirmed malicious but closely associated with malicious sites.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "high-risk",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "An uncategorised category is unlogged",
+              "short_description": "The worst unlogged category is the one the URL database cannot categorise at all, which is the broadest unlogged route a profile can leave open.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "unknown",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "A medium-risk category is unlogged",
+              "short_description": "The worst unlogged category is the tier the vendor pairs with high-risk in the same instruction, with the same remedies named.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "medium-risk",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A newly-registered-domain category is unlogged",
+              "short_description": "The worst unlogged category is the one that exists because throwaway infrastructure is new, so this is an unlogged permit to the domains with no history.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "newly-registered-domain",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A category whose lookup did not resolve is unlogged",
+              "short_description": "The worst unlogged category is where a lookup lands when it times out, so the record of every site the firewall could not classify in time is lost.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "not-resolved",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "A benign category is unlogged",
+              "short_description": "The worst unlogged category is the benign tier. Still unlogged, which is this control's point, but the least of these.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "all_reachable_categories_logged",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_reachable_unlogged_category",
+                    "op": "eq",
+                    "value": "low-risk",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_reachable_unlogged_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The category population behind this verdict was never established",
+              "short_description": "The device's own category catalogue was not read for this profile's appliance and scope, so the denominator this verdict is computed against was never established.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "category_catalogue_collected",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category_catalogue_collected"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-URL-003",
+          "name": "Credential Phishing Prevention Enabled",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A URL filtering profile that does not stop a corporate credential being submitted to an external site. TWO WAYS TO FAIL AND THE QUERIES KEEP THEM APART, because the remediation differs: a profile with no detection method at all detects nothing, and a profile with a method but no per-category decision detects and permits.\n\nTHE TWO HALVES ARE MUTUALLY EXCLUSIVE BY CONSTRUCTION, which is what makes reporting both from one control safe. The first applies only where no detection method is selected and the second only where one is, so no profile is reported twice and no profile falls between them. The detection mode materialises the disabled value on a committed profile carrying no credential node at all - measured on three appliances across two major versions - which is what makes the first half reachable from the configuration rather than from an absence.\n\nGRADED BY THE WORST CATEGORY THAT WILL STILL ACCEPT A CREDENTIAL, over the categories the profile permits. Three of the catalogue's names are placed and the rest take this control's own severity, for the same reason as the unlogged-category control: the member set is the device's own catalogue and moves with the content release.\n\nA CATEGORY THE PROFILE REFUSES IS NOT IN THIS SET AT ALL. The device refuses its credentials automatically, so whether it is in the credential list says nothing about this control and everything about the hostile-category one.\n\nWHAT IS NOT ASSERTED, AND IT IS THE LARGEST GAP ON THIS CONTROL: whether the firewall decrypts the traffic a detection method would have to inspect. The vendor states credentials cannot be monitored in traffic the firewall does not decrypt, so a profile with a method selected on a firewall that decrypts nothing detects nothing - and this control reports it as compliant with its first half. No column of this subject holds that fact.",
+          "rationale": "Credential harvesting works by collecting a password that is still valid everywhere else, so the damage is done at submission and not at the visit. A profile that detects the submission and permits it anyway records the theft without preventing it.",
+          "audit": "Objects > Security Profiles > URL Filtering, then the URL Filtering Settings tab for the detection method and the Categories tab for the User Credential Submission column. Where the finding says no method is selected, the Mode control reads as disabled. Where it names a category, read that category's User Credential Submission column: the finding names the worst one that will still accept a credential.",
+          "remediation": "Select a credential detection method appropriate to the deployment, then set User Credential Submission to the refusal on every category the profile permits - starting with the uncategorised and high-risk tiers, which the vendor names specifically. Confirm the firewall decrypts the traffic the method has to inspect, because neither setting has any effect on traffic that is not decrypted.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Profiles with a credential detection method that still permit a corporate credential on at least one category they allow.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": true
+                  },
+                  {
+                    "field": "all_reachable_categories_credential_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "all_reachable_categories_credential_restricted"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "No corporate credential detection method is selected",
+              "short_description": "The profile selects no credential detection method at all, so no credential submission is detected and no per-category decision can take effect.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_submission_blocked_for_every_category",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "credential_detection_mode"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "An uncategorised category accepts corporate credentials",
+              "short_description": "The worst category still accepting a corporate credential is the one the URL database cannot categorise, where a new phishing page lands before anyone classifies it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": true
+                  },
+                  {
+                    "field": "all_reachable_categories_credential_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_credential_permissive_category",
+                    "op": "eq",
+                    "value": "unknown",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_credential_permissive_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "A closely-associated-with-malicious category accepts corporate credentials",
+              "short_description": "The worst category still accepting a corporate credential is the tier the vendor instructs the reader to refuse credentials on, in two separate places.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": true
+                  },
+                  {
+                    "field": "all_reachable_categories_credential_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_credential_permissive_category",
+                    "op": "eq",
+                    "value": "high-risk",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_credential_permissive_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "A medium-risk category accepts corporate credentials",
+              "short_description": "The worst category still accepting a corporate credential is the tier the vendor names in the same instruction as high-risk, in both places.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": true
+                  },
+                  {
+                    "field": "all_reachable_categories_credential_restricted",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_credential_permissive_category",
+                    "op": "eq",
+                    "value": "medium-risk",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_credential_permissive_category"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The category population behind this verdict was never established",
+              "short_description": "The device's own category catalogue was not read for this profile's appliance and scope, so this verdict rests on a population nobody established.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "credential_detection_mode",
+                    "op": "eq",
+                    "value": "disabled",
+                    "negated": true
+                  },
+                  {
+                    "field": "category_catalogue_collected",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category_catalogue_collected"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-URL-004",
+          "name": "HTTP Header Logging Enabled",
+          "control_type": "security_profile",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A URL filtering profile that does not record all three of the request headers the device offers at this object. The headers are what turn a URL log line into something an investigator can reconstruct an incident from.\n\nGRADED BY THE WORST HEADER LEFT UNRECORDED, and the whole set is placed: the device offers these three and no more at this object on every platform read. The forwarded-for header is ranked above the other two because it is the only one that recovers the originating address where a proxy or a source translation has replaced it, so losing it loses attribution rather than context.\n\nTHIS IS THE ONE VERDICT ON THIS SUBJECT THAT NEEDS NO CATEGORY CATALOGUE. Its three inputs are the profile's own keys and are never unknown, so unlike every other control over this object it is answered on every row and has no companion question about whether the population behind it was established.\n\nTWO OF THE THREE DEFAULTS ARE INFERENCES AND THE FINDING SAYS SO. The referring-page and forwarded-for keys rest on an assumed default rather than a measured one, so a profile that carries neither key is reported on an inference about what their absence means. One write per key settles it.\n\nWHAT IS NOT ASSERTED: a later major release replaces these three with a different field set, so this control's derivation is not established there and a grading over values a release does not have would read as coverage it does not have.",
+          "rationale": "A URL log line without the client identification says a request happened and not who made it or what sent them. Behind a proxy or a source translation the forwarded-for header is the only record of the originating address, so without it every session in the estate attributes to the proxy.",
+          "audit": "Objects > Security Profiles > URL Filtering > URL Filtering Settings, in the HTTP Header Logging section. Open the profile the finding names and read the three checkboxes; the finding names the worst one left clear. A profile carrying none of the three keys shows all three clear.",
+          "remediation": "Enable all three HTTP header logging options on the profile the finding names. None of the three changes what the firewall permits or refuses - they change only what the log line carries - so the change is safe to make on a profile already in production.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "URL filtering profiles that do not record all three HTTP request headers.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "records_all_request_headers",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "records_all_request_headers"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The forwarded-for header is not recorded",
+              "short_description": "The worst unrecorded header is the one that recovers the originating address where a proxy or source translation has replaced it, so losing it loses attribution.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "records_all_request_headers",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_unrecorded_request_header",
+                    "op": "eq",
+                    "value": "X-Forwarded-For",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_unrecorded_request_header"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The client software header is not recorded",
+              "short_description": "The worst unrecorded header identifies the client software, which is how an investigator separates a person driving a browser from an automated client using the same credentials.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "records_all_request_headers",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_unrecorded_request_header",
+                    "op": "eq",
+                    "value": "User-Agent",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_unrecorded_request_header"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            },
+            {
+              "name": "The referring page header is not recorded",
+              "short_description": "The worst unrecorded header names the page that sent the user, which is the link between the delivery of a phishing message and the visit it produced.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "records_all_request_headers",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "worst_unrecorded_request_header",
+                    "op": "eq",
+                    "value": "Referer",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "worst_unrecorded_request_header"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-URL-005",
+          "name": "Advanced URL Filtering Inline Categorization Enabled",
+          "control_type": "security_profile",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A URL filtering profile that does not have real-time page analysis working on every site it permits. THREE WAYS TO FAIL AND THEY ARE INDEPENDENT, so a profile can fail any one alone: the cloud-side engine is off, the on-box engine is off, or a list of custom categories is exempted from analysis altogether.\n\nGRADED BY THE BROADEST EXEMPTION IN FORCE. An exemption that targets sites by category membership is ranked above one that lists them, because its reach grows whenever the URL database reclassifies a site into the combination rather than only when somebody edits a list. Which kind an exemption is cannot be seen in the profile at all - only the custom category's own stored type says - which is why this is a stored conclusion and not a clause over the exemption list.\n\nA PASSING ROW DOES NOT MEAN ANALYSIS IS HAPPENING, and this is the claim a reader must not take from this control. The cloud-side engine is gated on both a subscription and a device certificate, and no appliance in the lab this control was built against held both: the licensed appliance had no device certificate and the appliance holding the only certificate had neither the licence nor an unexpired certificate. So the cloud setting being on means configured and never means working.\n\nTHE ON-BOX HALF OVER-REPORTS ON ONE PLATFORM FAMILY AND THE FINDING SAYS WHICH. An absent on-box key means the engine is ON on one platform family and OFF on another, measured on both, and the stored verdict takes the reporting direction - so that half is a false positive on every profile of the first family that stores nothing. The column recording that doubt is true on exactly those rows and is presented beside the finding. A finding raised on a healthy appliance is checkable in a minute; the alternative would report an engine as running on an appliance whose own interface says it is off.\n\nWHAT IS NOT ASSERTED: the device-wide setting that widens a listed exemption by trailing token, and whether an external dynamic list can appear at the exemption field at all - the device offered no such name there on any build read, so it has no rank here rather than a guessed one.",
+          "rationale": "Real-time analysis is what catches a phishing kit or a cloaked page in the window before the URL database has categorised it, which is exactly the window an attacker uses. An exemption removes that protection for the sites it covers, and a category-matching exemption removes it for sites nobody listed.",
+          "audit": "Objects > Security Profiles > URL Filtering > URL Filtering Settings for the two inline categorization checkboxes, and the same tab's inline-analysis exemption list for the exemptions. Where the finding names an exemption, read the stored type of each custom category it names at Objects > Custom Objects > URL Category: the member list of the profile does not show which kind it is. Check the subscription and the device certificate before concluding the cloud-side engine is working.",
+          "remediation": "Enable both inline categorization options on the profile the finding names, and remove the inline-analysis exemptions the finding names unless each is still justified. Where an exemption must stay, prefer one that lists the sites over one that matches on category membership, whose reach changes without anyone editing it. For the cloud-side engine, confirm the subscription is licensed and the device certificate is installed and unexpired.",
+          "implementation_version": "v1",
+          "target_model": "integrations.SecurityProfile",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "URL filtering profiles exempting at least one custom category from real-time page analysis.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "inline_analysis_exemption_count",
+                    "op": "gt",
+                    "value": 0,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "inline_analysis_exemption_count"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "An exemption matches on category membership",
+              "short_description": "The broadest exemption in force targets sites by category membership, so its reach grows as the URL database reclassifies sites into the combination.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "inline_analysis_exemption_count",
+                    "op": "gt",
+                    "value": 0,
+                    "negated": false
+                  },
+                  {
+                    "field": "broadest_inline_analysis_exemption_type",
+                    "op": "eq",
+                    "value": "Category Match",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "broadest_inline_analysis_exemption_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "An exemption lists the sites it covers",
+              "short_description": "The broadest exemption in force covers the entries it holds, so its reach is what somebody typed - auditable, and still an exemption.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "inline_analysis_exemption_count",
+                    "op": "gt",
+                    "value": 0,
+                    "negated": false
+                  },
+                  {
+                    "field": "broadest_inline_analysis_exemption_type",
+                    "op": "eq",
+                    "value": "URL List",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "broadest_inline_analysis_exemption_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "Cloud-side inline categorization is switched off",
+              "short_description": "The profile does not send never-before-seen URLs for cloud-side real-time analysis, so a page is categorised only once the URL database has seen it.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "cloud_inline_categorization",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "cloud_inline_categorization"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "On-box inline categorization is switched off",
+              "short_description": "The profile does not run the on-box real-time analysis engine. Where the key is absent this reading depends on the platform family, and the column recording that doubt is presented beside the finding.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "local_inline_categorization_on",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "local_inline_categorization_on"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The exemption list behind this verdict was never read",
+              "short_description": "This profile's inline-analysis exemption list was not read and counted, so the count beside it is a migration default rather than a reading and an exemption would not be reported.",
+              "canonical_query": {
+                "model": "integrations.SecurityProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "kind",
+                    "op": "eq",
+                    "value": "url-filtering",
+                    "negated": false
+                  },
+                  {
+                    "field": "inline_analysis_exemptions_computed",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "inline_analysis_exemptions_computed"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-URL-006",
+          "name": "Unused Custom URL Categories (Hygiene)",
+          "control_type": "custom_url_category",
+          "default_severity": "low",
+          "is_active": true,
+          "description": "A custom URL category that nothing this assessment read points at. An object nobody references is a permissive configuration already written, already reviewed and no longer watched, so putting it into service later is one edit that grants an exception nobody re-approves.\n\nA LIST OF CANDIDATES FOR REVIEW AND NEVER A REMOVAL INSTRUCTION, and that bound is part of the control rather than a caveat on it. Every error this reading makes is in the direction of calling a live object unreferenced: the vendor documents four rulebases that can match on a URL category and this assessment reads two of them. The surfaces actually searched are recorded on every finding so that the word unreferenced is never printed without its denominator.\n\nGRADED BY WHAT KIND OF OBJECT IS LEFT UNREFERENCED, read from the category's own stored type. A category that matches on category membership is a readier instrument than a list of named sites, because it needs no entries added to it to have reach. Measured, and it narrows the claim: such a category targets the INTERSECTION of the categories it names rather than their union, so it cannot wrap a whole predefined category and the indirect route is narrower than it first appears.\n\nTHERE IS NO ACCEPTABLE VALUE OF THE GRADED FIELD, because the passing state is that the object is referenced or deliberately kept, which is not a value either field holds. So every category this control reports is reported, and the rank says how much reach it already has.\n\nTHE UNDER-REPORTING HAZARD IS NOT AT THE ROW LEVEL AND NO COLUMN CAN CARRY IT. Absence is this object's passing answer - no category, nothing to clean up - and on every appliance this control was built against the firewall's own container was absent while the live categories were in force through the pushed view. So an assessment that does not read the pushed view reports zero rows here and reads as a clean estate.\n\nTHE PROFILE HALF OF THIS CONTROL IS NOT BUILT, and a reader comparing this entry with the control's own description should know why rather than assume an omission. The unreferenced URL filtering PROFILE is the other object the control's description names, it lives on a different model, and the two models have no relation in either direction - the only paths run through shared ancestors, every one to-many and every one leaving a scope field unconstrained, which would attach a finding to the wrong row. A control id targets one model, so this entry is the category half. The profile half is recorded as unbuilt rather than quietly dropped, and the grading is why this half is the one that ships: the rank is read from a category's stored type and a profile carries no such field, so the profile half could never report above this control's own severity.",
+          "rationale": "A permissive object nothing uses is an exception that has already been written and approved and that nobody is watching, so putting it into service is one edit rather than a request. A category that matches on membership is worse: its reach grows as the URL database reclassifies sites, with no edit at all.",
+          "audit": "Objects > Custom Objects > URL Category, at the scope the finding names. Read the category's Type column for the rank the finding gives it, then search the configuration for its name before acting: this assessment reads the security rulebase and the profile action lists, and the vendor documents two further rulebases that can match on a URL category. The finding records which surfaces were searched.",
+          "remediation": "Confirm the category is genuinely unused - including in the rulebases this assessment does not read - and then either remove it or record why it is kept. To remove one, set it to the inert action in every profile that names it first: the vendor documents that as the precondition for deleting it. Do not delete one on the strength of this finding alone; a category in use by a rulebase this assessment did not read reads exactly the same way.",
+          "implementation_version": "v1",
+          "target_model": "integrations.CustomUrlCategory",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "Custom URL categories that nothing this assessment read points at.",
+              "canonical_query": {
+                "model": "integrations.CustomUrlCategory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "is_used"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "An unreferenced category matches on category membership",
+              "short_description": "The unreferenced category targets sites by category membership, so it is a prepared way to act on predefined categories and its reach grows as the database reclassifies sites.",
+              "canonical_query": {
+                "model": "integrations.CustomUrlCategory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "category_type",
+                    "op": "eq",
+                    "value": "Category Match",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "An unreferenced category lists the sites it covers",
+              "short_description": "The unreferenced category reaches only the entries it holds, so it is as broad as whoever last typed into it and no broader.",
+              "canonical_query": {
+                "model": "integrations.CustomUrlCategory",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_used",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "category_type",
+                    "op": "eq",
+                    "value": "URL List",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "category_type"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
         }
       ]
     }

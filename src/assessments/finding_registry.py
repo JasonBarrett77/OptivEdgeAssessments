@@ -216,6 +216,18 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # no entry in `PLURAL_BY_NAME`.
     FindingKind(m.ContentUpdateScheduleFinding, "content_update_schedule",
                 m.Control.ControlType.CONTENT_UPDATE_SCHEDULE, "content update schedule"),
+    # `url-filtering`. ONE kind for ONE control - PAN-URL-006 - and the domain's other FIVE
+    # controls need no line here at all: they target `SecurityProfile`, which already has a kind,
+    # a generator and a search surface, exactly as PAN-FIL-001, -002 and -004 reuse it above.
+    #
+    # A NAMED OBJECT THAT COLLIDES ON NAME ACROSS SCOPES, so the model declares `subject_scope`:
+    # one category name can exist at a vsys, at the firewall's own shared scope, in a Panorama
+    # device group and in the pushed view, and the remediation differs by scope.
+    #
+    # THE LABEL IS SINGULAR and names the object as the vendor's own Objects > Custom Objects >
+    # URL Category screen names it, so it needs no entry in `PLURAL_BY_NAME`.
+    FindingKind(m.CustomUrlCategoryFinding, "custom_url_category",
+                m.Control.ControlType.CUSTOM_URL_CATEGORY, "custom URL category"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

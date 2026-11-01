@@ -510,6 +510,108 @@ FIELD_COMPILERS = {
     "reference_reach": build_text_compiler("reference_reach", "reference_reach"),
     "reference_reach_resolved": build_boolean_compiler(
         "reference_reach_resolved", "reference_reach_resolved"),
+    # ------------------------------------------------------------------------- `url-filtering`
+    # PAN-URL-001 to -006, over the `url-filtering` kind of this model. ADDITIVE ONLY: not one
+    # line above this block was renamed, retyped or re-scoped, because PAN-AVW-006 and the three
+    # PAN-FIL controls compile their queries through this same table and a changed field changes
+    # their results silently.
+    #
+    # EVERY VERDICT HERE IS A STORED CONCLUSION over the device's own category catalogue MINUS
+    # the profile's member lists, for the reason the module docstring gives about the severity
+    # verdicts: the question spans a catalogue of 88-to-90 names and a predicate compares one
+    # field to one literal. The catalogue is NOT in the profile, which is why none of these can
+    # be expressed as a clause over a member list.
+    "all_hostile_categories_blocked": build_boolean_compiler(
+        "all_hostile_categories_blocked", "all_hostile_categories_blocked"),
+    "all_reachable_categories_logged": build_boolean_compiler(
+        "all_reachable_categories_logged", "all_reachable_categories_logged"),
+    "credential_submission_blocked_for_every_category": build_boolean_compiler(
+        "credential_submission_blocked_for_every_category",
+        "credential_submission_blocked_for_every_category"),
+    "all_reachable_categories_credential_restricted": build_boolean_compiler(
+        "all_reachable_categories_credential_restricted",
+        "all_reachable_categories_credential_restricted"),
+    "records_all_request_headers": build_boolean_compiler(
+        "records_all_request_headers", "records_all_request_headers"),
+    "cloud_inline_categorization": build_boolean_compiler(
+        "cloud_inline_categorization", "cloud_inline_categorization"),
+    "local_inline_categorization_on": build_boolean_compiler(
+        "local_inline_categorization_on", "local_inline_categorization_on"),
+    # THE FOUR GRADED COLUMNS, TEXT AND NOT CHOICE COMPILERS, deliberately and for the reason
+    # the file-data-filtering block above gives: each stores the WEAKEST or WORST member in
+    # force and is `null=True, default=None`, where a null means the reading was never
+    # established - either the row predates the recompute or the device's category catalogue was
+    # not collected for it. A null is NOT a value of the column's domain, so a closed-choice
+    # builder could express no query for it; `is_empty` reaches it here, because this module's
+    # `_text_filter` ORs an `__isnull` branch beside `field=""`.
+    #
+    # NO `values` LIST EXISTS FOR TWO OF THEM AND THAT IS STAGE 5's DECISION, not an omission:
+    # the member set of `worst_reachable_unlogged_category` and
+    # `worst_credential_permissive_category` is the device's own catalogue, 88-to-90 names moving
+    # with the content release, of which stage 3 placed six and three respectively and said the
+    # remainder take the baseline. An unplaced member is returned as the device gave it and
+    # matches no calibration query, which is what makes the baseline the right answer for it.
+    "weakest_hostile_category_action": build_text_compiler(
+        "weakest_hostile_category_action", "weakest_hostile_category_action"),
+    "worst_reachable_unlogged_category": build_text_compiler(
+        "worst_reachable_unlogged_category", "worst_reachable_unlogged_category"),
+    "worst_credential_permissive_category": build_text_compiler(
+        "worst_credential_permissive_category", "worst_credential_permissive_category"),
+    "broadest_inline_analysis_exemption_type": build_text_compiler(
+        "broadest_inline_analysis_exemption_type", "broadest_inline_analysis_exemption_type"),
+    "weakest_permitted_custom_category_action": build_text_compiler(
+        "weakest_permitted_custom_category_action", "weakest_permitted_custom_category_action"),
+    # `worst_unrecorded_request_header` IS A DIFFERENT SHAPE FROM THE FIVE ABOVE and the
+    # difference is load-bearing: it is `null=False, blank=True, default=""` and the EMPTY STRING
+    # IS ITS PASSING VALUE - no header is missing - where the five above use null for "not
+    # established". So `is_empty` here reaches the COMPLIANT rows and not the unread ones, which
+    # is why no query of this domain uses it: all three of its values are placed and the verdict
+    # boolean beside it carries the passing case.
+    "worst_unrecorded_request_header": build_text_compiler(
+        "worst_unrecorded_request_header", "worst_unrecorded_request_header"),
+    # `credential_detection_mode` is `null=False, blank=True, default="disabled"` and the default
+    # FIRES: `disabled` is the value PAN-URL-003's first half reports on, materialised on a
+    # committed profile carrying no credential-enforcement node at all - measured on three
+    # appliances across two major versions. It is one record's assertion and the next record's
+    # applicability, which is why both arms of it are queried.
+    "credential_detection_mode": build_text_compiler(
+        "credential_detection_mode", "credential_detection_mode"),
+    # THE TWO COUNTS, whose unknown READS AS COMPLIANT. `gt 0` returns no row for the migration's
+    # own 0, so between the migration that adds the column and the pass that recomputes it an
+    # estate reports no exemptions and no carve-outs at all. The companion boolean beside each is
+    # what makes that visible and both are registered below for exactly that query.
+    "inline_analysis_exemption_count": build_integer_compiler(
+        "inline_analysis_exemption_count", "inline_analysis_exemption_count"),
+    "permitted_custom_category_count": build_integer_compiler(
+        "permitted_custom_category_count", "permitted_custom_category_count"),
+    # THE THREE COMPANIONS, each false-or-true on exactly the rows whose verdict rests on
+    # nothing. Stage 5 names the first two in `when_unknown.companion_column` for the two counts
+    # above; the third is named in PAN-URL-005's `undetermined` as the column that is TRUE on
+    # exactly the rows where that restatement may be a false positive.
+    "category_catalogue_collected": build_boolean_compiler(
+        "category_catalogue_collected", "category_catalogue_collected"),
+    "inline_analysis_exemptions_computed": build_boolean_compiler(
+        "inline_analysis_exemptions_computed", "inline_analysis_exemptions_computed"),
+    "local_inline_categorization_undetermined": build_boolean_compiler(
+        "local_inline_categorization_undetermined", "local_inline_categorization_undetermined"),
+    # THE TWO REQUEST-HEADER SOURCE BOOLEANS stage 5 names BY NAME in PAN-URL-004's
+    # `undetermined`, because both rest on an `assumed_default` rather than on a measurement and
+    # a reader of the finding has to be told which of the three defaults is an inference. ONE
+    # WRITE PER KEY closes that. `log_http_header_user_agent` is deliberately NOT registered: it
+    # is the one of the three stage 5 does not name in any clause, grading or `undetermined`, and
+    # the contract's own rule for this list is the narrow one - a field earns its place by a
+    # control needing it. The asymmetry is recorded rather than tidied away.
+    "log_http_header_xff": build_boolean_compiler("log_http_header_xff", "log_http_header_xff"),
+    "log_http_header_referer": build_boolean_compiler(
+        "log_http_header_referer", "log_http_header_referer"),
+    # `reachable_unlogged_categories`, `credential_permissive_categories`,
+    # `unblocked_hostile_categories`, `unrecorded_request_headers` and
+    # `inline_analysis_exemptions` are NOT registered, and the reason is a convention rather than
+    # an oversight: every one is a JSONField, stage 5 marks each `not_searchable`, and a
+    # JSONField must not be registered here. What carries each reading for a QUERY is the scalar
+    # beside it - the verdict boolean and the `worst`/`weakest` member - and what carries it for
+    # a READER is stage 9's business. Likewise `reference_surfaces_searched` on the custom
+    # category, whose scalar neighbour is `referrer_count`.
     # `has_rules` and `lowest_block_threshold` are NOT registered. Stage 5 marks both
     # `needs_compiler_field` and no clause and no grading in this domain names either: stage 5's
     # own `spec_surplus` records that "no clause in this domain reads `has_rules` at all", and

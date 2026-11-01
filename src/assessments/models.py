@@ -60,6 +60,7 @@ from optivedge_integrations.integrations.models import (
     LicenceInventory,
     LogAlarmSettings,
     ContentUpdateSchedule,
+    CustomUrlCategory,
     Zone,
 )
 
@@ -324,6 +325,30 @@ class Control(models.Model):
         #: appliance carries its own.
         CONTENT_UPDATE_SCHEDULE = "content_update_schedule", "Content Update Schedule"
 
+        #: `url-filtering`. ONE TYPE MINTED AND ONE REUSED, and the reuse is the load-bearing
+        #: half. Five of this domain's six controls - PAN-URL-001 to -005 - target
+        #: `integrations.SecurityProfile`, which ALREADY HAS `security_profile` serving
+        #: PAN-AVW-006, PAN-FIL-001, -002 and -004, so they mint nothing and carry that type.
+        #: `rev(_CONTROL_TYPE_TARGET_MODEL)` answered `security_profile` for `SecurityProfile`
+        #: and NO TYPE for `integrations.CustomUrlCategory`, measured against 52 types and 52
+        #: DISTINCT targets before this change. A SECOND TYPE FOR `SecurityProfile` IS WHAT THIS
+        #: MAP'S ONE-TO-ONE PROPERTY FORBIDS AND NOTHING IN THE SUITE CATCHES, which is the same
+        #: warning the `file-data-filtering` block above carries.
+        #:
+        #: WHICH HALF OF PAN-URL-006 OWNS THE CONTROL ID, because the control spans two models
+        #: and a control id targets one. `probe.relation_between SecurityProfile
+        #: CustomUrlCategory` reports NO RELATION IN EITHER DIRECTION - the only paths are
+        #: through shared ancestors, every one to-many and every one leaving a scope field
+        #: unconstrained, which is a WRONG ROW rather than an understated severity - so one half
+        #: ships and the other is silent. The CATEGORY half owns it, and stage 3 is what decides
+        #: that: its `severity_grading` is read "from the stored type of a custom web category"
+        #: and its `unplaced` sentence says an unreferenced PROFILE "takes the baseline; it is
+        #: not a value of this grading because the grading reads a category's stored type and a
+        #: profile carries no such field". So the control's ONLY axis above its own baseline
+        #: lives on this model: silence the category half and PAN-URL-006 can never report
+        #: anything but `low`.
+        CUSTOM_URL_CATEGORY = "custom_url_category", "Custom URL Category"
+
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
         LOW = "low", "Low"
@@ -470,6 +495,14 @@ class Control(models.Model):
         # only record naming it is discharged `not_in_configuration` on a scope ruling, so it
         # owes no query and has no catalog entry to target anything.
         "content_update_schedule": "integrations.ContentUpdateSchedule",
+        # `url-filtering`. ONE entry for ONE control - PAN-URL-006 - and FIVE of this
+        # domain's six controls get NO entry here at all, because they carry the EXISTING
+        # `security_profile` type and this map already points it at
+        # `integrations.SecurityProfile`. `rev()` answered NO TYPE for
+        # `integrations.CustomUrlCategory` and `security_profile` for `integrations.
+        # SecurityProfile` before this change, measured against 52 types and 52 DISTINCT
+        # targets, so this mints one and reuses one.
+        "custom_url_category": "integrations.CustomUrlCategory",
     }
 
     class Meta:
@@ -538,6 +571,7 @@ class Control(models.Model):
         "integrations.LicenceInventory": "Licence Inventory",
         "integrations.LogAlarmSettings": "Log Database Alarms",
         "integrations.ContentUpdateSchedule": "Content Update Schedule",
+        "integrations.CustomUrlCategory": "Custom URL Category",
     }
 
     @property
@@ -4051,3 +4085,98 @@ class ContentUpdateScheduleFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.content_update_schedule_finding_id} <- {self.control_query_id}"
+
+
+class CustomUrlCategoryFinding(ObjectFindingBase):
+    """A finding against one custom URL category definition, at the scope it is defined at.
+    PAN-URL-006.
+
+    ONE CONTROL, ONE RECORD, AND TWO RECORDS OF THAT CONTROL DELIBERATELY SILENT. PAN-URL-006
+    spans two stage 5 subjects - the custom category and the URL filtering profile - and a
+    control id targets ONE model. `probe.relation_between SecurityProfile CustomUrlCategory`
+    reports NO RELATION IN EITHER DIRECTION: the only paths run through shared ancestors
+    (`management_station`, `appliance_group`, `source_snapshot`, `enforcement_point`), every one
+    to-many and every one leaving a scope field unconstrained, so a join would attach a finding
+    to a WRONG ROW rather than merely understate a severity. The category half ships here and the
+    two profile records are silent, recorded in the stage 8 artifact's `subjects_in_two_models`.
+
+    WHY THIS HALF AND NOT THE PROFILE, since the control's own name puts profiles first. Stage 3
+    settles it: the record's `severity_grading` is graded "from the stored type of a custom web
+    category", and its `unplaced` sentence says an unreferenced PROFILE "takes the baseline; it is
+    not a value of this grading because the grading reads a category's stored type and a profile
+    carries no such field". The control's only severity above its own `low` baseline is therefore
+    reachable on this model alone - a `Category Match` category at `medium` - so silencing this
+    half would leave PAN-URL-006 unable to report anything but its baseline, while silencing the
+    profile half costs only placements that already sit AT the baseline or that stage 7 measured
+    unreachable.
+
+    WHAT NO FINDING HERE CAN SAY, from stage 5's `not_stored`, and the first is the one that
+    matters most:
+
+    * THE UNDER-REPORTING HAZARD IS NOT AT THE ROW LEVEL AND NO COLUMN CAN CARRY IT. Absence is
+      this object's PASSING answer - no category, nothing to clean up - and the firewall's own
+      `custom-url-category` containers were ABSENT on all four lab appliances while 22 categories
+      were in force through the pushed view. So a collector that omits `pushed-shared-policy`
+      reports ZERO ROWS and this control reports a clean estate. "This collection was not
+      collected" is not a value a row can hold.
+    * WHETHER THE CATEGORY IS REFERENCED BY A RULEBASE NOBODY READ. The vendor documents four
+      rulebases that can match on a URL category - Security, QoS, Decryption and Authentication -
+      and the normalizer collects two. Stage 2's uncapped referrer enumeration found 39 referrer
+      fields where a capped ask gives 8. Every error is therefore in the direction of calling a
+      LIVE category unreferenced, which is why the control's deliverable is a list of candidates
+      for review and NEVER a removal instruction, and why `reference_surfaces_searched` is
+      presented beside every finding so that `unreferenced` is never printed without its
+      denominator.
+    * WHETHER THE CATEGORY'S SITES STILL BELONG TO WHOEVER ASKED FOR IT. Nothing in the
+      configuration records a reason or an owner, which is stage 3's `engineer_supplies`.
+
+    `subject_scope` IS DECLARED because a category name is not unique in an estate. The same name
+    exists at one vsys, at the firewall's own shared scope, in a Panorama device group and in the
+    pushed view, the remediation differs by scope, and on all four lab appliances the live
+    categories were in the management station's shared container rather than the firewall's own.
+    Without it, two findings about two scopes are one row to any presentation grouping by name.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="custom_url_category_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="custom_url_category_findings")
+    custom_url_category = models.ForeignKey(
+        CustomUrlCategory, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="CustomUrlCategoryFindingControlQuery",
+        related_name="custom_url_category_findings", blank=True)
+    #: Declared for the reason the class docstring gives: one name exists at four scopes and the
+    #: remediation differs by scope.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["custom_url_category"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "custom_url_category"],
+                name="unique_cuc_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on custom URL category {self.subject_name}"
+
+
+class CustomUrlCategoryFindingControlQuery(FindingControlQueryBase):
+    custom_url_category_finding = models.ForeignKey(
+        CustomUrlCategoryFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="custom_url_category_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["custom_url_category_finding", "control_query"],
+                name="unique_cuc_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.custom_url_category_finding_id} <- {self.control_query_id}"

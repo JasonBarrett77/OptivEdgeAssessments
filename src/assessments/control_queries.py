@@ -56,6 +56,7 @@ FIREWALL_CONTENT_STREAMS_MODEL = "integrations.FirewallContentStreams"
 LICENCE_INVENTORY_MODEL = "integrations.LicenceInventory"
 LOG_ALARM_SETTINGS_MODEL = "integrations.LogAlarmSettings"
 CONTENT_UPDATE_SCHEDULE_MODEL = "integrations.ContentUpdateSchedule"
+CUSTOM_URL_CATEGORY_MODEL = "integrations.CustomUrlCategory"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -552,4 +553,20 @@ def evaluate_content_update_schedule_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or CONTENT_UPDATE_SCHEDULE_MODEL,
+    )
+
+
+def evaluate_custom_url_category_control_queries(queryset, control):
+    """One custom URL category definition, for PAN-URL-006's category half.
+
+    ONE CONTROL AND ONE RECORD REACH THIS HELPER. PAN-URL-006's other two assertion records name
+    the URL filtering profile, which is a different model with no relation to this one in either
+    direction, so they are silent rather than evaluated here - recorded in the stage 8 artifact's
+    `subjects_in_two_models`. The domain's other five controls evaluate through
+    `evaluate_security_profile_control_queries`, because they reuse the `security_profile` type.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or CUSTOM_URL_CATEGORY_MODEL,
     )
