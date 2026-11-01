@@ -919,6 +919,20 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # the same reason. Stage 9 for this domain is what gives the two models a page, and stage
     # 8's contract forbids building one.
     "PAN-LOG": "stage9-logging.json",
+    # `security-policy` reached stage 8 on 2026-11-01. ONE LINE FOR TWENTY-ONE CONTROLS over
+    # four models, and it is load-bearing for exactly SIX of them. Measured with a canonical-query
+    # DICT rather than a bare label, which is the only way to measure it: `integrations.
+    # SecurityRule` already resolves to `/assessments/configuration/policies/security/` and
+    # `integrations.AddressObject` to `/assessments/configuration/objects/addresses/`, so the
+    # fifteen controls on rules were never homeless. The two models this stage MINTED -
+    # `integrations.VsysRulePosture` and `integrations.PolicyRuleSettings` - resolve to nothing,
+    # and that is the five posture controls plus PAN-POL-011. The entry is harmless for the other
+    # fifteen: `_awaiting` is consulted only where `query_results_url` returns nothing. A SECOND
+    # line would have nowhere to go - the dict is keyed by control-id PREFIX and
+    # `tests/test_configuration_links.py::_awaiting` prefix-matches, so one `PAN-POL` covers the
+    # domain however many models it mints. Stage 9 for this domain is what gives the two models a
+    # page, and stage 8's contract forbids building one.
+    "PAN-POL": "stage9-security-policy.json",
     # `ipsec-crypto` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
     # `IpsecCryptoProfile` and `IpsecTunnel` were both created by stage 7 for this domain and
     # had never been queried from this repository at all. The rail's two IKE entries are the

@@ -3,6 +3,24 @@
 from __future__ import annotations
 
 from assessments.search.exceptions import SearchSyntaxError
+# `security-policy`, 2026-11-01. TWO MINTS, both of them subjects whose grain is NOT the rule:
+# one enforcement point's whole-policy verdicts, and one appliance's device-wide policy-rule
+# switches. `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for both before either line was
+# written, so neither is a second type for a model that already has one.
+from assessments.search.vsys_rule_posture.compiler import (
+    FIELD_OPERATOR_REGISTRY as VSYS_RULE_POSTURE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.vsys_rule_posture.compiler import (
+    VSYS_RULE_POSTURE_MODEL,
+    compile_vsys_rule_posture_search_node,
+)
+from assessments.search.policy_rule_settings.compiler import (
+    FIELD_OPERATOR_REGISTRY as POLICY_RULE_SETTINGS_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.policy_rule_settings.compiler import (
+    POLICY_RULE_SETTINGS_MODEL,
+    compile_policy_rule_settings_search_node,
+)
 from assessments.search.security_rules.compiler import (
     FIELD_OPERATOR_REGISTRY as SECURITY_RULE_FIELD_OPERATOR_REGISTRY,
 )
@@ -504,6 +522,8 @@ from optivedge_integrations.integrations.models import (
     DecryptionRulebaseVerdict,
     SslDecryptionExclusion,
     SslDecryptionVendorExclusionOptOut,
+    VsysRulePosture,
+    PolicyRuleSettings,
 )
 
 
@@ -1008,6 +1028,29 @@ MODEL_REGISTRY = {
         "model_class": SslDecryptionVendorExclusionOptOut,
         "field_operators": SSL_VENDOR_EXCLUSION_OPTOUT_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_ssl_decryption_vendor_exclusion_optout_search_node,
+    },
+    # `security-policy`, 2026-11-01. The two models that domain minted. Both are VERDICT grains
+    # rather than entry grains: the first is one virtual system's whole policy taken as a set of
+    # absences, the second is the device-wide pair of switches at
+    # `deviceconfig/setting/management`. Neither could be a column of `SecurityRule` - the first
+    # reports a rule that does not exist, which a rule-keyed row cannot do, and the second has no
+    # vsys axis at all.
+    VSYS_RULE_POSTURE_MODEL: {
+        "model_class": VsysRulePosture,
+        "field_operators": VSYS_RULE_POSTURE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_vsys_rule_posture_search_node,
+    },
+    # ONE CONTROL COMPILES THROUGH THIS ENTRY AND IT SHIPS INACTIVE. PAN-POL-011 is held by
+    # Jason's decision of 2026-10-31 - "Let's just leave PAN-POL-011 as disabled or not in use" -
+    # because `disable_shadow_rule_check`'s implicit is unmeasured and the control's `is not
+    # false` clause therefore reports every appliance whose key is absent. The entry exists
+    # anyway: `test_every_control_type_targets_a_registered_model` requires it of the type, and
+    # the second column here is PAN-POL-013's first record, which this domain does not build as a
+    # control and whose field the owed-column check still requires.
+    POLICY_RULE_SETTINGS_MODEL: {
+        "model_class": PolicyRuleSettings,
+        "field_operators": POLICY_RULE_SETTINGS_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_policy_rule_settings_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

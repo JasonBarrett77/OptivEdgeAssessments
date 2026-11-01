@@ -82,6 +82,8 @@ from optivedge_integrations.integrations.models import (
     VsysLogForwarding,
     ManagementPlaneAddressing,
     ApplianceOperationalMode,
+    VsysRulePosture,
+    PolicyRuleSettings,
 )
 
 
@@ -667,6 +669,38 @@ class Control(models.Model):
         #: model's assessed columns are verdicts over a RUNTIME reading.
         APPLIANCE_OPERATIONAL_MODE = (
             "appliance_operational_mode", "Appliance Operational Mode")
+        #: `security-policy`, 2026-11-01. TWO MINTS for a domain of 24 controls, and FIFTEEN of
+        #: its twenty-one shipping controls REUSE `security_rule` instead - which is why
+        #: `AWAITING_PRESENTATION` took ONE line for the whole domain and not one per model:
+        #: `integrations.SecurityRule` and `integrations.AddressObject` both already resolve to a
+        #: results page, and only these two do not.
+        #:
+        #: `rev(_CONTROL_TYPE_TARGET_MODEL)` was measured over 73 types, 73 map entries and 72
+        #: DISTINCT non-empty targets before either line below was written. It answered NO TYPE
+        #: for `integrations.VsysRulePosture` and `integrations.PolicyRuleSettings`, so neither
+        #: mint is a second type for a model that already has one - the thing this map's
+        #: one-to-one property forbids and which NOTHING IN THE SUITE CATCHES in that direction:
+        #: `test_reseed` asserts every type HAS a target and every target has a label, and
+        #: neither of those is injectivity.
+        #:
+        #: `len("vsys_rule_posture")` is 17 and `len("policy_rule_settings")` is 20 against
+        #: `control_type.max_length` 64, measured before writing these: a value too long makes
+        #: `makemigrations` REFUSE with `fields.E009` rather than truncate.
+        #:
+        #: NEITHER COULD HAVE BEEN A COLUMN OF `SecurityRule`, and the two reasons differ. Every
+        #: column of `VsysRulePosture` is a statement about the ABSENCE of a rule somebody should
+        #: have written, and a rule-keyed row cannot report a rule that does not exist - three of
+        #: nine vsys on one lab PA-5220 have no `rulebase/security/rules` node at all and each one
+        #: still enforces the two rules PAN-OS ships. `PolicyRuleSettings` reads a node with NO
+        #: VSYS AXIS, so its grain is the appliance and a per-rule row would carry the same two
+        #: values 666 times over.
+        VSYS_RULE_POSTURE = ("vsys_rule_posture", "Virtual System Rule Posture")
+        #: PAN-POL-011, which SHIPS INACTIVE by Jason's decision of 2026-10-31 recorded in
+        #: `stage5-security-policy.json`: "Let's just leave PAN-POL-011 as disabled or not in
+        #: use." Both of this model's columns are nullable booleans whose NULL is the firing side,
+        #: and `disable-shadow-rule-check`'s implicit is unmeasured - so the control as written
+        #: reports every appliance whose key is absent, on the strength of a reading nobody took.
+        POLICY_RULE_SETTINGS = ("policy_rule_settings", "Policy Rule Settings")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -933,6 +967,14 @@ class Control(models.Model):
         # and synchronised by nothing.
         "management_plane_addressing": "integrations.ManagementPlaneAddressing",
         "appliance_operational_mode": "integrations.ApplianceOperationalMode",
+        # ONE ROW PER ENFORCEMENT POINT, so its finding model carries `subject_scope`: the row's
+        # own name is a vsys name, which is not unique in an estate.
+        "vsys_rule_posture": "integrations.VsysRulePosture",
+        # ONE ROW PER APPLIANCE, and on an HA pair that is TWO ROWS FOR ONE REAL CONFIGURATION
+        # with nothing deduplicating them - the node has no vsys axis and the two peers'
+        # management containers have been measured differing while config sync reported
+        # synchronized, so the difference is data rather than duplication.
+        "policy_rule_settings": "integrations.PolicyRuleSettings",
     }
 
     class Meta:
@@ -1023,6 +1065,8 @@ class Control(models.Model):
         "integrations.VsysLogForwarding": "Virtual System Log Forwarding",
         "integrations.ManagementPlaneAddressing": "Management Plane Addressing",
         "integrations.ApplianceOperationalMode": "Appliance Operational Mode",
+        "integrations.VsysRulePosture": "Virtual System Rule Posture",
+        "integrations.PolicyRuleSettings": "Policy Rule Settings",
     }
 
     @property
@@ -6065,3 +6109,141 @@ class ApplianceOperationalModeFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.appliance_operational_mode_finding_id} <- {self.control_query_id}"
+
+
+class VsysRulePostureFinding(ObjectFindingBase):
+    """A finding against one virtual system's whole-policy posture. `security-policy`, stage 8.
+
+    PAN-POL-007, -010, -017, -018 and -019. Minted 2026-11-01.
+
+    THE VSYS IS THE ROW AND NOT THE RULE, and this is the one model in the domain where that is
+    not a convenience. Every column of the integrations model is a statement about the ABSENCE of
+    a rule somebody should have written - no catch-all refusal with its sessions recorded, no
+    refusal of named applications above the permits, no rule naming a region, no refusal matched
+    on a port - and a rule-keyed row cannot report a rule that does not exist. The subject is
+    real whether or not the vsys has a rulebase node at all: three of nine vsys on one lab
+    PA-5220 have none, and each one still enforces the two rules PAN-OS ships.
+
+    `subject_scope` IS NOT OPTIONAL HERE, for the reason `VsysLogForwardingFinding` records: the
+    subject's own name is a partition name like `vsys6`, which is not unique in an estate and is
+    not unique even on one Panorama. The scope carries the appliance.
+
+    WHAT NO FINDING HERE CAN SAY, and it is a remediation gap rather than a cosmetic one: WHICH
+    OF THE THREE RULEBASES an absence spans. A rule set is the firewall-local vsys rulebase plus
+    the Panorama pre- and post-rulebases pushed to it, the integrations model stores no scope
+    column, and so an estate whose policy is pushed from Panorama would be told to edit a vsys
+    rulebase the firewall will not accept rules into. The distinction IS stored, on
+    `SecurityRule.config_source`; joining back to it is a presentation question.
+
+    ON AN HA PAIR both peers hold the same virtual systems behind one `EnforcementPoint`, so one
+    real vsys yields ONE row here - unlike `PolicyRuleSettingsFinding` below.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="vsys_rule_posture_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="vsys_rule_posture_findings")
+    vsys_rule_posture = models.ForeignKey(
+        VsysRulePosture, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="VsysRulePostureFindingControlQuery",
+        related_name="vsys_rule_posture_findings", blank=True)
+    #: The appliance that owns the virtual system. See the class docstring.
+    subject_scope = models.CharField(max_length=128, blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["vsys_rule_posture"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "vsys_rule_posture"],
+                name="unique_vrp_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on vsys rule posture {self.subject_name}"
+
+
+class VsysRulePostureFindingControlQuery(FindingControlQueryBase):
+    vsys_rule_posture_finding = models.ForeignKey(
+        VsysRulePostureFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="vsys_rule_posture_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vsys_rule_posture_finding", "control_query"],
+                name="unique_vrp_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vsys_rule_posture_finding_id} <- {self.control_query_id}"
+
+
+class PolicyRuleSettingsFinding(ObjectFindingBase):
+    """A finding against one appliance's device-wide policy-rule switches. Stage 8, 2026-11-01.
+
+    PAN-POL-011, WHICH SHIPS INACTIVE. Jason, 2026-10-31, recorded in stage 5's own record for
+    that control: "Let's just leave PAN-POL-011 as disabled or not in use." The reason is in the
+    column rather than in the control: `PolicyRuleSettings.disable_shadow_rule_check` is a
+    nullable boolean whose implicit value stage 4 left UNMEASURED, the restatement clauses it
+    `is not false` so that NULL reports, and the key is absent on every appliance in the lab - so
+    the control as written reports every appliance on the strength of a reading nobody took. The
+    model exists so the question is in the catalogue with its reason, and generates no findings by
+    design, which is this project's recorded convention for exactly that state.
+
+    WHAT WOULD BRING IT BACK IS NOT A SCREEN. There is no UI control for the key: the vendor's
+    Policy Rulebase Settings panel enumerates its controls and this is not among them, and
+    `shadow` appears in the 11.1 and 11.2 Help only under Validate Commit and in the
+    commit-warnings list. The feature surfaces as a `Rule Shadow` commit warning, so the
+    experiment is two rules where one shadows the other in a vsys of an appliance where the key
+    is absent, then one `validate full` - which is a commit gate no collector may issue.
+
+    ONE ROW PER APPLIANCE, so ON AN HA PAIR THIS IS TWO ROWS FOR ONE REAL CONFIGURATION with
+    nothing downstream deduplicating them. That is not cosmetic and it is not a defect: the node
+    sits at `deviceconfig/setting/management` and has no vsys axis, and the two peers' management
+    containers have been measured DIFFERING while config sync reported synchronized - so a
+    difference between peers is data.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="policy_rule_settings_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="policy_rule_settings_findings")
+    policy_rule_settings = models.ForeignKey(
+        PolicyRuleSettings, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="PolicyRuleSettingsFindingControlQuery",
+        related_name="policy_rule_settings_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["policy_rule_settings"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "policy_rule_settings"],
+                name="unique_prs_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on policy rule settings {self.subject_name}"
+
+
+class PolicyRuleSettingsFindingControlQuery(FindingControlQueryBase):
+    policy_rule_settings_finding = models.ForeignKey(
+        PolicyRuleSettingsFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="policy_rule_settings_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["policy_rule_settings_finding", "control_query"],
+                name="unique_prs_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.policy_rule_settings_finding_id} <- {self.control_query_id}"

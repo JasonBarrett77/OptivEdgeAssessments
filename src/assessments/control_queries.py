@@ -83,6 +83,11 @@ DECRYPTION_RULEBASE_COVERAGE_MODEL = "integrations.DecryptionRulebaseVerdict"
 SSL_DECRYPTION_EXCLUSION_MODEL = "integrations.SslDecryptionExclusion"
 SSL_DECRYPTION_VENDOR_EXCLUSION_OPTOUT_MODEL = (
     "integrations.SslDecryptionVendorExclusionOptOut")
+# `security-policy`, 2026-11-01. Two VERDICT grains, neither of them the rule: one virtual
+# system's whole policy taken as a set of absences, and the device-wide pair of policy-rule
+# switches at `deviceconfig/setting/management`, which has no vsys axis.
+VSYS_RULE_POSTURE_MODEL = "integrations.VsysRulePosture"
+POLICY_RULE_SETTINGS_MODEL = "integrations.PolicyRuleSettings"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -820,4 +825,34 @@ def evaluate_vsys_log_forwarding_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or VSYS_LOG_FORWARDING_MODEL,
+    )
+
+
+def evaluate_vsys_rule_posture_control_queries(queryset, control):
+    """One enforcement point's whole-policy verdicts. PAN-POL-007, -010, -017, -018, -019.
+
+    EVERY QUERY THAT REACHES HERE CLAUSES ON `rules_collected`, and nothing here enforces it.
+    False means no rulebase read has answered for the vsys, and without that clause a vsys nobody
+    collected answers false to every existence verdict on the model and reports as missing every
+    rule it was supposed to have - a full set of findings raised on an empty set of rows.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or VSYS_RULE_POSTURE_MODEL,
+    )
+
+
+def evaluate_policy_rule_settings_control_queries(queryset, control):
+    """One appliance's device-wide policy-rule switches. PAN-POL-011, which ships INACTIVE.
+
+    BOTH COLUMNS ARE NULLABLE BOOLEANS WHOSE NULL IS THE FIRING SIDE, so every control on this
+    model is written as a NEGATED equality. That reaches a NULL because `compile_search_clause`
+    negates a `pk__in` subquery - set complement over primary keys - rather than emitting a SQL
+    `!=`, which would not.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or POLICY_RULE_SETTINGS_MODEL,
     )

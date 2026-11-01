@@ -81,7 +81,26 @@ class PolicyHygieneTests(TestCase):
             # None is no profile reaching the rule at all - which is the common real case and
             # also what an un-renormalized row holds.
             wildfire_analysis_submits_all=wildfire,
-            wildfire_analysis_detail=wildfire_detail)
+            wildfire_analysis_detail=wildfire_detail,
+            # TWO DERIVED COLUMNS THIS FIXTURE MUST SET, and the reason is the direction of
+            # their defaults rather than tidiness. `security-policy`'s stage 8 run, 2026-11-01,
+            # moved PAN-POL-008's assertion from the OR over the three booleans above to
+            # `threat_profile_kinds_in_force < 3`, and PAN-POL-024's from the OR over the zone
+            # member tables to `open_zone_side_count > 0` - both because that is the column
+            # stage 5 states the control over and the column OEI built FOR these controls. The
+            # two are population-identical to what they replaced ON A NORMALISED ROW and NOT on
+            # a row built by hand: the count defaults to 0 and the zone count to 2, which are
+            # the WORST band of each control, so a fixture leaving them alone reports critical
+            # and high on a rule it meant to be compliant. They are computed here from the same
+            # definitions the normalizer uses - `security_profiles.THREAT_PROFILE_KIND_COLUMNS`
+            # for the count, and `security_policy._side_is_open`'s rule for the zones, where an
+            # EMPTY member list is open too because PAN-OS treats a rule with no `from`/`to`
+            # element as matching any zone.
+            threat_profile_kinds_in_force=sum(
+                1 for value in (antivirus, spyware, vulnerability) if value),
+            open_zone_side_count=sum(
+                1 for zone in (from_zone, to_zone)
+                if zone is None or str(zone).lower() == "any"))
         if from_zone is not None:
             SecurityRuleFromZone.objects.create(
                 security_rule=rule, value=from_zone, prov="test", position=1)

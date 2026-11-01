@@ -3268,19 +3268,27 @@
                     "value": "allow"
                   },
                   {
-                    "field": "service",
-                    "op": "eq",
-                    "value": "application-default",
-                    "negated": true
-                  },
-                  {
                     "field": "config_source",
                     "op": "eq",
                     "value": "default",
                     "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "service",
+                    "op": "eq",
+                    "value": "application-default",
+                    "negated": true
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "service"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -3318,12 +3326,20 @@
                     "negated": true
                   },
                   {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
                     "field": "application",
                     "op": "eq",
                     "value": "any"
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "application"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -3371,27 +3387,15 @@
                     "value": false
                   },
                   {
-                    "operator": "or",
-                    "clauses": [
-                      {
-                        "field": "has_antivirus_profile",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "field": "has_spyware_profile",
-                        "op": "eq",
-                        "value": false
-                      },
-                      {
-                        "field": "has_vulnerability_profile",
-                        "op": "eq",
-                        "value": false
-                      }
-                    ]
+                    "field": "threat_profile_kinds_in_force",
+                    "op": "lt",
+                    "value": 3
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "threat_profile_kinds_in_force"
+              ]
             },
             {
               "name": "No inspection at all",
@@ -3419,22 +3423,20 @@
                     "value": false
                   },
                   {
-                    "field": "has_antivirus_profile",
-                    "op": "eq",
-                    "value": false
+                    "field": "threat_profile_kinds_in_force",
+                    "op": "lt",
+                    "value": 3
                   },
                   {
-                    "field": "has_spyware_profile",
+                    "field": "threat_profile_kinds_in_force",
                     "op": "eq",
-                    "value": false
-                  },
-                  {
-                    "field": "has_vulnerability_profile",
-                    "op": "eq",
-                    "value": false
+                    "value": 0
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "threat_profile_kinds_in_force"
+              ]
             }
           ]
         },
@@ -4936,7 +4938,12 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts",
+                "source_breadth_known",
+                "destination_breadth_known"
+              ]
             },
             {
               "name": "Broader than /16 on a side",
@@ -4979,7 +4986,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /14 on a side",
@@ -5022,7 +5032,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /11 on a side",
@@ -5065,7 +5078,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /8 on a side, or any",
@@ -5108,7 +5124,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "A side's breadth could not be established",
@@ -5151,7 +5170,11 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_breadth_known",
+                "destination_breadth_known"
+              ]
             }
           ]
         },
@@ -5196,7 +5219,56 @@
                     "value": true
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "disabled"
+              ]
+            },
+            {
+              "name": "Breadth established, at the floor band",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "source_num_hosts",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "field": "destination_num_hosts",
+                        "op": "gte",
+                        "value": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /14 on a side",
@@ -5239,7 +5311,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /11 on a side",
@@ -5282,7 +5357,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             },
             {
               "name": "Broader than /8 on a side",
@@ -5325,7 +5403,10 @@
                     ]
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "source_num_hosts"
+              ]
             }
           ]
         },
@@ -5370,22 +5451,15 @@
                     "value": false
                   },
                   {
-                    "operator": "or",
-                    "clauses": [
-                      {
-                        "field": "from_zone",
-                        "op": "eq",
-                        "value": "any"
-                      },
-                      {
-                        "field": "to_zone",
-                        "op": "eq",
-                        "value": "any"
-                      }
-                    ]
+                    "field": "open_zone_side_count",
+                    "op": "gt",
+                    "value": 0
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "open_zone_side_count"
+              ]
             },
             {
               "name": "Both zone sides any",
@@ -5413,17 +5487,20 @@
                     "value": false
                   },
                   {
-                    "field": "from_zone",
-                    "op": "eq",
-                    "value": "any"
+                    "field": "open_zone_side_count",
+                    "op": "gt",
+                    "value": 0
                   },
                   {
-                    "field": "to_zone",
+                    "field": "open_zone_side_count",
                     "op": "eq",
-                    "value": "any"
+                    "value": 2
                   }
                 ]
-              }
+              },
+              "asserted_fields": [
+                "open_zone_side_count"
+              ]
             }
           ]
         },
@@ -18514,6 +18591,1229 @@
           ],
           "target_model": "integrations.LoggingSettings",
           "is_active": true
+        },
+        {
+          "control_id": "PAN-POL-003",
+          "name": "Service Port Count per Rule Bounded",
+          "control_type": "security_rule",
+          "default_severity": "high",
+          "description": "Every rule that permits traffic opens only the ports the applications it names actually need, counted over every port each named service and service group resolves to on BOTH transports, recursively.\n\nTHE COUNT IS A COLUMN AND NOT A PREDICATE. A rule's service list names objects and groups; resolving it means following every member, walking groups that contain groups, expanding each port leaf in all three of its written forms - a single port, a range, and a comma list - and taking the union over the TCP and UDP branches. A search clause compares a field to a literal and can do none of that, so the number is computed at normalization and the control clauses on it.\n\nNULL MEANS INDETERMINATE AND NEVER ZERO, which is the whole reason this control has a second query. Zero ports is the narrowest rule there is, so a rule whose services could not be expanded must not score as the tightest on the device. The count is NULL for `any`, for `application-default` - whose ports are the ports of whatever applications the rule names, which is vendor content rather than configuration - for a service name that resolves to nothing, and for a group this pass could not walk. A NULL matches no threshold, so without the companion query a rule opening every port on both transports would read as opening five or fewer.\n\nTHE BANDS ARE INCLUSIVE LOWER BOUNDS and the boundary is five ports or fewer. A six-port rule matches both the baseline and the `low` query, and the worst matched calibration wins - which is what stops a six-port rule reporting at this control's own high severity.\n\nSCOPE PRECEDENCE OVER THE SERVICE COLLECTIONS IS AN OPEN QUESTION, recorded rather than resolved: nothing says which definition a rule resolves to when one service name exists at both vsys and shared scope, and neither reply carries a scope marker. The union is built vsys-first with the NARROWEST definition kept, which is the conservative direction for a count whose high end is the finding.",
+          "rationale": "Every port a rule opens beyond the ones in use is a separate way in that nobody is watching, so a rule written to carry one application leaves the rest available to anything that can already reach the same addresses.",
+          "audit": "Policies > Security > <rule> > Service/URL Category, then Objects > Services and Objects > Service Groups for each member named. Count the distinct TCP and UDP ports the whole list resolves to, following groups recursively and counting the width of every range.",
+          "remediation": "Replace the rule's service list with `application-default`, or with service objects naming only the ports the named applications need: `set rulebase security rules <name> service application-default`, or `set device-group <dg> pre-rulebase security rules <name> service [ <narrow-object> ]` on Panorama. `application-default` may not share a member list, so remove the existing members rather than adding to it. Where a wide range is deliberate, keep it and record the reason - the configuration stores the ports and never the justification.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gt",
+                    "value": 5
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permitted_port_count"
+              ]
+            },
+            {
+              "name": "Six ports or more",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gt",
+                    "value": 5
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gte",
+                    "value": 6
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permitted_port_count"
+              ]
+            },
+            {
+              "name": "Sixteen ports or more",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gt",
+                    "value": 5
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gte",
+                    "value": 16
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permitted_port_count"
+              ]
+            },
+            {
+              "name": "A hundred ports or more",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gt",
+                    "value": 5
+                  },
+                  {
+                    "field": "permitted_port_count",
+                    "op": "gte",
+                    "value": 100
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permitted_port_count"
+              ]
+            },
+            {
+              "name": "The open-port count could not be established",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permitted_port_count_known",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "service",
+                    "op": "eq",
+                    "value": "application-default",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permitted_port_count_known"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-006",
+          "name": "No Clearly Malicious or High-Risk App-IDs Allowed",
+          "control_type": "security_rule",
+          "default_severity": "critical",
+          "description": "No rule that permits traffic allows an application whose own published characteristics mark it as used by malware, as built to evade inspection, or as a way of tunnelling other applications - whether the application is named on the rule itself or reaches it through a group, a filter or a container.\n\nTHIS CONTROL SHIPS AND CANNOT FIRE TODAY, AND THAT IS STATED HERE RATHER THAN LEFT TO BE DISCOVERED. Its assertion rests on `permits_high_risk_application`, which the normalizer sets to NULL on EVERY ROW, deliberately and in one place: the predicate needs `/config/predefined/application`, which is a read no collector issues. NULL rather than FALSE because FALSE HERE WOULD MEAN CHECKED AND CLEAN. A positive comparison matches no NULL, so this control compiles, ships, and reports nothing - and a silent control reads from outside exactly like a clean estate. It is in the catalogue because the column is real, the query is real, and the gap is a collection and a resolver rather than a design question.\n\nWHAT IS MISSING IS NAMED AND IS NOT LARGE. The metadata exists and is on Panorama: 4,765 predefined applications, each carrying `risk` plus the eight behaviour flags this control needs, all eight present on all 4,765, measured 2026-10-07. What does not exist is an application model to hold them and a resolver for groups, filters and containers.\n\nAND THE PREDICATE IS NOT A PROPERTY OF THE RULE. An application FILTER is evaluated against a content release, so the same rule can pass and then fail with no configuration change at all - which means a finding here is answerable only against the content version installed when it was taken.\n\nTHE GRADED COLUMN HOLDS ONE CHARACTERISTIC - the vendor's own leaf name - so its twelve placements are mutually exclusive equalities and no two can match one rule. Seven of the twelve are UNRANKED: real characteristics that are not by themselves a reason to report a permitting rule, which the catalogue declines to rank rather than ranking quietly.",
+          "rationale": "A rule that permits a hostile application is a decision to carry it that nothing downstream will second-guess, so the inspection on that rule is inspecting traffic the policy has already agreed to deliver.",
+          "audit": "Policies > Security > <rule> > Application, then Objects > Applications for each name, group member and filter the rule reaches. Read each application's Characteristics: `used-by-malware`, `evasive-behavior` and `tunnel-other-application` are the three this control asserts against. The same data is at /config/predefined/application on Panorama.",
+          "remediation": "Remove the application from the rule, or move it to a rule of its own with a recorded business reason and inspection in force: `delete rulebase security rules <name> application <app>`. Where a group, filter or container is what reaches it, edit that object rather than the rule - a filter will re-acquire the application on the next content update.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permits_high_risk_application",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "permits_high_risk_application"
+              ]
+            },
+            {
+              "name": "Used by malware",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "critical",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permits_high_risk_application",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "high_risk_application_characteristic",
+                    "op": "eq",
+                    "value": "used-by-malware"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "high_risk_application_characteristic"
+              ]
+            },
+            {
+              "name": "Built to evade inspection",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permits_high_risk_application",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "high_risk_application_characteristic",
+                    "op": "eq",
+                    "value": "evasive"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "high_risk_application_characteristic"
+              ]
+            },
+            {
+              "name": "Tunnels other applications",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permits_high_risk_application",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "high_risk_application_characteristic",
+                    "op": "eq",
+                    "value": "tunnels-other-apps"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "high_risk_application_characteristic"
+              ]
+            },
+            {
+              "name": "In the top two risk ratings",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "permits_high_risk_application",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "high_risk_application_characteristic",
+                    "op": "eq",
+                    "value": "top-two-risk-ratings"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "high_risk_application_characteristic"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-007",
+          "name": "Explicit App-ID Blocking Rules Present",
+          "control_type": "vsys_rule_posture",
+          "default_severity": "high",
+          "description": "The rulebase carries a standing rule that blocks the applications this estate has decided against, placed ahead of every rule that could otherwise permit them, so that no later edit opens them by accident.\n\nTHE SUBJECT IS THE VIRTUAL SYSTEM AND NOT A RULE, because what this reports is a rule that DOES NOT EXIST. A rule-keyed finding cannot say that, and nor can a missing row: a vsys with no `rulebase/security/rules` node at all still enforces the two rules PAN-OS ships, so the verdict row exists for every enforcement point and `rules_collected` is what says whether a read answered.\n\n\"ABOVE THE PERMITS IT COVERS\" IS NARROWER THAN \"ABOVE EVERYTHING\", and the difference is the intersection: a refusal of one application sitting below a permit of a different one still refuses it, because that permit cannot match it. So a blocking rule qualifies when no permitting rule whose application set it INTERSECTS is evaluated before it, and a permitting rule naming `any` intersects everything.\n\nANY BLOCKING ACTION SATISFIES IT. The action field has six members of which four block and differ only in what the sender is told, so a rulebase that blocks with a silent `drop` satisfies the intent even though it does not match the literal `deny`. A DISABLED blocking rule does not: the verdict reads the evaluation and not the configuration.\n\nWHICH APPLICATIONS MUST BE BLOCKED IS THE ESTATE'S DECISION and this control does not take it. What it asserts is that the mechanism exists at all - a standing, application-matched refusal ahead of the permits - because without one there is nothing between those applications and the next broad permitting rule somebody writes for an unrelated reason.",
+          "rationale": "Without a standing block there is nothing between those applications and the next broad permitting rule somebody writes for an unrelated reason, so the gap opens on a day when nobody was thinking about these applications at all.",
+          "audit": "Policies > Security for the virtual system. Look for a rule with a blocking action - deny, drop, reset-client, reset-server or reset-both - whose Application column names specific applications rather than `any`, and confirm it is enabled and sits above every permitting rule whose applications it overlaps.",
+          "remediation": "Add an enabled blocking rule naming the applications this estate has decided against and move it above the permitting rules: `set rulebase security rules block-apps action deny application [ <app> ... ] from any to any source any destination any service any log-end yes`, then `move rulebase security rules block-apps top`. On Panorama write it into the device group's PRE-rulebase so a local edit cannot get above it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.VsysRulePosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rules_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "has_application_block_rule_above_permits",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_application_block_rule_above_permits"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.VsysRulePosture"
+        },
+        {
+          "control_id": "PAN-POL-009",
+          "name": "Logging Enabled on All Rules with Forwarding",
+          "control_type": "security_rule",
+          "default_severity": "high",
+          "description": "Every rule records the sessions it decides, and that record is carried off the appliance by a forwarding profile attached to the rule.\n\nTWO HALVES AND ONE CONTROL. Stage 3 states them separately - the rule records its own decisions, and the record leaves the appliance - and they are two clauses over two columns of one rule, so this entry carries the first as its baseline and the second as a query beside it at the same severity. Either one firing is the finding: a rule that logs to a disk that fills is as blind, three months later, as a rule that never logged.\n\nAN ABSENT `log-end` KEY IS COMPLIANT AND THIS WAS MEASURED, not assumed. On fw-core-tpa-a a committed rule storing neither logging flag renders Log at Session End TICKED, while the two rules PAN-OS ships render it UNTICKED - so the vendor contradicts itself across two pages of one Help and the device settles it asymmetrically. The baseline therefore reports an EXPLICIT `no` and not an absence, which is narrower than the sentence stage 3 wrote and is what the measurement supports.\n\nWHAT STILL READS AS COMPLIANT: a rule whose logging column is NULL because the rulebase read failed, or because it was normalised before the implicit was measured. There is no is-null operator for a boolean in this query language, the normalizer no longer writes such a row, and the gap is recorded rather than closed with a clause that would also catch every compliant rule.\n\nTHE PROFILE'S CONTENTS ARE NOT THIS CONTROL'S OBJECT. A rule naming a forwarding profile whose match list is empty forwards nothing and satisfies the second clause; what the profile actually sends is PAN-LOG-005's ground. One member surviving on this field in the lab is a profile the product SHIPS, so a rule naming it passes without anybody having chosen it.",
+          "rationale": "The traffic a rule handled leaves no trace, so an investigation into what crossed the firewall has a hole at exactly the point where the policy made its decision - and a log kept only on the appliance expires on the firewall's schedule rather than the investigation's, and an attacker who reaches the appliance can remove what has not already left it.",
+          "audit": "Policies > Security > <rule> > Actions. Log at Session End should be ticked and Log Forwarding should name a profile. An unticked box on a rule storing no key is the vendor's own default and is compliant; an explicitly cleared box is not.",
+          "remediation": "`set rulebase security rules <name> log-end yes log-setting <forwarding-profile>`, or the device-group pre-rulebase equivalent on Panorama. Where no forwarding profile exists, build one that sends traffic and threat records to a collector the estate controls before attaching it - a profile with an empty match list satisfies the configuration and forwards nothing.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "log_end",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "log_end"
+              ]
+            },
+            {
+              "name": "No log forwarding profile attached",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "high",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "log_setting",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "log_setting"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-010",
+          "name": "Explicit Interzone Deny Rules with Logging",
+          "control_type": "vsys_rule_posture",
+          "default_severity": "high",
+          "description": "Traffic the policy does not explicitly permit is refused by a rule that RECORDS the refusal - either a catch-all the estate wrote at the end of its own rulebase, or the firewall's own last-resort rules with their recording turned on.\n\nBOTH HALVES MUST FAIL FOR THIS TO FIRE, which is why they are one conjunction and not two controls: an estate that wrote its own logged catch-all does not also need to override the vendor's rules, and an estate that turned logging on for the vendor's rules does not need to write one.\n\nA CATCH-ALL HAS TO MATCH EVERYTHING TO BE ONE. Both zone sides open, both address sides `any`, the application and service lists open, and neither side negated. A rule narrower than that on any axis leaves traffic unrefused, so counting it would report a vsys as covered by a rule that is not.\n\nLOGGING IS HALF THE ASSERTION AND NOT A REFINEMENT OF IT. An unlogged catch-all turns the traffic away and leaves no evidence it did, so a port scan, a misconfigured client and a live intrusion attempt are indistinguishable from outside.\n\nTHE VENDOR'S TWO RULES DEFAULT TO NOT LOGGING, measured: on fw-core-tpa-a both `intrazone-default` and `interzone-default` render Log at Session End UNTICKED while an ordinary rule storing no key renders it ticked. So where no override node exists there are no stored default-rule rows at all, and the absence is read as FALSE rather than as unknown - which fires.",
+          "rationale": "A silent refusal means the firewall turns traffic away and keeps no account of it, so a port scan, a misconfigured client and a live intrusion attempt are indistinguishable from outside and leave nothing to find afterwards.",
+          "audit": "Policies > Security for the virtual system: the last rule should refuse everything on every axis with Log at Session End ticked. Then Policies > Security > `interzone-default` and `intrazone-default` > Override > Actions, and check Log at Session End there.",
+          "remediation": "Either add a logged catch-all at the end of the rulebase - `set rulebase security rules deny-all from any to any source any destination any application any service any action deny log-end yes`, then `move rulebase security rules deny-all bottom` - or override the vendor's rules: `set rulebase default-security-rules rules interzone-default log-end yes` and the same for `intrazone-default`. On Panorama the catch-all belongs in the device group's POST-rulebase.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.VsysRulePosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rules_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "has_logged_catch_all_deny",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "default_rules_log_session_end",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_logged_catch_all_deny",
+                "default_rules_log_session_end"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.VsysRulePosture"
+        },
+        {
+          "control_id": "PAN-POL-011",
+          "name": "No Shadowed Rules",
+          "control_type": "policy_rule_settings",
+          "default_severity": "medium",
+          "description": "The firewall's own check for rules that can never match anything is switched on, so that the warning this control reads is produced at all.\n\nTHIS CONTROL IS IN THE CATALOGUE AND IS SWITCHED OFF, by Jason's decision of 2026-10-31: \"Let's just leave PAN-POL-011 as disabled or not in use.\" The reason is in the column rather than in the control. `disable-shadow-rule-check` is a NEGATIVE leaf whose being set suppresses the very evidence the control's other half rests on, and what an ABSENT key means has not been measured - so the restatement clauses it `is not false`, a NULL matches, and the key is absent on every appliance measured. The control as written would therefore report every appliance in an estate on the strength of a reading nobody took. It stays here with its reason, and generates nothing, which is this catalogue's convention for exactly that state.\n\nWHAT WOULD BRING IT BACK IS NOT A SCREEN. There is no UI control for the key: the vendor's Policy Rulebase Settings panel enumerates its controls and this is not among them, and `shadow` appears in the 11.1 and 11.2 Help only under Validate Commit and in the commit-warnings list. The feature surfaces as a `Rule Shadow` commit warning, so the experiment is two rules where one shadows the other in one virtual system of an appliance where the key is absent, then one `validate full` - which is a commit gate.\n\nTHE OTHER HALF OF THIS CONTROL IS NOT BUILT HERE. Stage 3 states a second half over the RULES - no rule is completely covered by a rule above it - and a control carries one target model: there is no relation in either direction between this appliance-wide node and a rule, so one half reaches a finding and the other is silent. The rule half's own column is NULL on every row today because nothing computes the shadowing relation, so it would have reported a clean rulebase for every virtual system - and the near-twin ground, two rules that are exactly the same, IS reported, by PAN-POL-012.\n\nON AN HA PAIR THIS IS TWO ROWS FOR ONE REAL CONFIGURATION. The node has no virtual system axis and the two peers' management containers have been measured DIFFERING while config sync reported synchronized, so the difference is data rather than duplication and nothing downstream deduplicates it.",
+          "rationale": "With the check off the firewall reports no unreachable rules for the same reason a clean rulebase does, so a rulebase nobody has checked is signed off as one that has been - and a rule that can never match is an exception somebody wrote and believes is in force.",
+          "audit": "There is no screen for this key. Read it from the configuration: `show deviceconfig setting management disable-shadow-rule-check`. An absent key is the state this control reports, because the vendor publishes no default for it and nothing on the device reads it back.",
+          "remediation": "`delete deviceconfig setting management disable-shadow-rule-check` where it is set, then confirm the check runs by staging two rules where one shadows the other and running `validate full` - the warning is a commit-time output and not a configuration field.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.PolicyRuleSettings",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "disable_shadow_rule_check",
+                    "op": "eq",
+                    "value": false,
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "disable_shadow_rule_check"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": false,
+          "target_model": "integrations.PolicyRuleSettings"
+        },
+        {
+          "control_id": "PAN-POL-012",
+          "name": "No Redundant Rules",
+          "control_type": "security_rule",
+          "default_severity": "low",
+          "description": "No two rules in the rulebase come down to the same traffic and the same decision.\n\nTHIS IS AN EXACT-COPY TEST AND NOT AN OVERLAP TEST, which is the narrow and defensible reading. Two rules are equal here when their sorted member names and both resolved address breadths match - so two rules naming DIFFERENT address objects that happen to cover the same space are NOT equal, and two naming the same objects in a different order ARE. `has_exact_duplicate` is about a rule somebody copied; overlap is what shadowing is for, and stage 3 deliberately left the two standing together rather than partitioning them.\n\nTHE COMPANION QUERY IS THE WHOLE MECHANISM AND NOT A REFINEMENT. The assertion column is a NON-NULLABLE boolean whose false means both \"compared and no duplicate\" and \"never compared\", and a boolean cannot hold a third state - so without a clause on `duplicate_comparison_computed` every rulebase in the estate would report as duplicate-free the moment the rows existed and before anything looked at them. That is the finding reported as its own absence.\n\nBOTH COPIES ARE REPORTED, not just the later one. Which of two identical rules should be removed is a decision about which one the estate's records refer to, and nothing in the configuration says.",
+          "rationale": "Two rules doing one job split the evidence about that job, so the usage counts, the records and the next person's edit all land on one of them while the other goes on enforcing unchanged.",
+          "audit": "Policies > Security, sorted by the columns that make up a match: zones, addresses, application, service and action. Two rows identical across all of them and carrying the same action are the finding. The firewall's own Validate Commit reports the related shadowing case and not this one.",
+          "remediation": "Delete whichever copy the estate's own records do not refer to: `delete rulebase security rules <name>`. Check the hit counts on both first - traffic may have been landing on one of them for years, and removing that one moves the flow onto the other and resets its history.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "has_exact_duplicate",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_exact_duplicate"
+              ]
+            },
+            {
+              "name": "The duplicate comparison has not been run",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "duplicate_comparison_computed",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "duplicate_comparison_computed"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-013",
+          "name": "Unused Rules Aged 30/60/90 Days",
+          "control_type": "security_rule",
+          "default_severity": "medium",
+          "description": "No rule that is in force has gone without matching any traffic for longer than this estate's own review window.\n\nTHE AGE IS COMPUTED AND NOT READ FROM A WINDOW THE DEVICE OFFERS, because there are three different ones and none of them is 30, 60 or 90 days: the highlight-unused action is scoped to \"since the last time the firewall was restarted\", the rule-usage query takes a chosen timeframe, and Policy Optimizer has a timeframe of its own. So the age comes from the per-rule last-hit timestamp, and the control scopes itself to rules that are IN FORCE - which a usage join taken from the compiled effective-policy view could not do, because a rule that is switched off is missing from that view entirely.\n\nNULL IS `NOT ESTABLISHED` AND NEVER ZERO. The read answers `last-hit-timestamp: 0` for a rule that has never matched, so an epoch of 0 is parsed as NULL rather than as 1970 - which would read as the oldest rule on the device.\n\nTHE COMPANION QUERY CARRIES THREE DIFFERENT UNKNOWNS that a threshold on the age alone would all pass. The appliance-wide hit-count switch may be off, in which case every rule reads as never matched; the reading may not have been taken at all; and the counter resets on a reboot or a dataplane restart, which the vendor acknowledges with its own field for excluding recently-reset rules - so a reset reading and a never-matched reading are the same number.\n\nA RULE THAT HAS NEVER MATCHED IS REPORTED BY NEITHER HALF, and that is a gap rather than a design: where counting is ON and a rule has never matched, the age is NULL because there is no timestamp to age, while the reading IS believed - so the most idle rule on the device matches no threshold and no companion. Closing it needs a third column or a declaration that the reading is not believed when it carries no age.\n\nTHE BANDS ARE INCLUSIVE LOWER BOUNDS: fewer than 30 days is within normal variation and compiles to no query, 30 to 89 days is flag-and-review, and 90 days or more is past the removal window. The 30-day floor is the vendor's own illustrative window rather than an invented one.\n\nTHE OTHER HALF OF THIS CONTROL IS NOT BUILT HERE. Stage 3 states a prerequisite over the APPLIANCE - the firewall is counting rule usage at all - and a control carries one target model, with no relation in either direction between that node and a rule. That half's implicit has since been measured in the direction that an absent key asserts counting is ON, so leaving it silent costs an appliance whose key is explicitly `no`: its rules are reported through the companion query above instead, which is where the severity stage 3 gave the prerequisite lands.",
+          "rationale": "A rule nothing has matched for months is either a flow that ended - in which case it is permission nobody is using and an attacker can - or a rule that never worked, in which case something the business needs is being carried by a broader rule instead.",
+          "audit": "Policies > Security with the Hit Count, Last Hit and Rule Usage columns shown, or `show rule-hit-count vsys <vsys> rule-base security rules all`. Confirm first that Device > Setup > Management > Policy Rulebase Settings > Policy Rule Hit Count is enabled, or every rule reads as never matched.",
+          "remediation": "Remove the rule, or record why it stays: `delete rulebase security rules <name>`. Where the flow is seasonal or a disaster-recovery path, the configuration has nowhere to say so, so the reason belongs in the estate's own records. Where every rule reads as unused, turn the counter on and wait a review window before acting: `set deviceconfig setting management rule-hit-count yes`.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "days_since_last_hit",
+                    "op": "gte",
+                    "value": 30
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "days_since_last_hit"
+              ]
+            },
+            {
+              "name": "Unused for 30 days or more",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "days_since_last_hit",
+                    "op": "gte",
+                    "value": 30
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "days_since_last_hit"
+              ]
+            },
+            {
+              "name": "Unused for 90 days or more",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "days_since_last_hit",
+                    "op": "gte",
+                    "value": 30
+                  },
+                  {
+                    "field": "days_since_last_hit",
+                    "op": "gte",
+                    "value": 90
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "days_since_last_hit"
+              ]
+            },
+            {
+              "name": "The hit-count reading cannot be believed",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "hit_count_reading_known",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "hit_count_reading_known"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-015",
+          "name": "Rule Order Optimized by Hit Count",
+          "control_type": "security_rule",
+          "default_severity": "low",
+          "description": "The rules that carry the most traffic are evaluated before the rules that carry least, except where moving one would change what the policy decides.\n\nTHE SAFETY CONSTRAINT IS PART OF THE ASSERTION. A rule that is already completely covered by one above it must not be reported as merely misplaced, because moving it up would change what the policy DOES rather than how fast it decides.\n\nNULL IS `NOT ESTABLISHED` AND NOT `IN THE RIGHT PLACE`. The ranking is a top decile by hit volume against a bottom quartile by position, and it is taken only over readings that can be believed - so a rulebase with too few of them gets NO answer rather than a decile over noise. A decile over all-zero hit counts names an arbitrary tenth of the rulebase, and reporting `false` instead would claim the ranking ran and found nothing out of place.\n\nTHE COMPANION QUERY IS THE WHOLE OF WHAT MAKES THIS CONTROL HONEST TODAY. Where no hit-count reading exists the ranking column is NULL on every row, so the assertion above reports a perfectly ordered estate. The companion reports the absence instead, at this control's own severity, which is also the floor the catalogue declines to raise: an estate paying for this in latency is not told it is paying for a breach.\n\nTHIS IS A PERFORMANCE FINDING AND IT IS RANKED AS ONE. Every packet is tested against every rule above the one it matches, so a busy flow placed late makes the firewall repeat that work per packet - which the estate pays for in capacity rather than in exposure.",
+          "rationale": "Every packet is tested against every rule above the one it matches, so a busy flow placed late makes the firewall repeat that work on each of its packets, and the estate pays for it in latency and capacity rather than in a finding anybody reads.",
+          "audit": "Policies > Security with Hit Count and Rule Usage shown, ordered by position: the highest-volume rules should be near the top. Confirm Device > Setup > Management > Policy Rulebase Settings > Policy Rule Hit Count is enabled first, or the reading means nothing.",
+          "remediation": "Move the rule up, but only where doing so cannot change a decision: `move rulebase security rules <name> before <other>`. Check first that no rule between the two could have matched the same traffic - a reorder that changes what the policy decides is a policy change and not a tuning change.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "busy_rule_placed_late",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "busy_rule_placed_late"
+              ]
+            },
+            {
+              "name": "The hit-count reading cannot be believed",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "low",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "hit_count_reading_known",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "hit_count_reading_known"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-017",
+          "name": "EDL-Based Blocking Rules Present",
+          "control_type": "vsys_rule_posture",
+          "default_severity": "high",
+          "description": "The rulebase carries standing rules that block known-hostile address lists, in BOTH directions - traffic to those addresses and traffic from them - ahead of any rule that could otherwise permit them.\n\nTHE COUNT IS THE SEVERITY AXIS. It holds 0, 1 or 2: how many of the two directions have no standing block. Two booleans could not carry that, and the severity turns on how many are missing rather than on which.\n\nWHAT IS ACTUALLY CHECKED IS WIDER THAN WHAT THE CONTROL ASSERTS, and this is stated rather than left to be found. The assertion is about the VENDOR's own maintained lists; nothing in a configuration recognises one. The ten the lab offered came from one appliance of three, the Help prints no slug for any of them, and the configurable external-list object has five type branches of which none is the predefined kind - so there is no way to tell the vendor's list from the customer's. The verdict therefore tests whether a blocking rule above the permits names an EXTERNAL DYNAMIC LIST on that side, which a customer's own list satisfies. A finding here is reliable; a pass is weaker than the control's sentence.\n\nTHE REMEDIATION IS TO REFERENCE A LIST THE DEVICE ALREADY HAS and not to create one: the configurable object has no predefined branch, so a vendor list cannot be built, only named.\n\nTWO ON AN UNRECOMPUTED ROW, which is the worst band, because a zero would report every virtual system as fully protected before anything looked at it.",
+          "rationale": "These lists are maintained for the estate and cost nothing to enforce, so an estate without them is choosing to carry traffic to and from addresses already known to be hostile - and the omission is invisible in a review because no rule is wrong, one is simply absent.",
+          "audit": "Policies > Security for the virtual system: look for blocking rules whose Source Address names a hostile-address external list and, separately, whose Destination Address does, both above the permitting rules. Objects > External Dynamic Lists shows which lists the device offers, including the vendor's predefined ones.",
+          "remediation": "Add two enabled blocking rules above the permits, one per direction, each naming the vendor's hostile-address lists: `set rulebase security rules block-hostile-src action deny source [ panw-known-ip-list ... ] destination any from any to any application any service any log-end yes`, and the mirror with the list on `destination`. The predefined lists cannot be created - reference the ones the device already carries.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.VsysRulePosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rules_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "vendor_hostile_list_block_directions_missing",
+                    "op": "gt",
+                    "value": 0
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "vendor_hostile_list_block_directions_missing"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.VsysRulePosture"
+        },
+        {
+          "control_id": "PAN-POL-018",
+          "name": "IP and Geo-Blocking Rules Present",
+          "control_type": "vsys_rule_posture",
+          "default_severity": "medium",
+          "description": "Where this business operates in a bounded set of countries the policy says so - either by accepting only those or by refusing the ones it has decided against.\n\nTHE ASSERTION IS THAT THE POLICY SAYS ANYTHING AT ALL ABOUT GEOGRAPHY, and the direction of that is deliberate. Nothing in a configuration distinguishes a deliberate decision NOT to apply a geographic boundary from nobody having considered it - so a missing reading reported as compliant would be a customer told they are safe on the strength of nothing. A rule naming a region on either address side, with either polarity of action, satisfies this.\n\nWHICH COUNTRIES IS NOT THIS CONTROL'S DECISION and the configuration cannot hold it. The device offers the vendor's predefined country catalogue with no region object present, so naming a region costs nothing; which ones belong in the policy, and whether a decision not to bound the estate geographically has been taken and recorded, is a question for the engineer.\n\nTHE PRE-STAGED BLOCKLIST HALF OF STAGE 3's SENTENCE IS NOT ASSERTED HERE. The column for it exists and no control clauses on it: a standing address-blocklist rule a responder can edit under pressure is a different assertion from a geographic boundary, and it has no id of its own yet.",
+          "rationale": "Without a geographic boundary the estate accepts connections from everywhere by default, and the omission is invisible in a review because no rule is wrong - one is simply absent.",
+          "audit": "Policies > Security for the virtual system: look for any rule whose Source or Destination Address names a region, with any action. Regions appear in the address picker from the vendor's predefined country catalogue and need no object creating.",
+          "remediation": "Add a rule that states the boundary, in whichever polarity matches the estate's decision: `set rulebase security rules geo-deny action deny source [ <CC> ... ] destination any from any to any application any service any log-end yes`, or an accept-only rule naming the countries the business operates in. Where the estate has deliberately decided not to bound itself geographically, record that decision - the configuration has nowhere to say it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.VsysRulePosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rules_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "expresses_geographic_boundary",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "expresses_geographic_boundary"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.VsysRulePosture"
+        },
+        {
+          "control_id": "PAN-POL-019",
+          "name": "Port-Blocking Rules for High-Risk Services",
+          "control_type": "vsys_rule_posture",
+          "default_severity": "high",
+          "description": "The services this estate has decided never to let cross its boundary are refused by rules that match on the PORT itself, underneath whatever application identification is already doing.\n\nWHY A PORT RULE AND NOT AN APPLICATION RULE. Application identification only acts on what it can recognise, so a service tunnelled or unidentified on its own port crosses a policy that has no rule against the port - and the rule that would have caught it was never written because the application layer was assumed to be enough.\n\nTHE ASSERTION IS THAT THE MECHANISM EXISTS and not which ports it covers. A blocking rule whose service list names a service object or group - rather than `any` or `application-default` - is a refusal matched on ports. WHICH services must be blocked is the estate's decision and depends on which zones face a network the customer does not control, which hosts are the sanctioned relays and which are the bastions; none of that is in a configuration.\n\nTHE DEVICE SHIPS SERVICE OBJECTS FOR HTTP AND HTTPS AND FOR NOTHING ELSE, so every other port needs an object somebody builds - which is why a vsys with no port-matched refusal is the common state rather than the exception.",
+          "rationale": "Application identification only acts on what it can recognise, so a service tunnelled or unidentified on its own port crosses a policy that has no rule against the port - and the rule that would have caught it was never written because the application layer was assumed to be enough.",
+          "audit": "Policies > Security for the virtual system: look for a rule with a blocking action whose Service column names a service object or group rather than `any` or `application-default`. Objects > Services shows which objects exist; the device ships only service-http and service-https.",
+          "remediation": "Build service objects for the ports this estate refuses and write a blocking rule naming them above the permits: `set service blocked-smb protocol tcp port 445`, then `set rulebase security rules block-ports action deny service [ blocked-smb ... ] from any to any source any destination any application any log-end yes`. Keep the application-matched rules as well - this is a layer beneath them, not a replacement.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.VsysRulePosture",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "rules_collected",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "has_port_matched_block_rule",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_port_matched_block_rule"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.VsysRulePosture"
+        },
+        {
+          "control_id": "PAN-POL-020",
+          "name": "URL-Inspection Bypass Rules Flagged (Hygiene)",
+          "control_type": "security_rule",
+          "default_severity": "medium",
+          "description": "Every rule that carries web traffic has inspection of the sites it reaches in force on it.\n\nTHE RULE-LEVEL CHECK IS THE ONLY PLACE THIS IS VISIBLE. Site inspection reaches a rule either through a profile the rule names itself or through a profile group it points at, and a group that names nothing protects nothing - so the verdict resolves the group rather than counting the binding.\n\nA BYPASS IS A HOLE SOMEBODY OPENED DELIBERATELY AND NOBODY CLOSED. Where inspection IS in force and the rule's own category list excuses a subset from it, the rule reads as inspected while the excused sites stay reachable - which the severity axis records as a state of its own. The device holds a profile binding and a category list and NO FIELD for a reason, an owner or an expiry, so an unrecorded exception cannot be told from a deliberate bounded one. That question belongs to the engineer.\n\nONE OF THE FOUR GRADED STATES CANNOT BE REPORTED BY THIS CONTROL, and saying so is part of shipping it. The exception-unrecorded state requires site inspection to be IN FORCE, and this control's assertion is that it is NOT - so the two cannot hold together and no query carrying the assertion can reach that state. Reporting the excused-category case needs an assertion of its own.\n\nSITE INSPECTION IS NOT ONE OF THE THREE KINDS PAN-POL-008 COUNTS, deliberately: that control names antivirus, anti-spyware and vulnerability protection and excludes this one, which is asserted here.",
+          "rationale": "A bypass is a hole somebody opened deliberately and nobody closed, so the sites it excuses stay reachable long after the reason has gone - and because the rule carries inspection for everything else, it reads as inspected.",
+          "audit": "Policies > Security > <rule> > Actions > Profile Setting: URL Filtering should name a profile, or the Group Profile should be one that contains one. Then check the rule's Service/URL Category tab - a category list there excuses everything outside it from the profile that is bound.",
+          "remediation": "Bind a URL filtering profile to the rule, or point it at a profile group that contains one: `set rulebase security rules <name> profile-setting profiles url-filtering <profile>`. Where a category list on the rule is excusing sites deliberately, keep it and record the reason, the owner and an expiry date outside the configuration - the device has nowhere to hold them.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "has_url_filtering_profile",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "has_url_filtering_profile"
+              ]
+            },
+            {
+              "name": "No site inspection in force at all",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "action",
+                    "op": "eq",
+                    "value": "allow"
+                  },
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "disabled",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "has_url_filtering_profile",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "url_inspection_posture",
+                    "op": "eq",
+                    "value": "none"
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "url_inspection_posture"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-021",
+          "name": "Rule Metadata Hygiene: Descriptions, Tags, Owners",
+          "control_type": "security_rule",
+          "default_severity": "low",
+          "description": "Every rule says in writing what business flow it serves.\n\nWHAT THE CONFIGURATION CAN HOLD AND WHAT IT CANNOT. The `description` leaf is free text, so the only thing a configuration-based control can assert is that it is NOT EMPTY. What the estate requires a description to CONTAIN - an owner, a change ticket, a purpose - is the engineer's question, and so is the tag taxonomy.\n\nTAGS AND THE GROUPING TAG ARE NOT ASSERTED HERE. Stage 3's sentence also asks that the rulebase be organised so a reviewer can see the rules of one purpose together, which is the `tag` and `group-tag` ground. A tag is stored as its own rows rather than as a column, and the tag ENTRY has two fields - a colour and a comment - neither of which is a business reason, an approver or an expiry. So a clause on tag presence would assert something weaker than the sentence and is left out rather than written loosely.\n\nA RULE NOBODY CAN EXPLAIN IS A RULE NOBODY WILL REMOVE, which is why this is in the catalogue at the floor severity rather than left to a reviewer's discretion: permissions accumulate for as long as the estate exists, and every review ends by keeping everything it could not account for.",
+          "rationale": "A rule nobody can explain is a rule nobody will remove, so permissions accumulate for as long as the estate exists and every review ends by keeping everything it could not account for.",
+          "audit": "Policies > Security with the Description column shown. An empty cell is the finding. What a description must contain is the estate's own standard and this control does not test it.",
+          "remediation": "`set rulebase security rules <name> description \"<what this flow is for and who owns it>\"`, or the device-group pre-rulebase equivalent on Panorama. Where the estate has a standard for what a description carries, apply it - the configuration stores the text and checks nothing about it.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "description",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "description"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
+        },
+        {
+          "control_id": "PAN-POL-022",
+          "name": "Temporary Rules Carry Schedules or Expiry (Hygiene)",
+          "control_type": "security_rule",
+          "default_severity": "medium",
+          "description": "A rule written for a temporary purpose stops working by itself when that purpose ends, rather than depending on somebody remembering to remove it.\n\nTHE APPLICABILITY NAMES THE NON-RECURRING BRANCH AND NOT THE PRESENCE OF A SCHEDULE, and that is the whole reading. A RECURRING schedule is a false pass: a repeating daily or weekly limit bounds a rule to certain hours FOREVER, so a temporary rule carrying one looks time-bounded and never expires - and a check that asks only whether a schedule is attached passes it. Only the non-recurring branch has an end date to compare.\n\nNOTHING ON THE DEVICE MARKS A RULE AS TEMPORARY. Which rules were created for a temporary purpose - vendor access, a migration, troubleshooting - and when each was supposed to end is the engineer's question. What this control can say is that a rule which DID carry a non-recurring window is still in the policy with that window closed.\n\nTHE VENDOR'S TIME LIMIT ONLY STOPS NEW SESSIONS. An access granted for a week can still be carrying an established session after the window closes, while the rule itself sits in the policy reading as deliberate.\n\nTHE COMPANION QUERY REPORTS A RULE WHOSE SCHEDULE KIND IS UNREAD, and it cannot carry the applicability clause above it: that clause names the non-recurring branch and this query exists for the rows where the branch is not known at all. The two are mutually exclusive by construction, which is why the companion carries only the scope clause.",
+          "rationale": "Emergency access that nothing withdraws becomes permanent exposure, and the vendor's own time limits only stop a rule matching NEW sessions - so an access granted for a week can still be carrying an established session after the window closes, while the rule itself sits in the policy reading as deliberate.",
+          "audit": "Policies > Security > <rule> > Actions > Schedule, then Objects > Schedules for the name it carries. A schedule whose type is Non-recurring and whose date range has passed is the finding. A Recurring schedule has no end and is not what this control is about.",
+          "remediation": "Delete the rule the window was written for: `delete rulebase security rules <name>`. Where the access is still needed, write a new non-recurring window rather than removing the schedule: `set schedule <name> schedule-type non-recurring <YYYY/MM/DD@HH:MM-YYYY/MM/DD@HH:MM>`. Removing the schedule instead makes the rule permanent, which is the configuration this control exists to catch.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "is_baseline": true,
+              "is_active": true,
+              "adjusted_severity": null,
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "schedule_kind",
+                    "op": "eq",
+                    "value": "non_recurring"
+                  },
+                  {
+                    "field": "schedule_window_expired",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "schedule_window_expired"
+              ]
+            },
+            {
+              "name": "The schedule kind has not been read",
+              "is_baseline": false,
+              "is_active": true,
+              "adjusted_severity": "medium",
+              "canonical_query": {
+                "model": "integrations.SecurityRule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "config_source",
+                    "op": "eq",
+                    "value": "default",
+                    "negated": true
+                  },
+                  {
+                    "field": "schedule_kind",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "schedule_kind"
+              ]
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.SecurityRule"
         }
       ]
     }

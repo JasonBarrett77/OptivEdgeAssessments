@@ -36,6 +36,11 @@ from assessments.search.security_rules.fields.provenance import compile_provenan
 from assessments.search.security_rules.fields.profile_assessment_coverage import (
     compile_vulnerability_verdict_written_clause,
 )
+# `security-policy`, 2026-11-01. The per-rule posture columns stage 7 built for that domain,
+# plus the three companions that keep a NULL from reading as a clean rule.
+from assessments.search.security_rules.fields.policy_posture import (
+    POLICY_POSTURE_COMPILERS,
+)
 from assessments.search.security_rules.fields.profile_verdicts import (
     PROFILE_VERDICT_COMPILERS,
     PROFILE_VERDICT_GRADING_COMPILERS,
@@ -104,6 +109,8 @@ FIELD_COMPILERS = {
     **PROFILE_VERDICT_COMPILERS,
     # The graded value beside one of them, which a calibration query clauses on.
     **PROFILE_VERDICT_GRADING_COMPILERS,
+    # The security-policy domain's per-rule posture columns and their companions.
+    **POLICY_POSTURE_COMPILERS,
 }
 FIELD_OPERATOR_REGISTRY = {
     "action": compile_action_clause.SUPPORTED_OPERATORS,
@@ -146,6 +153,8 @@ FIELD_OPERATOR_REGISTRY = {
        for field, compiler in PROFILE_VERDICT_COMPILERS.items()},
     **{field: compiler.SUPPORTED_OPERATORS
        for field, compiler in PROFILE_VERDICT_GRADING_COMPILERS.items()},
+    **{field: compiler.SUPPORTED_OPERATORS
+       for field, compiler in POLICY_POSTURE_COMPILERS.items()},
 }
 
 def compile_security_rule_search_node(node):

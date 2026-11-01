@@ -23,6 +23,14 @@ from assessments.authentication_profile_findings import generate_authentication_
 from assessments.authentication_sequence_findings import generate_authentication_sequence_findings
 from assessments.authentication_settings_findings import generate_authentication_settings_findings
 from assessments.findings import generate_rule_findings
+# `security-policy`, 2026-11-01. Two mints beside the fifteen controls that reuse
+# `security_rule` above.
+from assessments.vsys_rule_posture_findings import (
+    generate_vsys_rule_posture_findings,
+)
+from assessments.policy_rule_settings_findings import (
+    generate_policy_rule_settings_findings,
+)
 from assessments.certificate_findings import generate_certificate_findings
 from assessments.coverage_findings import generate_coverage_findings
 from assessments.device_identification_findings import (
@@ -370,6 +378,13 @@ GENERATORS = (
     ("decryption policy rule", T.DECRYPTION_POLICY_RULE,
      generate_decryption_policy_rule_findings),
     # Policy last: the device's own configuration reads before the rules it enforces.
+    # `security-policy`'s two mints sit immediately before the rules, in the order a reader needs
+    # them: the APPLIANCE-wide switches that decide whether the firewall's own rule analysis runs
+    # at all, then the per-VSYS verdict about what the whole policy does and does not do, then
+    # the individual rules. A reader who meets "this appliance does not count rule usage" first
+    # knows what a rule reading as unused is worth.
+    ("policy rule settings", T.POLICY_RULE_SETTINGS, generate_policy_rule_settings_findings),
+    ("vsys rule posture", T.VSYS_RULE_POSTURE, generate_vsys_rule_posture_findings),
     ("security rule", T.SECURITY_RULE, generate_rule_findings),
 )
 

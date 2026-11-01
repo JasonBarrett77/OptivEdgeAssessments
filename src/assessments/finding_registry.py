@@ -371,6 +371,17 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     FindingKind(m.ApplianceOperationalModeFinding, "appliance_operational_mode",
                 m.Control.ControlType.APPLIANCE_OPERATIONAL_MODE,
                 "appliance operational mode"),
+    # `security-policy`, 2026-11-01. TWO MINTS and fifteen reuses of `security_rule`, whose kind
+    # is registered at the top of this tuple and which therefore cost nothing here. The first
+    # subject is per-VIRTUAL-SYSTEM so its finding model carries `subject_scope`; the second is
+    # per-APPLIANCE so the appliance's own name is the scope.
+    FindingKind(m.VsysRulePostureFinding, "vsys_rule_posture",
+                m.Control.ControlType.VSYS_RULE_POSTURE, "virtual system rule posture"),
+    # ITS ONE CONTROL SHIPS INACTIVE, by Jason's decision of 2026-10-31. The kind is registered
+    # anyway, because `test_every_control_type_has_a_finding_kind` requires it of the type and
+    # because the catalogue carries the question with its reason rather than dropping it.
+    FindingKind(m.PolicyRuleSettingsFinding, "policy_rule_settings",
+                m.Control.ControlType.POLICY_RULE_SETTINGS, "policy rule settings"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

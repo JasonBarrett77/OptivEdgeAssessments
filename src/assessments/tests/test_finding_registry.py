@@ -64,6 +64,13 @@ class FindingRegistryTests(TestCase):
         # is the grain this subject exists not to be: a stream-keyed row has nothing to report on
         # exactly the streams that are absent, and that is the commonest state measured.
         "firewall content streams",
+        # `deviceconfig/setting/management`'s policy-rule switches. ONE ROW PER APPLIANCE
+        # CARRYING SEVERAL SWITCHES - the hit counter and the shadow-rule check - and the node
+        # has no vsys axis, so "policy rule setting" would name one of them. The same grain
+        # argument as "session settings" above: the subject is the group of switches at one
+        # node, and a switch-keyed row has nothing to report on a switch whose key is absent,
+        # which is the state PAN-POL-011 exists to report.
+        "policy rule settings",
     }
 
     def test_labels_are_unique_and_prose_shaped(self):
