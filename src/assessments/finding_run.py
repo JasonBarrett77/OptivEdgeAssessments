@@ -148,6 +148,10 @@ from assessments.ssl_tls_service_profile_findings import (
 from assessments.dns_settings_findings import generate_dns_settings_findings
 from assessments.log_server_target_findings import generate_log_server_target_findings
 from assessments.vsys_log_forwarding_findings import generate_vsys_log_forwarding_findings
+from assessments.management_plane_addressing_findings import (
+    generate_management_plane_addressing_findings)
+from assessments.appliance_operational_mode_findings import (
+    generate_appliance_operational_mode_findings)
 from assessments.service_route_findings import generate_service_route_findings
 from assessments.system_identity_findings import generate_system_identity_findings
 from assessments.update_server_settings_findings import generate_update_server_settings_findings
@@ -188,6 +192,14 @@ GENERATORS = (
     ("log server targets", T.LOG_SERVER_TARGET, generate_log_server_target_findings),
     ("vsys log forwarding", T.VSYS_LOG_FORWARDING,
      generate_vsys_log_forwarding_findings),
+    # `management-services`, 2026-11-01. NOTE the element shape: these are PLAIN 3-tuples
+    # `(label, control_type, function)` and `FINDING_KINDS` holds namedtuples with a
+    # `.control_type` attribute - a comparison that treats the two the same way raises
+    # AttributeError here, and the control type is `g[1]`.
+    ("management plane addressing", T.MANAGEMENT_PLANE_ADDRESSING,
+     generate_management_plane_addressing_findings),
+    ("appliance operational mode", T.APPLIANCE_OPERATIONAL_MODE,
+     generate_appliance_operational_mode_findings),
     ("management service paths", T.SERVICE_ROUTE, generate_service_route_findings),
     # Device-wide management-plane settings, so they sit with the settings above: one row per
     # appliance. High availability first, because PAN-HAP-005's applicability turns on whether

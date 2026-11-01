@@ -102,6 +102,24 @@ FIELD_COMPILERS = {
     # this project establishes anything, and `rules.md` holds that an unknown fires.
     "userid_listener_state_established": build_boolean_compiler(
         "userid_listener_state_established", "userid_listener_state_established"),
+    # PAN-MGT-003's APPLICABILITY GATE, and stage 0 measured its absence as the defect. The
+    # shipped baseline carried the exposure clause alone, so it fired on any data-plane surface
+    # with no permitted-source list even where the bound profile enables no administrative
+    # service at all - a ping-only troubleshooting profile raising a HIGH finding. This column
+    # is the gate: TRUE on the three deviceconfig planes unconditionally, whose permitted-source
+    # list governs every service on the port, and on a data-plane surface only where the bound
+    # profile enables one of the five administrative services.
+    #
+    # IT IS A COLUMN BECAUSE IT IS A DISJUNCTION - a plane test OR a quantifier over the related
+    # `services` rows - and this clause grammar is one conjunction with no OR and no quantifier
+    # over related rows. Registered here rather than expressed as a clause for that reason.
+    #
+    # DEFAULT TRUE ON THE MODEL, which is the FIRING side: a row nobody has recomputed is
+    # treated as administrable and the control reports it. The opposite default would turn this
+    # applicability clause into a SUPPRESSION of exactly the rows nobody measured, which reads
+    # as the careful choice and is not - `rules.md` names that shape.
+    "is_management_surface": build_boolean_compiler(
+        "is_management_surface", "is_management_surface"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

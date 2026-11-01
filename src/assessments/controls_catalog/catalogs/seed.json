@@ -2404,7 +2404,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ]
             }
           ],
           "target_model": "integrations.ManagementInterface"
@@ -2437,7 +2440,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ]
             }
           ],
           "target_model": "integrations.ManagementInterface"
@@ -2459,26 +2465,103 @@
               "short_description": "Default baseline query.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
                   {
-                    "field": "exposure",
+                    "field": "is_management_surface",
                     "op": "eq",
-                    "value": "unrestricted"
+                    "value": true
                   },
                   {
-                    "field": "exposure",
-                    "op": "eq",
-                    "value": "undetermined"
+                    "operator": "or",
+                    "clauses": [
+                      {
+                        "field": "exposure",
+                        "op": "eq",
+                        "value": "unrestricted"
+                      },
+                      {
+                        "field": "exposure",
+                        "op": "eq",
+                        "value": "undetermined"
+                      }
+                    ]
                   }
                 ]
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "exposure"
+              ]
             }
           ],
           "target_model": "integrations.ManagementInterface"
+        },
+        {
+          "control_id": "PAN-MGT-004",
+          "name": "Management Plane Addressing and Routing Exposure",
+          "control_type": "management_plane_addressing",
+          "default_severity": "critical",
+          "description": "The management plane's own addressing and routing are reported as the configuration's contribution to how far that plane sits from a network the organisation does not control. Four classes, worst first: a globally routable address on the management port; a private address carrying a static default route out of the segment; a private address with no static default route, which is the preferred state; and an address taken from a DHCP server, where the configuration holds neither the address nor the route and the posture cannot be assessed from configuration at all.",
+          "rationale": "An administrative interface that answers from an untrusted network is probed continuously whether or not a weakness in it is currently known, so the organisation stops choosing when it patches and the attacker chooses instead - the window between an advisory and an exploited estate is measured in hours rather than in change windows.",
+          "audit": "Read deviceconfig/system for the management plane's address, netmask, default gateway and addressing-mode branch. THE MODE IS WHICH BRANCH EXISTS RATHER THAN A VALUE: an absent `type` node means the plane is statically addressed, and a `dhcp-client` branch means the address, the mask and the default route all arrive from the network and the configuration holds none of them - so a reading that takes the absent route leaf at face value reports this control's preferred state on a device that has a default route. WHAT THE CONFIGURATION CANNOT ANSWER, and it is the control's own assertion: from which networks outside the organisation's control a connection can actually be opened to this address, and whether that has been tested from one of them rather than concluded from the addressing plan. The firewall shows the address, the mask and whether a route leaves the segment, and nothing whatever about where that route goes.",
+          "remediation": "Confirm by test, from a network outside the organisation's administrative control, whether a connection can be opened to this management address, and record the result against the reported class. Where the plane is reachable from such a network, the compensating restriction is the permitted-source list PAN-MGT-003 asserts, which is what makes a routable management address survivable while the reachability test is outstanding. THIS CONTROL ASKS FOR NO CHANGE TO A MANAGEMENT ADDRESS OR TO MANAGEMENT-PLANE ROUTING: those are the one thing an assessment must not propose moving, because the move is what removes the assessor's own access.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The management plane's posture is anything other than the preferred one - a private address with no static default route.",
+              "canonical_query": {
+                "model": "integrations.ManagementPlaneAddressing",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "exposure_posture",
+                    "op": "eq",
+                    "value": "private_no_default_route",
+                    "negated": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "is_active": true,
+              "asserted_fields": [
+                "exposure_posture"
+              ],
+              "adjusted_severity": null
+            },
+            {
+              "name": "Private address with a static default route",
+              "short_description": "The plane is privately addressed and carries a static default route, so it can reach and be reached through whatever that route leads to.",
+              "canonical_query": {
+                "model": "integrations.ManagementPlaneAddressing",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "exposure_posture",
+                    "op": "eq",
+                    "value": "private_no_default_route",
+                    "negated": true
+                  },
+                  {
+                    "field": "exposure_posture",
+                    "op": "eq",
+                    "value": "private_with_default_route"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "exposure_posture"
+              ],
+              "adjusted_severity": "high"
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.ManagementPlaneAddressing"
         },
         {
           "control_id": "PAN-MGT-006",
@@ -2518,7 +2601,165 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ]
+            },
+            {
+              "name": "Data-plane surface permitting telnet",
+              "short_description": "An unencrypted command-line login reachable from the traffic side.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "administrative"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "telnet"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "adjusted_severity": "critical"
+            },
+            {
+              "name": "Data-plane surface permitting http",
+              "short_description": "An unencrypted web administration session reachable from the traffic side.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "administrative"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "http"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "adjusted_severity": "critical"
+            },
+            {
+              "name": "Data-plane surface permitting ssh",
+              "short_description": "A full administrative command-line login reachable from the traffic side.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "administrative"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "ssh"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "adjusted_severity": "critical"
+            },
+            {
+              "name": "Data-plane surface permitting https",
+              "short_description": "A full administrative web session reachable from the traffic side.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "administrative"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "https"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "adjusted_severity": "critical"
+            },
+            {
+              "name": "Data-plane surface permitting snmp",
+              "short_description": "Read access to the device's statistics from the traffic side, which is the one administrative service the vendor's own groupings do not place with the other four.",
+              "canonical_query": {
+                "model": "integrations.ManagementInterface",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "plane",
+                    "op": "eq",
+                    "value": "dataplane"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "administrative"
+                  },
+                  {
+                    "field": "service_enabled",
+                    "op": "eq",
+                    "value": "snmp"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "service_enabled"
+              ],
+              "adjusted_severity": "high"
             }
           ],
           "target_model": "integrations.ManagementInterface"
@@ -2551,7 +2792,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "text"
+              ]
             }
           ],
           "target_model": "integrations.LoginBanner"
@@ -2584,7 +2828,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "acknowledgement_required"
+              ]
             }
           ],
           "target_model": "integrations.LoginBanner"
@@ -2617,7 +2864,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "verify_identity"
+              ]
             }
           ],
           "target_model": "integrations.UpdateServerSettings"
@@ -2636,7 +2886,34 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "A transport-security configuration is bound and the protocol floor actually in force is below the required generation, or could not be resolved at all.",
+              "canonical_query": {
+                "model": "integrations.ManagementTlsBinding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "profile_name",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "floor_below_minimum",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "is_active": true,
+              "asserted_fields": [
+                "floor_below_minimum"
+              ],
+              "adjusted_severity": null
+            },
+            {
+              "name": "No transport-security configuration bound",
+              "short_description": "The management web interface points at no transport-security configuration, so it is served under whatever the device falls back to rather than under something the organisation chose.",
               "canonical_query": {
                 "model": "integrations.ManagementTlsBinding",
                 "operator": "or",
@@ -2645,38 +2922,111 @@
                     "field": "profile_name",
                     "op": "is_empty",
                     "value": ""
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "profile_name"
+              ],
+              "adjusted_severity": "high"
+            },
+            {
+              "name": "Bound floor is TLSv1.0",
+              "short_description": "The bound configuration's floor is a withdrawn protocol generation. The device's own spelling, not the catalogue's.",
+              "canonical_query": {
+                "model": "integrations.ManagementTlsBinding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "profile_name",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "floor_below_minimum",
+                    "op": "eq",
+                    "value": true
                   },
                   {
                     "field": "min_version",
                     "op": "eq",
                     "value": "tls1-0"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "min_version"
+              ],
+              "adjusted_severity": "high"
+            },
+            {
+              "name": "Bound floor is TLSv1.1",
+              "short_description": "The bound configuration's floor is a withdrawn protocol generation. The device's own spelling, not the catalogue's.",
+              "canonical_query": {
+                "model": "integrations.ManagementTlsBinding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "profile_name",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "floor_below_minimum",
+                    "op": "eq",
+                    "value": true
                   },
                   {
                     "field": "min_version",
                     "op": "eq",
                     "value": "tls1-1"
-                  },
-                  {
-                    "operator": "and",
-                    "clauses": [
-                      {
-                        "field": "profile_name",
-                        "op": "is_empty",
-                        "value": "",
-                        "negated": true
-                      },
-                      {
-                        "field": "min_version",
-                        "op": "is_empty",
-                        "value": ""
-                      }
-                    ]
                   }
                 ]
               },
-              "is_baseline": true,
-              "adjusted_severity": null,
-              "is_active": true
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "min_version"
+              ],
+              "adjusted_severity": "high"
+            },
+            {
+              "name": "Bound floor could not be resolved",
+              "short_description": "A configuration is bound and no floor could be read from it - the name resolves nowhere, or the definition it resolves to carries no protocol settings.",
+              "canonical_query": {
+                "model": "integrations.ManagementTlsBinding",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "profile_name",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": true
+                  },
+                  {
+                    "field": "floor_below_minimum",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "min_version",
+                    "op": "is_empty",
+                    "value": ""
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "min_version"
+              ],
+              "adjusted_severity": "high"
             }
           ],
           "target_model": "integrations.ManagementTlsBinding"
@@ -2709,10 +3059,75 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "log_on_high_dp_load"
+              ]
             }
           ],
           "target_model": "integrations.LoggingSettings"
+        },
+        {
+          "control_id": "PAN-MGT-012",
+          "name": "Approved Cryptography Operational Mode",
+          "control_type": "appliance_operational_mode",
+          "default_severity": "medium",
+          "description": "The cryptographic operational mode the appliance reports, against the mode that restricts it to an approved algorithm list across every function it performs. THIS IS NOT A SHORTFALL ON ITS OWN: nothing on the appliance records whether such an obligation exists for it, so what a finding here says is that the mode is not the approved one and nobody has confirmed whether it must be.",
+          "rationale": "Outside that mode the appliance is using cryptography the regime does not accept, so every protected flow through it and every administrative session to it is non-compliant however carefully each individual profile was configured - and because the mode is not a setting, the remedy is a rebuild that discards the configuration rather than a change that can be made in a maintenance window.",
+          "audit": "THERE IS NO CONFIGURATION NODE FOR THIS AT ANY SCOPE and the absence is measured rather than assumed: the whole command index in both modes carries nothing bearing the word, and `show fips-mode` - the command a reader reaches for - answers code 17 on every lab appliance. Read the mode from `show system info`, at /response/result/system/operational-mode. The value is therefore a RUNTIME reading and not a stored one, which is why it carries no provenance: an empty stored value means the read was not taken, which is a different state from any mode the device can report. ONLY ONE SPELLING IS MEASURED - every lab appliance answers lowercase `normal`, no appliance in this estate runs the other mode, and neither available instrument can enumerate it because the completion read needs an xpath and there is none.",
+          "remediation": "Establish first whether this appliance is within the scope of an obligation mandating approved cryptography, and whether that obligation names the device itself or only the data it carries - the two answers lead to different conclusions about the same mode. Outside such an obligation the mode is a design choice with real operational costs and its absence is not a shortfall, so no change is indicated. Where the obligation is confirmed, note that the mode is set from maintenance mode and not from the running configuration: the change is a rebuild that discards the configuration rather than an edit. DO NOT USE THE REPORTED MODE TO REINTERPRET ANOTHER DOMAIN'S IMPLICIT DEFAULTS until this question is answered estate-wide - implicit values differ by mode, and an appliance judged against the wrong set is reported as failing controls it satisfies and passing ones it does not.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The appliance is not running in the approved cryptography mode, or was never read - an appliance nobody read has not been shown to be in it.",
+              "canonical_query": {
+                "model": "integrations.ApplianceOperationalMode",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "approved_cryptography_mode",
+                    "op": "eq",
+                    "value": false
+                  }
+                ]
+              },
+              "is_baseline": true,
+              "is_active": true,
+              "asserted_fields": [
+                "approved_cryptography_mode"
+              ],
+              "adjusted_severity": null
+            },
+            {
+              "name": "Reports the unrestricted mode",
+              "short_description": "The appliance reports the mode that does not restrict it to an approved algorithm list. Compared without regard to case: every lab appliance answers lowercase.",
+              "canonical_query": {
+                "model": "integrations.ApplianceOperationalMode",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "approved_cryptography_mode",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "field": "operational_mode",
+                    "op": "eq",
+                    "value": "normal"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "operational_mode"
+              ],
+              "adjusted_severity": "medium"
+            }
+          ],
+          "implementation_version": "v1",
+          "target_model": "integrations.ApplianceOperationalMode",
+          "is_active": true
         },
         {
           "control_id": "PAN-MGT-013",
@@ -2742,7 +3157,88 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "binding_count"
+              ]
+            },
+            {
+              "name": "Unused definition that would permit unencrypted administrative login",
+              "short_description": "Attaching this definition would permit an unencrypted administrative login in one action, which is the exposure PAN-MGT-001 and PAN-MGT-002 exist to report.",
+              "canonical_query": {
+                "model": "integrations.InterfaceManagementProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "binding_count",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "unbound_exposure_class",
+                    "op": "eq",
+                    "value": "unencrypted_administrative_login"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "unbound_exposure_class"
+              ],
+              "adjusted_severity": "medium"
+            },
+            {
+              "name": "Unused definition that would permit encrypted administrative login",
+              "short_description": "Attaching this definition would permit an administrative login over a sound transport.",
+              "canonical_query": {
+                "model": "integrations.InterfaceManagementProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "binding_count",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "unbound_exposure_class",
+                    "op": "eq",
+                    "value": "encrypted_administrative_login"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "unbound_exposure_class"
+              ],
+              "adjusted_severity": "low"
+            },
+            {
+              "name": "Unused definition that would permit monitoring or nothing",
+              "short_description": "Attaching this definition would permit monitoring or reachability only, or nothing.",
+              "canonical_query": {
+                "model": "integrations.InterfaceManagementProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "binding_count",
+                    "op": "eq",
+                    "value": 0
+                  },
+                  {
+                    "field": "unbound_exposure_class",
+                    "op": "eq",
+                    "value": "monitoring_or_nothing"
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "is_active": true,
+              "asserted_fields": [
+                "unbound_exposure_class"
+              ],
+              "adjusted_severity": "low"
             }
           ],
           "target_model": "integrations.InterfaceManagementProfile"

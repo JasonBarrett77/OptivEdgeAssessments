@@ -17,6 +17,24 @@ from assessments.search.management_interface.compiler import (
     MANAGEMENT_INTERFACE_MODEL,
     compile_management_interface_search_node,
 )
+# The two models `management-services` minted on 2026-11-01. Both are APPLIANCE-GRAINED facts
+# about the management plane itself rather than about a surface on it, which is why neither
+# could be a column of `ManagementInterface`: that model's grain is the surface, and three of
+# the four surface rows would carry permanently-null addressing columns.
+from assessments.search.management_plane_addressing.compiler import (
+    FIELD_OPERATOR_REGISTRY as MANAGEMENT_PLANE_ADDRESSING_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.management_plane_addressing.compiler import (
+    MANAGEMENT_PLANE_ADDRESSING_MODEL,
+    compile_management_plane_addressing_search_node,
+)
+from assessments.search.appliance_operational_mode.compiler import (
+    FIELD_OPERATOR_REGISTRY as APPLIANCE_OPERATIONAL_MODE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.appliance_operational_mode.compiler import (
+    APPLIANCE_OPERATIONAL_MODE_MODEL,
+    compile_appliance_operational_mode_search_node,
+)
 from assessments.search.interface_management_profile.compiler import (
     FIELD_OPERATOR_REGISTRY as INTERFACE_MANAGEMENT_PROFILE_FIELD_OPERATOR_REGISTRY,
 )
@@ -467,6 +485,8 @@ from optivedge_integrations.integrations.models import (
     IpsecTunnel,
     SslTlsServiceProfile,
     ManagementInterface,
+    ManagementPlaneAddressing,
+    ApplianceOperationalMode,
     SecurityRule,
     Interface,
     PanOsSessionSettings,
@@ -564,6 +584,22 @@ MODEL_REGISTRY = {
         "model_class": LoggingSettings,
         "field_operators": LOGGING_SETTINGS_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_logging_settings_search_node,
+    },
+    # `management-services`, 2026-11-01. TWO MINTS for two appliance-grained management-plane
+    # facts that had never been queried from this repository at all. The reverse of
+    # `Control._CONTROL_TYPE_TARGET_MODEL` was measured over 71 types, 71 map entries and 70
+    # distinct non-empty targets before either was minted: it answered NO TYPE for both models,
+    # so neither mint takes a second type for a model that already has one - which is what that
+    # map's one-to-one property forbids and what nothing in the suite catches in that direction.
+    MANAGEMENT_PLANE_ADDRESSING_MODEL: {
+        "model_class": ManagementPlaneAddressing,
+        "field_operators": MANAGEMENT_PLANE_ADDRESSING_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_management_plane_addressing_search_node,
+    },
+    APPLIANCE_OPERATIONAL_MODE_MODEL: {
+        "model_class": ApplianceOperationalMode,
+        "field_operators": APPLIANCE_OPERATIONAL_MODE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_appliance_operational_mode_search_node,
     },
     MANAGEMENT_TLS_MODEL: {
         "model_class": ManagementTlsBinding,

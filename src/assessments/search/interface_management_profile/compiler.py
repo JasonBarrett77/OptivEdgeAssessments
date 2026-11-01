@@ -60,6 +60,28 @@ compile_binding_count_clause.SUPPORTED_OPERATORS = INTEGER_OPERATORS
 FIELD_COMPILERS = {
     "binding_count": compile_binding_count_clause,
     "name": build_text_compiler("name", "name"),
+    # PAN-MGT-013's GRADING AXIS - what this profile WOULD expose if somebody attached it, as
+    # one of three classes. The baseline fires on `binding_count eq 0` regardless; this column
+    # decides at which of stage 3's three ranks an unused definition is reported.
+    #
+    # A COUNTERFACTUAL AND NOT A READING OF A SURFACE, which is the whole reason it is stored on
+    # this model: `ManagementService` holds a profile's services keyed to the SURFACE where they
+    # matter, and an unattached profile creates no surface, so nothing anywhere else says what
+    # an unused profile would have enabled.
+    #
+    # `CharField(choices=..., default=EXPOSURE_UNENCRYPTED)` - not nullable, no empty state - so
+    # `eq` over the three tokens reaches every value the column can hold and the text compiler's
+    # `is_empty` arm is registered and unreachable rather than absent. The default is the WORST
+    # class: a profile nobody has classified has not been shown to be harmless.
+    #
+    # WHERE `snmp` FALLS IS A DECLARED JUDGEMENT AND NOT A MEASUREMENT, which the integrations
+    # classifier's own docstring argues and stage 7 filed as a spec gap: nothing in stage 5 says
+    # which services belong to which class, four of the five administrative services place
+    # themselves, and SNMP was classified `monitoring_or_nothing` on the grounds that the
+    # mildest class means "answerable but not administrable" and SNMP is a community-string read
+    # rather than a login. A clause here inherits that judgement; it does not re-make it.
+    "unbound_exposure_class": build_text_compiler(
+        "unbound_exposure_class", "unbound_exposure_class"),
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
 }

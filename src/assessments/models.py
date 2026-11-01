@@ -80,6 +80,8 @@ from optivedge_integrations.integrations.models import (
     SslDecryptionVendorExclusionOptOut,
     LogServerTarget,
     VsysLogForwarding,
+    ManagementPlaneAddressing,
+    ApplianceOperationalMode,
 )
 
 
@@ -635,6 +637,36 @@ class Control(models.Model):
         #: the gap this control reports is a vsys with no adequate profile and a profile-keyed
         #: row cannot report something that does not exist.
         VSYS_LOG_FORWARDING = "vsys_log_forwarding", "Virtual System Log Forwarding"
+        #: `management-services`, 2026-11-01. TWO MINTS FOR TWO CONTROLS, and eight of this
+        #: domain's thirteen controls REUSE a type instead - six of those reuses already
+        #: resolve to a results page, which is why `AWAITING_PRESENTATION` took one line for
+        #: the two mints and not one per control.
+        #:
+        #: `rev(_CONTROL_TYPE_TARGET_MODEL)` was measured over 71 types, 71 map entries and 70
+        #: DISTINCT non-empty targets before either line below was written. It answered NO TYPE
+        #: for `integrations.ManagementPlaneAddressing` and
+        #: `integrations.ApplianceOperationalMode`, so neither mint is a second type for a model
+        #: that already has one - the thing this map's one-to-one property forbids and which
+        #: nothing in the suite catches in that direction, because the test checks enum ⊆ map
+        #: and not injectivity.
+        #:
+        #: `len("management_plane_addressing")` is 27 and `len("appliance_operational_mode")` is
+        #: 26 against `control_type.max_length` 64, measured before writing these: a value too
+        #: long makes `makemigrations` REFUSE with `fields.E009` rather than truncate, which is
+        #: how the 32-character bound was found on 2026-11-01.
+        #:
+        #: NEITHER MODEL COULD HAVE BEEN A COLUMN OF `ManagementInterface`. That model's grain
+        #: is the administrative SURFACE and both of these are facts about the appliance: three
+        #: of the four surface rows would carry permanently-null columns whose null meant "not
+        #: applicable here", which is the same argument that put a surface's services in a
+        #: child table.
+        MANAGEMENT_PLANE_ADDRESSING = (
+            "management_plane_addressing", "Management Plane Addressing")
+        #: PAN-MGT-012. Held in NO configuration node at any scope - the mode is set from
+        #: maintenance mode and is reported only by `show system info` - so both of this
+        #: model's assessed columns are verdicts over a RUNTIME reading.
+        APPLIANCE_OPERATIONAL_MODE = (
+            "appliance_operational_mode", "Appliance Operational Mode")
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -895,6 +927,12 @@ class Control(models.Model):
         # `subject_scope` too: `vsys1` is not unique in an estate and is not unique on one
         # Panorama.
         "vsys_log_forwarding": "integrations.VsysLogForwarding",
+        # ONE ROW PER APPLIANCE, both of them. On an HA pair that is two rows for two peers and
+        # the difference is real rather than duplication: the peers have different management
+        # addresses and are separately reachable, and the operational mode is set per appliance
+        # and synchronised by nothing.
+        "management_plane_addressing": "integrations.ManagementPlaneAddressing",
+        "appliance_operational_mode": "integrations.ApplianceOperationalMode",
     }
 
     class Meta:
@@ -983,6 +1021,8 @@ class Control(models.Model):
             "SSL Decryption Vendor Exclusion Opt-Out",
         "integrations.LogServerTarget": "Log Server Target",
         "integrations.VsysLogForwarding": "Virtual System Log Forwarding",
+        "integrations.ManagementPlaneAddressing": "Management Plane Addressing",
+        "integrations.ApplianceOperationalMode": "Appliance Operational Mode",
     }
 
     @property
@@ -5878,3 +5918,150 @@ class VsysLogForwardingFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.vsys_log_forwarding_finding_id} <- {self.control_query_id}"
+
+
+class ManagementPlaneAddressingFinding(ObjectFindingBase):
+    """A finding against one appliance's management-plane addressing. PAN-MGT-004.
+
+    THE SUBJECT IS THE APPLIANCE and `subject_name` carries it, so no `subject_scope` is needed:
+    unlike a virtual system, an appliance's own name is the scope. On an HA pair each peer
+    produces its own row and that is a real difference - the peers have different management
+    addresses and are separately reachable, and the management-plane subtree is not synchronised
+    between them.
+
+    WHAT NO FINDING HERE CAN SAY, and it is the control's own gap rather than this model's. The
+    firewall holds the address, the mask and whether a route leaves the segment, and NOTHING
+    about whether the networks those reach are ones the organisation controls. So the graded
+    column reports the configuration's CONTRIBUTION to exposure and a finding is not a statement
+    that the plane is reachable. The remediation the control carries is a reachability test,
+    which is a person's work.
+
+    AND IT IS NOT A REMEDIATION TARGET. Jason's standing restriction: no change to a management
+    IP address or to management-plane routing is to be proposed or implied. A finding here
+    PRINTS the value an assessor goes and looks at.
+
+    ONE CLASS REPORTS AT A SEVERITY NOBODY ASSIGNED, which is recorded here because a reader of
+    a row cannot see it. Stage 3 left `dynamically_allocated` UNRANKED, and the control's
+    assertion is that the posture is not the preferred one - which is true of a DHCP-addressed
+    plane - so such a row fires, matches no calibration, and reports at the control's own
+    default. The stage 8 artifact for `management-services` raises it as an open question.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="management_plane_addressing_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="management_plane_addressing_findings")
+    management_plane_addressing = models.ForeignKey(
+        ManagementPlaneAddressing, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ManagementPlaneAddressingFindingControlQuery",
+        related_name="management_plane_addressing_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["management_plane_addressing"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "management_plane_addressing"],
+                name="unique_mpa_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on management plane addressing "
+                f"{self.subject_name}")
+
+
+class ManagementPlaneAddressingFindingControlQuery(FindingControlQueryBase):
+    management_plane_addressing_finding = models.ForeignKey(
+        ManagementPlaneAddressingFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="management_plane_addressing_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["management_plane_addressing_finding", "control_query"],
+                name="unique_mpa_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.management_plane_addressing_finding_id} <- {self.control_query_id}"
+
+
+class ApplianceOperationalModeFinding(ObjectFindingBase):
+    """A finding against the cryptographic operational mode one appliance reports. PAN-MGT-012.
+
+    THE SUBJECT IS THE APPLIANCE, as above, so `subject_scope` is not needed.
+
+    THE VALUE IS HELD IN NO CONFIGURATION NODE AT ANY SCOPE. The mode is set from maintenance
+    mode and is reported at `/response/result/system/operational-mode` in `show system info`;
+    `show fips-mode` answers code=17 on all four lab appliances and the CLI grammar carries no
+    node for it. So a finding here rests on a RUNTIME reading, which is why the integrations
+    model carries neither column in provenance: `ProvenanceType`'s members are all about where a
+    CONFIGURATION value came from, and the fallthrough for an unmarked present value is
+    "defined on this device", which is the one thing a runtime reading is not.
+
+    WHAT A FINDING HERE ACTUALLY SAYS, and the wording matters because the alternative reading
+    is wrong. Nothing on the device records whether the approved mode is REQUIRED of this
+    appliance, and stage 5's restatement carries one clause and no applicability - so stage 3's
+    contractual obligation did not become a clause and every appliance in any estate reports
+    this whether the obligation exists or not. The finding says "the mode is not the approved one
+    and nobody has confirmed whether it must be", which is an item an assessor is owed rather
+    than a verdict.
+
+    AND IT MUST NOT BE USED TO REINTERPRET ANOTHER DOMAIN'S DEFAULTS. Jason decided 2026-09-04
+    that a half-implemented assessment of this mode "would lie - a device in FIPS-CC mode would
+    be judged against normal-mode defaults, and would be reported as failing controls it
+    satisfies and passing ones it does not". That runs outwards: implicit values differ by mode,
+    so an unanswered mode propagates into every other domain's findings wherever a control
+    reasons from an absent key. No appliance in this estate runs the other mode, so the
+    question cannot be settled on current hardware either.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="appliance_operational_mode_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="appliance_operational_mode_findings")
+    appliance_operational_mode = models.ForeignKey(
+        ApplianceOperationalMode, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ApplianceOperationalModeFindingControlQuery",
+        related_name="appliance_operational_mode_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["appliance_operational_mode"])]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "appliance_operational_mode"],
+                name="unique_aom_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return (f"{self.control.control_id} on appliance operational mode "
+                f"{self.subject_name}")
+
+
+class ApplianceOperationalModeFindingControlQuery(FindingControlQueryBase):
+    appliance_operational_mode_finding = models.ForeignKey(
+        ApplianceOperationalModeFinding, on_delete=models.CASCADE,
+        related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="appliance_operational_mode_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["appliance_operational_mode_finding", "control_query"],
+                name="unique_aom_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.appliance_operational_mode_finding_id} <- {self.control_query_id}"

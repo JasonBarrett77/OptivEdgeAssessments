@@ -363,6 +363,14 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.LOG_SERVER_TARGET, "log server target"),
     FindingKind(m.VsysLogForwardingFinding, "vsys_log_forwarding",
                 m.Control.ControlType.VSYS_LOG_FORWARDING, "virtual system log forwarding"),
+    # `management-services`, 2026-11-01. Both subjects are APPLIANCE-grained, so neither
+    # finding model carries `subject_scope`: the appliance's own name is the scope.
+    FindingKind(m.ManagementPlaneAddressingFinding, "management_plane_addressing",
+                m.Control.ControlType.MANAGEMENT_PLANE_ADDRESSING,
+                "management plane addressing"),
+    FindingKind(m.ApplianceOperationalModeFinding, "appliance_operational_mode",
+                m.Control.ControlType.APPLIANCE_OPERATIONAL_MODE,
+                "appliance operational mode"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)

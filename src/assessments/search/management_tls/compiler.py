@@ -51,6 +51,26 @@ def build_text_compiler(field_name, lookup_field, *, joined=False):
     return compiler
 
 
+def build_boolean_compiler(field_name, lookup_field):
+    """THE FIRST BOOLEAN FIELD ON THIS MODEL, added for PAN-MGT-010's derived verdict.
+
+    Every field registered here before it was text, two of them read through the join. `eq` is
+    the only operator a boolean can carry, and the value is type-checked rather than coerced:
+    `eq "false"` on a boolean column is a catalogue payload bug, and Python reads the non-empty
+    string as TRUE and matches the opposite rows in silence.
+    """
+
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return ManagementTlsBinding.objects.filter(**{lookup_field: value}).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 FIELD_COMPILERS = {
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
@@ -65,6 +85,32 @@ FIELD_COMPILERS = {
         "max_version", f"{_JOIN}__max_version", joined=True),
     "certificate_name": build_text_compiler(
         "certificate_name", f"{_JOIN}__certificate_name", joined=True),
+    # PAN-MGT-010's ASSERTION, AND IT REPLACES AN ENUMERATION THAT UNDER-REPORTED. The shipped
+    # baseline was four OR branches - `profile_name is_empty`, `min_version eq tls1-0`,
+    # `min_version eq tls1-1`, and a bound-but-empty-floor branch - and stage 8 of
+    # `management-services` moved the assertion onto this column on 2026-11-01.
+    #
+    # WHAT THE ENUMERATION MISSED, which is one reachable state and not a style preference: a
+    # bound profile whose stored floor is a token that is none of the four the device offers.
+    # The enumeration's value branches do not match it, its empty branch does not match it
+    # because the value is not empty, and so it read as COMPLIANT. This column asks
+    # `SslTlsServiceProfile.min_version_rank`, whose `RANK_UNRECOGNISED = -1` sorts BELOW
+    # `tls1-0` so every "the floor is too low" comparison FIRES on it - and that column's own
+    # comment names the enumerated query as the defect it exists to prevent. So the two
+    # populations differ on exactly that state and this one is the superset.
+    #
+    # IT ALSO FOLDS IN THE NULL JOIN no comparison on `min_version` reaches: `min_version` is a
+    # PROPERTY read through `ssl_tls_service_profile`, so with no profile row there is nothing
+    # for a comparison to compare. True where the floor is withdrawn AND true where no floor
+    # could be resolved at all - nothing bound, a name resolving nowhere, or a resolved profile
+    # carrying no protocol-settings.
+    #
+    # DEFAULT TRUE ON THE MODEL, deliberately: a binding nobody has recomputed is reported as
+    # serving a withdrawn generation, on the column an administrator's own session is negotiated
+    # against. The opposite default would pass every appliance in the estate during the window
+    # between the migration and the normalization pass with nothing erroring.
+    "floor_below_minimum": build_boolean_compiler(
+        "floor_below_minimum", "floor_below_minimum"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

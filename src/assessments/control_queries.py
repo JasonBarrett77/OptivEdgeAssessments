@@ -26,6 +26,9 @@ WILDFIRE_SETTINGS_MODEL = "integrations.WildfireSettings"
 LOGGING_SETTINGS_MODEL = "integrations.LoggingSettings"
 LOG_SERVER_TARGET_MODEL = "integrations.LogServerTarget"
 VSYS_LOG_FORWARDING_MODEL = "integrations.VsysLogForwarding"
+# `management-services`, 2026-11-01. Two appliance-grained management-plane facts.
+MANAGEMENT_PLANE_ADDRESSING_MODEL = "integrations.ManagementPlaneAddressing"
+APPLIANCE_OPERATIONAL_MODE_MODEL = "integrations.ApplianceOperationalMode"
 PASSWORD_PROFILE_MODEL = "integrations.PasswordProfile"
 SECURITY_PROFILE_MODEL = "integrations.SecurityProfile"
 ADMIN_USER_MODEL = "integrations.AdminUser"
@@ -219,6 +222,22 @@ def evaluate_logging_settings_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or LOGGING_SETTINGS_MODEL,
+    )
+
+
+def evaluate_management_plane_addressing_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or MANAGEMENT_PLANE_ADDRESSING_MODEL,
+    )
+
+
+def evaluate_appliance_operational_mode_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or APPLIANCE_OPERATIONAL_MODE_MODEL,
     )
 
 

@@ -892,6 +892,22 @@ LEGACY_SURFACE: dict[str, str] = {}
 #: 2026-10-30 put the second one in. So the lifecycle has now run a full cycle: filled by a
 #: stage 8, emptied by the stage 9 it named, filled again.
 AWAITING_PRESENTATION: dict[str, str] = {
+    # `management-services` reached stage 8 on 2026-11-01. THIRTEEN controls over ten models,
+    # and this is ONE line rather than two because the map is keyed by CONTROL-ID PREFIX and not
+    # by model - `_awaiting` prefix-matches the control id, so a single `PAN-MGT` entry covers
+    # every control of the domain and is consulted only where `query_results_url` returns
+    # nothing. Measured with a canonical-query DICT, which is the only way to measure it: a bare
+    # label string takes the `else` arm and returns "" for every model, which reads as all of
+    # them needing a line.
+    #
+    # SIX OF THE EIGHT MODELS CARRYING THESE CONTROLS ALREADY RESOLVE and were never homeless -
+    # ManagementInterface, LoginBanner, UpdateServerSettings, LoggingSettings,
+    # ManagementTlsBinding and InterfaceManagementProfile each answer a real page. This entry is
+    # load-bearing for exactly TWO of the thirteen controls, PAN-MGT-004 and PAN-MGT-012, whose
+    # models `ManagementPlaneAddressing` and `ApplianceOperationalMode` were minted by this
+    # stage and have no rail item. It is harmless for the other eleven. Stage 9 for this domain
+    # is what gives the two models a page, and stage 8's contract forbids building one.
+    "PAN-MGT": "stage9-management-services.json",
     # `logging` reached stage 8 on 2026-11-01. TWO of its three models have no rail item:
     # `LogServerTarget` and `VsysLogForwarding` were both created by stage 7 for this domain and
     # had never been queried from this repository at all. The third, `LoggingSettings`, DOES
