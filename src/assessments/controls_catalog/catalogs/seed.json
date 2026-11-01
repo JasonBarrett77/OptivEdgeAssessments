@@ -9135,6 +9135,777 @@
               "is_active": true
             }
           ]
+        },
+        {
+          "control_id": "PAN-UPD-001",
+          "name": "An Automatic Antivirus Content Schedule Is In Force And Applies What It Fetches",
+          "control_type": "content_update_schedule",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A firewall whose antivirus content schedule runs too rarely to keep pace with publication, or which retrieves new content and never applies it. Antivirus content publishes daily, so a cadence below a daily run leaves every signature up to six days old, and a schedule set to download without installing leaves the appliance enforcing with the content it already had while the schedule's own success reports as normal.\n\nTWO HALVES OVER ONE CONTENT TYPE, AND EITHER ALONE PRODUCES THIS FINDING. The cadence half asks how long new content can sit unretrieved; the action half asks whether the scheduled run APPLIES what it fetches. A schedule that runs hourly and only downloads is a real failing with a faultless cadence, so the finding's sentence names which half failed - the two share this control's severity and a reader cannot tell them apart from the severity alone.\n\nONE BASELINE AND THE SECOND HALF CARRIED BY ITS CALIBRATIONS. A control has exactly one baseline query, so the cadence half is the baseline and the action half is expressed as the three queries that partition its column's failing set, each carrying that half's own assertion clause. The union IS the half, because the action column holds one of exactly four tokens - `download-only`, `download-and-install`, `none` and the empty string - and three of them fail.\n\nTHE ACTION HALF IS GATED ON THERE BEING A SCHEDULE AT ALL, which is stage 5's applicability clause and appears in every query carrying that half. An appliance with no antivirus schedule is reported by the cadence half ALONE: there is no run to take an action, so adding `and it does not install either` would be a second complaint about the same absence.\n\n`none` AND THE EMPTY STRING ARE DIFFERENT ANSWERS AND BOTH FIRE. `none` is an absence that WAS read - no recurrence branch, or an explicit `none` - and is also the value the column holds for a firewall with no `update-schedule` node whatsoever, which was measured as a real committed state in this estate. The empty string is an absence NOBODY READ: the appliance's `deviceconfig/system` node came back empty and `update_schedule_collected` is false. The first is a schedule to create; the second is a collection to fix, and reporting them as the same thing would tell a customer their firewall is misconfigured on the strength of a reply nobody received.\n\nTHE PREFERRED POSTURE IS ALREADY AT THE CEILING FOR THIS CONTENT TYPE. `hourly` is the fastest cadence the grammar offers for antivirus - measured on three builds - so there is nothing better to ask for and both acceptable cadences are placed as passing rather than one being merely tolerated.\n\nWHAT THIS CONTROL CANNOT SAY: whether the schedule has ever RUN, and whether the content it fetches was verified before it was accepted. This is a schedule and not an outcome - PAN-PLT-002 owns whether installed content is actually recent, and both controls will report on a firewall with no schedule and stale content, which stage 3 chose over a silent gap. And stage 3 records a dependency on the control that makes the firewall validate the update server's identity, because an unattended install is exactly how an unverified package would reach enforcement with nobody in the loop; that control is another domain's and no query here carries it.",
+          "rationale": "Antivirus content is the one protection whose value decays by the day, and a schedule is the only thing on the appliance that keeps it current without a person. A cadence below daily or a run that downloads without installing both leave the firewall enforcing stale content while every screen reports a schedule that works.",
+          "audit": "Device > Dynamic Updates on the appliance the finding names, or `show config running` at `deviceconfig/system/update-schedule/anti-virus/recurring`. Read the finding first for WHICH half failed - the cadence or the action - because they are different fixes. If the finding says the appliance's configuration came back empty, re-read it before concluding anything: that is a collection failure and not a schedule. And check whether the value is supplied by a Panorama template, because the merged view carries a pushed value and the store holds no row for the template's own copy.",
+          "remediation": "Set the antivirus schedule to run daily or hourly and set its action to download and install. Where no schedule exists at all, create one: the appliance currently retrieves nothing automatically and what it holds ages until somebody installs it by hand. Where the schedule is owned by a Panorama template, change it on the template rather than locally - a value already set locally survives a push of a different value, so a local edit can leave the two disagreeing with no sign of it on either screen.",
+          "implementation_version": "v1",
+          "target_model": "integrations.ContentUpdateSchedule",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An antivirus schedule whose cadence is neither daily nor hourly - so `weekly`, `none`, or an appliance whose configuration was never read.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_recurrence"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The antivirus schedule retrieves nothing automatically",
+              "short_description": "No recurrence branch at all, or an explicit `none`. Nothing is checked for, downloaded or installed, and what the appliance holds ages until a person intervenes. Also the value held by a firewall with no `update-schedule` node whatsoever.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The antivirus schedule runs only weekly",
+              "short_description": "The content publishes daily, so a weekly run is up to six days behind on every signature - below the floor the catalogue states, not merely short of the preferred posture.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "weekly",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The antivirus schedule downloads without installing",
+              "short_description": "The scheduled run is `download-only`: new content is retrieved and never applied, so the appliance goes on enforcing what it already had while the schedule reports success.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "eq",
+                    "value": "download-only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The antivirus schedule takes no action when it runs",
+              "short_description": "The in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action - the safe direction, and the limit of what was measured.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The antivirus schedule's action could not be read",
+              "short_description": "The appliance's `deviceconfig/system` node came back empty, so the action is unknown rather than wrong. An unknown fires: a pass would report the schedule as installing content on the strength of a reply nobody received.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "av_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "av_action",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "av_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UPD-002",
+          "name": "An Automatic Applications And Threats Content Schedule Is In Force And Applies What It Fetches",
+          "control_type": "content_update_schedule",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A firewall whose Applications-and-Threats content schedule runs too rarely, or which retrieves new content and never applies it. This is the content type that carries both application identifications and vulnerability signatures, so a cadence below a daily run can leave an EMERGENCY release unretrieved for six days, and a download-only schedule leaves the appliance enforcing the signatures it already held.\n\nTHREE VOCABULARIES FOR ONE THING, which matters when reading this finding against a screen. The screen says `Applications and Threats`, the configuration node says `threats`, and the operational command says `content`. The columns follow the configuration node because that is what a normaliser reads; the finding's own sentence follows the screen.\n\nTWO HALVES OVER ONE CONTENT TYPE, AND EITHER ALONE PRODUCES THIS FINDING, exactly as on the antivirus control. The cadence half is the baseline; the action half is expressed as the three queries that partition its column's failing set, each carrying that half's own assertion clause, and their union IS the half because the action column holds one of exactly four tokens and three of them fail.\n\nTHE ACTION HALF IS GATED ON THERE BEING A SCHEDULE AT ALL. An appliance with no Applications-and-Threats schedule is reported by the cadence half alone: there is no run to take an action.\n\nTHIS CONTENT TYPE OFFERS A FASTER CADENCE THAN ANY OTHER AND THREE OF ITS FIVE VALUES PASS. `every-30-mins` is the fastest the grammar offers here and is the recorded preferred posture; `hourly` and `daily` both meet the floor the catalogue states. The two failing values are `weekly` and `none`, and both sit at this control's own severity.\n\n`none` AND THE EMPTY STRING ARE DIFFERENT ANSWERS AND BOTH FIRE - an absence that was read against an absence nobody read, the first a schedule to create and the second a collection to fix.\n\nWHAT THIS CONTROL CANNOT SAY: whether the schedule has ever run, and whether the content was verified before acceptance. Stage 3 calls this the highest-value delivery path on the device, because an unattended install here brings in application identifications and vulnerability signatures at once - which is also why it records a dependency on the control that makes the firewall validate the update server's identity. That control is another domain's and no query here carries it, so a clean row says nothing about it.",
+          "rationale": "Application identifications and vulnerability signatures arrive on the same schedule, and the vendor publishes emergency releases on this content type specifically. A weekly run or a download-only action means a published fix for an actively exploited vulnerability can sit unapplied for days while the firewall reports a working schedule.",
+          "audit": "Device > Dynamic Updates on the appliance the finding names - the `Applications and Threats` group - or `show config running` at `deviceconfig/system/update-schedule/threats/recurring`. Read the finding for WHICH half failed. An appliance whose configuration came back empty is a collection failure and not a schedule. Check whether a Panorama template supplies the value.",
+          "remediation": "Set the Applications-and-Threats schedule to run at least daily - every 30 minutes is the fastest this content type offers and is the preferred posture - and set its action to download and install. Where no schedule exists, create one. Where the value is owned by a template, change it on the template.",
+          "implementation_version": "v1",
+          "target_model": "integrations.ContentUpdateSchedule",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "An Applications-and-Threats schedule whose cadence is none of daily, hourly or every 30 minutes - so `weekly`, `none`, or an appliance whose configuration was never read.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "every-30-mins",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_recurrence"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The Applications and Threats schedule retrieves nothing automatically",
+              "short_description": "No recurrence branch at all, or an explicit `none`: no automatic retrieval of application identifications or vulnerability signatures, and the value held by a firewall with no `update-schedule` node.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "every-30-mins",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The Applications and Threats schedule runs only weekly",
+              "short_description": "Below the floor: a weekly run can leave an emergency release unretrieved for six days, on the content type that carries vulnerability protection.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "daily",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "hourly",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "every-30-mins",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "weekly",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The Applications and Threats schedule downloads without installing",
+              "short_description": "The scheduled run is `download-only`: new application identifications and vulnerability signatures are retrieved and never applied.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "eq",
+                    "value": "download-only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The Applications and Threats schedule takes no action when it runs",
+              "short_description": "The in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "The Applications and Threats schedule's action could not be read",
+              "short_description": "The appliance's `deviceconfig/system` node came back empty, so the action is unknown rather than wrong. An unknown fires.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "threats_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  },
+                  {
+                    "field": "threats_action",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "threats_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UPD-004",
+          "name": "WildFire Signatures Are Retrieved By Streaming Delivery",
+          "control_type": "content_update_schedule",
+          "default_severity": "high",
+          "is_active": true,
+          "description": "A firewall that retrieves WildFire signatures on a timed schedule rather than by streaming delivery, or not at all. What this control grades is the DELAY BETWEEN A CLOUD VERDICT EXISTING AND THE FIREWALL BEING ABLE TO ENFORCE IT: a verdict the cloud has already reached is of no use to an appliance that will not learn about it for an hour.\n\nTHE GRADING RUNS MONOTONICALLY IN DELAY AND NOT IN FREQUENCY, which reads backwards at first glance and is the one thing not to get wrong here. `real-time` is streaming and the only passing value. Every timed cadence is a finding, and the FASTER ones are graded more GENTLY: `every-min` is low, `every-15-mins` is medium, and `every-30-mins`, `every-hour` and `none` all sit at this control's own high. There is no `too often` failing on this content type, because the exposure being graded is a delay and a shorter interval is a smaller delay.\n\nTWO PLACEMENTS SIT BELOW THIS CONTROL'S SEVERITY AND THEY ARE WHY THE CALIBRATION QUERIES EXIST. `every-15-mins` MEETS the floor the assertion names - in no case less often than every quarter of an hour - and misses the other half of the same assertion, which is the fastest cadence the deployment offers; on the public service that is `real-time`, so it is a real shortfall and the gentlest one. `every-min` is comfortably inside the floor and still short of streaming, and a minute of residual exposure is the lowest severity above informational this store can express.\n\nONE CLAUSE FOR THE WHOLE ASSERTION, because the acceptable set is a single member and the complement of one member is one negated equality. THE `retrieves and applies` HALF IS SUBSUMED RATHER THAN CLAUSED, and the reason is a measured trap: `real-time` and `none` carry NO `action` child at all, so the action column holds `none` on a streaming schedule - the single compliant configuration. A second conjunct asserting the action would therefore fire on EXACTLY the rows this control means to pass, and on nothing else the cadence clause had not already caught, since every timed branch is below the bar whatever its action is.\n\nTHE CADENCE CEILING DEPENDS ON WHICH WILDFIRE SERVICE FEEDS THE FIREWALL, and no column holds that. Stage 3 instructed grading against the public-service ceiling by default, so an appliance fed by a private or government cloud whose fastest option is not streaming would be reported here against a ceiling its deployment does not offer.\n\nWHAT THIS CONTROL CANNOT SAY: whether the schedule has ever run, and whether a retrieved signature was verified before acceptance.",
+          "rationale": "WildFire exists to turn an unknown sample into an enforceable verdict quickly, and a timed retrieval schedule throws that away by design - the verdict waits for the next interval. Streaming delivery is the only configuration where the firewall can act on a verdict as soon as the cloud reaches it.",
+          "audit": "Device > Dynamic Updates on the appliance the finding names - the WildFire group - or `show config running` at `deviceconfig/system/update-schedule/wildfire/recurring`. The finding names the cadence found and the delay it implies. Confirm which WildFire service feeds this appliance before accepting the grade: this control grades against the public service's streaming ceiling, and a deployment whose fastest option is not streaming cannot reach the passing value.",
+          "remediation": "Set the WildFire schedule to real-time so signatures stream as the cloud reaches a verdict. Where the appliance is fed by a WildFire deployment that does not offer streaming, set the fastest cadence it does offer and record why the passing value is unreachable - the finding will persist and is then a known exception rather than an open defect. Where no schedule exists at all, create one: the appliance currently retrieves no WildFire signatures whatsoever.",
+          "implementation_version": "v1",
+          "target_model": "integrations.ContentUpdateSchedule",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "A WildFire schedule that is anything other than streaming delivery - any timed cadence, no schedule at all, or an appliance whose configuration was never read.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "WildFire signatures are not retrieved at all",
+              "short_description": "No recurrence branch, or an explicit `none`: a verdict the cloud has already reached never reaches this firewall. Also the value held by a firewall with no `update-schedule` node.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  },
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "WildFire signatures are retrieved hourly",
+              "short_description": "Up to an hour between a verdict existing and the firewall being able to act on it, against a quarter-hour floor the assertion states.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  },
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "every-hour",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "WildFire signatures are retrieved every thirty minutes",
+              "short_description": "Up to half an hour between a verdict existing and the firewall being able to act on it, still beyond the floor the assertion states.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  },
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "every-30-mins",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true
+            },
+            {
+              "name": "WildFire signatures are retrieved every fifteen minutes",
+              "short_description": "Meets the quarter-hour floor the assertion names and misses the other half of it - the fastest cadence the deployment offers, which on the public service is streaming. A real shortfall and the gentlest, so it is graded below this control's severity.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  },
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "every-15-mins",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "WildFire signatures are retrieved every minute",
+              "short_description": "Comfortably inside the floor and still short of streaming on a public-service deployment. The residual exposure is a minute, which is the lowest severity above informational this store can express.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "real-time",
+                    "negated": true
+                  },
+                  {
+                    "field": "wildfire_recurrence",
+                    "op": "eq",
+                    "value": "every-min",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "wildfire_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "control_id": "PAN-UPD-005",
+          "name": "The GlobalProtect Content Schedules Are In Force And Apply What They Fetch",
+          "control_type": "content_update_schedule",
+          "default_severity": "medium",
+          "is_active": true,
+          "description": "A firewall that does not retrieve the GlobalProtect data file or the clientless VPN content on a recurring schedule, or that retrieves either and never applies it. Two content types, one control, and one row per appliance.\n\nTHE SIGN IS INVERTED ON BOTH HALVES AND THAT CHANGES THE SHAPE OF THE QUERY. Stage 5 states each half as the PASSING condition - a recurrence that is not `none` AND an action that equals download-and-install - so the finding fires on the DISJUNCTION of those failing: no recurring schedule at all, OR a schedule that does not install. The baseline is therefore an `or` group rather than a conjunction, and it is the whole of the data file half.\n\nONE BASELINE AND THE SECOND HALF CARRIED BY FOUR DISJOINT QUERIES. A control has exactly one baseline, so the data file half is the baseline and the clientless VPN half is expressed as four queries that partition its failing set: no recurring schedule; scheduled but download-only; scheduled but taking no action; and scheduled but never read. They are disjoint by construction - the first excludes the other three on the recurrence column and those three are mutually exclusive equalities on a single-valued action column - and their union IS the half.\n\nNO CADENCE FLOOR ON EITHER HALF, which is why any recurring value passes. Stage 3 names only `on a recurring schedule` for these two content types, so weekly, daily and hourly all pass and the single failing recurrence is `none`. That is a deliberately lower bar than the antivirus and Applications-and-Threats controls carry, and it is why this control's severity is medium rather than high.\n\nTHE DATA FILE HAS NO CONTROL ON ANY SCREEN AND THE CLIENTLESS VPN CONTENT DOES, which is the opposite way round from the vendor's own documentation and decides what a remediation can say. Stage 4 measured Device > Dynamic Updates as carrying six groups with NO GlobalProtect data file group at all - in the DOM over the whole document after scrolling, and confirmed in a screenshot - while the clientless VPN content has a group of its own. The vendor's Help inverts it, naming the data file in its opening sentence and never naming the clientless VPN content on that screen. So a remediation for the data file half must point at the API or the CLI, and one for the clientless VPN half can point at a panel.\n\n`none` AND THE EMPTY STRING ARE DIFFERENT ANSWERS AND BOTH FIRE, on both halves - an absence that was read against an absence nobody read.\n\nWHAT THIS CONTROL CANNOT SAY: how far behind the GlobalProtect data file actually is. Every other content type's installed version is readable across the estate in one call; this one has no such key in the reply at all, so a consumer computing content recency estate-wide silently returns nothing for it. That is recorded against the appliance-level control that owns content recency, not here - this control owns the configured cause and not the symptom.",
+          "rationale": "Both GlobalProtect content types feed decisions made about endpoints connecting from outside the perimeter, and neither is visible on the screens an operator checks after a change - one has no screen group at all. A schedule that never runs, or runs and never installs, leaves that content frozen with nothing on the appliance drawing attention to it.",
+          "audit": "`show config running` at `deviceconfig/system/update-schedule/global-protect-datafile/recurring` and at `.../global-protect-clientless-vpn/recurring` on the appliance the finding names. The clientless VPN content also has a group on Device > Dynamic Updates; THE DATA FILE HAS NONE, so do not conclude from that screen that the data file is unscheduled. Read the finding for which of the two content types failed and which half - cadence or action.",
+          "remediation": "Set each GlobalProtect content schedule to any recurring cadence and set its action to download and install. The clientless VPN content can be set on Device > Dynamic Updates; the GlobalProtect data file has no group on that screen and must be set through the API or the CLI. Where a schedule exists and takes no action, the fix is the action alone - the cadence is faultless.",
+          "implementation_version": "v1",
+          "target_model": "integrations.ContentUpdateSchedule",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "The GlobalProtect data file has no recurring schedule at all, or its scheduled run does not install what it fetches. An `or` group, because stage 5 states this half as the passing condition and the finding is its negation.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "gp_datafile_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  },
+                  {
+                    "field": "gp_datafile_action",
+                    "op": "eq",
+                    "value": "download-and-install",
+                    "negated": true
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gp_datafile_recurrence",
+                "gp_datafile_action"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            },
+            {
+              "name": "The clientless VPN content has no recurring schedule",
+              "short_description": "No recurrence branch at all, or an explicit `none`: this content is never retrieved automatically. Also the value held by a firewall with no `update-schedule` node.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gp_clientless_vpn_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gp_clientless_vpn_recurrence"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The clientless VPN content is downloaded without being installed",
+              "short_description": "A recurring schedule exists and its action is `download-only`, so the content is retrieved and never applied.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gp_clientless_vpn_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "gp_clientless_vpn_action",
+                    "op": "eq",
+                    "value": "download-only",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gp_clientless_vpn_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The clientless VPN content schedule takes no action when it runs",
+              "short_description": "A recurring schedule exists and the in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gp_clientless_vpn_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "gp_clientless_vpn_action",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gp_clientless_vpn_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            },
+            {
+              "name": "The clientless VPN content schedule's action could not be read",
+              "short_description": "A recurrence is present and the action is empty, which is the appliance's `deviceconfig/system` node having come back empty. An unknown fires rather than passing.",
+              "canonical_query": {
+                "model": "integrations.ContentUpdateSchedule",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "gp_clientless_vpn_recurrence",
+                    "op": "eq",
+                    "value": "none",
+                    "negated": true
+                  },
+                  {
+                    "field": "gp_clientless_vpn_action",
+                    "op": "is_empty",
+                    "value": "",
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "gp_clientless_vpn_action"
+              ],
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true
+            }
+          ]
         }
       ]
     }

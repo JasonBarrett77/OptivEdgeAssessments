@@ -287,6 +287,13 @@ from assessments.search.firewall_content_streams.compiler import (
     FIREWALL_CONTENT_STREAMS_MODEL,
     compile_firewall_content_streams_search_node,
 )
+from assessments.search.content_update_schedule.compiler import (
+    FIELD_OPERATOR_REGISTRY as CONTENT_UPDATE_SCHEDULE_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.content_update_schedule.compiler import (
+    CONTENT_UPDATE_SCHEDULE_MODEL,
+    compile_content_update_schedule_search_node,
+)
 from assessments.search.licence_inventory.compiler import (
     FIELD_OPERATOR_REGISTRY as LICENCE_INVENTORY_FIELD_OPERATOR_REGISTRY,
     LICENCE_INVENTORY_MODEL,
@@ -309,6 +316,7 @@ from optivedge_integrations.integrations.models import (
     FirewallContentStreams,
     LicenceInventory,
     LogAlarmSettings,
+    ContentUpdateSchedule,
     Zone,
     NormalizationIssue,
     SaasApplicationPolicyPosture,
@@ -643,6 +651,17 @@ MODEL_REGISTRY = {
         "model_class": LogAlarmSettings,
         "field_operators": LOG_ALARM_SETTINGS_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_log_alarm_settings_search_node,
+    },
+    # `updates`. ONE entry for FOUR controls, because all five content types live on one row
+    # keyed by the appliance: PAN-UPD-001 grades antivirus, -002 Applications-and-Threats, -004
+    # WildFire and -005 the two GlobalProtect content types. `ContentDeploymentSchedule` - the
+    # management station's own deployment schedule - gets NO entry: the one record naming it is
+    # discharged `not_in_configuration` on a scope ruling, so it owes no query and a surface over
+    # it could never be referenced by a finding.
+    CONTENT_UPDATE_SCHEDULE_MODEL: {
+        "model_class": ContentUpdateSchedule,
+        "field_operators": CONTENT_UPDATE_SCHEDULE_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_content_update_schedule_search_node,
     },
     # Our own record of what could not be normalized. The only entry here whose model is not
     # device configuration - see the compiler's module docstring.

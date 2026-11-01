@@ -55,6 +55,7 @@ GLOBALPROTECT_ENFORCEMENT_POINT_MODEL = "integrations.GlobalProtectEnforcementPo
 FIREWALL_CONTENT_STREAMS_MODEL = "integrations.FirewallContentStreams"
 LICENCE_INVENTORY_MODEL = "integrations.LicenceInventory"
 LOG_ALARM_SETTINGS_MODEL = "integrations.LogAlarmSettings"
+CONTENT_UPDATE_SCHEDULE_MODEL = "integrations.ContentUpdateSchedule"
 
 
 SEVERITY_LABELS = dict(Control.Severity.choices)
@@ -537,4 +538,18 @@ def evaluate_log_alarm_settings_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or LOG_ALARM_SETTINGS_MODEL,
+    )
+
+
+def evaluate_content_update_schedule_control_queries(queryset, control):
+    """One appliance's content update schedule, for all four controls over this model.
+
+    PAN-UPD-001, -002, -004 and -005 share one target model and one evaluate helper. Which
+    content type a finding is about is decided by the CONTROL's own queries and not here: each
+    control's clauses name only its own content type's columns.
+    """
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or CONTENT_UPDATE_SCHEDULE_MODEL,
     )

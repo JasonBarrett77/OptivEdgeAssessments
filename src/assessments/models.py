@@ -59,6 +59,7 @@ from optivedge_integrations.integrations.models import (
     FirewallContentStreams,
     LicenceInventory,
     LogAlarmSettings,
+    ContentUpdateSchedule,
     Zone,
 )
 
@@ -292,6 +293,36 @@ class Control(models.Model):
         #: there is no configuration node anywhere on the firewall holding a dataplane CPU or
         #: session threshold, and the vendor's own procedure puts the comparison off-box.
         LOG_ALARM_SETTINGS = "log_alarm_settings", "Log Database Alarms"
+        #: `updates`. ONE TYPE FOR TWO STAGE 5 SUBJECTS, and the second subject's absence is the
+        #: decision worth reading. `rev(_CONTROL_TYPE_TARGET_MODEL)` answered NO TYPE for both
+        #: `integrations.ContentUpdateSchedule` and `integrations.ContentDeploymentSchedule`
+        #: before this change, measured against 51 types and 51 DISTINCT targets - so this mints
+        #: one and reuses none.
+        #:
+        #: WHY THERE IS NO `content_deployment_schedule`, which is the question a reader of the
+        #: models will ask. That subject is named by exactly ONE assertion record - PAN-UPD-006's
+        #: first - and stage 5 discharges it `not_in_configuration`, so it owes no query and a
+        #: type over it would be a search surface no control can ever reference. The reason it is
+        #: discharged that way is a scope ruling and not a measurement gap: Jason, 2026-10-27,
+        #: "own panorama is still out of scope (values that effect the panorama appliance only)",
+        #: and `deviceconfig/system/deployment-update-schedule` exists only on the management
+        #: station - `config_complete` answers `code=6 Invalid sequence` at that path on both lab
+        #: firewalls. PAN-UPD-006 therefore has no catalog entry at all, which is a DIFFERENT
+        #: state from a control that fired on nothing.
+        #:
+        #: ONE ROW PER APPLIANCE CARRYING ALL FIVE CONTENT TYPES AS THEIR OWN COLUMNS, which is
+        #: stage 5's `identity.one_row_per` and is why four controls share this one type rather
+        #: than taking one each: PAN-UPD-001 grades antivirus, -002 Applications-and-Threats,
+        #: -004 WildFire and -005 the two GlobalProtect content types. A content-type-keyed row
+        #: could not report the commonest failing state in this estate, which is a content type
+        #: with no `update-schedule` branch at all and therefore nothing to key a row on.
+        #:
+        #: NO VSYS AXIS. The node is per APPLIANCE under `deviceconfig/system` - stage 4 measured
+        #: the same path on the multi-vsys PA-5220 - so the finding's subject is the appliance.
+        #: ON AN HA PAIR THIS YIELDS TWO ROWS FOR WHAT AN OPERATOR CALLS ONE SCHEDULE, and that
+        #: is correct rather than a duplicate: the schedule does not sync across peers and each
+        #: appliance carries its own.
+        CONTENT_UPDATE_SCHEDULE = "content_update_schedule", "Content Update Schedule"
 
     class Severity(models.TextChoices):
         INFORMATIONAL = "informational", "Informational"
@@ -430,6 +461,15 @@ class Control(models.Model):
         "licence_inventory": "integrations.LicenceInventory",
         # One appliance's log-database alarm mechanism. PAN-PLT-006's first half only.
         "log_alarm_settings": "integrations.LogAlarmSettings",
+        # `updates`. ONE model and ONE type, for FOUR controls - PAN-UPD-001, -002, -004 and
+        # -005 - because all five content types live on one row keyed by the appliance.
+        # `rev()` answered NO TYPE before this change, measured against 51 types and 51 DISTINCT
+        # targets, so this is not a second type for a model that already has one.
+        #
+        # `integrations.ContentDeploymentSchedule` gets NO entry here on purpose: PAN-UPD-006's
+        # only record naming it is discharged `not_in_configuration` on a scope ruling, so it
+        # owes no query and has no catalog entry to target anything.
+        "content_update_schedule": "integrations.ContentUpdateSchedule",
     }
 
     class Meta:
@@ -497,6 +537,7 @@ class Control(models.Model):
         "integrations.FirewallContentStreams": "Firewall Content Streams",
         "integrations.LicenceInventory": "Licence Inventory",
         "integrations.LogAlarmSettings": "Log Database Alarms",
+        "integrations.ContentUpdateSchedule": "Content Update Schedule",
     }
 
     @property
@@ -3916,3 +3957,97 @@ class LogAlarmSettingsFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.log_alarm_settings_finding_id} <- {self.control_query_id}"
+
+
+class ContentUpdateScheduleFinding(ObjectFindingBase):
+    """A finding against one appliance's dynamic content update schedule. PAN-UPD-001 to -005.
+
+    ONE ROW PER APPLIANCE CARRYING ALL FIVE CONTENT TYPES, which is stage 5's
+    `identity.one_row_per` and is why FOUR controls share this finding model rather than one
+    each. A content-type-keyed row could not report the commonest failing state measured in this
+    estate - a content type with NO `update-schedule` branch at all, which has nothing to key a
+    row on - and that state is what eight of this domain's twenty lab subjects hold.
+
+    THE FOUR CONTROLS ARE FOUR CONTENT TYPES AND THEY ARE NOT INTERCHANGEABLE, because each
+    content type's cadence grammar is its own. `hourly` is the CEILING for antivirus, so
+    PAN-UPD-001's preferred posture is already the fastest the grammar offers; Applications and
+    Threats alone offers `every-30-mins`; WildFire's six members are disjoint from every other
+    content type's and include `real-time`, which is streaming and the only value PAN-UPD-004
+    accepts. A clause moved from one content type to another would compare against a value its
+    column cannot hold.
+
+    THE EMPTY STRING IS A STATE OF EVERY RECURRENCE AND ACTION COLUMN AND IT FIRES, which is the
+    one thing a reader of a clause here must not get wrong. An appliance whose
+    `deviceconfig/system` node arrived empty was not usefully read, and the normaliser writes
+    `""` to all ten columns rather than `none` - because `none` would say "we read it and nothing
+    is scheduled" about a reply nobody received. `""` is not `daily`, so every negated equality
+    in this domain catches it with no companion clause; `update_schedule_collected` is what tells
+    a reader the row is unread rather than unscheduled. The model's own `clean()` enforces the
+    coupling: a token on any of the ten columns with `update_schedule_collected` false is
+    refused.
+
+    `none` AND `""` ARE DIFFERENT ANSWERS AND BOTH FIRE. `none` is an absence that WAS read - no
+    branch element, or an explicit `<none/>` - and means the appliance retrieves nothing for that
+    content type. `""` is an absence nobody read. They carry different remediations and the
+    generator's sentence says which.
+
+    WHAT NO FINDING HERE CAN SAY, and each is a stage 5 limit rather than caution added here:
+
+    * WHETHER THE VALUE IS OWNED BY A TEMPLATE. The merged configuration carries a pushed
+      template's value, so the column is right about what the firewall runs - but the store holds
+      no row for the template's own copy. So a remediation may send an engineer to the firewall's
+      local node when the value is owned by a template they must edit on Panorama instead. Stage
+      4 measured the sharp half: a value already set locally SURVIVES a push of a different
+      value, so a template holding the right schedule is not evidence the firewall runs it.
+    * WHETHER THE SCHEDULE HAS EVER RUN. The node is a schedule and not an outcome. PAN-PLT-002
+      owns the runtime symptom - whether installed content is actually recent - and stage 3
+      settled the division in writing: that control owns the symptom read off the device, this
+      domain owns the configured cause. Both will report on a firewall with no schedule and stale
+      content, and that visible duplicate is the direction the contract prefers.
+    * WHAT A TIMED BRANCH WITH NO `action` KEY ACTUALLY DOES WHEN IT FIRES. It is stored as
+      `none` and read as "retrieves nothing", which is the safe direction and is measured only as
+      far as the configuration goes: no schedule was allowed to fire in the lab.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE,
+        related_name="content_update_schedule_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT,
+        related_name="content_update_schedule_findings")
+    content_update_schedule = models.ForeignKey(
+        ContentUpdateSchedule, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="ContentUpdateScheduleFindingControlQuery",
+        related_name="content_update_schedule_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["content_update_schedule"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "content_update_schedule"],
+                name="unique_cus_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on content update schedule {self.subject_name}"
+
+
+class ContentUpdateScheduleFindingControlQuery(FindingControlQueryBase):
+    content_update_schedule_finding = models.ForeignKey(
+        ContentUpdateScheduleFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="content_update_schedule_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["content_update_schedule_finding", "control_query"],
+                name="unique_cus_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.content_update_schedule_finding_id} <- {self.control_query_id}"

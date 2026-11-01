@@ -928,6 +928,14 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # PAN-PLT-001, -003 and -005 are discharged `engineer_answers` by stage 5, owe no query and
     # have no catalog entry at all, so they have no link to go nowhere.
     "PAN-PLT": "stage9-platform-lifecycle.json",
+    # `updates` reached stage 8 on 2026-11-01. `integrations.ContentUpdateSchedule` was created
+    # by stage 7 for this domain and had never been queried from this repository, so it has no
+    # rail item; stage 9 for this domain is what gives it a page and stage 8's contract forbids
+    # building one. THIS DEBT IS FOR FOUR OF THE DOMAIN'S SIX CONTROLS, not six: PAN-UPD-003 is
+    # discharged `engineer_answers` and PAN-UPD-006 `not_in_configuration` plus
+    # `engineer_answers`, so neither owes a query, neither has a catalog entry, and neither has a
+    # link to go nowhere.
+    "PAN-UPD": "stage9-updates.json",
 }
 
 

@@ -50,6 +50,9 @@ from assessments.licence_inventory_findings import (
 from assessments.log_alarm_settings_findings import (
     generate_log_alarm_settings_findings,
 )
+from assessments.content_update_schedule_findings import (
+    generate_content_update_schedule_findings,
+)
 from assessments.data_filtering_posture_findings import (
     generate_data_filtering_posture_findings,
 )
@@ -213,6 +216,14 @@ GENERATORS = (
     # second - and meets both before the alarm node, which is about the device noticing its own
     # storage rather than about protection.
     ("licence inventory", T.LICENCE_INVENTORY, generate_licence_inventory_findings),
+    # `updates`, placed BEFORE the content streams it explains and after the licence inventory
+    # that entitles them - this tuple's own ordering rule is cause before symptom. The schedule
+    # is the CONFIGURED CAUSE of stale content and PAN-PLT-002's streams are the RUNTIME
+    # SYMPTOM; stage 3 settled that division in writing, and a reader who meets "this appliance
+    # retrieves no antivirus content at all" before "its antivirus stream is a year old" has the
+    # explanation in hand when the symptom arrives.
+    ("content update schedule", T.CONTENT_UPDATE_SCHEDULE,
+     generate_content_update_schedule_findings),
     ("firewall content streams", T.FIREWALL_CONTENT_STREAMS,
      generate_firewall_content_streams_findings),
     ("log database alarm mechanism", T.LOG_ALARM_SETTINGS,

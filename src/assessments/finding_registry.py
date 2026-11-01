@@ -204,6 +204,18 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # with thresholds and no route" - is not expressible as a conjunction of the leaves.
     FindingKind(m.LogAlarmSettingsFinding, "log_alarm_settings",
                 m.Control.ControlType.LOG_ALARM_SETTINGS, "log database alarm mechanism"),
+    # `updates`. ONE kind for FOUR controls - PAN-UPD-001, -002, -004 and -005 - because all
+    # five content types live on one row keyed by the appliance. A DEVICE-WIDE SINGLETON with no
+    # vsys axis and no entry name, so the finding's subject is the appliance and it declares no
+    # `subject_scope`; on an HA pair it yields two rows for what an operator calls one schedule,
+    # which is correct because the node does not sync across peers.
+    #
+    # THE LABEL IS SINGULAR AND NAMES THE NODE, not the five content types it holds. The subject
+    # is one `update-schedule` node - the vendor's own Device > Dynamic Updates screen is one
+    # screen - so "content update schedule" names exactly the thing a finding is about and needs
+    # no entry in `PLURAL_BY_NAME`.
+    FindingKind(m.ContentUpdateScheduleFinding, "content_update_schedule",
+                m.Control.ControlType.CONTENT_UPDATE_SCHEDULE, "content update schedule"),
 )
 
 FINDING_MODELS = tuple(kind.model for kind in FINDING_KINDS)
