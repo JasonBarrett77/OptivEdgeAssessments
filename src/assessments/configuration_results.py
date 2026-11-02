@@ -434,8 +434,31 @@ RESULTS = {
              else ("\n".join(s.non_preferred_kex) or "no ECDH")),
             ("preferred" if not s.macs_below_preferred
              else ("\n".join(s.non_preferred_macs) or "no hmac-sha2-512")),
+            # NO KEY TYPE CONFIGURED IS THE COMMONEST STATE AND IT HAS TO BE SPELLED OUT, the
+            # same way "None - device default" is spelled out for the binding above. Measured by
+            # the stage 9 run on `mgmt-crypto`, 2026-11-01, on all three appliances of its
+            # reconstructed estate: `host_key_type` is "" and `host_key_bits` is None on two of
+            # the three, and this cell interpolated them into the string " None" - a leading
+            # space and Python's repr of a null - in the one state PAN-MCR-004 fires on for
+            # every appliance in that estate. No test covered it: the one test that renders this
+            # row passes `host_key_type="RSA", host_key_bits=2048`.
+            #
+            # It cannot be inferred either. OptivEdgeIntegrations stores this blank on purpose
+            # since 2026-10-06: Help p.904 gives the default as RSA 2048, and a 2026-09-14
+            # measurement found that false on any device ever set to `all`, which keeps serving
+            # the ECDSA keys it generated after the setting is deleted. So absence means RSA 2048
+            # on most devices and something else on an unknown subset, and only the live SSH
+            # offer can tell which. The cell says it was not configured and claims nothing about
+            # what is served.
+            #
+            # THE WORDING IS A PROPOSAL, not a decision: a cell a customer reads is Jason's.
             ("All (RSA + every ECDSA curve)" if s.host_key_type.lower() == "all"
-             else f"{s.host_key_type} {s.host_key_bits}"),
+             else "None configured" if not s.host_key_type
+             # The branch element holds the key length as its text, so a type with no length is
+             # not a state the normalizer produces today - and printing the type alone is the
+             # answer if it ever does, rather than interpolating a null beside it.
+             else f"{s.host_key_type} {s.host_key_bits}" if s.host_key_bits is not None
+             else s.host_key_type),
         ),
     ),
     "ntp": ResultsSpec(
