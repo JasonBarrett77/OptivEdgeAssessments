@@ -73,10 +73,21 @@ class SecurityProfileRailScopeTests(TestCase):
                 self.assertEqual(1, len(clauses))
                 self.assertEqual("kind", clauses[0]["field"])
 
-    def test_the_five_pages_are_the_only_ones_over_this_model(self):
-        self.assertEqual(
-            [slug for _kind, slug in KINDS_AND_SLUGS],
-            [o.slug for o in objects_for_model("integrations.SecurityProfile")])
+    def test_this_domains_page_is_among_the_pages_over_this_model(self):
+        """IT WAS `test_the_five_pages_are_the_only_ones_over_this_model` and it held the whole
+        list as a literal, so it failed the moment `file-data-filtering` added File Blocking and
+        Data Filtering on 2026-11-02 - which is a page being ADDED correctly, not this domain's
+        page breaking. Renamed and narrowed to what this file is actually about: that this
+        domain's own kind still has exactly one page and it is the right one. The "these are ALL
+        of them, in this order" assertion moved to
+        `tests/test_file_data_filtering_presentation.py::test_the_seven_pages_are_the_only_ones_
+        over_this_model`, which is where the next domain to add a kind will find it - one list in
+        one place rather than a literal in every domain's test file."""
+        slugs = [o.slug for o in objects_for_model("integrations.SecurityProfile")]
+        self.assertEqual(["dos-protection"], [s for s in slugs if s == "dos-protection"])
+        for _kind, slug in KINDS_AND_SLUGS:
+            with self.subTest(slug=slug):
+                self.assertIn(slug, slugs)
 
     def test_a_dos_protection_query_does_not_reach_a_sibling_page(self):
         """The failure the docstring of the resolver names: a link that goes somewhere plausible

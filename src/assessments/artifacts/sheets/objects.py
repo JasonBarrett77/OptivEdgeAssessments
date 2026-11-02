@@ -1020,6 +1020,86 @@ DECODER_COVERAGE = findings_sheet.ValueReader(
 )
 
 
+#: How far the reference walk reaches a profile, IN THE MODEL'S OWN WORDS.
+#:
+#: WHY THIS READER EXISTS: the `setting_labels` entry for `reference_reach` on the Security Profile
+#: spec says "the model's own choice labels are already sentences ... so the heading is the short
+#: noun and the CELL carries the meaning". MEASURED 2026-11-02 by building that table: the cell did
+#: NOT carry the meaning. `read_value` falls through to `display_value`, which is choices-unaware
+#: and ends in `str(value)`, so the cell printed the raw choice KEY - `named_by_a_rule`,
+#: `unreferenced`, `undetermined` - to a customer, on both PAN-ZON-008's rows and this domain's.
+#: The configuration explorer's own pages for the same column already call
+#: `get_reference_reach_display()`, so the two surfaces disagreed about what one column says.
+#:
+#: IT COSTS NOTHING HERE, which is the condition `ipsec-crypto` established for a reader on a
+#: derived settings column: a reader makes `tested_fields` report the field `stored=False`, and
+#: `build_rows` then hands it to `remediation_accessor`, which never reads its `FieldProvenance`
+#: row. `reference_reach` is in `SecurityProfile.DERIVED_FIELDS` and no payload key carries it, so
+#: there is no such row to discard - the Provenance cell for this field read "Not recorded" before
+#: this reader and reads "Derived" after it, which is the true answer and the one
+#: `vsys_rule_posture` makes the same argument for.
+#:
+#: AND IT IS DELIBERATELY NOT DONE TO THE TWO GRADED ACTION COLUMNS of this domain,
+#: `floor_file_type_action` and `nested_encoding_action`, on that same run's warning: for those the
+#: EMPTY STRING is a measured state - a committed rule carrying no `action` key at all - and it is
+#: what PAN-FIL-001's and PAN-FIL-002's absent-action rows turn on. Where whether a key was absent
+#: is what the control is ABOUT, the rule is to refuse the reader and let the marked companion
+#: column say it. Those two keep `display_value`'s `(empty)`.
+REFERENCE_REACH = findings_sheet.ValueReader(
+    read=lambda profile: profile.get_reference_reach_display(),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
+#: Which appliance spoke for this point, and which virtual system the verdict is about.
+#:
+#: NEITHER DECLARES A `field`, and that is deliberate: the verdict this control asserts on is a
+#: derived setting column, and declaring one here would move the value-at-fault mark off the verdict
+#: and onto the row's address. (A subject column that declares no field also does NOT suppress the
+#: derived column for the same attribute - so a column declared here with a field would hide the
+#: verdict rather than present it.)
+#:
+#: "Firewall" singular and not "Firewalls": unlike the vsys-scoped tabs this row IS per appliance -
+#: the model's unique constraint is (appliance, enforcement_point) - so listing a pair here would
+#: say something the row does not mean. See the spec's own block.
+DATA_FILTERING_POSTURE_SUBJECT = (
+    ("Firewall", 16, False, lambda p, _prov: p.appliance.hostname or NONE),
+    ("Vsys", 12, False, lambda p, _prov: p.enforcement_point.vsys_name or NONE),
+)
+
+#: PROPOSED HEADINGS for the Data Filtering Posture tab's derived setting columns. Jason takes the
+#: heading pass once across many domains (P399), so none of these is a decision: the column SET
+#: comes from PAN-FIL-003's own clause and only the words are typed here. Without an entry the
+#: column would be headed `outward_data_filtering_effective`.
+#:
+#: THE VENDOR HAS NO WORD FOR ANY OF THEM, and that is measured rather than assumed: PAN-OS Web
+#: Interface Help 11.2 p.309 describes the MECHANISM - "Data filtering enables the firewall to
+#: detect sensitive information ... and prevent this data from leaving a secure network" - and names
+#: no state at all. Of the vendor's own labels on that screen only "Data Pattern" (p.309) reaches a
+#: heading here. The rest are ours.
+#:
+#: EACH IS PHRASED AS THE THING THAT SHOULD BE TRUE, so "No" is the finding and "Yes" is the healthy
+#: answer on all three. That matters more here than on most tabs, because the two columns beside the
+#: verdict exist to say WHICH of its three independent parts failed, and a reader scanning for the
+#: cause must not have to work out which way each one points.
+DATA_FILTERING_POSTURE_LABELS = {
+    # PAN-FIL-003's one shipped clause, and the only one of the three any query names. The
+    # conjunction is one column rather than three clauses because the assertion has no OR and the
+    # three parts fail independently - which is what the two below are for.
+    "outward_data_filtering_effective": "Outbound data watched",
+    # "A profile WITH RULES", because the rule-bearing test is the whole point: the only referenced
+    # data-filtering profile in the lab estate is a pushed one carrying no rules, so a bare "is it
+    # referenced" reading finds one profile in force across four appliances and it scans nothing.
+    "data_filtering_in_force": "A profile with rules reaches this traffic",
+    # "Data Pattern" is the vendor's own word, p.309. FALSE means the profile names a pattern
+    # object that matches nothing - valid configuration that filters nothing.
+    "named_patterns_defined": "Every named data pattern defines one",
+    # `profiles_in_force` has no entry: it is a JSONField, no clause names it, and
+    # `setting_labels` is consulted only for columns `setting_columns` derived. The evidence list
+    # is presented on the explorer page, where it is a column.
+}
+
+
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
         control_types=(control_type,), title=title, description=description,
@@ -1471,7 +1551,10 @@ SPECS = (
                         "has_non_blocking_ml_model": ML_COVERAGE,
                         "has_non_blocking_application_override": APP_OVERRIDE_COVERAGE,
                         "has_non_blocking_wildfire_decoder": WILDFIRE_COVERAGE,
-                        "has_non_blocking_mlav_decoder": MLAV_COVERAGE},
+                        "has_non_blocking_mlav_decoder": MLAV_COVERAGE,
+                        # SIXTH READER, 2026-11-02 by stage 9 of `file-data-filtering`, and it
+                        # fixes a cell rather than adding a column. See REFERENCE_REACH below.
+                        "reference_reach": REFERENCE_REACH},
          # THE FIRST `setting_labels` THIS SHEET HAS CARRIED, added 2026-11-02 by stage 9 of
          # `zone-dos-protection` for PAN-ZON-008. Both are PROPOSALS.
          #
@@ -1498,14 +1581,141 @@ SPECS = (
              "reference_reach_resolved": "Reference walk completed",
              # The model's own choice labels are already sentences - "Named by a security rule",
              # "Nothing on this firewall names it", "The reference walk could not be completed" -
-             # so the heading is the short noun and the CELL carries the meaning.
+             # so the heading is the short noun and the CELL carries the meaning. THAT SECOND HALF
+             # WAS NOT TRUE WHEN IT WAS WRITTEN and is now: see `REFERENCE_REACH` above, which is
+             # what makes the cell print the sentence instead of the raw choice key.
              "reference_reach": "Reference reach",
+             # SEVEN MORE, 2026-11-02 by stage 9 of `file-data-filtering`, for PAN-FIL-001, -002
+             # and -004. EVERY ONE IS A PROPOSAL - Jason takes the heading pass once across many
+             # domains (P399) - and each is sourced below to the vendor's own help where the vendor
+             # has a word, and says so where it has none.
+             #
+             # MEASURED BEFORE WRITING THEM, by building this table and grepping
+             # `FindingsTable.headers` for `_`: 44 of this tab's 65 headings read as Django field
+             # names, and SEVEN of the 44 are this domain's. The other 37 belong to the
+             # `decryption` and `url-filtering` controls on this same model and are not this run's
+             # to name; they are recorded in the stage 9 artifact instead. A heading with no entry
+             # here is not merely unpolished - `setting_columns` falls back to the raw field name,
+             # so declaring a column without a label IS choosing to show a customer a database
+             # field name.
+             #
+             # WHAT THE VENDOR CALLS THESE THINGS, PAN-OS Web Interface Help 11.2 p.305-306
+             # (Objects > Security Profiles > File Blocking) and p.309-310 (> Data Filtering): a
+             # rule carries a Name, Applications, File Types, Direction and Action, and Action has
+             # exactly three values - alert, continue, block. The vendor has NO word for the
+             # dangerous-file-type floor, for multi-level encoding or for the files the firewall
+             # cannot look inside: those are this assessment's own groupings over the device's
+             # file-type catalogue, and `probe.corpus` over all eleven indexes returns NOTHING for
+             # `Multi-Level-Encoding`, the spelling the device itself accepts. Those headings are
+             # ours and are marked as such rather than implying a vendor label.
+             #
+             # THE HEADINGS ARE THE SAME WORDS THE TWO EXPLORER PAGES USE, character for
+             # character, so one column does not read two ways on two surfaces.
+             #
+             # ALSO THE VENDOR'S: "predefined", p.305 ("apply the predefined strict profile").
+             # "Vendor-shipped" is ours, because `predefined` reads as a synonym for `default` to
+             # anyone who has not met the namespace vocabulary. NOTE THAT THIS COLUMN IS SHARED:
+             # `is_predefined` is PAN-FIL-004's applicability clause and PAN-AVW-006 tests it too,
+             # so it was already on this tab heading raw before this domain arrived.
+             "is_predefined": "Vendor-shipped",
+             # OURS, no vendor label. "both ways" is the vendor's Direction value `both`, spelled.
+             "stops_floor_file_types": "Dangerous file types blocked both ways",
+             # "Action" is the vendor's word. "Weakest" because the column stores the weakest
+             # action in force across the profile's RULES - a profile whose second rule only
+             # alerts is not protected by its first.
+             "floor_file_type_action": "Weakest action on those file types",
+             # OURS: the member name the device's own catalogue uses, in plain English.
+             "stops_nested_encoding": "Multi-level encoding blocked both ways",
+             "nested_encoding_action": "Weakest action on multi-level encoding",
+             # OURS. "Expressed" and not "made": the column tests whether a decision about files
+             # the firewall cannot open is VISIBLE in the configuration, and says nothing about
+             # which way it went.
+             "expresses_unopenable_file_decision": "Decision expressed on unopenable files",
+             # THE VENDOR HAS THE SENTENCE AND NOT A LABEL, p.306 verbatim: "When you create a
+             # file blocking profile with the action continue, you can only choose the application
+             # web-browsing. If you choose any other application, traffic that matches the Security
+             # policy rule will not flow through the firewall." `continue` and `web-browsing` are
+             # both the vendor's own words, so the heading is built out of them.
+             "confirm_rule_beyond_web_browsing": "Continue rule beyond web-browsing",
+             # `every_rule_carries_both_counts` IS DELIBERATELY ABSENT and that is not an
+             # omission. PAN-FIL-003's second assertion record is the only thing that clauses on
+             # it, and stage 8 did not build that half - one catalogue control has one target
+             # model and that half's clauses are on this model while the control targets
+             # `DataFilteringPosture`. So no shipped query names the field, `setting_columns`
+             # derives no column for it, and `setting_labels` is consulted only for columns that
+             # exist. The heading is written on the Data Filtering EXPLORER page, where the column
+             # does exist. Add the entry here the day that half is built, not before.
          },
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders", "ml_models",
                            "application_overrides")),
+    # Objects > Security Profiles > Data Filtering, 2026-11-02, for PAN-FIL-003.
+    #
+    # THE ROW IS THE ENFORCEMENT POINT AND NOT A PROFILE, and on this tab that is the whole point.
+    # The commonest failing state of this domain is a virtual system with NO data-filtering profile
+    # at all - three of the four lab appliances hold none at any local scope and
+    # `/config/predefined/profiles/data-filtering` is absent on every one of them, so unlike file
+    # blocking there is nothing shipped to fall back on. A profile-keyed row reports nothing on
+    # exactly the devices that fail, which is the silence this tab replaces. Its sibling assertions,
+    # about a profile that exists and is wrong, are on the Security Profile tab instead: both
+    # grains, one domain.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`), which is right because this subject IS on the
+    # rail: `data-filtering-posture`, at Objects > Security Profiles > Data Filtering. See that rail
+    # item's own block for why a verdict this assessment computes belongs there - the test is
+    # whether the SUBJECT has a vendor path, and this one does. Deriving means the workbook cannot
+    # disagree with the app about where the subject lives.
+    #
+    # AN APPLIANCE COLUMN, AND IT IS NOT THE HA MISTAKE IT LOOKS LIKE. The Security Rules and
+    # Virtual System Rule Posture tabs both refuse one, because a vsys belongs to an enforcement
+    # point which on an HA pair spans both firewalls, so naming one member would assert something
+    # false. HERE THE APPLIANCE IS PART OF THE ROW'S IDENTITY: the model's unique constraint is
+    # (appliance, enforcement_point) and its `appliance` column records WHICH MEMBER SPOKE - the one
+    # whose merged config the point was read from. Stage 5 declares the grain in those terms and
+    # says an HA pair yields TWO rows for what an operator calls one estate. THEY ARE NOT
+    # DEDUPLICATED HERE and stage 5 is why: it measured `running-sync: not synchronized` on both
+    # PA-5220 members, with three collections present on one member's vsys3 and all three absent on
+    # the peer's four days after the commit. Collapsing the pair would pick one of two genuinely
+    # different configurations and report it as the estate.
+    #
+    # `hidden_fields` IS EMPTY AND STAYS EMPTY. The gate counts a field as presented if a subject
+    # column, a settings column OR `hidden_fields` carries it, so a non-empty tuple is a CLAIM
+    # accepted as proof, and it is the only known cause in this repository of a findings row that
+    # marks nothing as the thing to fix (P409). This control's one tested field has a real column.
+    #
+    # `tested_columns=ALL_TESTED_COLUMNS` IS A CHOICE and the default would have been wrong: the
+    # default `("Provenance",)` silently drops `Fires when` from the WORKBOOK while the live page
+    # keeps it, so the two surfaces disagree about which cell a reader meets (P427). It is safe
+    # here in a way it is not on most tabs: PAN-FIL-003 ships ONE query, the baseline, so the
+    # rendered condition is the clause that actually fired and cannot contradict the row.
+    #
+    # NO SOURCE COLUMNS AND THE PROVENANCE CELL IS ANSWERED HERE, the same as Virtual System Rule
+    # Posture and for the same measured reason. Every column of `DataFilteringPosture` is in its
+    # `DERIVED_FIELDS` and the model's own docstring says no `FieldProvenance` row is ever written
+    # for it, so the default Template column would be blank on every row of every estate - and the
+    # default Provenance cell resolves through `remediation_accessor`, which discards a DERIVED row
+    # on purpose and falls back to the object's `__entry__` row, which nothing writes. It then says
+    # "Not recorded", which means "nothing tracks this field" and reads to a customer as a gap in
+    # the collection. The value is not untracked; it is derived.
+    spec(T.DATA_FILTERING_POSTURE,
+         "Whether each virtual system's outbound traffic is watched for its own regulated data - "
+         "credit card numbers, national insurance numbers, documents marked confidential. A "
+         "finding here is about a virtual system where nothing is looking, or where something is "
+         "looking at a pattern that matches nothing, so it names the virtual system rather than a "
+         "profile. What it does NOT say is that sensitive data cannot leave: the mechanism reads a "
+         "fixed set of document formats, and it cannot see that a rule supplying its only "
+         "attachment sits behind a standing deny.",
+         title="Data Filtering Posture",
+         subject=DATA_FILTERING_POSTURE_SUBJECT,
+         setting_labels=DATA_FILTERING_POSTURE_LABELS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=lambda posture, provenance_of, fields: (
+             findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+         appliance_of=lambda posture: posture.appliance,
+         subject_select_related=("appliance__appliance_group", "enforcement_point")),
     # Network > Network Profiles > Zone Protection, 2026-11-02, for PAN-ZON-002 to -006.
     #
     # CATEGORY DERIVED FROM THE RAIL (`category=''`), which is right for a subject that IS a

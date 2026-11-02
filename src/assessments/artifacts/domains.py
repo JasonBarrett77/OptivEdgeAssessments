@@ -115,6 +115,21 @@ DOMAINS = (
     _object_domain("dos-protection-rules", T.DOS_POLICY_RULE),
     # Objects
     _object_domain("security-profiles", T.SECURITY_PROFILE),
+    # Objects, 2026-11-02, for PAN-FIL-003, and IMMEDIATELY AFTER `security-profiles` on purpose.
+    #
+    # This domain's other three controls report onto the tab above - they target
+    # `integrations.SecurityProfile` with `kind` in {file-blocking, data-filtering} - so these two
+    # tabs are one question at two grains, and a reader meets the findings about a profile that
+    # exists and is wrong before the verdict that says nothing is watching at all.
+    # `finding_run.GENERATORS` runs "data filtering posture" among the per-point conclusions, well
+    # before "security profile"; that tuple's order governs only WITHIN a category and both of
+    # these are Objects, so the order here is this list's own choice and this is the editorial one.
+    # `check_tabs_follow_the_summary` constrains only that category RANKS do not decrease.
+    #
+    # It does not disturb the `_build_model_index` note above: that index takes the FIRST domain
+    # claiming a MODEL, and this domain claims `integrations.DataFilteringPosture`, which no other
+    # domain claims. `SecurityProfile` links still land on `security-profiles`.
+    _object_domain("data-filtering-posture", T.DATA_FILTERING_POSTURE),
     # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
     # that reason - but the workbook requires tabs to follow the Summary's category order, and
     # coverage categorises as Objects because its subject is an address object. The product's

@@ -45,6 +45,7 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSequence,
     Certificate,
     CertificateProfile,
+    DataFilteringPosture,
     DeviceIdentificationState,
     DosPolicyRule,
     IkeCryptoProfile,
@@ -168,6 +169,21 @@ def _ordered(model, *fields, related=("appliance",)):
 _security_profiles = _ordered(
     SecurityProfile, "is_predefined", "name", "appliance_group__name", "enforcement_point__vsys_name",
     related=("enforcement_point__appliance_group", "appliance_group"))
+
+
+def _action(value) -> str:
+    """A file-blocking or data-filtering rule's `action`, with the FOURTH case named.
+
+    The vendor's Action has three values - alert, continue, block (help p.306) - and an action key
+    ABSENT from a committed rule is legal, measured on `oep-fdf6-07`. The store holds the empty
+    string for that, and it must NOT read as the schema default `alert`: that would tell an
+    assessor the rule is known to deliver the file and log it, when what is known is nothing.
+
+    "no action set" rather than `(empty)`, which is what the shared findings-tab renderer can say
+    and which does not distinguish "this rule names no action" from "this branch does not exist on
+    this profile kind".
+    """
+    return value or "no action set"
 
 
 def _kind_scope(kind):
@@ -1049,6 +1065,170 @@ RESULTS = {
             p.referrer_count,
         ),
     ),
+    # --- Objects > Security Profiles > File Blocking and > Data Filtering, 2026-11-02, for
+    # PAN-FIL-001 to -004. The SIXTH and SEVENTH pages over `SecurityProfile` and the first time
+    # one domain added two: this domain spans TWO kinds, so each gets its own page scoped by its
+    # own single `kind eq` clause, exactly as the five above are.
+    #
+    # EVERY HEADING BELOW IS A PROPOSAL, on `artifacts/sheets/objects.py`'s own terms - Jason
+    # takes the heading pass once across many domains (P399). Each is sourced in its comment:
+    # where the vendor's own help has the word this uses it, and WHERE THE VENDOR HAS NO WORD the
+    # comment says so rather than implying one.
+    #
+    # WHAT THE VENDOR CALLS THESE THINGS, from PAN-OS Web Interface Help 11.2 p.305-306 (Objects >
+    # Security Profiles > File Blocking): a rule carries a Name, Applications, File Types,
+    # Direction and Action, and the three actions are `alert`, `continue` and `block`. There is NO
+    # vendor label for "the dangerous file types", for "multi-level encoding" or for "the files the
+    # firewall cannot open" - those are this assessment's own groupings over the device's file-type
+    # catalogue - so those three headings are ours and are marked as such.
+    "file-blocking": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type",
+            # p.305: "apply the predefined strict profile". The vendor's word for the state is
+            # `predefined`; "Vendor-shipped" is ours, because `predefined` reads as a synonym for
+            # `default` to anyone who has not met the namespace vocabulary.
+            "Vendor-shipped": "is_predefined",
+            "Rules": "rule_count",
+            # NO VENDOR WORD. The vendor has "File Types", "Direction" and "Action" separately;
+            # the conjunction of all three over a named floor set is this control's question, and
+            # "both ways" is the Direction value `both` spelled for a reader.
+            "Dangerous file types blocked both ways": "stops_floor_file_types",
+            # "Action" is the vendor's word (p.306). "Weakest" because the column stores the
+            # weakest action in force across the profile's rules, which is what the assessment
+            # grades - a profile whose second rule only alerts is not protected by its first.
+            "Weakest action on those file types": "floor_file_type_action",
+            # NO VENDOR WORD AT ALL, and that was measured rather than assumed: `probe.corpus`
+            # over all eleven indexes returns NOTHING for `Multi-Level-Encoding`, the spelling
+            # /config/predefined/tdb/file-type uses and the device accepts. So the heading is the
+            # device catalogue's own member name in plain English.
+            "Multi-level encoding blocked both ways": "stops_nested_encoding",
+            "Weakest action on multi-level encoding": "nested_encoding_action",
+            # NO VENDOR WORD. "Expressed" and not "made": the column tests whether a decision
+            # about files the firewall cannot look inside is VISIBLE in the configuration, and
+            # says nothing about which way it went.
+            "Decision expressed on unopenable files": "expresses_unopenable_file_decision",
+            # THE VENDOR HAS THE SENTENCE BUT NOT A LABEL, p.306 verbatim: "When you create a file
+            # blocking profile with the action continue, you can only choose the application
+            # web-browsing. If you choose any other application, traffic that matches the Security
+            # policy rule will not flow through the firewall." `continue` is the vendor's word and
+            # `web-browsing` is the vendor's application name, so the heading is built from both.
+            "Continue rule beyond web-browsing": "confirm_rule_beyond_web_browsing",
+            # INHERITED, not chosen: both headings were set for two domains at once by
+            # `zone-dos-protection` on 2026-11-02, because `reference_reach` is asserted by exactly
+            # PAN-ZON-008 and PAN-FIL-004. Kept character for character so one column does not
+            # read two ways on two surfaces.
+            "Reference reach": "reference_reach",
+            "Reference walk completed": "reference_reach_resolved",
+            "Used by": "referrer_count"},
+        columns=("Owner", "Profile", "Scope", "Vendor-shipped", "Rules",
+                 "Dangerous file types blocked both ways", "Weakest action on those file types",
+                 "Multi-level encoding blocked both ways",
+                 "Weakest action on multi-level encoding",
+                 "Decision expressed on unopenable files", "Continue rule beyond web-browsing",
+                 "Reference reach", "Reference walk completed", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("file-blocking"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            _yes_no(p.is_predefined),
+            _nothing(p.rule_count, "rule(s)"),
+            _yes_no(p.stops_floor_file_types),
+            _action(p.floor_file_type_action),
+            _yes_no(p.stops_nested_encoding),
+            _action(p.nested_encoding_action),
+            _yes_no(p.expresses_unopenable_file_decision),
+            _yes_no(p.confirm_rule_beyond_web_browsing),
+            p.get_reference_reach_display(),
+            _yes_no(p.reference_reach_resolved),
+            _nothing(p.referrer_count, "referrer(s)"),
+        ),
+    ),
+    "data-filtering": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type", "Vendor-shipped": "is_predefined",
+            "Rules": "rule_count",
+            # "Alert Threshold" and "Block Threshold" are both the vendor's own words, help p.310.
+            # The conjunction over every rule of the profile is this control's question and the
+            # vendor has no word for it, so the heading names the two thresholds the vendor does
+            # name. The universal quantifier is the point: stage 3 warned that a per-profile answer
+            # "would pass a profile whose second rule stops nothing".
+            "Every rule sets both thresholds": "every_rule_carries_both_counts",
+            "Reference reach": "reference_reach",
+            "Reference walk completed": "reference_reach_resolved",
+            "Used by": "referrer_count"},
+        # "Block Threshold" HAS NO `query_fields` ENTRY and that is deliberate rather than
+        # missed: `lowest_block_threshold` is one of exactly two columns of this domain that the
+        # search compiler does NOT register - stage 8 declined it on the repo's own narrow rule,
+        # that a field earns registration by a control needing it, and no clause of this domain
+        # compares it. A heading mapped to an unregistered field would point the "build a query
+        # from these rows" button at a lookup that refuses itself. The column stays because it is
+        # the number an assessor reads beside the verdict; only the query entry is withheld.
+        columns=("Owner", "Profile", "Scope", "Vendor-shipped", "Rules",
+                 "Every rule sets both thresholds", "Block Threshold",
+                 "Reference reach", "Reference walk completed", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("data-filtering"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            _yes_no(p.is_predefined),
+            _nothing(p.rule_count, "rule(s)"),
+            _yes_no(p.every_rule_carries_both_counts),
+            # NULL AND ZERO ARE DIFFERENT ANSWERS AND NEITHER IS A BLANK. Null means no rule of
+            # the profile carries a block count at all; 0 is a count stage 4 could not settle -
+            # the vendor's gloss makes it either "block every matching file" or "block nothing" -
+            # so it is printed with that said rather than as a bare 0 a reader would read as
+            # strictest.
+            ("no rule sets one" if p.lowest_block_threshold is None
+             else "0 (vendor meaning unsettled)" if p.lowest_block_threshold == 0
+             else str(p.lowest_block_threshold)),
+            p.get_reference_reach_display(),
+            _yes_no(p.reference_reach_resolved),
+            _nothing(p.referrer_count, "referrer(s)"),
+        ),
+    ),
+    # Objects > Security Profiles > Data Filtering, the SECOND page at that vendor address and
+    # over a different model - see the rail item's own block in `configuration_navigation` for why
+    # it is on the rail and why it is a second item rather than a second model on the page above.
+    #
+    # ONE ROW PER ENFORCEMENT POINT, including the points that hold NO data-filtering profile at
+    # all - which is the whole reason this model exists, and the state of three of the four lab
+    # appliances. A profile-keyed page shows nothing on exactly the devices that fail.
+    "data-filtering-posture": ResultsSpec(
+        query_fields={
+            "Firewall": "hostname", "Vsys": "vsys_name",
+            # NO VENDOR WORD for any of these three: the vendor describes the MECHANISM (help
+            # p.309, "prevent this data from leaving a secure network") and names no state. The
+            # verdict's heading is written as the thing that should be true, so "No" is the
+            # finding on every one of the three.
+            "Outbound data watched": "outward_data_filtering_effective",
+            "A profile with rules reaches this traffic": "data_filtering_in_force",
+            # "Data Pattern" is the vendor's own word, help p.309.
+            "Every named data pattern defines one": "named_patterns_defined"},
+        columns=("Firewall", "Vsys", "Outbound data watched",
+                 "A profile with rules reaches this traffic",
+                 "Every named data pattern defines one", "Profiles behind the verdict"),
+        base_queryset=lambda: (
+            DataFilteringPosture.objects
+            .select_related("appliance", "enforcement_point")
+            .order_by("appliance__hostname", "enforcement_point__vsys_name")),
+        row=lambda p: (
+            p.appliance.hostname or "-",
+            p.enforcement_point.vsys_name or "-",
+            _yes_no(p.outward_data_filtering_effective),
+            _yes_no(p.data_filtering_in_force),
+            _yes_no(p.named_patterns_defined),
+            # `profiles_in_force` is a JSONField and MUST NOT be registered in the compiler, so
+            # this column has no `query_fields` entry either. "Nothing reaches this traffic"
+            # rather than a blank: an empty list beside a firing verdict is the honest pair the
+            # model's own docstring names, and a blank cell would not say whether anyone looked.
+            _lines([f"{e.get('name')} ({e.get('route')})" for e in p.profiles_in_force])
+            if p.profiles_in_force else "Nothing reaches this traffic",
+        ),
+    ),
     "password-profiles": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
@@ -1590,12 +1770,18 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # item and its page were written to be shared - see that `ResultsSpec` - so the Zone half of
     # the `PAN-UID` and `PAN-ZON` debts below is already discharged and only their other models
     # keep those entries alive. Both comments were corrected to say so.
-    # `file-data-filtering` reached stage 8 on 2026-10-31. Two models and neither has a rail
-    # item: `DataFilteringPosture` did not exist before stage 7 for this domain, and
-    # `SecurityProfile`'s pages are per profile KIND, mirroring PAN-OS's own tabs, so the two
-    # kinds this domain adds - File Blocking and Data Filtering - have no page either. Stage 9
-    # for this domain is what gives all of them one, and stage 8's contract forbids building it.
-    "PAN-FIL": "stage9-file-data-filtering.json",
+    # `PAN-FIL` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `file-data-filtering`,
+    # which is the work the entry was waiting for. Its own words were: "Two models and neither has
+    # a rail item: `DataFilteringPosture` did not exist before stage 7 for this domain, and
+    # `SecurityProfile`'s pages are per profile KIND, mirroring PAN-OS's own tabs, so the two kinds
+    # this domain adds - File Blocking and Data Filtering - have no page either."
+    #
+    # ALL THREE NOW HAVE ONE: `file-blocking` and `data-filtering`, the sixth and seventh pages
+    # over `integrations.SecurityProfile` each scoped by one `kind eq` clause, and
+    # `data-filtering-posture` over `integrations.DataFilteringPosture`. So all fifteen shipped
+    # PAN-FIL queries resolve on their own and `test_no_prefix_outlives_its_stage_9_artifact`
+    # passes. Removing it is part of that stage's job rather than a side effect: an exemption that
+    # survives the work it was waiting for is a permanent hole.
     # `globalprotect-portal` reached stage 8 on 2026-10-31. THREE models and none of them has a
     # rail item: all three were created by stage 7 for this domain and had never been queried from
     # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's

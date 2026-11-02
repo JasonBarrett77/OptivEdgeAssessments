@@ -85,7 +85,10 @@ class WorkbookBuildTests(TestCase):
         # not adjacent: PAN-ZON-001 reports on Security Zones and PAN-ZON-008 on Security
         # Profile, both of which already existed, and the two new subjects categorise into two
         # different PAN-OS categories.
-        self.assertIn("Summary: 47 tabs linked, 0 findings in total", reports[0])
+        # 48 on 2026-11-02 by stage 9 of `file-data-filtering`. ONE tab for a FOUR-control domain:
+        # PAN-FIL-001, -002 and -004 report onto Security Profile, which already drew them, and
+        # only PAN-FIL-003's per-enforcement-point verdict needed a subject of its own.
+        self.assertIn("Summary: 48 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -101,7 +104,10 @@ class WorkbookBuildTests(TestCase):
         # 44 later on 2026-11-02: Device-ID Policy Match, Security Zones and IoT Security.
         # 46 later on 2026-11-02: User-ID Collector and User-ID Discovery.
         # 48 later on 2026-11-02: Zone Protection and DoS Protection Rules.
-        self.assertEqual(len(names), 48)
+        # 49 later on 2026-11-02: Data Filtering Posture. `file-data-filtering` adds ONE tab for
+        # four controls - its other three report onto the Security Profile tab, which already drew
+        # them before that stage ran.
+        self.assertEqual(len(names), 49)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

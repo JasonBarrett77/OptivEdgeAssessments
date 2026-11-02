@@ -174,9 +174,58 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("antivirus", "Antivirus", "Objects", "Security Profiles", "shield",
                  where="Objects > Security Profiles > Antivirus",
                  search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > File Blocking, 2026-11-02, for PAN-FIL-001, -002 and -004 -
+    # the SIXTH rail item over `SecurityProfile`, with `data-filtering` below the seventh.
+    #
+    # PLACED IN THE VENDOR'S OWN ORDER RELATIVE TO WildFire Analysis, which the `dos-protection`
+    # block below enumerates from the product: Antivirus, Anti-Spyware, Vulnerability Protection,
+    # URL Filtering, FILE BLOCKING, WildFire Analysis, DATA FILTERING, DoS Protection. So File
+    # Blocking sits before WildFire Analysis and Data Filtering after it. The four items above
+    # are not themselves in the vendor's order - that is older and is not these entries' to
+    # rearrange, which is the judgement `dos-protection` made for itself.
+    #
+    # ITS SCOPE IS EXACTLY ONE `kind eq` CLAUSE, for the reason the `dos-protection` block states
+    # below at length. TWO entries were added here on one day, so SEVEN pages now rest on that
+    # rule, and `tests/test_file_data_filtering_presentation.py` asserts all seven resolve rather
+    # than only the two that are new: a scope too loose breaks the SIBLINGS, not the newcomer.
+    ConfigObject("file-blocking", "File Blocking", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > File Blocking",
+                 search_model="integrations.SecurityProfile"),
     ConfigObject("wildfire-analysis", "WildFire Analysis", "Objects", "Security Profiles",
                  "shield", where="Objects > Security Profiles > WildFire Analysis",
                  search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > Data Filtering, 2026-11-02, for PAN-FIL-004's data-filtering
+    # half - the SEVENTH rail item over `SecurityProfile`. Order and scope: see File Blocking.
+    ConfigObject("data-filtering", "Data Filtering", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > Data Filtering",
+                 search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > Data Filtering, 2026-11-02, for PAN-FIL-003 - a SECOND item at
+    # that one vendor address, over a DIFFERENT model.
+    #
+    # WHY IT IS ON THE RAIL AT ALL, by `rule-posture`'s own test above: does the subject HAVE a
+    # vendor path? `integrations.DataFilteringPosture` holds one verdict per enforcement point -
+    # whether this virtual system's outbound traffic is watched for its own regulated data - and
+    # every column of it is a reading this assessment computed. The node an assessor opens and
+    # reads is this address, that vsys's data-filtering profiles; so the subject has a vendor path
+    # and the rail item promises the NODE rather than the reading. Contrast Normalization
+    # Coverage, which is off the rail with an explicit sheet category instead: its subject is our
+    # own record of an object that failed to build, and there is no address on a firewall where an
+    # assessor could go and look at it. This subject has one and that one does not.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `data-filtering`, by `rule-posture`'s own
+    # argument that an engineer fixes one or the other: a profile's thresholds and its data
+    # patterns are edited in the profile, and everything THIS model reports is fixed by attaching
+    # a profile to a rule that has none - which is the commonest failing state of the domain and
+    # the whole reason the model is keyed on the point rather than on a profile.
+    #
+    # AND IT IS REQUIRED RATHER THAN OPTIONAL. PAN-FIL-003's baseline is a shipped query over this
+    # model, and clearing `PAN-FIL` from `AWAITING_PRESENTATION` leaves no off-rail route:
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` walks the SEED PAYLOAD without
+    # consulting `is_active`, and `LEGACY_SURFACE` is asserted `== {}` by a test of its own.
+    ConfigObject("data-filtering-posture", "Data Filtering Posture", "Objects",
+                 "Security Profiles", "shield",
+                 where="Objects > Security Profiles > Data Filtering",
+                 search_model="integrations.DataFilteringPosture"),
     # Objects > Security Profiles > DoS Protection, 2026-11-02, for PAN-ZON-008 - THE FIFTH rail
     # item over `SecurityProfile`, and the one that makes that model's resolver work again for
     # this kind.
