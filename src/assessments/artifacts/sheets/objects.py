@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from assessments.models import Control
 
+from optivedge_integrations.integrations.models import AddressObject
+
 from assessments import ike_presentation as ike
 
 from . import findings as findings_sheet
@@ -55,13 +57,51 @@ APPLIANCE = (
 #: cells where the table should be (seen 2026-09-18 on AAA Server Profile and Security Profile).
 NAME = (("Object", None, False, lambda s, _p: s.name or NONE, "name"),)
 
+def _device_content_total(obj) -> str:
+    """Whether the DEVICE ever answered about an imported list's content, and with what total.
+
+    THE WHOLE POINT OF THE COVERAGE DOMAIN RESTS ON THIS COLUMN and until 2026-11-02 it reached
+    no cell on this tab. `scratch/control-changes.json` states the distinction in these terms:
+    "An object with no size looks identical whether NOBODY ASKED or the DEVICE ANSWERED AND
+    FAILED. Only the first is ours. The second is a real device defect - the rule enforces
+    against a list the firewall cannot download - and is PAN-POL-023, unbuilt. They are told
+    apart by `resolved_content_source_total`: set means the device answered."
+
+    The finding sentence declines to choose between them - it says the firewall "has never
+    fetched it, OR a fetch was attempted and returned nothing usable" - and no clause on this
+    control reads the column, so `tested_fields` derives no settings column for it. Without this
+    cell a reader is handed both diagnoses and nothing to pick between them, and the two need
+    opposite remediations: ours is to run the cache refresh, theirs is a list the firewall cannot
+    download.
+
+    An em dash where the branch does not exist, which is `layout.NONE` and is what the shared
+    `display_value` has no way to say: only an imported list has a device-reported content total
+    at all, so a name-based or literal object is not unmeasured here, it is inapplicable.
+    """
+    if obj.address_type != AddressObject.TYPE_EDL:
+        return NONE
+    total = obj.resolved_content_source_total
+    # Not "(none)": `display_value` would print that, and the whole reason this column exists is
+    # that a reader cannot tell a NULL from a zero-sized answer. A NULL here is the device never
+    # having answered, which is the sentence to say.
+    return "Device did not answer" if total is None else f"{total:,}"
+
+
 #: Coverage findings name an address object, which hangs off an enforcement point or an
 #: appliance group rather than an appliance - so APPLIANCE, which reads `s.appliance`, does not
 #: apply. "Where" carries whichever owner it has.
+#:
+#: "Device's own count" is EVIDENCE rather than identity, and it sits here for the same reason
+#: the IKE sheet keeps "Key lifetime (as set)" beside its derived column: no clause on either
+#: PAN-COV control reads `resolved_content_source_total`, so nothing derives a column for it, and
+#: it is what the remediation turns on. Its `field` is declared so that a control later asserting
+#: on that column marks THIS cell rather than drawing a second column headed the same way.
 COVERAGE_SUBJECT = (
     ("Object", None, False, lambda s, _p: s.name or NONE, "name"),
-    ("Type", 18, False, lambda s, _p: s.get_address_type_display()),
+    ("Type", 18, False, lambda s, _p: s.get_address_type_display(), "address_type"),
     ("Where", 24, False, lambda s, _p: str(s.enforcement_point or s.appliance_group or NONE)),
+    ("Device's own count", 20, False, lambda s, _p: _device_content_total(s),
+     "resolved_content_source_total"),
 )
 #: A normalization issue names OUR OWN RECORD of an object that failed, so three of its columns
 #: differ from every other subject here. "Object" falls back to a placeholder because the name is
@@ -107,6 +147,35 @@ NORMALIZATION_SUBJECT = (
 #: `InterfaceManagementProfile`). The `field` is the column's own name so that a control testing
 #: `entry_name` would mark this cell rather than adding a second column headed the same way.
 IKE_ENTRY_NAME = (("Object", None, False, lambda s, _p: s.entry_name or NONE, "entry_name"),)
+
+#: What to head the Coverage tab's derived setting columns. HEADINGS PROPOSED 2026-11-02 by the
+#: stage 9 run on `assessment-coverage` and NOT SETTLED: Jason takes the heading pass once over
+#: many domains rather than per domain (P399), and every one of these is one line in this dict.
+#:
+#: Without it the tab headed its five derived columns with the raw field names -
+#: `referenced_by_policy`, `content_was_fetched`, `resolution_was_read`,
+#: `resolved_content_truncated`, `content_shortfall_band` - because `setting_columns` falls back
+#: to `spec.setting_labels.get(field, field)`, and this sheet declared no labels. Measured on a
+#: built table, so these were the headings a customer read.
+#:
+#: THE QUESTION MARK IS LOAD-BEARING AND ONLY TWO OF THESE CARRY ONE, which is the distinction
+#: this tab is about rather than a lapse in consistency. `content_was_fetched` and
+#: `resolution_was_read` are the two assertions of PAN-COV-001's two halves, and a false on either
+#: means THIS ASSESSMENT NEVER ESTABLISHED IT - not that the device is set a particular way - so
+#: they are headed as the question they answer, for the reason the IKE labels below give. The other
+#: three are facts about the device or the rulebase that a false states positively: a rule either
+#: names the object or it does not, and the content either was truncated or was not. Heading those
+#: as questions would imply the same doubt and there is none.
+#:
+#: The two assertions are also deliberately not headed alike, because they say WHO failed to
+#: answer: the list's origin server for one, the firewall's own resolver for the other.
+COVERAGE_SETTING_LABELS = {
+    "referenced_by_policy": "Referenced by a rule",
+    "content_was_fetched": "List content fetched?",
+    "resolution_was_read": "Name resolution read?",
+    "resolved_content_truncated": "Kept only part of it",
+    "content_shortfall_band": "Shortfall band",
+}
 
 #: What to head the derived setting columns on the two IKE tabs - see
 #: `DeviceSettingSheet.setting_labels`. Written rather than derived because every heading here is
@@ -316,6 +385,7 @@ SPECS = (
          "size cannot be scored for breadth, and an unscored rule must not read as a narrow "
          "one - which is what these exist to prevent.",
          title="Coverage", subject=COVERAGE_SUBJECT,
+         setting_labels=COVERAGE_SETTING_LABELS,
          # An address object hangs off an enforcement point or an appliance group, never a
          # single appliance - the same reason COVERAGE_SUBJECT reads "Where" instead of an
          # Appliance column. Both defaults here are appliance-scoped and neither applies, which

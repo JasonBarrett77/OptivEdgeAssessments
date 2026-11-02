@@ -288,9 +288,31 @@ def _resolved_content(obj) -> str:
 
 
 def _is_referenced(obj) -> bool:
+    """Whether any security rule points at this object, ON EITHER SIDE.
+
+    BOTH TABLES, and until 2026-11-02 this consulted only one. The guard read
+    `obj.securityrulesourceaddressref_set.exists() if hasattr(...) else
+    obj.source_address_refs.exists() or obj.destination_address_refs.exists()` - and an
+    `AddressObject` ALWAYS has `securityrulesourceaddressref_set`, so the first arm always won
+    and the `or destination` in the second was unreachable. The only caller is the `addresses`
+    ResultsSpec below, whose queryset is `AddressObject`, so the destination table was never
+    consulted at all and the else arm would have raised if it had been reached: an
+    `AddressObject` has no `source_address_refs` - that is the SecurityRule's accessor name.
+
+    The consequence was the two surfaces of the coverage domain disagreeing about one boolean on
+    one object. Measured 2026-11-02 on an external dynamic list referenced only as a rule
+    DESTINATION: the findings tab's `referenced_by_policy` cell read `Yes` and PAN-COV-001 fired
+    on it - because `search/address_object/compiler.py` reads both ref tables, saying so in its
+    own docstring: "a list used only as a destination is referenced just as much as one used as
+    a source" - while THIS column, on the page that finding links to, read `no`. A reader
+    following a coverage finding arrived at a page saying nothing referenced the object the
+    finding is about.
+
+    Group membership is already flattened onto the ref rows by `resolve_static_group_members`,
+    so an object reached only through a nested group counts here without walking groups.
+    """
     return (obj.securityrulesourceaddressref_set.exists()
-            if hasattr(obj, "securityrulesourceaddressref_set")
-            else obj.source_address_refs.exists() or obj.destination_address_refs.exists())
+            or obj.securityruledestinationaddressref_set.exists())
 
 
 RESULTS = {
