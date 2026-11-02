@@ -28,6 +28,7 @@ from assessments import configuration_navigation as config_nav
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import user_id_presentation as user_id
 from assessments.security_rule_queries import build_security_rule_display_queryset
 from optivedge_integrations.integrations.presentation import (
     address_breadth_label,
@@ -51,6 +52,8 @@ from optivedge_integrations.integrations.models import (
     IpsecCryptoProfile,
     IpsecTunnel,
     ManagementInterface,
+    UserIdCollectorSettings,
+    UserIdDiscoveryBound,
     AuthenticationSettings,
     LoggingSettings,
     WildfireSettings,
@@ -853,6 +856,82 @@ RESULTS = {
             device_id.icd_built_at(s),
         ),
     ),
+    # --- Device > User Identification > User Mapping ---------------------------------------
+    # The two User-ID objects, 2026-11-02, for the PAN-UID controls: the agent's own setup and
+    # the list that bounds where it looks. Both subjects are VSYS-SCOPED - they hang off an
+    # EnforcementPoint - so neither can use `_ordered`, whose default `related=("appliance",)`
+    # names a field neither model has.
+    #
+    # `Appliance` IS QUERYABLE ON BOTH, on the `zones` entry's measured reasoning above and not
+    # on `rule-posture`'s: both compilers build `hostname` over BOTH
+    # `enforcement_point__appliance__hostname` AND
+    # `enforcement_point__appliance_group__appliances__hostname`, so a clause naming either
+    # member of a pair selects the pair's row.
+    "user-id-collector": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name",
+                      "Client probing": "enable_probing",
+                      "Server monitor account": "wmi_account",
+                      "Session reading": "enable_session",
+                      "Mappings expire": "enable_mapping_timeout",
+                      "Mapping lifetime (min)": "ip_user_mapping_timeout",
+                      "Syslog TLS profile": "syslog_service_profile"},
+        columns=("Appliance", "Vsys", "Client probing", "Server monitor account",
+                 "Session reading", "Mappings expire", "Mapping lifetime (min)",
+                 "Syslog TLS profile"),
+        base_queryset=lambda: (UserIdCollectorSettings.objects
+                               .select_related("enforcement_point__appliance",
+                                               "enforcement_point__appliance_group")
+                               .order_by("enforcement_point__appliance__hostname",
+                                         "enforcement_point__vsys_name")),
+        row=lambda c: (
+            _enforced_by(c.enforcement_point),
+            c.enforcement_point.vsys_name or "-",
+            _yes_no(c.enable_probing),
+            # THE BARE STRING AND NOT A YES/NO, because the firing direction is NON-empty and the
+            # name is what an engineer needs in order to go and ask the directory what the
+            # account may do - which is the half of this control no firewall read can answer.
+            c.wmi_account or "-",
+            _yes_no(c.enable_session),
+            # THE COLUMN A READER IS MOST LIKELY TO INVERT, and the heading says `expire` for
+            # that reason: TRUE is the compliant side here where it is the firing side on the two
+            # columns above it.
+            _yes_no(c.enable_mapping_timeout),
+            # Printed as a number: a word here would read as "not counted". It bounds nothing at
+            # all where the column before it is No, which is why the two sit side by side.
+            c.ip_user_mapping_timeout,
+            c.syslog_service_profile or "-",
+        ),
+    ),
+    "user-id-discovery": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name",
+                      "Discovery list shape": "list_shape",
+                      "Include entries in force": "include_entry_count",
+                      "Exclude entries in force": "exclude_entry_count"},
+        # `Included ranges` HAS NO `query_fields` ENTRY, deliberately. `include_networks` is a
+        # JSONField and is NOT registered in the compiler - a JSON lookup is unindexed and
+        # matches nothing when the vendor renames a key, so a control resting on one stops
+        # finding anything instead of failing. Mapping the heading to it would point the "build a
+        # query from these rows" button at a lookup that silently selects nothing. The verdict
+        # column beside it is what a query should carry.
+        columns=("Appliance", "Vsys", "Discovery list shape", "Include entries in force",
+                 "Exclude entries in force", "Included ranges"),
+        base_queryset=lambda: (UserIdDiscoveryBound.objects
+                               .select_related("enforcement_point__appliance",
+                                               "enforcement_point__appliance_group")
+                               .order_by("enforcement_point__appliance__hostname",
+                                         "enforcement_point__vsys_name")),
+        row=lambda b: (
+            _enforced_by(b.enforcement_point),
+            b.enforcement_point.vsys_name or "-",
+            # SHARED WITH THE WORKBOOK TAB rather than spelled again here, which is what keeps
+            # the two surfaces from disagreeing about one object. The blank fifth state is why
+            # this is not `b.get_list_shape_display()`: see `user_id_presentation.list_shape`.
+            user_id.list_shape(b),
+            b.include_entry_count,
+            b.exclude_entry_count,
+            user_id.include_networks(b),
+        ),
+    ),
     "logging-and-reporting": ResultsSpec(
         query_fields={"Appliance": "hostname",
                       "Log on High DP Load": "log_on_high_dp_load"},
@@ -1339,21 +1418,23 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
     # job rather than a side effect of it: an exemption that survives the work it was waiting for
     # is a permanent hole.
-    # `user-id` reached stage 8 on 2026-11-01. FOUR models carry its six controls and none of
-    # the four has a rail item: the two this domain created - the per-vsys User-ID collector
-    # settings node and the per-vsys discovery bound - plus `integrations.Zone`, which has been
-    # stored for months, and `integrations.ManagementInterface`, which DOES have a page. So this
-    # entry is load-bearing for five of the six controls and harmless for the sixth: `_awaiting`
-    # is consulted only where `query_results_url` returns nothing, and PAN-UID-005's
-    # management-interface queries resolve on their own. Stage 9 for this domain is what gives
-    # the other three a page, and stage 8's contract forbids building one.
+    # `PAN-UID` CAME OUT ON 2026-11-02, which is stage 9 of `user-id` doing the thing the entry
+    # was waiting for. The two models that were still homeless -
+    # `integrations.UserIdCollectorSettings` and `integrations.UserIdDiscoveryBound` - now have
+    # rail items and results specs above, so all 14 of the domain's shipped queries resolve on
+    # their own and `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of
+    # that stage's job rather than a side effect of it: an exemption that survives the work it was
+    # waiting for is a permanent hole.
     #
-    # CORRECTED 2026-11-02 by stage 9 of `device-id-iot`: this entry used to say `integrations.
-    # Zone`'s "own debt the `PAN-IOT` entry above already names", and that entry is now gone
-    # because Zone HAS a page - the shared `zones` rail item, written for this domain to reuse.
-    # So TWO of this domain's four models are still homeless rather than three, and the zone half
-    # of PAN-UID's queries already resolves. The entry stays for the two that do not.
-    "PAN-UID": "stage9-user-id.json",
+    # ON THE WAY OUT, A CORRECTION TO THE RECORD rather than to anything that still runs. The
+    # comment deleted here opened "FOUR models carry its six controls and none of the four has a
+    # rail item" and then named `integrations.ManagementInterface`, "which DOES have a page", two
+    # clauses later - so the sentence contradicted itself on the day it was written and was never
+    # true. `device-id-iot` appended a correcting paragraph on 2026-11-02 saying two models were
+    # homeless rather than three, which was right, but left the false opening sentence standing
+    # above it. Measured before deleting: two of the four were homeless, and the Zone and
+    # ManagementInterface halves both resolved on their own. Noted because appending a correction
+    # under a wrong sentence leaves a reader to work out which half to believe.
     # PAN-HAP-001 to 005 target two device-wide management-plane models that no rail item
     # reaches yet. PAN-HAP-006 and 007 have no entry in the catalog at all - they assert over
     # Panorama's own configuration, which is out of assessment scope - so this debt is for five

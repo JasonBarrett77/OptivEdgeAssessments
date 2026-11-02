@@ -284,6 +284,38 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("iot-security", "IoT Security", "Device", "", "clipboard-check",
                  where="Device > Licenses",
                  search_model="integrations.DeviceIdentificationState"),
+    # Device > User Identification > User Mapping, 2026-11-02, for the PAN-UID controls. TWO
+    # ITEMS AT ONE VENDOR ADDRESS, on `rule-posture`'s precedent above: an engineer fixes the
+    # agent's behaviour or the list that bounds where it looks, and those are two grids on the
+    # same screen. `objects_for_model` allows two items over one model; this is the reverse, two
+    # items over two models at one address.
+    #
+    # BOTH SUBJECTS ARE PAN-OS CONFIGURATION NODES, which is the test this module states for
+    # being on the rail at all: an assessor opens Device > User Identification > User Mapping and
+    # reads both of them. The collector settings are a singleton node per virtual system and the
+    # discovery bound is a collection on the same node - what the second model holds is OUR
+    # READING of that collection, as `rule-posture` describes, and the rail item promises the
+    # grid rather than the reading. Contrast Normalization Coverage, which is off the rail
+    # because there is no address on a firewall where its subject could be looked at.
+    #
+    # THE PATHS ARE THE VENDOR'S AND BOTH ARE CITED. Help p.977 puts the agent's own options
+    # under "Palo Alto Networks User-ID Agent Setup" on the User Mapping tab, and help p.981
+    # names the list's own section "Include or Exclude Subnetworks for User Mapping". Stage 1 of
+    # `user-id` reached both by screen map.
+    #
+    # NAMED FOR THE VENDOR'S OBJECTS AND NOT FOR THIS DOMAIN, on the `zones` entry's reasoning
+    # below: nothing in either slug, label or path says "PAN-UID", so a later domain that
+    # queries either model reuses the item instead of adding one.
+    ConfigObject("user-id-collector", "User-ID Agent Setup", "Device", "User Identification",
+                 "settings",
+                 where="Device > User Identification > User Mapping > "
+                       "Palo Alto Networks User-ID Agent Setup",
+                 search_model="integrations.UserIdCollectorSettings"),
+    ConfigObject("user-id-discovery", "User Mapping Discovery", "Device",
+                 "User Identification", "list-checks",
+                 where="Device > User Identification > User Mapping > "
+                       "Include or Exclude Subnetworks for User Mapping",
+                 search_model="integrations.UserIdDiscoveryBound"),
     # Device > Master Key and Diagnostics.
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",

@@ -30,6 +30,7 @@ from optivedge_integrations.integrations.models import AddressObject
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import user_id_presentation as user_id
 
 from . import findings as findings_sheet
 from ..layout import NONE, SheetInfo, appliance_names, ha_role
@@ -548,6 +549,20 @@ ZONE_READERS = {
         read=device_id.identification_narrowed, provenance=device_id.ZONE_PROVENANCE),
     "device_acl_lists_computed": findings_sheet.ValueReader(
         read=device_id.device_lists_read, provenance=device_id.ZONE_PROVENANCE),
+    # THE FOURTH FIELD TO REACH THIS TAB, added 2026-11-02 by stage 9 of `user-id` for
+    # PAN-UID-001, and it is a reader for the reason the block above gives rather than for its
+    # wording - which is a plain Yes/No. WITHOUT IT THIS TAB CANNOT BE BUILT AT ALL for a
+    # PAN-UID-001 row: `enable_user_identification` is a derived settings column here, nothing
+    # covered it, and the no-reader path reaches `remediation_accessor`, whose `provenance_of`
+    # falls back to `field in Zone.DERIVED_FIELDS` and raises `AttributeError`.
+    #
+    # SO THE READER SET ON AN UNPROVENANCED MODEL'S SHEET IS A PER-FIELD ALLOWLIST, not a
+    # one-time fix for the model. The three readers above made this tab buildable for
+    # PAN-IOT-002's three fields on the day it was written; the next control to reuse the tab
+    # brought a fourth field and broke it again, and nothing fails until a row of that control
+    # exists. A third domain (`zone-dos-protection`, PAN-ZON) reuses this tab after us and will
+    # need an entry here for every field ITS controls clause on.
+    "enable_user_identification": user_id.ZONE_USER_ID_READER,
 }
 
 ZONE_SETTING_LABELS = {
@@ -562,6 +577,15 @@ ZONE_SETTING_LABELS = {
     # The column that answers the unknown. False means the row predates the two columns or its
     # merged read never arrived - NOT that the lists are empty.
     "device_acl_lists_computed": "Device-ID lists read",
+    # PAN-UID-001, added 2026-11-02 by stage 9 of `user-id`. A PROPOSAL like every heading on
+    # this tab.
+    #
+    # THE VENDOR HAS A LABEL FOR THIS ONE, which is the difference from the Device-ID heading
+    # above: help p.479-483's Security Zone Settings table prints "Enable User Identification"
+    # verbatim, and stage 1 of `user-id` cites it as the control's own field on the zone screen.
+    # So this heading is the vendor's words and not ours - the Device-ID equivalent is absent
+    # from three Help versions, which is why its comment says the opposite.
+    "enable_user_identification": "Enable User Identification",
 }
 
 #: The verdict's identity and its two counts, on `vsys_rule_posture`'s pattern.
@@ -592,6 +616,133 @@ RULEBASE_DEVICE_MATCH_SETTING_LABELS = {
     # "Destination Device" (help p.128) and has no name for the absence of both across a rule
     # set, which is what this column is.
     "has_no_rule_matching_on_device": "Device dimension absent from the rule set",
+}
+
+
+# --------------------------------------------------------------------------------------------
+# THE TWO USER-ID TABS, 2026-11-02, for PAN-UID-002, -003, -004 and -006. Stage 9 of `user-id`.
+#
+# TWO TABS FOR TWO MODELS AT ONE VENDOR ADDRESS, on the `rule-posture`/`security` precedent that
+# an engineer fixes one or the other. Both subjects live under Device > User Identification >
+# User Mapping; the collector settings are the agent's own behaviour - whether it probes, which
+# account it reads as, how long a mapping lives - and the discovery bound is the LIST that says
+# where it may look at all. Different grids, different work.
+#
+# THE DOMAIN'S OTHER TWO CONTROLS ARE NOT HERE. PAN-UID-001 reports on Security Zones and
+# PAN-UID-005 on Management Interface, both tabs other domains built first; this run added a
+# reader and a heading to each rather than a tab. And `integrations.UserIdMonitoredServer` gets
+# NO tab: it is the subject of the one PAN-UID-005 assertion record this domain leaves silent,
+# no control can produce a finding over it, and stage 8 records that with `built: false`.
+#
+# EVERY HEADING BELOW IS A PROPOSAL (P399), as on the Device-ID tabs above.
+#
+# NEITHER TAB HIDES A FIELD. `hidden_fields` is empty on both. The gate accepts a field's
+# presence in `hidden_fields` as proof something shows it, so a non-empty one is a CLAIM taken
+# as proof and is the only known cause in this repository of a findings row that marks nothing
+# as the thing to fix. There was no reason for a new sheet to declare one.
+#
+# BOTH SUBJECTS ARE VSYS-SCOPED AND NEITHER MODEL HAS AN `appliance`. They hang off an
+# EnforcementPoint, which is this store's unit for a vsys, so both specs override the three
+# appliance-scoped defaults - `subject_columns`, `appliance_of` and `subject_select_related` -
+# on `vsys_rule_posture`'s precedent. `appliance_of` returns None deliberately: on an HA pair a
+# vsys spans both firewalls and linking a row to one peer would assert something false.
+# --------------------------------------------------------------------------------------------
+
+#: The collector's identity plus the one stage 5 column no control clauses on.
+#:
+#: `syslog_service_profile` IS HERE BECAUSE STAGE 5 DECLARED IT PRESENTED AND NOTHING DERIVES IT.
+#: A settings column is derived only for a field an active query has a clause on, and no query of
+#: this domain touches this one - so the flag and the machinery disagree, and hand-declaring is
+#: the documented way to settle it. It earns the space: it names the TLS profile the encrypted
+#: syslog listener presents, and "nothing is bound" is the state in which the encrypted listener
+#: cannot be switched on at all - which is the alternative an engineer reading PAN-UID-005's
+#: unauthenticated-listener finding is being pointed at.
+#:
+#: IT DECLARES ITS `field` even though no control tests it, on the Device-ID tabs' ruling: a
+#: control that ever clauses on it marks THIS cell instead of drawing a second column under a
+#: different heading, and the duplicate-header guard would not fire on two different headings.
+USER_ID_COLLECTOR_SUBJECT = VSYS_SCOPED + (
+    ("Syslog TLS profile", 24, False,
+     lambda c, _p: c.syslog_service_profile or NONE, "syslog_service_profile"),
+)
+
+#: NO `value_readers` ON THIS TAB, and that is the deliberate half of this domain's three
+#: different answers to the reader question. See `user_id_presentation`'s module docstring: all
+#: six assertable columns here are read from payload keys and carry real `FieldProvenance` rows -
+#: `pan_os_default` for the four measured implicits, `not_configured` for the two that are not
+#: assumed - and a reader would make `tested_fields` return `stored=False`, which is what stops
+#: `remediation_accessor` ever reading that row. On `wmi_account` that row is the ONLY thing in
+#: the report that tells an absent key from a key present and empty. So the shared renderer
+#: prints the values and the Provenance column keeps the distinction.
+USER_ID_COLLECTOR_SETTING_LABELS = {
+    # Help p.977 names the checkbox "Enable Probing", under Palo Alto Networks User-ID Agent
+    # Setup > Client Probing. The vendor's two words alone would not say what is probed or how,
+    # and TRUE is the firing side, so the heading carries the transport: an engineer who reads
+    # "probing" as harmless reconnaissance needs to see that the agent sends its own credentials.
+    "enable_probing": "Client probing (WMI/NetBIOS)",
+    # Help p.975 names the Server Monitor Account field "User Name". Headed as what it IS rather
+    # than as what it is called, because the firing direction is NON-empty and the heading has to
+    # make that legible: the finding is not that the account is wrong, it is that the firewall
+    # stores a principal and nothing about what that principal may do.
+    "wmi_account": "Server monitor account",
+    # The vendor's own wording for this option is "Enable Session" (Server Monitor tab). TRUE
+    # fires: reading sessions is the privilege the account needs and the reason its rights matter.
+    "enable_session": "Session reading from monitored servers",
+    # Help p.481 prints "Enable User Identification Timeout" verbatim. THE ONE HEADING ON THIS TAB
+    # MOST LIKELY TO BE READ BACKWARDS, and the model's own docstring says so: this column defaults
+    # TRUE where its neighbours default false, expiry ON is the GOOD state, and FALSE is what
+    # fires. The vendor's label is kept because inventing one here would be worse, and the word
+    # "expire" is added so the compliant direction is readable without the control beside it.
+    "enable_mapping_timeout": "Mapping entries expire",
+    # Help p.481's label verbatim, "User Identification Timeout (min)", with the unit kept because
+    # a bare number in this column is meaningless and 45 is the measured implicit a reader will
+    # meet most often. A larger number is worse, and it bounds nothing at all where the column
+    # above is No - which is why they are two assertions and not one.
+    "ip_user_mapping_timeout": "Mapping lifetime (minutes)",
+}
+
+#: The verdict's identity and the three columns that are its EVIDENCE.
+#:
+#: THIS BLOCK IS THE SUBSTANCE OF THIS TAB, and it exists because `presented: true` is not the
+#: instruction it reads as. All four of stage 5's non-identity columns are flagged presented;
+#: exactly ONE of them - `list_shape` - is a field a query clauses on, so exactly one gets a
+#: derived settings column. The other three would have reached no cell at all, and the row would
+#: have been a bare four-state verdict with nothing on it a reader could check: stage 5 is
+#: explicit that the counts exist "to let a report say WHICH shape it found" and that the CIDRs
+#: are "what stage 3 says the finding prints". So they are hand-declared here.
+#:
+#: THE COUNTS PRINT AS NUMBERS, on `rule-posture`'s ruling: zero is the reportable end of
+#: `include_entry_count` - the vendor's documented unbounded state, where the collector discovers
+#: in all subnetworks - and a word like "Nothing" on a column named for a count reads as "not
+#: counted" instead of "none found".
+#:
+#: ZERO MEANS OPPOSITE THINGS IN THE TWO COUNT COLUMNS and nothing on the row says so, which is
+#: this tab's one unresolved reading. Zero includes is the firing state; zero excludes is quiet.
+#: The verdict column beside them is what separates the exclude-only shape from the unbounded
+#: one, and the headings are worded to lean on it rather than to be read alone.
+USER_ID_DISCOVERY_SUBJECT = VSYS_SCOPED + (
+    ("Include entries in force", 22, False,
+     lambda b, _p: b.include_entry_count, "include_entry_count"),
+    ("Exclude entries in force", 22, False,
+     lambda b, _p: b.exclude_entry_count, "exclude_entry_count"),
+    ("Included ranges", 30, True,
+     lambda b, _p: user_id.include_networks(b), "include_networks"),
+)
+
+#: ONE READER, ON THE ONE COLUMN A CONTROL ASSERTS ON, and it is free: `list_shape` is in
+#: `UserIdDiscoveryBound.DERIVED_FIELDS`, so there is no provenance row for `stored=False` to
+#: cost. See `user_id_presentation.list_shape` for what the shared renderer could not say.
+USER_ID_DISCOVERY_READERS = {
+    "list_shape": user_id.DISCOVERY_SHAPE_READER,
+}
+
+USER_ID_DISCOVERY_SETTING_LABELS = {
+    # NO VENDOR LABEL EXISTS: this column is a verdict this assessment computes over the whole
+    # include/exclude list, and the vendor has no name for "the shape of the list". The section
+    # it is computed from is the vendor's own - help p.981, "Include or Exclude Subnetworks for
+    # User Mapping" - and the heading is worded to name the list rather than the computation,
+    # because the thing an engineer opens is the grid.
+    "list_shape": "Discovery list shape",
 }
 
 
@@ -782,7 +933,54 @@ SPECS = (
              # list; the list is what an engineer edits.
              ("Permitted sources", 24, True, lambda s, _p: PERMITTED_SOURCES.read(s), "exposure"),
          ),
-         value_readers={"service_enabled": SERVICES_ENABLED, "exposure": PERMITTED_SOURCES},
+         value_readers={"service_enabled": SERVICES_ENABLED, "exposure": PERMITTED_SOURCES,
+                        # PAN-UID-005, 2026-11-02. See `setting_labels` below for why this field
+                        # needs a reader and not a heading alone. FREE: the field is in
+                        # `ManagementInterface.DERIVED_FIELDS`, so there is no `FieldProvenance`
+                        # row for `stored=False` to discard, and the reader's `DERIVED` provenance
+                        # keeps the remediation walk - which on the aux-2 surface is the only cell
+                        # in the report that can say the node is Panorama's.
+                        "userid_listener_state_established": user_id.LISTENER_STATE_READER},
+         # ADDED 2026-11-02 by stage 9 of `user-id`, and THIS TAB IS NOT THAT DOMAIN'S.
+         #
+         # FIVE CONTROLS REPORT HERE AND FOUR OF THEM ARE PAN-MGT'S - PAN-MGT-001, -002, -003 and
+         # -006, whose domain `management-services` has NOT been through stage 9. The fifth is
+         # PAN-UID-005. So a heading written here is a decision that domain inherits, and this
+         # dict was not written for it: it holds exactly ONE entry, for the one field PAN-UID-005
+         # brings that no column already showed.
+         #
+         # WHY THERE ARE TWO ENTRIES AND NOT THREE, measured on a built table rather than
+         # reasoned from the dict. `service_enabled` and `exposure` are SUBJECT columns above
+         # with their `field` declared, so `setting_columns` dedupes them and no label could
+         # reach them - they head "Services enabled" and "Permitted sources" and were never raw.
+         # `plane` is a subject column too ("Surface"). What IS raw on this tab today is
+         # `is_management_surface`, which belongs to PAN-MGT-003 and not to this domain: it is
+         # the only derived settings column the tab had before PAN-UID-005 arrived, and it has
+         # been heading a customer-facing column with a Django field name since that control
+         # shipped. A label for it is proposed below rather than left for a reader to decode,
+         # and `management-services` owns the decision.
+         setting_labels={
+             # PAN-MGT-003's FIELD AND NOT THIS DOMAIN'S - proposed here only because it was
+             # found raw while measuring this tab, and a raw field name on a customer tab is the
+             # one thing `setting_labels` exists to prevent. `management-services` has not been
+             # through stage 9; when it is, this heading is that run's to confirm or replace.
+             #
+             # Headed as what the column DECIDES. It is computed, not stored: the three
+             # deviceconfig planes are administrative surfaces unconditionally, and a data-plane
+             # surface is one only where the bound profile enables an administrative service. The
+             # vendor has no label for it because the vendor does not compute it.
+             "is_management_surface": "Offers administrative access",
+             # A PROPOSAL (P399), and the heading is OURS: no vendor label exists, because the
+             # value is not a device setting at all - it is this assessment's record of whether
+             # the listener's state on this surface was MEASURED or inferred.
+             #
+             # HEADED AS A QUESTION ABOUT THE READING AND NOT ABOUT THE DEVICE. False is the
+             # firing side and means "nobody has measured what an absent key means on this
+             # plane", so a heading like "Listener state established" would put "No" in the
+             # firing cell and read as a fact about the listener. The cell's own reader carries
+             # the rest - see `user_id_presentation.LISTENER_NOT_MEASURED`.
+             "userid_listener_state_established": "Listener state measured on this surface",
+         },
          subject_prefetch=("services", "permitted_sources")),
     # Network > Network Profiles > IKE Crypto and > IKE Gateways, 2026-10-28. TWO TABS AND NOT
     # ONE, for the reason they are two models and two rail items: a gateway names a profile, and
@@ -961,6 +1159,74 @@ SPECS = (
          provenance_cell=lambda v, _p, _f: "Derived",
          # A Template column would be blank on every row: there is no pushed key here to name a
          # template for, because there is no key at all.
+         source_columns=(),
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+    spec(T.USER_ID_COLLECTOR,
+         "Each virtual system's integrated User-ID agent: whether it probes endpoints for the "
+         "user logged in to them, which directory account it reads its monitored servers as, "
+         "whether it reads user SESSIONS from those servers, and how long a learned "
+         "address-to-user mapping is allowed to live. THREE CONTROLS REPORT ON ONE NODE here, so "
+         "a row may carry several findings about one agent. A ROW EXISTS FOR EVERY VIRTUAL SYSTEM "
+         "WHETHER THE NODE DOES OR NOT, and that is the point rather than an artefact: the "
+         "vendor's implicit values apply to an unconfigured agent exactly as they do to a "
+         "configured one, so a vsys nobody has set up is assessed on what the device actually "
+         "does. WHAT THAT COSTS IS WORTH READING ONCE: a compliant row here may be reporting a "
+         "measured default rather than a decision somebody made, and the Provenance column is "
+         "what tells the two apart. A VIRTUAL SYSTEM WHOSE CONFIGURATION WAS NEVER COLLECTED is "
+         "a third state again - it has no row at all and is reported by nothing on this tab. "
+         "WHAT IS NOT ASSESSED is what the service account may actually do: the firewall stores "
+         "the principal's name and nothing about its rights, and no configuration read on a "
+         "firewall can establish them.",
+         title="User-ID Collector", subject=USER_ID_COLLECTOR_SUBJECT,
+         setting_labels=USER_ID_COLLECTOR_SETTING_LABELS,
+         # The FULL set, on `ipsec-crypto`'s reasoning and knowing what it costs. TWO ROWS ON
+         # THIS TAB RENDER A `Fires when` THAT THEIR OWN CELLS CONTRADICT, because `fires_when`
+         # renders the BASELINE alone while the row may have fired from a calibration on a
+         # different field: a PAN-UID-004 row firing on session reading states the service-account
+         # condition, and a PAN-UID-006 row firing on the lifetime states the expiry-off
+         # condition. Both are recorded in this run's artifact. The set is still the full one
+         # because the alternative is the contradicting column with no stated condition beside it
+         # at all - and between them `Matched queries`, `Severity basis` and the marked cell
+         # resolve which clause actually fired.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # KEPT, unlike the two verdict tabs above: five of this model's six assertable columns
+         # are real payload keys, so a Template column has something to name and the per-field
+         # Provenance walk has a row to find.
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+    spec(T.USER_ID_DISCOVERY_BOUND,
+         "Where each virtual system's User-ID agent is allowed to look for users: the "
+         "include/exclude list that bounds discovery, read as one verdict over the whole list. "
+         "THE ROW IS A CONCLUSION ABOUT THE LIST AND NOT ABOUT ANY ENTRY IN IT, because the "
+         "state this control exists to report is a list that holds NOTHING - absent, or "
+         "committed and empty, or holding only entries somebody disabled. In every one of those "
+         "the vendor's collector discovers in all subnetworks, and a per-entry row could not "
+         "report it at all: there is no entry to draw. AN EMPTY LIST AND NO LIST ARE ONE STATE "
+         "HERE, deliberately - they read differently on the wire and they bound exactly the same "
+         "nothing. THE EXCLUDE-ONLY SHAPE IS A FUNCTIONAL FAULT RATHER THAN AN EXPOSURE and "
+         "grades below the unbounded state for that reason: the vendor's implicit exclude-all "
+         "rule then stops user mapping entirely, so the firewall is not over-reaching, it is not "
+         "working. THE RANGES ARE PRINTED AND NOT JUDGED: whether an included range holds the "
+         "organisation's own staff is a question for the engineer, and nothing on the firewall "
+         "answers it.",
+         title="User-ID Discovery", subject=USER_ID_DISCOVERY_SUBJECT,
+         setting_labels=USER_ID_DISCOVERY_SETTING_LABELS,
+         value_readers=USER_ID_DISCOVERY_READERS,
+         # The full set, and here it costs nothing: every active query of PAN-UID-002 clauses on
+         # `list_shape` and on nothing else, so the baseline's rendered condition is true of every
+         # row that fires - which is the opposite of the collector tab above and worth the
+         # contrast being visible in one domain.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # EVERY column of this model is in its `DERIVED_FIELDS` - it is a verdict over a
+         # collection and holds no key the firewall wrote - so one answer for the row is the
+         # honest shape and a Template column would be blank on every row. `vsys_rule_posture`
+         # and `Device-ID Policy Match`, the other two verdict tabs, made the same call.
+         provenance_cell=lambda b, _p, _f: "Derived",
          source_columns=(),
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance",

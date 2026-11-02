@@ -177,6 +177,26 @@ DOMAINS = (
     # screens an assessor opens - which is the test `configuration_navigation` states for being
     # on the rail at all, and it passes it.
     _object_domain("iot-security", T.DEVICE_IDENTIFICATION),
+    # Device, 2026-11-02, for PAN-UID-002, -003, -004 and -006. HERE, after `iot-security` and
+    # before `policy-rule-settings`, because within a category this list takes
+    # `finding_run.GENERATORS`' order and that tuple runs "device identification", then the two
+    # User-ID entries, then "policy rule settings" last.
+    #
+    # THE COLLECTOR BEFORE THE DISCOVERY BOUND, which is GENERATORS' order and its stated reason:
+    # the collector is the thing that performs discovery, so a reader meeting an unbounded
+    # discovery scope wants to know first whether the agent probing it is the credentialed kind.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`) on both, which is right for a subject whose
+    # address is a PAN-OS node: deriving it means the workbook cannot disagree with the app about
+    # where the subject lives. Both rail items are at Device > User Identification > User Mapping.
+    #
+    # THE DOMAIN'S OTHER TWO CONTROLS ADD NO ENTRY HERE. PAN-UID-001 reports on `security-zones`
+    # and PAN-UID-005 on `management-interfaces`, both of which already exist and are claimed by
+    # other domains - which is also why neither appears twice: `_build_model_index` takes the
+    # FIRST domain claiming a model, and neither of these two claims `Zone` or
+    # `ManagementInterface`.
+    _object_domain("user-id-collector", T.USER_ID_COLLECTOR),
+    _object_domain("user-id-discovery", T.USER_ID_DISCOVERY_BOUND),
     # Device, LAST, 2026-11-01: `finding_run.GENERATORS` runs "policy rule settings" after every
     # other device generator, and within a category that tuple is this list's order.
     #
