@@ -34,7 +34,14 @@ from optivedge_integrations.integrations.platforms.pan_os.normalization import (
 CONTROLS = ["PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-016", "PAN-AUTH-017"]
 #: An untouched device: no lockout, no key expiry, and an hour-long idle session. NOT 015 -
 #: its zero is compliant.
-UNCONFIGURED = {"PAN-AUTH-014", "PAN-AUTH-016", "PAN-AUTH-017"}
+#: ALL FOUR, as of the stage 8 run on `admin-authentication`, 2026-11-01. 015 joined them when
+#: its companion group was seeded: `lockout_time_minutes` is the one `null=True` key of the four
+#: and a NULL fails its `gt 0 AND lt 30` clause, so on a node nobody read the control used to
+#: report nothing. The companion `lockout_time_minutes_unknown` is what fires now, and it is NOT
+#: a claim that the duration is wrong - it says the duration was never read, which is the one
+#: thing a stored value on this key cannot say. The vendor puts 0 at BOTH ends of this field's
+#: scale, so no sentinel could have carried it.
+UNCONFIGURED = {"PAN-AUTH-014", "PAN-AUTH-015", "PAN-AUTH-016", "PAN-AUTH-017"}
 
 
 class AdminSessionControlTests(TestCase):
@@ -72,14 +79,19 @@ class AdminSessionControlTests(TestCase):
     # --- implicit values -------------------------------------------------------------
 
     def test_an_untouched_device_reports_three_of_the_four(self):
-        """The whole setting/management node absent. 015 must NOT fire: its zero is compliant.
+        """The whole setting/management node absent. All four report, and 015 reports that
+        nobody looked rather than that the duration is wrong.
 
         `lockout_time_minutes` STORES NOTHING HERE, not 0, since 2026-10-29. 0 is a configured
         value on that key - it means held until released - so storing it for a node nobody read
-        asserted the strictest reading of an unmeasured setting. The control is unaffected either
-        way: its clause is `gt 0 AND lt 30`, which a NULL fails exactly as a 0 does, and the
-        finding set asserted below is unchanged. The other three keys still store their measured
-        form defaults, where 0 is the COMPLIANT reading rather than the strict one.
+        asserted the strictest reading of an unmeasured setting. THIS TEST USED TO SAY THE
+        CONTROL WAS UNAFFECTED EITHER WAY, on the ground that its clause `gt 0 AND lt 30` fails a
+        NULL exactly as it fails a 0. Both halves are true and the conclusion was wrong: failing
+        the clause is PASSING the control, so the appliance nobody read reported clean. Stage 5
+        of this domain names the remedy and the seed now carries it - a second group on
+        `lockout_time_minutes_unknown`, firing on its own at the assertion's own severity. The
+        other three keys still store their measured form defaults, where 0 is the COMPLIANT
+        reading rather than the strict one.
         """
         settings = self._profile("fw-bare")
         self.assertEqual(settings.lockout_failed_attempts, 0)

@@ -52,6 +52,13 @@ class AdminUserControlTests(TestCase):
             "admin_mfa_enabled": True,
         }
         fields.update(kwargs)
+        # Both verdicts are DERIVED_FIELDS, so a fixture setting `has_password` without them
+        # builds a row the collector cannot produce. 019's baseline reads
+        # `has_local_credential` where it used to read `centrally_authenticated`, and while
+        # only the second was mirrored here a credential-holding bound account fired 019
+        # through the roster query alone - green for a reason the test is not about.
+        fields["has_local_credential"] = (
+            fields["has_password"] or fields.get("has_public_key", False))
         fields["centrally_authenticated"] = (
             fields.get("authentication_is_external", False)
             and not fields["has_password"] and not fields.get("has_public_key", False))

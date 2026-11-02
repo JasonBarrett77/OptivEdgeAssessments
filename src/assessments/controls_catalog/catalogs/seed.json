@@ -830,7 +830,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "enabled"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -857,13 +860,16 @@
                   {
                     "field": "minimum_length",
                     "op": "lt",
-                    "value": 12
+                    "value": 15
                   }
                 ]
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_length"
+              ]
             },
             {
               "name": "Severity: 9 to 11",
@@ -886,7 +892,36 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_length"
+              ]
+            },
+            {
+              "name": "Severity: 12 to 14",
+              "short_description": "characters 12 to 14 \u2014 reported medium.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "minimum_length",
+                    "op": "gte",
+                    "value": 12
+                  },
+                  {
+                    "field": "minimum_length",
+                    "op": "lte",
+                    "value": 14
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_length"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -919,7 +954,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_uppercase"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -952,7 +990,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_lowercase"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -985,7 +1026,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_numeric"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1018,7 +1062,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "minimum_special"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1051,7 +1098,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "block_username_inclusion"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1084,7 +1134,36 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "new_differs_by_characters"
+              ]
+            },
+            {
+              "name": "Severity: 3 to 7",
+              "short_description": "characters of difference 3 to 7 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "new_differs_by_characters",
+                    "op": "gte",
+                    "value": 3
+                  },
+                  {
+                    "field": "new_differs_by_characters",
+                    "op": "lte",
+                    "value": 7
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "new_differs_by_characters"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1117,7 +1196,36 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "history_count"
+              ]
+            },
+            {
+              "name": "Severity: 5 to 23",
+              "short_description": "passwords remembered 5 to 23 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "history_count",
+                    "op": "gte",
+                    "value": 5
+                  },
+                  {
+                    "field": "history_count",
+                    "op": "lte",
+                    "value": 23
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "history_count"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1155,7 +1263,36 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "expiration_period"
+              ]
+            },
+            {
+              "name": "Severity: 61 to 90",
+              "short_description": "days before expiry 61 to 90 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "expiration_period",
+                    "op": "gte",
+                    "value": 61
+                  },
+                  {
+                    "field": "expiration_period",
+                    "op": "lte",
+                    "value": 90
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "expiration_period"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1188,7 +1325,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "expiration_warning_period"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1221,7 +1361,52 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_admin_login_count"
+              ]
+            },
+            {
+              "name": "Severity: one grace login",
+              "short_description": "a single login after expiry \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "post_expiration_admin_login_count",
+                    "op": "eq",
+                    "value": 1
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_admin_login_count"
+              ]
+            },
+            {
+              "name": "Grace logins after expiry were never read",
+              "short_description": "The post-expiry login allowance was absent from the configuration.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "post_expiration_admin_login_count_unknown",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_admin_login_count_unknown"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1254,7 +1439,57 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_grace_period"
+              ]
+            },
+            {
+              "name": "Severity: 1 to 7",
+              "short_description": "days of grace after expiry 1 to 7 \u2014 reported low.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "post_expiration_grace_period",
+                    "op": "gte",
+                    "value": 1
+                  },
+                  {
+                    "field": "post_expiration_grace_period",
+                    "op": "lte",
+                    "value": 7
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "low",
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_grace_period"
+              ]
+            },
+            {
+              "name": "Grace period after expiry was never read",
+              "short_description": "The post-expiry grace period was absent from the configuration.",
+              "canonical_query": {
+                "model": "integrations.PasswordComplexityPolicy",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "post_expiration_grace_period_unknown",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "post_expiration_grace_period_unknown"
+              ]
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy"
@@ -1292,7 +1527,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_failed_attempts"
+              ]
             },
             {
               "name": "Severity: 6 to 10",
@@ -1315,7 +1553,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_failed_attempts"
+              ]
             }
           ],
           "target_model": "integrations.AuthenticationSettings"
@@ -1353,7 +1594,31 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_time_minutes"
+              ]
+            },
+            {
+              "name": "Lockout duration was never read",
+              "short_description": "The lockout duration was absent from the configuration.",
+              "canonical_query": {
+                "model": "integrations.AuthenticationSettings",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "lockout_time_minutes_unknown",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_time_minutes_unknown"
+              ]
             }
           ],
           "target_model": "integrations.AuthenticationSettings"
@@ -1391,7 +1656,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "idle_timeout_minutes"
+              ]
             },
             {
               "name": "Severity: 11 to 60",
@@ -1414,7 +1682,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "idle_timeout_minutes"
+              ]
             }
           ],
           "target_model": "integrations.AuthenticationSettings"
@@ -1447,7 +1718,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "api_key_lifetime_minutes"
+              ]
             }
           ],
           "target_model": "integrations.AuthenticationSettings"
@@ -1497,7 +1771,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_failed_attempts"
+              ]
             },
             {
               "name": "Severity: 4 to 5",
@@ -1531,7 +1808,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "low",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_failed_attempts"
+              ]
             },
             {
               "name": "Severity: 6 to 10",
@@ -1565,7 +1845,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "lockout_failed_attempts"
+              ]
             }
           ]
         },
@@ -1617,13 +1900,13 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Not reached by an external identity service, or holding a device-stored credential.",
+              "short_description": "Not reached by an external identity service.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
                 "operator": "or",
                 "clauses": [
                   {
-                    "field": "centrally_authenticated",
+                    "field": "authentication_is_external",
                     "op": "eq",
                     "value": false
                   }
@@ -1631,7 +1914,52 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "authentication_is_external"
+              ]
+            },
+            {
+              "name": "Holds a credential the device stores",
+              "short_description": "A password or an SSH public key remains on the appliance itself.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "has_local_credential",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "has_local_credential"
+              ]
+            },
+            {
+              "name": "Administrator roster is configuration alone",
+              "short_description": "No operational roster read was reconciled, so this account list is a floor.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "or",
+                "clauses": [
+                  {
+                    "field": "roster_is_configuration_only",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "roster_is_configuration_only"
+              ]
             }
           ]
         },
@@ -1664,7 +1992,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "name"
+              ]
             }
           ]
         },
@@ -1686,8 +2017,13 @@
               "short_description": "More than two superusers on this appliance.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
+                  {
+                    "field": "is_superuser",
+                    "op": "eq",
+                    "value": true
+                  },
                   {
                     "field": "superuser_cohort_size",
                     "op": "gt",
@@ -1697,7 +2033,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "superuser_cohort_size"
+              ]
             },
             {
               "name": "Severity: 3 to 5",
@@ -1706,6 +2045,11 @@
                 "model": "integrations.AdminUser",
                 "operator": "and",
                 "clauses": [
+                  {
+                    "field": "is_superuser",
+                    "op": "eq",
+                    "value": true
+                  },
                   {
                     "field": "superuser_cohort_size",
                     "op": "gte",
@@ -1720,7 +2064,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "low",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "superuser_cohort_size"
+              ]
             },
             {
               "name": "Severity: 6 to 10",
@@ -1729,6 +2076,11 @@
                 "model": "integrations.AdminUser",
                 "operator": "and",
                 "clauses": [
+                  {
+                    "field": "is_superuser",
+                    "op": "eq",
+                    "value": true
+                  },
                   {
                     "field": "superuser_cohort_size",
                     "op": "gte",
@@ -1743,7 +2095,36 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "superuser_cohort_size"
+              ]
+            },
+            {
+              "name": "Superuser roster is configuration alone",
+              "short_description": "No operational roster read was reconciled, so this count is a floor.",
+              "canonical_query": {
+                "model": "integrations.AdminUser",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "is_superuser",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "roster_is_configuration_only",
+                    "op": "eq",
+                    "value": true
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "high",
+              "is_active": true,
+              "asserted_fields": [
+                "roster_is_configuration_only"
+              ]
             }
           ]
         },
@@ -1776,7 +2157,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "referrer_count"
+              ]
             }
           ]
         },
@@ -1795,11 +2179,16 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "An exemption weaker than the firewall-wide expiry policy.",
               "canonical_query": {
                 "model": "integrations.PasswordProfile",
-                "operator": "or",
+                "operator": "and",
                 "clauses": [
+                  {
+                    "field": "global_expiration_period",
+                    "op": "gt",
+                    "value": 0
+                  },
                   {
                     "field": "weakens_global_expiration",
                     "op": "eq",
@@ -1809,7 +2198,41 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "weakens_global_expiration"
+              ]
+            },
+            {
+              "name": "Exempted password never expires",
+              "short_description": "The profile sets no expiry at all, so the account outlives the policy indefinitely.",
+              "canonical_query": {
+                "model": "integrations.PasswordProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "global_expiration_period",
+                    "op": "gt",
+                    "value": 0
+                  },
+                  {
+                    "field": "weakens_global_expiration",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "expiration_period",
+                    "op": "eq",
+                    "value": 0
+                  }
+                ]
+              },
+              "is_baseline": false,
+              "adjusted_severity": "medium",
+              "is_active": true,
+              "asserted_fields": [
+                "expiration_period"
+              ]
             }
           ]
         },

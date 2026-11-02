@@ -75,7 +75,18 @@ _INTEGER_FIELDS = (
     "expiration_warning_period", "post_expiration_admin_login_count",
     "post_expiration_grace_period", "block_repeated_characters", "change_period_block",
 )
-_BOOLEAN_FIELDS = ("enabled", "block_username_inclusion", "change_on_first_login")
+#: `post_expiration_admin_login_count_unknown` and `post_expiration_grace_period_unknown` added
+#: 2026-11-01 for PAN-AUTH-012 and PAN-AUTH-013. Both are the COMPANION of a `null=True` integer
+#: beside them, and the companion is what the control asserts on when the key was absent: the
+#: integer's own clause is `gt 0`, which a NULL fails and which a stored 0 also fails because 0 is
+#: the COMPLIANT value on those two leaves - so without the companion the unread appliance passes.
+#: Both companions are `null=False, default=True`, so a bare `eq` reaches every row and the
+#: `__isnull`-OR shape the other compilers carry for a nullable column is not needed here. The
+#: default is the FIRING side, which is the honest direction for a column that means "nobody
+#: looked".
+_BOOLEAN_FIELDS = ("enabled", "block_username_inclusion", "change_on_first_login",
+                   "post_expiration_admin_login_count_unknown",
+                   "post_expiration_grace_period_unknown")
 
 FIELD_COMPILERS = {
     "hostname": build_text_compiler("hostname", "appliance__hostname"),

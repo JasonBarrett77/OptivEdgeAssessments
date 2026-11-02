@@ -104,6 +104,22 @@ FIELD_COMPILERS = {
         "authentication_profile_unresolved", "authentication_profile_unresolved"),
     "superuser_cohort_size": build_integer_compiler(
         "superuser_cohort_size", "superuser_cohort_size"),
+    # PAN-AUTH-019's SECOND half, and not a restatement of `centrally_authenticated`. The
+    # normaliser derives `centrally_authenticated = authentication_is_external and not
+    # has_password and not has_public_key`, so `centrally_authenticated eq false` is exactly
+    # the union of `authentication_is_external eq false` OR `has_local_credential eq true` -
+    # one clause over two remediations. `admin_users.py` says so in terms: "the two findings
+    # have different remediations - a binding to add, against a credential to delete". The two
+    # columns are registered separately so each query can name its own fault, which is what
+    # `ControlQuery.asserted_fields` colours on the findings row.
+    "has_local_credential": build_boolean_compiler(
+        "has_local_credential", "has_local_credential"),
+    # The COMPANION for `superuser_cohort_size` and for `has_local_credential`, both of which
+    # read as COMPLIANT when nobody looked. It is `null=False, default=True` and the normaliser
+    # writes a constant `True`, so a bare `eq` reaches every row and there is no NULL for an
+    # `__isnull`-OR branch to find. Registered 2026-11-01.
+    "roster_is_configuration_only": build_boolean_compiler(
+        "roster_is_configuration_only", "roster_is_configuration_only"),
 }
 
 FIELD_OPERATOR_REGISTRY = {

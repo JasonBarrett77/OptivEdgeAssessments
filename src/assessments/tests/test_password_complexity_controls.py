@@ -41,6 +41,16 @@ from optivedge_integrations.integrations.platforms.pan_os.normalization import (
 CONTROLS = [f"PAN-AUTH-{n:03d}" for n in range(1, 14)]
 #: What a default device reports: everything except the two inverted ones.
 ALL_BUT_INVERTED = {c for c in CONTROLS if c not in ("PAN-AUTH-012", "PAN-AUTH-013")}
+#: AN ABSENT KEY IS NOT A ZERO, and that is what the stage 8 run on `admin-authentication`
+#: changed on 2026-11-01. The docstring above says of 012 and 013 that "the secure value is
+#: ZERO, which is also the default" - true of a device CONFIGURED to zero, and false of a device
+#: where the `password-change` node was never written. There the columns are NULL,
+#: `post_expiration_*_unknown` is True, and the assertion `gt 0` matches nothing: the control
+#: reported a clean estate on an appliance nobody had read. Stage 5 names the remedy - a second
+#: group on the companion column, firing on its own at the assertion's own severity - and the
+#: seed now carries it, so an UNTOUCHED device fires all thirteen while a device configured to
+#: zero still fires eleven. The next test but two is the one that pins the second half.
+ALL_INCLUDING_UNKNOWN = set(CONTROLS)
 
 
 class PasswordComplexityControlTests(TestCase):
@@ -89,14 +99,33 @@ class PasswordComplexityControlTests(TestCase):
                     "control", "password_complexity_policy__appliance")
                 if f.password_complexity_policy.appliance.hostname == hostname}
 
-    def test_an_untouched_device_fires_everything_except_the_inverted_two(self):
+    def test_an_untouched_device_fires_all_thirteen(self):
         """The shape both lab PA-5220s were in before anyone touched them.
 
-        012 and 013 must NOT fire: their secure value is 0 and 0 is the default, so a device
-        that has never been configured already satisfies them.
+        012 and 013 DO fire here, and the reason is the whole of why they have companion
+        columns: this device has no `password-change` node at all, so their columns are NULL
+        rather than 0 and their `gt 0` assertion matches nothing. Until 2026-11-01 this test
+        asserted the opposite and the two controls reported a clean estate on an appliance
+        nobody had read. What fires is the companion group, on
+        `post_expiration_*_unknown`, not the threshold.
         """
         self._profile("fw-bare")
-        self.assertEqual(self._findings("fw-bare"), ALL_BUT_INVERTED)
+        self.assertEqual(self._findings("fw-bare"), ALL_INCLUDING_UNKNOWN)
+
+    def test_a_configured_zero_still_satisfies_the_inverted_two(self):
+        """The other half, and the one that keeps the branch the test above used to hold.
+
+        A device that WAS read and that sets both post-expiry allowances to zero is compliant on
+        012 and 013 - zero is their secure value - and its companion columns are False. So the
+        change above widened the ABSENT case and left the CONFIGURED case alone, which is the
+        distinction the companion columns exist to draw.
+        """
+        self._profile("fw-zeroed", {
+            "password-change": {"post-expiration-admin-login-count": "0",
+                                "post-expiration-grace-period": "0"}})
+        fired = self._findings("fw-zeroed")
+        self.assertNotIn("PAN-AUTH-012", fired)
+        self.assertNotIn("PAN-AUTH-013", fired)
 
     def test_enabling_alone_removes_exactly_one_finding(self):
         """The independence decision, checked rather than argued.
@@ -106,7 +135,8 @@ class PasswordComplexityControlTests(TestCase):
         the other's one.
         """
         self._profile("fw-enabled", {"enabled": "yes"})
-        self.assertEqual(self._findings("fw-enabled"), ALL_BUT_INVERTED - {"PAN-AUTH-001"})
+        self.assertEqual(self._findings("fw-enabled"),
+                         ALL_INCLUDING_UNKNOWN - {"PAN-AUTH-001"})
 
     def test_a_fully_compliant_device_fires_nothing(self):
         self._profile("fw-good", {

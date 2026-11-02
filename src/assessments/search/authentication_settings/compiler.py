@@ -42,6 +42,29 @@ def build_text_compiler(field_name, lookup_field):
     return compiler
 
 
+def build_boolean_compiler(field_name, lookup_field):
+    """Added 2026-11-01 for PAN-AUTH-015's companion. This package had NO boolean builder.
+
+    `search/management_interface/compiler.py` was in the same state until 2026-11-01, so a
+    boolean column needs this added beside the text one rather than reused - there was nothing
+    here to reuse. The body is the four lines every other package's boolean builder carries.
+
+    `lockout_time_minutes_unknown` is `null=False, default=True`, so `filter(field=value)`
+    reaches every row and no `__isnull`-OR branch is wanted: the shape two compilers carry for a
+    NULLABLE column has no null to find here. The NULLABLE column is
+    `lockout_time_minutes` BESIDE it, which is exactly why the companion exists.
+    """
+    def compiler(clause):
+        op, value = clause["op"], clause["value"]
+        if op != "eq":
+            raise SearchSyntaxError(f"Unsupported operator for {field_name}: {op}.")
+        if not isinstance(value, bool):
+            raise SearchSyntaxError(f"{field_name} search value must be a boolean.")
+        return AuthenticationSettings.objects.filter(**{lookup_field: value}).values("pk")
+    compiler.SUPPORTED_OPERATORS = {"eq"}
+    return compiler
+
+
 def build_integer_compiler(field_name, lookup_field):
     def compiler(clause):
         op, value = clause["op"], clause["value"]
@@ -61,9 +84,18 @@ _INTEGER_FIELDS = (
     "api_key_lifetime_minutes",
 )
 
+#: `lockout_time_minutes_unknown` is PAN-AUTH-015's companion. Its sibling columns need none:
+#: `lockout_failed_attempts`, `idle_timeout_minutes` and `api_key_lifetime_minutes` are all
+#: `null=False` with a materialised default, so their own clause reaches the unread appliance.
+#: `lockout_time_minutes` is the one `null=True` column of the four, and the vendor contradicts
+#: itself about which end of its scale 0 sits at - so no stored sentinel can both fire on the
+#: unknown and leave a real 0 alone, and the companion is the only honest answer.
+_BOOLEAN_FIELDS = ("lockout_time_minutes_unknown",)
+
 FIELD_COMPILERS = {
     "hostname": build_text_compiler("hostname", "appliance__hostname"),
     "serial_number": build_text_compiler("serial_number", "appliance__serial_number"),
+    **{name: build_boolean_compiler(name, name) for name in _BOOLEAN_FIELDS},
     **{name: build_integer_compiler(name, name) for name in _INTEGER_FIELDS},
 }
 
