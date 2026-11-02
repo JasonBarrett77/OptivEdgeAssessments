@@ -124,8 +124,23 @@ class QueryDestinationTests(TestCase):
         self.assertEqual(query_results_url(shared), "")
 
     def test_a_model_no_page_presents_gets_no_link(self):
+        """`integrations.MonitorProfile`, which is the DURABLE example rather than merely the
+        next model waiting for a page.
+
+        This held `integrations.Zone` until 2026-11-02, when stage 9 of `device-id-iot` gave Zone
+        the shared `zones` rail item and this test went red - correctly, because the example had
+        become false. Repointing it at another `AWAITING_PRESENTATION` model would only move the
+        same breakage to that domain's stage 9 run.
+
+        A monitor profile cannot stop being the example. It is stored and normalised and NO
+        SHIPPED QUERY NAMES IT, so by the rail's own rule - written into
+        `configuration_navigation` beside the Network Profiles entry it is the counter-example to
+        - it has not earned an item and should not be given one. A model with no page because
+        nothing asks about it is a permanent state; a model with no page YET is a debt with a
+        name on it, and `AWAITING_PRESENTATION` is where those live.
+        """
         self.assertEqual(query_results_url(
-            {"model": "integrations.Zone", "operator": "and", "clauses": []}), "")
+            {"model": "integrations.MonitorProfile", "operator": "and", "clauses": []}), "")
 
     def test_security_rule_queries_reach_the_policies_page(self):
         """They went to the standalone rules page through a documented fallback until
@@ -218,9 +233,16 @@ class ControlDetailLinkTests(TestCase):
         self.assertIn(f"?control_query={self._baseline(control).pk}", html)
 
     def test_a_query_with_no_destination_renders_a_disabled_marker_not_a_gap(self):
+        """THE SECOND TEST IN THIS FILE THAT NEEDS A MODEL NO PAGE PRESENTS, and the second to be
+        repointed for the same reason - see
+        `test_a_model_no_page_presents_gets_no_link` above, which carries the full argument. Both
+        held `integrations.Zone` until 2026-11-02, when stage 9 of `device-id-iot` gave Zone a
+        rail item and both went red. `integrations.MonitorProfile` is the durable stand-in: it is
+        stored and normalised and no shipped query names it, so by the rail's own rule it has not
+        earned a page and cannot stop being the example."""
         control = self._control("PAN-SVC-010")
         control.queries.update(canonical_query={
-            "model": "integrations.Zone", "operator": "and",
-            "clauses": [{"field": "name", "op": "eq", "value": "trust"}]})
+            "model": "integrations.MonitorProfile", "operator": "and",
+            "clauses": [{"field": "name", "op": "eq", "value": "oep-ips6-m01"}]})
         html = self.client.get(f"/assessments/controls/{control.pk}/").content.decode()
         self.assertIn("No query view for this object yet", html)

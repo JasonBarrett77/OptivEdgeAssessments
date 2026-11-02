@@ -71,7 +71,11 @@ class WorkbookBuildTests(TestCase):
         # minted. The second draws no rows, by design: its one control ships inactive.
         # 40 on 2026-11-02: IPSec Crypto and IPSec Tunnels, the phase-2 pair, between the two
         # phase-1 tabs in Network - stage 9 of `ipsec-crypto`.
-        self.assertIn("Summary: 40 tabs linked, 0 findings in total", reports[0])
+        # 43 later on 2026-11-02: Device-ID Policy Match (Policies, beside Virtual System Rule
+        # Posture), Security Zones (Network, FIRST in that category because that is where the
+        # vendor puts a zone) and IoT Security (Device) - stage 9 of `device-id-iot`. THREE TABS
+        # IN THREE CATEGORIES from one pipeline domain, which is why they are not adjacent.
+        self.assertIn("Summary: 43 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -84,7 +88,8 @@ class WorkbookBuildTests(TestCase):
         # 37 later the same day: IKE Crypto and IKE Gateways.
         # 39 on 2026-11-01: Virtual System Rule Posture and Policy Rule Settings.
         # 41 on 2026-11-02: IPSec Crypto and IPSec Tunnels.
-        self.assertEqual(len(names), 41)
+        # 44 later on 2026-11-02: Device-ID Policy Match, Security Zones and IoT Security.
+        self.assertEqual(len(names), 44)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

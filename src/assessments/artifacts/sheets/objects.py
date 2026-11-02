@@ -27,6 +27,7 @@ from assessments.models import Control
 
 from optivedge_integrations.integrations.models import AddressObject
 
+from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
 
@@ -407,6 +408,7 @@ IPSEC_TUNNEL_SUBJECT = APPLIANCE + IPSEC_TUNNEL_NAME + (
 SCOPE = (("Scope", 12, False, lambda s, _p: scope_of(s), "scope"),)
 KIND = (("Kind", 22, False, lambda s, _p: s.get_kind_display(), "kind"),)
 
+
 def scope_owner(obj):
     """The appliance group or appliance a scoped object belongs to.
 
@@ -427,6 +429,170 @@ VSYS_SCOPED = (
      lambda s, _p: (s.enforcement_point.vsys_name
                     if getattr(s, "enforcement_point", None) is not None else "shared")),
 )
+
+# --------------------------------------------------------------------------------------------
+# THE THREE DEVICE-ID TABS, 2026-11-02, for PAN-IOT-001 to -004. Three models, three grains and
+# three PAN-OS categories - a device-wide service state (Device), the security zone (Network) and
+# a verdict over an enforcement point's whole rule set (Policies) - so they are three tabs in
+# three different places in the Summary rather than one domain's block.
+#
+# EVERY HEADING BELOW IS A PROPOSAL. Report content is Jason's and he takes the heading pass once
+# across many domains (P399). The sourcing is in each comment: where the vendor has a label this
+# uses it, and where the vendor has NO label the comment says so rather than implying one.
+#
+# NO TAB HERE HIDES A FIELD. `hidden_fields` is empty on all three. The gate accepts a field's
+# presence in `hidden_fields` as proof something shows it, so a non-empty one is a CLAIM taken as
+# proof and is the only known cause in this repository of a findings row that marks nothing as the
+# thing to fix. There was no reason for a new sheet to declare one.
+# --------------------------------------------------------------------------------------------
+
+#: The device-identification state's four DISPLAY columns - no clause names any of them, and each
+#: still declares its `field` so that a control which ever tests one marks THIS cell instead of
+#: drawing a second column under a different heading.
+#:
+#: NO `Object` COLUMN, and that is stage 5's grain rather than an omission: the row is a conclusion
+#: about the appliance, and the licence table's entries have no identity a finding would print.
+#:
+#: THE TWO CONTENT INSTRUMENTS SIT SIDE BY SIDE BECAUSE THEY DISAGREE. The dictionary version and
+#: its release date are what PAN-IOT-003 grades; the two `show iot icd version` columns are the
+#: instrument it must NOT grade, and the ordering puts the graded one first. See their readers.
+DEVICE_IDENTIFICATION_SUBJECT = APPLIANCE + (
+    ("Device dictionary version", 22, False,
+     lambda s, _p: device_id.dictionary_version(s), "device_dictionary_version"),
+    ("Content release date (as written)", 26, True,
+     lambda s, _p: device_id.release_date(s), "device_dictionary_release_date"),
+    ("Classification data build", 24, True,
+     lambda s, _p: device_id.icd_build(s), "icd_build_version"),
+    ("Classification data built", 24, True,
+     lambda s, _p: device_id.icd_built_at(s), "icd_built_at"),
+)
+
+#: ONE READER ON THIS TAB, and the field it is on is the only one where it costs nothing.
+#:
+#: `device_dictionary_age_days` is declared in `DeviceIdentificationState.DERIVED_FIELDS`, so a
+#: reader loses no `FieldProvenance` row: `build_rows` hands a reader field `stored=False` to
+#: `remediation_accessor`, which then never consults that field's own row - and on a derived
+#: column there is no such row to consult. Measured by the `ipsec-crypto` run and true here.
+#:
+#: WHAT IT BUYS: `display_value` would print `(none)` for the NULL, and NULL here is not a missing
+#: reading in the ordinary sense - it is an appliance whose `show system info` carries no
+#: release-date key at all, which PAN-IOT-003's applicability clause then narrows OUT of the
+#: graded comparison. `(none)` in a column of day counts reads as a value somebody failed to fill
+#: in, beside a finding about something else. The em dash says the comparison was not made.
+#:
+#: AND `edge_service_address` DELIBERATELY HAS NONE. It is the one PAYLOAD KEY among this tab's
+#: tested fields, and whether the key was absent, explicitly blank or template-supplied is half of
+#: what PAN-IOT-001 is about - which is exactly what a reader would discard. Refused for that
+#: reason; the cell reads `(empty)` and the Provenance column keeps the answer.
+DEVICE_IDENTIFICATION_READERS = {
+    "device_dictionary_age_days": findings_sheet.ValueReader(
+        read=device_id.content_age_days,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+}
+
+DEVICE_IDENTIFICATION_SETTING_LABELS = {
+    # The vendor's own name for the subscription, help p.951 ("IoT, short for IoT Security").
+    "device_id_licensed": "IoT Security subscription in force",
+    # No vendor label: the entitlement is runtime state the firewall reports and never a screen
+    # field. This is the companion that separates "not entitled" from "never asked" - on an
+    # appliance holding no licences the whole reply is `{'licenses': None}`, which is exactly what
+    # a collector that never issued the command produces.
+    "licence_read_taken": "Licence listing answered",
+    # `deviceconfig/setting/iot/edge/address`. No vendor label either: stage 4 could reach no
+    # oracle for this node, and Device > IoT Security has no route in the UI map.
+    "edge_service_address": "Edge service address",
+    # Help p.951 calls the Dynamic Updates column "Release Date"; this is the companion that says
+    # whether the appliance reported one at all, which two of the four lab appliances do not.
+    "device_dictionary_release_date_known": "Content release date reported",
+    "device_dictionary_age_days": "Content age (days)",
+}
+
+#: The zone's identity and its two Device-ID lists. VSYS-SCOPED because a zone name is unique only
+#: per enforcement point - the stored constraint is literally
+#: `integrations_unique_zone_per_enforcement_point` - so the same name legitimately exists in
+#: several virtual systems and the vsys is part of the identity rather than decoration.
+#:
+#: THE TWO LIST COLUMNS READ THE VENDOR'S OWN WORDS WHEN EMPTY. See their readers: an empty
+#: include list is `Any`, not a blank, because it means identification applies to every address in
+#: the zone - the most permissive state on the device AND the compliant one for this control.
+ZONE_SUBJECT = VSYS_SCOPED + NAME + (
+    # Headed by analogy to the vendor's own User-ID labels, and the analogy is the best available:
+    # help p.479-483's Security Zone Settings table lists "User Identification ACL Include List"
+    # and "...Exclude List" and NO device equivalent of either - checked in three Help versions
+    # and absent from all three. So the device wording here is ours, modelled on the vendor's.
+    ("Device-ID address list (include)", 30, True,
+     lambda z, _p: device_id.device_include_members(z), "device_include_acl"),
+    ("Device-ID address list (exclude)", 30, True,
+     lambda z, _p: device_id.device_exclude_members(z), "device_exclude_acl"),
+)
+
+#: THREE READERS ON THE ZONE TAB, AND THEY ARE NOT ABOUT WORDING. Each prints the same Yes/No the
+#: shared renderer would; what they are for is that a reader whose `provenance` is not the DERIVED
+#: label makes `build_rows` skip `remediation_accessor` entirely - and calling it on a `Zone`
+#: RAISES. The shared `provenance_of` closure falls back to `field in model.DERIVED_FIELDS`
+#: whenever no stored row exists, `Zone` is a `SyncTrackedModel` rather than a `ProvenancedMixin`,
+#: it declares no `DERIVED_FIELDS`, and nothing writes a `FieldProvenance` row for a zone - so
+#: every row takes that fallback and every row would crash the build.
+#:
+#: SO THE USUAL COST OF A READER IS ZERO HERE, which is the opposite of the `ipsec-crypto` case
+#: and for a measurable reason: that run refused readers on two payload keys because a reader
+#: discards the field's own `FieldProvenance` row, and a zone HAS no such row to discard. Nothing
+#: is lost that was ever there.
+#:
+#: Recorded as a defect in this run's artifact rather than fixed: the model belongs to another
+#: repository and the closure is shared machinery.
+ZONE_READERS = {
+    "enable_device_identification": findings_sheet.ValueReader(
+        read=device_id.identification_enabled, provenance=device_id.ZONE_PROVENANCE),
+    "device_identification_is_narrowed": findings_sheet.ValueReader(
+        read=device_id.identification_narrowed, provenance=device_id.ZONE_PROVENANCE),
+    "device_acl_lists_computed": findings_sheet.ValueReader(
+        read=device_id.device_lists_read, provenance=device_id.ZONE_PROVENANCE),
+}
+
+ZONE_SETTING_LABELS = {
+    # NO VENDOR LABEL EXISTS FOR THIS FIELD and that is measured, not assumed: stage 1 read the
+    # Security Zone Settings table in three Help versions and the device equivalent of "Enable
+    # User Identification" is absent from all three, though the key is committable and the box
+    # renders. So this heading is ours, worded to match the vendor's User-ID one beside it.
+    "enable_device_identification": "Enable Device Identification",
+    # The derived verdict over the two JSON lists. A clause cannot hold an OR across two columns
+    # and there is no count operator, so "either list has a member" is computed at normalization.
+    "device_identification_is_narrowed": "Device identification narrowed",
+    # The column that answers the unknown. False means the row predates the two columns or its
+    # merged read never arrived - NOT that the lists are empty.
+    "device_acl_lists_computed": "Device-ID lists read",
+}
+
+#: The verdict's identity and its two counts, on `vsys_rule_posture`'s pattern.
+#:
+#: THE IDENTITY COLUMNS DECLARE NO `field`, which is that sheet's own ruling and the right one
+#: here: declaring one would move the value-at-fault mark off the verdict and onto the row's
+#: address. The two COUNT columns do declare theirs, because they are real model columns a control
+#: could one day test and neither is part of the address.
+RULEBASE_DEVICE_MATCH_SUBJECT = VSYS_SCOPED + (
+    # Printed as numbers rather than through `display_value`, on `rule-posture`'s ruling for a
+    # count column: zero is the reportable end, and a word like "Nothing" on a column named for a
+    # count reads as "not counted" instead of "none found".
+    ("Rules matching on a device", 26, False,
+     lambda v, _p: device_id.rules_matching_count(v), "rules_matching_on_device_count"),
+    ("Device objects visible here", 26, False,
+     lambda v, _p: device_id.device_objects_visible(v), "device_object_count"),
+)
+
+RULEBASE_DEVICE_MATCH_SETTING_LABELS = {
+    # HEADED IN THE FIELD'S OWN POLARITY, deliberately, and this is the one heading on the three
+    # tabs that is a safety decision rather than a wording one. The column defaults True and True
+    # is the FIRING side, so a heading like "Policy matches on a device" would put "No" in the
+    # firing cell and "Yes" in the healthy one - and the failure this stage exists to catch is a
+    # row whose most REASSURING cell is the finding. Worded this way the firing cell reads "Yes"
+    # to a question whose Yes is plainly the problem, and cannot be scanned as a pass.
+    #
+    # The vendor names the two rule fields that take a device object "Source Device" and
+    # "Destination Device" (help p.128) and has no name for the absence of both across a rule
+    # set, which is what this column is.
+    "has_no_rule_matching_on_device": "Device dimension absent from the rule set",
+}
 
 
 #: Three fields controls test that are NOT columns on their model, each read from where the value
@@ -703,6 +869,103 @@ SPECS = (
          title="IPSec Tunnels", subject=IPSEC_TUNNEL_SUBJECT,
          setting_labels=IPSEC_TUNNEL_SETTING_LABELS,
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # The three Device-ID tabs, 2026-11-02. Their column constants and the reasoning behind each
+    # heading are above; what is decided HERE is the domain sentence, the title and the three
+    # options each tab needs.
+    #
+    # `tested_columns` IS `ALL_TESTED_COLUMNS` ON ALL THREE AND THAT IS A CHOICE. The default is
+    # `('Provenance',)`, which keeps `Fires when` on the live page and DROPS it from the xlsx - so
+    # a row's defects split across the two media and the workbook shows a contradicting value
+    # under the control's name with no stated condition beside it at all. Made knowing the price:
+    # `fires_when` renders the BASELINE query alone, with no per-query hook, so on a row that
+    # fired through a calibration query instead the condition printed is one the subject does not
+    # meet. FOUR ROWS OF THIS DOMAIN ARE IN THAT STATE - the three narrowed zones, which fire on
+    # "Identification narrowed to a device address list" while the baseline asks whether
+    # identification is OFF, and the appliance reporting no release date, which fires on "Release
+    # date never reported" while the baseline asks for an age over seven days. All four are
+    # recorded in this run's artifact against `argued_against_itself`. The alternative is the
+    # contradicting value with no stated condition at all, which an earlier run measured as worse.
+    spec(T.DEVICE_IDENTIFICATION,
+         "Whether each firewall can identify the unmanaged equipment on its networks at all: "
+         "whether the IoT Security subscription is in force, whether the firewall is wired to "
+         "the service that feeds it, and how current the classification data it holds is. THE "
+         "SUBSCRIPTION IS THE PREMISE AND THE OTHER TWO REST ON IT - a zone with device "
+         "identification switched on identifies nothing without the service behind it, so a "
+         "finding here makes every Device-ID finding elsewhere in this report a smaller "
+         "question. THREE UNRELATED INSTRUMENTS LAND ON ONE ROW: a licence listing, an "
+         "operational reading of the installed content, and one configuration node. Each is "
+         "reported with the companion column that says whether it was answered at all, because "
+         "an appliance holding no subscription and an appliance nobody asked produce the same "
+         "empty reply - and a firewall nobody could read must not report as a firewall that is "
+         "fine. WHAT IS NOT ASSESSED is whether anything answers at the far end: a configured "
+         "address proves the wiring exists and no configuration read proves delivery.",
+         title="IoT Security", subject=DEVICE_IDENTIFICATION_SUBJECT,
+         setting_labels=DEVICE_IDENTIFICATION_SETTING_LABELS,
+         value_readers=DEVICE_IDENTIFICATION_READERS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.ZONE,
+         "The security zones on each virtual system, and whether each identifies the devices "
+         "connected to it. THE FIRING STATE OF THE SECOND HALF IS THE OPPOSITE OF WHAT A "
+         "REVIEWER LOOKS FOR, which is the one thing to read before acting on a row here: an "
+         "absent or empty Device-ID address list means identification applies to EVERY address "
+         "in the zone, which is the most permissive reading and the COMPLIANT one. What is "
+         "reported is a POPULATED list, because that narrows identification away from equipment "
+         "the zone was enabled for. The members are printed for a reviewer to check against "
+         "what is actually plugged in, and the report makes no claim that they cover it: a "
+         "member may be a literal, a CIDR block, an address object or an address GROUP, and "
+         "nothing on the firewall says what a group currently contains. A ZONE WITH NO ROW IS "
+         "NOT A ZONE WITH NOTHING WRONG - a zone whose read never arrived is absent here rather "
+         "than unknown, and no column of this tab can say so.",
+         title="Security Zones", subject=ZONE_SUBJECT,
+         setting_labels=ZONE_SETTING_LABELS,
+         value_readers=ZONE_READERS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # ONE ANSWER FOR THE WHOLE ROW, on `vsys_rule_posture`'s precedent, and here it is
+         # forced as well as right: `Zone` tracks no per-field provenance at all, so there is no
+         # per-field answer to give. See `device_id.zone_provenance`.
+         provenance_cell=device_id.zone_provenance,
+         # NO TEMPLATE COLUMN. It would be blank on every row whatever happened - nothing writes
+         # a `FieldProvenance` row for a zone - and the default reader would raise on the way to
+         # printing the blank. The Provenance cell beside it says why in words instead of
+         # leaving a reader to read an empty cell as "configured locally".
+         source_columns=(),
+         # A zone hangs off an enforcement point, never a single appliance, so there is no one
+         # appliance for a row to link to: linking to one half of an HA pair would assert
+         # something false.
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+    spec(T.RULEBASE_DEVICE_MATCH,
+         "Whether each virtual system's security policy matches on what a connecting device IS, "
+         "anywhere in its rule set. THE ROW IS A CONCLUSION ABOUT ALL THE RULES AND NOT ABOUT "
+         "ANY ONE OF THEM, because the commonest state of this subject is a rule set with no "
+         "device dimension anywhere in it - and the absence of a dimension is not a defect in "
+         "any particular rule. THE RULE SET OF A VIRTUAL SYSTEM IS THREE READS AND NOT ONE: the "
+         "firewall-local rulebase, the Panorama pre- and post-rulebases pushed to it, and the "
+         "two predefined default rules; a verdict over any two of them would be a verdict about "
+         "the wrong rule set. A POPULATED FIELD IS NOT A MATCH - the member list that carries a "
+         "device object also carries GlobalProtect host-posture profiles and three bare "
+         "keywords, and `any`, which is what every populated list in this estate holds, "
+         "constrains nothing. So what is counted is members that RESOLVE against the device "
+         "objects this virtual system can see, and the count of those objects is on the row "
+         "because zero of them means no rule COULD name a device: a different piece of work "
+         "from a policy that has the objects and does not use them.",
+         title="Device-ID Policy Match", subject=RULEBASE_DEVICE_MATCH_SUBJECT,
+         setting_labels=RULEBASE_DEVICE_MATCH_SETTING_LABELS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # Every column of this model is in its `DERIVED_FIELDS` - it is a verdict and holds no
+         # key the firewall wrote - so the per-field remediation walk resolves to "Not recorded"
+         # on all of them and one answer for the row is the honest shape. `vsys_rule_posture`,
+         # the other verdict tab, made the same call for the same reason.
+         provenance_cell=lambda v, _p, _f: "Derived",
+         # A Template column would be blank on every row: there is no pushed key here to name a
+         # template for, because there is no key at all.
+         source_columns=(),
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
          "interfaces carry them.",

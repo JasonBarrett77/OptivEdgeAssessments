@@ -64,6 +64,24 @@ DOMAINS = (
     # FIRST domain claiming a MODEL, and this domain claims `VsysRulePosture`, which no other
     # domain claims - `SecurityRule` links still land on `security-rules`.
     FindingsDomain("vsys-rule-posture", vsys_rule_posture.SPEC),
+    # Policies, 2026-11-02, for PAN-IOT-004 - the other verdict over a virtual system's whole
+    # rule set, so it sits beside `vsys-rule-posture` above and AFTER it, which is
+    # `finding_run.GENERATORS` order and the order a reader needs: that tab says whether the
+    # policy refuses anything at all, and this one asks a narrower question of the same rules.
+    #
+    # ITS CATEGORY IS DERIVED FROM THE RAIL (`category=''`), which is right for a subject whose
+    # address is a PAN-OS node: deriving it means the workbook cannot disagree with the app about
+    # where the subject lives. The rail item is `rulebase-device-match`, at Policies > Security,
+    # the third item at that address.
+    #
+    # THIS DOMAIN'S OTHER TWO TABS ARE NOT BESIDE IT, and that is required rather than untidy:
+    # its three subjects categorise as Policies, Network and Device, so they sit in three
+    # different blocks of this list. Tabs must follow the Summary's category order and the
+    # product's order wins over keeping one pipeline domain's tabs together.
+    # `finding_run.GENERATORS` runs them device identification, security zone, rulebase device
+    # match - the REVERSE of their category rank - and that tuple's order governs only WITHIN a
+    # category, so nothing here contradicts it.
+    _object_domain("rulebase-device-match", T.RULEBASE_DEVICE_MATCH),
     #
     # The generic rules sheet comes first and stays first: `_build_model_index` takes the FIRST
     # domain claiming a model, so SecurityRule links keep landing here rather than on one of
@@ -86,6 +104,20 @@ DOMAINS = (
     # claims the Objects category rather than one of its own.
     _object_domain("normalization-coverage", T.NORMALIZATION),
     # Network
+    #
+    # Network, 2026-11-02, for PAN-IOT-002, and FIRST in this category because that is where the
+    # vendor puts the object: help p.359 enumerates the Network rail as Interfaces, Traffic
+    # Objects, ZONES, VLANs, Virtual Wires, Virtual Routers, Routing, IPSec Tunnels, ... Network
+    # Profiles LAST - so a zone precedes every other Network subject this report has a tab for.
+    # Category DERIVED from the rail, at Network > Zones.
+    #
+    # THE TAB IS THIS DOMAIN'S AND THE MODEL IS NOT. `integrations.Zone` is shared with two later
+    # pipeline domains - `user-id` over the zone's User-ID switch and ACLs, `zone-dos-protection`
+    # over its protection-profile attachment - and both have their own control types and so their
+    # own tabs. `_build_model_index` takes the FIRST domain claiming a model, so every Zone
+    # findings link lands HERE until somebody decides otherwise; that is worth knowing when those
+    # domains run, because their rows will be on their own tabs while the model's links are not.
+    _object_domain("security-zones", T.ZONE),
     _object_domain("interface-management-profiles", T.INTERFACE_MANAGEMENT_PROFILE),
     # Network > Network Profiles, 2026-10-28. Both after the interface-management profiles,
     # which is this category's order in `finding_run.GENERATORS` - and the proposal set before
@@ -132,6 +164,19 @@ DOMAINS = (
     _object_domain("password-profiles", T.PASSWORD_PROFILE),
     _object_domain("administrators", T.ADMIN_USER),
     _object_domain("aaa-server-profiles", T.SERVER_PROFILE),
+    # Device, 2026-11-02, for PAN-IOT-001 and PAN-IOT-003. HERE rather than beside the master key
+    # at the top of this block, because within a category this list takes
+    # `finding_run.GENERATORS`' order and that tuple runs "device identification" after "aaa
+    # server profile" and before "policy rule settings" below. The RAIL puts the object elsewhere
+    # - Device > Licenses, which help p.950-956 lists immediately above Master Key and
+    # Diagnostics - and the two orders are allowed to differ: the rail is the product's
+    # navigation and this is the Summary's reading order.
+    #
+    # Category DERIVED from the rail, like its two siblings. The subject is read from three
+    # instruments and only one of them has a configuration xpath, but two of the three are
+    # screens an assessor opens - which is the test `configuration_navigation` states for being
+    # on the rail at all, and it passes it.
+    _object_domain("iot-security", T.DEVICE_IDENTIFICATION),
     # Device, LAST, 2026-11-01: `finding_run.GENERATORS` runs "policy rule settings" after every
     # other device generator, and within a category that tuple is this list's order.
     #

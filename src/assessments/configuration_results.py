@@ -25,6 +25,7 @@ from typing import Callable, NamedTuple
 from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
+from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
 from assessments.security_rule_queries import build_security_rule_display_queryset
@@ -43,6 +44,7 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSequence,
     Certificate,
     CertificateProfile,
+    DeviceIdentificationState,
     IkeCryptoProfile,
     IkeGateway,
     InterfaceManagementProfile,
@@ -63,10 +65,12 @@ from optivedge_integrations.integrations.models import (
     PasswordComplexityPolicy,
     PasswordProfile,
     PolicyRuleSettings,
+    RulebaseDeviceMatchVerdict,
     SecurityProfile,
     ServerProfile,
     SslTlsServiceProfile,
     VsysRulePosture,
+    Zone,
 )
 
 
@@ -676,6 +680,179 @@ RESULTS = {
             _yes_no(p.has_port_matched_block_rule),
         ),
     ),
+    # --- Policies > Security, third rail item: the same rule set read for ONE dimension, which
+    # is whether any rule that permits traffic matches on what the connecting device is.
+    # PAN-IOT-004. Laid out on `rule-posture`'s pattern above because it is the same shape.
+    #
+    # `Firewalls` has no `query_fields` entry for the reason that entry gives: it lists the HA
+    # pair, and a clause over one hostname would not select the row it was read from.
+    #
+    # NEITHER COUNT IS QUERYABLE and both are on the row. Only `has_no_rule_matching_on_device`
+    # is registered in the search compiler - the repo's rule is that a column a control asks for
+    # is registered and no other - so the two counts are display columns, the `rule-posture`
+    # precedent for a presented-but-unqueried column. They are what makes the verdict
+    # ACTIONABLE: zero visible device objects means no rule COULD name a device even if somebody
+    # wrote one, so the work is to define the objects; a non-zero count means the objects exist
+    # and the policy does not use them. Two different pieces of work behind one verdict.
+    "rulebase-device-match": ResultsSpec(
+        query_fields={
+            "Vsys": "vsys_name",
+            # NAMED IN THE FIELD'S OWN POLARITY, deliberately. True is the default AND the
+            # firing side, so a heading like "Policy matches on a device" would put the word
+            # "No" in the firing cell and "Yes" in the healthy one - and a reader scanning a
+            # column of Yes/No beside a finding must not be able to read the firing cell as a
+            # pass. This way the firing cell reads Yes to a question whose Yes is plainly bad.
+            "Device dimension absent from the rule set": "has_no_rule_matching_on_device"},
+        columns=("Firewalls", "Vsys", "Device dimension absent from the rule set",
+                 "Rules matching on a device", "Device objects visible here"),
+        base_queryset=lambda: (RulebaseDeviceMatchVerdict.objects
+                               .select_related("enforcement_point__appliance",
+                                               "enforcement_point__appliance_group")
+                               .prefetch_related("enforcement_point__appliance_group__appliances")
+                               .order_by("enforcement_point__appliance_group__name",
+                                         "enforcement_point__appliance__hostname",
+                                         "enforcement_point__vsys_name")),
+        row=lambda v: (
+            _enforced_by(v.enforcement_point),
+            v.enforcement_point.vsys_name or "-",
+            _yes_no(v.has_no_rule_matching_on_device),
+            # Printed as the number, on `rule-posture`'s ruling for a count column.
+            device_id.rules_matching_count(v),
+            device_id.device_objects_visible(v),
+        ),
+    ),
+    # --- Network > Zones. THE PAGE THREE DOMAINS SHARE, and the columns are the union of what
+    # all three ask: PAN-IOT-002 over the Device-ID switch and its narrowing, `user-id` (PAN-UID)
+    # over the User-ID switch, and `zone-dos-protection` (PAN-ZON) over the protection-profile
+    # attachment. Both later domains run after this one and reuse this entry; a column either of
+    # them needs and this page lacks is theirs to add, and the rail item will not have to move.
+    #
+    # THE TWO DEVICE-ID LISTS ARE DISPLAY-ONLY AND CANNOT BE OTHERWISE. They are JSON columns, a
+    # JSON column is reachable from no query in this language, and a consumer test compiles every
+    # registered field to assert that no JSON column is reachable - so stage 5 marks them
+    # `not_searchable` and the verdict is taken on the derived `device_identification_is_narrowed`
+    # beside them. They are here so a reviewer can read the members they have to go and look at.
+    #
+    # AND THEY READ `Any` / `None` WHEN EMPTY RATHER THAN BLANK. Stage 4 measured the vendor's own
+    # grid on two platforms: with no `device-acl` node INCLUDED NETWORKS renders `any` and
+    # EXCLUDED renders `none`, so an empty include list means identification applies to EVERY
+    # address in the zone - the most permissive state and the COMPLIANT one for this control. A
+    # blank cell here is the first of this stage's three recorded presentation failures verbatim.
+    #
+    # `zone_protection_profile` IS SHOWN AND NOT QUERYABLE, and that is the compiler's standing
+    # decision rather than an omission here: a clause on the name PASSES exactly the dangling-name
+    # case the column exists to catch, so `zone_protection_unresolved` is the registered one.
+    "zones": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname",
+            "Vsys": "vsys_name",
+            "Zone": "name",
+            "Type": "zone_type",
+            "Carries traffic": "can_receive_traffic",
+            "Device identification on": "enable_device_identification",
+            "Device identification narrowed": "device_identification_is_narrowed",
+            "Device-ID lists read": "device_acl_lists_computed",
+            "User identification on": "enable_user_identification",
+            "Zone protection unresolved": "zone_protection_unresolved"},
+        columns=("Appliance", "Vsys", "Zone", "Type", "Carries traffic",
+                 "Device identification on", "Device identification narrowed",
+                 "Device-ID address list (include)", "Device-ID address list (exclude)",
+                 "Device-ID lists read", "User identification on",
+                 "Zone protection profile", "Zone protection unresolved"),
+        base_queryset=lambda: (Zone.objects
+                               .select_related("enforcement_point__appliance",
+                                               "enforcement_point__appliance_group")
+                               .order_by("enforcement_point__appliance__hostname",
+                                         "enforcement_point__vsys_name", "name")),
+        row=lambda z: (
+            # THE PAIR, NOT ONE MEMBER, and `Appliance` IS still queryable here - which departs
+            # from `rule-posture`'s ruling above for a measured reason. That entry gives its
+            # `Firewalls` column no `query_fields` entry because a clause over one hostname would
+            # not select the row it was read from. The zone compiler's `hostname` field is built
+            # over BOTH `enforcement_point__appliance__hostname` AND
+            # `enforcement_point__appliance_group__appliances__hostname`, so a clause naming
+            # either member of a pair does select the pair's row.
+            _enforced_by(z.enforcement_point),
+            z.enforcement_point.vsys_name or "-",
+            z.name or "-",
+            z.get_zone_type_display(),
+            _yes_no(z.can_receive_traffic),
+            _yes_no(z.enable_device_identification),
+            _yes_no(z.device_identification_is_narrowed),
+            device_id.device_include_members(z),
+            device_id.device_exclude_members(z),
+            _yes_no(z.device_acl_lists_computed),
+            _yes_no(z.enable_user_identification),
+            # The attachment as written. Its WORDING belongs to `zone-dos-protection`, whose
+            # controls are about this column and which runs after this domain; "-" is the repo's
+            # convention for an absent text value and is left for that run to improve. The
+            # verdict beside it is what any control reads, because the name alone is the naive
+            # reading: a zone naming a profile that does not exist reads as configured.
+            z.zone_protection_profile or "-",
+            _yes_no(z.zone_protection_unresolved),
+        ),
+    ),
+    # --- Device > Licenses: one appliance's whole device-identification service state.
+    # PAN-IOT-001 and PAN-IOT-003.
+    #
+    # THREE UNRELATED INSTRUMENTS LAND ON THIS ROW and a reader has to be able to tell which one
+    # answered, which is what the column order is for: the entitlement first, then whether the
+    # licence listing was even taken, then the wiring, then the content. Four of the model's
+    # columns are not registered in the search compiler and are display-only - the version, the
+    # release date as written, and the two `show iot icd version` build columns.
+    #
+    # THE TWO CONTENT INSTRUMENTS RANK THIS ESTATE IN OPPOSITE ORDERS and both are on the row on
+    # purpose. `Device dictionary version` and its release date are what PAN-IOT-003 grades;
+    # `Classification data build` is the one it must NOT grade, because build dates are
+    # 2026-02-06 on the two PA-5220s against 2024-07-22 on pan-fw-111 while the content versions
+    # are 82-406 against 249-772 - a gap of 167 releases the other way. A reader shown only the
+    # build date would call the two most stale appliances the freshest in the estate.
+    #
+    # `Content age (days)` READS AN EM DASH where no release date was reported, not a blank and
+    # not a zero: the comparison was not made, and the column beside it says why.
+    "iot-security": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname",
+            "Serial": "serial_number",
+            "IoT Security subscription in force": "device_id_licensed",
+            "Licence listing answered": "licence_read_taken",
+            "Edge service address": "edge_service_address",
+            "Content release date reported": "device_dictionary_release_date_known",
+            "Content age (days)": "device_dictionary_age_days"},
+        columns=("Appliance", "Serial", "IoT Security subscription in force",
+                 "Licence listing answered", "Edge service address",
+                 "Device dictionary version", "Content release date (as written)",
+                 "Content release date reported", "Content age (days)",
+                 "Classification data build", "Classification data built"),
+        base_queryset=_ordered(DeviceIdentificationState, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            _yes_no(s.device_id_licensed),
+            _yes_no(s.licence_read_taken),
+            # EMPTY IS THE FIRING STATE of PAN-IOT-001's second half and the measured state of
+            # every appliance in the lab - the node is absent on all four - so the cell says the
+            # wiring is absent rather than leaving a blank that reads as unfilled.
+            #
+            # IT DIFFERS FROM THE FINDINGS TAB ON PURPOSE. There the same field reads
+            # `display_value`'s `(empty)`, because giving it a `value_readers` entry would
+            # discard the field's own `FieldProvenance` row and whether the key was absent,
+            # explicitly blank or template-supplied is half of what the control is about. This
+            # page has no provenance column to protect, so it can say the plainer thing.
+            #
+            # NOT `_nothing`, which is a COUNT helper taking (count, unit) and reads "Nothing"
+            # for a falsy count. Called with one text argument it raises TypeError - caught here
+            # by `test_device_id_tabs`, because the shipped squareness check has fixtures for one
+            # model and never calls a new page's lambda.
+            s.edge_service_address or "Not configured",
+            device_id.dictionary_version(s),
+            device_id.release_date(s),
+            _yes_no(s.device_dictionary_release_date_known),
+            device_id.content_age_days(s),
+            device_id.icd_build(s),
+            device_id.icd_built_at(s),
+        ),
+    ),
     "logging-and-reporting": ResultsSpec(
         query_fields={"Appliance": "hostname",
                       "Log on High DP Load": "log_on_high_dp_load"},
@@ -1165,12 +1342,17 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # `user-id` reached stage 8 on 2026-11-01. FOUR models carry its six controls and none of
     # the four has a rail item: the two this domain created - the per-vsys User-ID collector
     # settings node and the per-vsys discovery bound - plus `integrations.Zone`, which has been
-    # stored for months and whose own debt the `PAN-IOT` entry above already names, and
-    # `integrations.ManagementInterface`, which DOES have a page. So this entry is load-bearing
-    # for five of the six controls and harmless for the sixth: `_awaiting` is consulted only
-    # where `query_results_url` returns nothing, and PAN-UID-005's management-interface queries
-    # resolve on their own. Stage 9 for this domain is what gives the other three a page, and
-    # stage 8's contract forbids building one.
+    # stored for months, and `integrations.ManagementInterface`, which DOES have a page. So this
+    # entry is load-bearing for five of the six controls and harmless for the sixth: `_awaiting`
+    # is consulted only where `query_results_url` returns nothing, and PAN-UID-005's
+    # management-interface queries resolve on their own. Stage 9 for this domain is what gives
+    # the other three a page, and stage 8's contract forbids building one.
+    #
+    # CORRECTED 2026-11-02 by stage 9 of `device-id-iot`: this entry used to say `integrations.
+    # Zone`'s "own debt the `PAN-IOT` entry above already names", and that entry is now gone
+    # because Zone HAS a page - the shared `zones` rail item, written for this domain to reuse.
+    # So TWO of this domain's four models are still homeless rather than three, and the zone half
+    # of PAN-UID's queries already resolves. The entry stays for the two that do not.
     "PAN-UID": "stage9-user-id.json",
     # PAN-HAP-001 to 005 target two device-wide management-plane models that no rail item
     # reaches yet. PAN-HAP-006 and 007 have no entry in the catalog at all - they assert over
@@ -1183,12 +1365,18 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # verdicts and the device-wide App-ID Cloud Engine. Stage 9 for this domain is what gives
     # them a page, and stage 8's contract forbids building one.
     "PAN-SAS-": "stage9-saas-security.json",
-    # `device-id-iot` reached stage 8 on 2026-10-31. THREE models and none of them has a rail
-    # item: the appliance's device-identification service state and the rulebase device-match
-    # verdict had never been queried from this repository at all, and `Zone` had been stored for
-    # months with no control, no page and no search surface over it. Stage 9 for this domain is
-    # what gives all three a page, and stage 8's contract forbids building one.
-    "PAN-IOT": "stage9-device-id-iot.json",
+    # `PAN-IOT` WAS HERE AND IS GONE, 2026-11-02, cleared by stage 9 of `device-id-iot`. Its
+    # three models - `integrations.DeviceIdentificationState`, `integrations.Zone` and
+    # `integrations.RulebaseDeviceMatchVerdict` - now have rail items and results specs above, so
+    # all ten of the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole.
+    #
+    # `integrations.Zone` IS NOW PRESENTED AND TWO LATER DOMAINS INHERIT IT. The `zones` rail
+    # item and its page were written to be shared - see that `ResultsSpec` - so the Zone half of
+    # the `PAN-UID` and `PAN-ZON` debts below is already discharged and only their other models
+    # keep those entries alive. Both comments were corrected to say so.
     # `file-data-filtering` reached stage 8 on 2026-10-31. Two models and neither has a rail
     # item: `DataFilteringPosture` did not exist before stage 7 for this domain, and
     # `SecurityProfile`'s pages are per profile KIND, mirroring PAN-OS's own tabs, so the two
@@ -1255,13 +1443,19 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # Stage 9 for this domain is what gives the three new models a page, and stage 8's contract
     # forbids building one.
     "PAN-GPG": "stage9-globalprotect-gateway.json",
-    # `zone-dos-protection` reached stage 8 on 2026-11-01. FOUR models carry its eight controls
-    # and NONE of the four has a rail item: the two this domain's stage 7 created - the zone
-    # protection profile and the DoS policy rule - plus `integrations.Zone`, whose own debt the
-    # `PAN-IOT` and `PAN-UID` entries above already name, plus `integrations.SecurityProfile`,
-    # whose results pages are per profile KIND, mirroring PAN-OS's own tabs, so the
-    # `dos-protection` kind that PAN-ZON-008 queries has no page either. Stage 9 for this domain
-    # is what gives all four of them one, and stage 8's contract forbids building it.
+    # `zone-dos-protection` reached stage 8 on 2026-11-01. FOUR models carry its eight controls:
+    # the two this domain's stage 7 created - the zone protection profile and the DoS policy rule
+    # - plus `integrations.Zone`, plus `integrations.SecurityProfile`, whose results pages are per
+    # profile KIND, mirroring PAN-OS's own tabs, so the `dos-protection` kind that PAN-ZON-008
+    # queries has no page either. Stage 9 for this domain is what gives the homeless ones a page,
+    # and stage 8's contract forbids building it.
+    #
+    # CORRECTED 2026-11-02 by stage 9 of `device-id-iot`: this said NONE of the four has a rail
+    # item and named the `PAN-IOT` and `PAN-UID` entries as carrying Zone's debt. `PAN-IOT` is
+    # gone and `integrations.Zone` now HAS a page - the shared `zones` rail item, written for this
+    # domain to reuse, with `zone_protection_profile` and `zone_protection_unresolved` already
+    # among its columns because this domain's controls were known to be coming. So THREE of the
+    # four are still homeless, not four, and PAN-ZON's zone-attachment queries already resolve.
     #
     # THIS DEBT IS FOR SEVEN OF THE DOMAIN'S EIGHT CONTROLS AND ONE LINE CLEARS TWENTY-FIVE
     # FAILURES, because `test_configuration_links` fails once per catalog QUERY of a homeless

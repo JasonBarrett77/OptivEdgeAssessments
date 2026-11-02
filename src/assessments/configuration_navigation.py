@@ -110,6 +110,30 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("rule-posture", "Rulebase Posture", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.VsysRulePosture"),
+    # Policies > Security, THIRD rail item, 2026-11-02, for PAN-IOT-004 - whose subject is also
+    # the virtual system's whole rule set, read for one dimension: whether any rule that PERMITS
+    # traffic matches on what the connecting device IS.
+    #
+    # FOLLOWING `rule-posture` ABOVE RATHER THAN INVENTING A PATTERN, and its reasoning block
+    # applies here unchanged. The subject is a PAN-OS node - one virtual system's
+    # `rulebase/security/rules` - which an assessor opens at this address and reads; the model
+    # holds OUR READING of that node; the rail item promises the node and not the reading. The
+    # test that block states is whether the subject HAS a vendor path, and this one has the same
+    # path `rule-posture` does.
+    #
+    # A THIRD ITEM RATHER THAN A SECOND MODEL ON `rule-posture`, by that entry's own argument
+    # that an engineer fixes one or the other. Everything on `rule-posture` is fixed by ADDING a
+    # rule that refuses something; everything here is fixed by adding the device DIMENSION to
+    # rules that already exist - or, where the count of visible device objects is zero, by
+    # defining the objects a rule could name at all. Two different pieces of work.
+    #
+    # THE LABEL IS OURS AND THE VENDOR'S WORDS ARE IN IT. Help p.128 names the two rule fields
+    # that take a device object "Source Device" and "Destination Device", in Building Blocks in
+    # a Security Policy Rule. The vendor has no name for the ABSENCE of both across a whole rule
+    # set, which is what this item is about, so "Device-ID Policy Match" is a proposal.
+    ConfigObject("rulebase-device-match", "Device-ID Policy Match", "Policies", "", "shield",
+                 where="Policies > Security",
+                 search_model="integrations.RulebaseDeviceMatchVerdict"),
     # Objects > Addresses, 2026-10-02. Turned on for the PAN-COV coverage controls, which query
     # address objects: every control query must have a results page, and a query with nowhere to
     # go is one an assessor cannot check.
@@ -231,10 +255,62 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  "server", where="Device > Server Profiles > LDAP / RADIUS / TACACS+ / "
                                  "Kerberos / SAML / Multi Factor Authentication",
                  search_model="integrations.ServerProfile"),
+    # Device > Licenses, 2026-11-02, for PAN-IOT-001 and PAN-IOT-003 - the appliance's whole
+    # device-identification service state on one row.
+    #
+    # ITS POSITION IS THE PRODUCT'S. Help p.950-956 runs the Device rail's tail Software,
+    # Dynamic Updates, Plugins, Licenses, Support, Master Key and Diagnostics - so Licenses sits
+    # immediately above the master key, where this is.
+    #
+    # THREE INSTRUMENTS, THREE SCREENS, ONE `where`, and the choice is stated rather than taken
+    # quietly. The row is built from `request license info` (the entitlement), `show system
+    # info` (the installed device-dictionary version and its release date) and the configuration
+    # node `deviceconfig/setting/iot/edge` (the address the firewall sends to). Only the third
+    # has a configuration xpath at all - stage 4 records the entitlement as runtime state with
+    # no node at any scope - and the vendor splits the other two across Device > Licenses and
+    # Device > Dynamic Updates. `where` names Licenses because the entitlement is the PREMISE:
+    # the firewall itself prints "IoT Security license is required for feature to function" in
+    # red on the page the feature is used from, so an assessor with one finding to chase starts
+    # there. THE DICTIONARY HALF IS AT Device > Dynamic Updates, where help p.951 says the
+    # Feature column reads "IoT, short for IoT Security" and p.952 that the check mark means
+    # that release is the one running. A reader sent to Licenses for a staleness finding is at
+    # the wrong screen, and that is the cost of there being one field for three addresses.
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test above - does the subject have a vendor
+    # path. It has two, both of them screens an assessor opens and reads. What the model holds
+    # is our reading of them, exactly as that entry describes.
+    #
+    # THE LABEL IS THE VENDOR'S OWN NAME FOR THE SUBSCRIPTION, from help p.951.
+    ConfigObject("iot-security", "IoT Security", "Device", "", "clipboard-check",
+                 where="Device > Licenses",
+                 search_model="integrations.DeviceIdentificationState"),
     # Device > Master Key and Diagnostics.
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",
                  search_model="integrations.MasterKey"),
+    # Network > Zones, 2026-11-02, for PAN-IOT-002. TOP-LEVEL and ABOVE IPSec Tunnels, which is
+    # the product's own order: the enumeration quoted on the next entry runs Interfaces, Traffic
+    # Objects, ZONES, VLANs, Virtual Wires, Virtual Routers, Routing, IPSec Tunnels - so Zones
+    # comes third and the tunnels eighth. Same citation, help p.359.
+    #
+    # THIS ENTRY IS NOT ONLY THIS DOMAIN'S, AND IT IS DELIBERATELY NAMED FOR THE OBJECT RATHER
+    # THAN FOR DEVICE-ID. Two later pipeline domains hold homeless queries on `integrations.Zone`
+    # and both reuse this item rather than adding one: `user-id` (PAN-UID) over the zone's
+    # User-ID switch and its two User Identification ACLs, and `zone-dos-protection` (PAN-ZON)
+    # over the zone's protection-profile attachment. A slug, label or `where` naming Device-ID
+    # would have made both of those look like they were in the wrong place, and `search_model`
+    # already carries everything any of the three needs. So: the vendor's object, the vendor's
+    # label, the vendor's path, and three domains' controls reporting under it.
+    #
+    # The columns the page offers are the union, for the same reason - see its `ResultsSpec`.
+    #
+    # `Zone` HAD BEEN STORED FOR MONTHS WITH NO CONTROL, NO PAGE AND NO SEARCH SURFACE. It has
+    # carried `enable_device_identification` and both Device-ID ACLs since `integrations`
+    # migration 0018; PAN-IOT-002 is the first control ever written over a zone, which is why
+    # the item appears now rather than when the model did.
+    ConfigObject("zones", "Zones", "Network", "", "shield",
+                 where="Network > Zones",
+                 search_model="integrations.Zone"),
     # Network, TOP-LEVEL rail item - no heading in the product either, and it sits ABOVE the
     # Network Profiles group because that is where PAN-OS puts it. Measured in the vendor's own
     # two enumerations of this tab rather than chosen: help p.359 lists the Network nodes as
