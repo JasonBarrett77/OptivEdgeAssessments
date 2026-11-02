@@ -28,6 +28,7 @@ from assessments.models import Control
 from optivedge_integrations.integrations.models import AddressObject
 
 from assessments import ike_presentation as ike
+from assessments import ipsec_presentation as ipsec
 
 from . import findings as findings_sheet
 from ..layout import NONE, SheetInfo, appliance_names, ha_role
@@ -249,6 +250,159 @@ IKE_GATEWAY_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
      "ikev2_dpd_enabled"),
     ("IKEv1 DPD retry", 14, False, lambda s, _p: ike.ikev1_dpd_retry(s), "ikev1_dpd_retry"),
     ("IKE crypto profile named", 24, True, lambda s, _p: ike.named_crypto_profiles(s)),
+)
+#: PHASE 2, 2026-11-02. Both IPSec models name their entry `profile_name`/`tunnel_name` and
+#: have NO `name` field, like their phase-1 siblings and for the same reason - they are
+#: `network/` objects with one firewall-local scope, so neither inherits `ApplianceScopedObject`
+#: and neither carries `scope` or `vsys_name`. `NAME` above reads `s.name` and does not apply.
+#: The `field` is the column's own name so a control testing it marks THIS cell rather than
+#: drawing a second column headed the same way.
+IPSEC_PROFILE_NAME = (("Object", None, False, lambda s, _p: s.profile_name or NONE,
+                       "profile_name"),)
+IPSEC_TUNNEL_NAME = (("Object", None, False, lambda s, _p: s.tunnel_name or NONE,
+                      "tunnel_name"),)
+
+#: HOW FOUR DERIVED COLUMNS READ ON THE IPSEC CRYPTO TAB, through `value_readers` rather than
+#: through `display_value`. EVERY FIELD HERE IS ONE THE MODEL DECLARES IN `DERIVED_FIELDS`, and
+#: that restriction is load-bearing rather than tidiness: `build_rows` resolves a reader field's
+#: Provenance cell through `remediation_accessor`, which is handed `stored=False` for a reader
+#: field and therefore NEVER reads that field's own FieldProvenance row. On a DERIVED column there
+#: is nothing to lose - `provenance_of` synthesises a DERIVED row and the accessor discards that
+#: too, walking to the object either way - so the cell reads exactly as it would without the
+#: reader. On a PAYLOAD KEY it would throw away the one thing that matters about it, which is why
+#: the tunnel tab beside this declares no readers at all: `anti_replay` and
+#: `tunnel_monitor_enable` are measured keys whose provenance says whether the key was absent or
+#: explicitly off, and that distinction is the whole of PAN-IPS-006 and -007.
+#:
+#: WHAT IT BUYS. `weakest_encryption_offered` holds the EMPTY STRING on a profile with no ESP
+#: branch, PAN-IPS-002 fires on exactly those profiles and marks that cell, so the unimproved row
+#: offered `(empty)` as the thing an engineer should change - the shape the stage 9 contract's
+#: fourth finding is about, and here it is the MARKED cell rather than an unmarked one. The
+#: shared `display_value` cannot say "this branch does not exist on this subject" and must not
+#: learn to, because every other tab reads it.
+IPSEC_CRYPTO_PROFILE_READERS = {
+    "protocol_branch": findings_sheet.ValueReader(
+        read=ipsec.protocol_branch,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+    "weakest_encryption_offered": findings_sheet.ValueReader(
+        read=ipsec.weakest_cipher,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+    "weakest_integrity_offered": findings_sheet.ValueReader(
+        read=ipsec.weakest_integrity,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+    "referencing_tunnel_count": findings_sheet.ValueReader(
+        read=ipsec.referencing_tunnels,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+}
+
+#: What to head the derived setting columns on the two IPSec tabs. HEADINGS PROPOSED 2026-11-02
+#: by the stage 9 run on `ipsec-crypto` and NOT SETTLED: Jason takes the heading pass once over
+#: many domains rather than per domain (P399), and every one of these is one line in this dict.
+#:
+#: Written rather than derived, for the reason `setting_labels` gives: a mechanical title-case
+#: turns `dh_group` into "Dh Group" and every acronym this subject matter is made of - ESP, AH,
+#: AH, DH, SHA-2, AEAD - comes out wrong.
+#:
+#: THE QUESTION MARK IS LOAD-BEARING AND ONLY THREE OF THE FIFTEEN CARRY ONE. `anti_replay_
+#: determined` and `tunnel_monitor_enable_determined` are the companion columns that exist
+#: BECAUSE a null boolean matches no positive comparison: a false on either means THIS ASSESSMENT
+#: NEVER ESTABLISHED IT, not that the device is set a particular way, so they are headed as the
+#: question they answer. `all_offered_ciphers_authenticate` takes one because it is PAN-IPS-003's
+#: applicability clause rather than an assertion - it decides whether the integrity verdict beside
+#: it means anything. The other twelve are facts about the device that a false states positively,
+#: and heading them as questions would imply a doubt there is none of.
+#:
+#: NEITHER `lifetime_unit` NOR THE THREE ALGORITHM LISTS APPEARS HERE: no clause reads any of
+#: them, so none derives a column, and each is a declared SUBJECT column with a heading of its
+#: own below.
+IPSEC_CRYPTO_PROFILE_SETTING_LABELS = {
+    "protocol_branch": "IPSec protocol",
+    "weakest_encryption_offered": "Weakest cipher offered",
+    "all_offered_ciphers_authenticate": "Every offered cipher authenticates too?",
+    "integrity_meets_sha2_floor": "Integrity meets the SHA-2 floor",
+    "weakest_integrity_offered": "Weakest integrity algorithm offered",
+    "dh_group_meets_target": "Key agreement group meets the target",
+    "dh_group": "Key agreement group",
+    "lifetime_within_target": "Key lifetime within target",
+    "lifetime_hours": "Key lifetime (hours)",
+    "referencing_tunnel_count": "Named by a tunnel here",
+}
+
+IPSEC_TUNNEL_SETTING_LABELS = {
+    "anti_replay": "Replay protection",
+    "anti_replay_determined": "Replay protection read?",
+    "tunnel_monitor_enable": "Far-end monitoring",
+    "tunnel_monitor_enable_determined": "Far-end monitoring read?",
+    "is_disabled": "Switched off",
+}
+
+#: An IPSec crypto profile. The three algorithm columns show the OFFER SET with the graded member
+#: marked, because the profile offers every member and takes the first a peer accepts - the
+#: weakest alone hides what a remediation has to delete, and stage 4 measured that `action=set`
+#: with one member ADDS to the stored list, so a remediation cannot shrink an offer set by
+#: overwriting it either.
+#:
+#: EACH ONE NAMES ITS FIELD, including the three lists no control clauses on. A subject column
+#: that declares no field does not suppress the derived column for the same attribute, so one
+#: value reaches the tab twice under two headings - and because the headings differ, the
+#: duplicate-header guard never fires. These three are safe from that today only because the
+#: lists are JSONFields nothing can clause on; naming them costs nothing and closes it anyway.
+#:
+#: THE ESP AND AH INTEGRITY LISTS ARE TWO COLUMNS AND NOT ONE, which is the model's own reasoning
+#: rather than a layout choice: stage 4 measured that ONE grid column on the device serves both
+#: branches, so a reading taken off the screen cannot say which branch's list it came from. Each
+#: reads an em dash on a profile whose branch is the other one - a state `display_value` has no
+#: word for and a declared subject column may say.
+#:
+#: "Key lifetime (as written)" exists BESIDE the derived `Key lifetime (hours)` and does not
+#: replace it: the unit is WHICH CHILD ELEMENT EXISTS rather than a value on the device, so it
+#: cannot be a column a reader compares - and it is what a remediation needs, since a profile
+#: written in days holds nothing at all at the hour branch. Its field is `lifetime_unit`, which
+#: stage 5 declares presented and no clause reads.
+IPSEC_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IPSEC_PROFILE_NAME + (
+    ("Encryption offered (ESP)", 22, True, lambda s, _p: ipsec.esp_encryption_offered(s),
+     "esp_encryption"),
+    ("Integrity offered (ESP)", 26, True, lambda s, _p: ipsec.esp_integrity_offered(s),
+     "esp_authentication"),
+    ("Integrity offered (AH)", 22, True, lambda s, _p: ipsec.ah_integrity_offered(s),
+     "ah_authentication"),
+    ("Key lifetime (as written)", 22, False, lambda s, _p: ipsec.key_lifetime(s),
+     "lifetime_unit"),
+)
+
+#: An IPSec tunnel. Six declared columns, every one of them a field stage 5 marks presented that
+#: NO shipped query names - so no settings column derives for any of them and without these the
+#: row would show the switch, the two monitoring verdicts and nothing about the bindings they
+#: are verdicts on.
+#:
+#: `ike_gateway_names` IS DELIBERATELY NOT HERE, and it is the one column on this subject stage 5
+#: marks `presented: false`. It is half of a join whose other half does not exist: PAN-IPS-008's
+#: first stage 5 record asserts that a retired tunnel's gateway is retired with it, and this
+#: domain's stage 4 never measured the gateway collection - so the assertion's gateway clause was
+#: never written and nothing could be reconciled against this list. The column is stored so that
+#: the day the collection IS measured the tunnel side is already there. Presenting it now would
+#: put a list on the row that no sentence in the report refers to.
+#:
+#: "IPSec crypto profile named" IS THE ONE CELL ON EITHER TAB THAT READS `provenance_of`, and it
+#: has to. Where the tunnel writes no reference the column holds the LITERAL `default`, which is
+#: an inference and not a reading - stage 4 set `may_materialise: false` on three leads and not
+#: one measurement - and the recorded `assumed_default` on that field reaches no other cell on
+#: the row, because the Provenance column answers per TESTED field and no clause in this domain
+#: reads this one. A row printing `default` as though it had been read is the shape P420 names.
+IPSEC_TUNNEL_SUBJECT = APPLIANCE + IPSEC_TUNNEL_NAME + (
+    ("Monitor probe target", 20, False, lambda s, _p: ipsec.monitor_probe(s),
+     "tunnel_monitor_destination_ip"),
+    ("Monitor profile named", 22, False, lambda s, _p: ipsec.monitor_profile_named(s),
+     "tunnel_monitor_profile_name"),
+    ("Monitor action if probing fails", 30, True, lambda s, _p: ipsec.monitor_action(s),
+     "monitor_action_effective"),
+    ("IPSec crypto profile named", 30, True,
+     lambda s, provenance_of: ipsec.crypto_profile_named(s, provenance_of),
+     "crypto_profile_name"),
+    ("Crypto profile resolves here", 28, True, lambda s, _p: ipsec.crypto_profile_resolves(s),
+     "crypto_profile_found"),
+    ("Running on a chosen profile", 30, True,
+     lambda s, _p: ipsec.running_on_a_chosen_profile(s), "effective_crypto_profile_chosen"),
 )
 SCOPE = (("Scope", 12, False, lambda s, _p: scope_of(s), "scope"),)
 KIND = (("Kind", 22, False, lambda s, _p: s.get_kind_display(), "kind"),)
@@ -501,6 +655,54 @@ SPECS = (
          # either: no second column derives, and the cell becomes markable if a control ever
          # does assert on it.
          setting_labels=IKE_GATEWAY_SETTING_LABELS),
+    # Network > Network Profiles > IPSec Crypto and Network > IPSec Tunnels, 2026-11-02.
+    # TWO TABS AND NOT ONE, for the reason they are two models and two rail items at two
+    # different vendor addresses: a tunnel names a profile, and an engineer fixes one or the
+    # other. It is also the SAFE arrangement for the em-dash escape, which is per MODEL and not
+    # per control: `setting_columns` keeps a derived column off a row with `isinstance(subject,
+    # model)`, so two control types over ONE model on one tab would each render the other's
+    # firing values as real cells. These two types are over two different models.
+    #
+    # Both subjects are DEVICE-WIDE - stage 4 measured exactly one firewall-local scope for
+    # each, neither shared nor under a vsys, one collection for the whole appliance even on the
+    # multi-vsys PA-5220 - so neither carries a Scope column: `scope` and `vsys_name` are not
+    # columns on either model at all.
+    #
+    # ON AN HA PAIR each of these yields two rows for one real configuration and nothing
+    # deduplicates them. Appliance and HA role are the first two columns precisely so a reader
+    # can reconcile the count against the device list; the deduplication itself is not something
+    # presentation can do, since the findings exist per appliance row and `row_meta` carries no
+    # pair key for a surface to fold on.
+    #
+    # NEITHER TAB HIDES A FIELD. `hidden_fields` is empty on both, which is the only known cause
+    # of an unmarkable value-at-fault cell in this repository: of 33 findings tabs, the 28 that
+    # declare it empty can all mark the cell at fault and every unmarkable field on the other
+    # five is in that tab's own `hidden_fields`.
+    spec(T.IPSEC_CRYPTO_PROFILE,
+         "The phase-2 proposal an IPSec tunnel negotiates its payload protection with: which "
+         "protocol branch protects the payload, which ciphers and integrity algorithms each "
+         "profile still offers under it, the key-agreement group it re-keys with, how long a key "
+         "lives, and whether any tunnel on the same firewall names it. A profile offers every "
+         "member of each list and takes the first a peer accepts, so what is assessed is the "
+         "WEAKEST member on offer - the one an exchange can be driven down to. THE TWO BRANCHES "
+         "ARE EXCLUSIVE ON A DEVICE and a profile carrying NEITHER is a committed state, not a "
+         "collection gap: the key lifetime is the object's only mandatory key, so a profile with "
+         "no cipher and no integrity algorithm at all commits cleanly.",
+         title="IPSec Crypto", subject=IPSEC_CRYPTO_PROFILE_SUBJECT,
+         setting_labels=IPSEC_CRYPTO_PROFILE_SETTING_LABELS,
+         value_readers=IPSEC_CRYPTO_PROFILE_READERS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.IPSEC_TUNNEL,
+         "The IPSec tunnels this firewall terminates: whether each is switched on, whether it "
+         "protects against replayed packets, whether it watches the far end, and which crypto "
+         "profile it runs on. A TUNNEL WITH NO ROW IS NOT A TUNNEL WITH NOTHING WRONG - an "
+         "appliance that terminates none produces no rows here, and every control on this tab "
+         "is written over the tunnels the firewall holds, so on such an appliance they are "
+         "vacuously satisfied rather than assessed. Whether a tunnel is actually negotiating is "
+         "not assessed either: that is live device state and no configuration read carries it.",
+         title="IPSec Tunnels", subject=IPSEC_TUNNEL_SUBJECT,
+         setting_labels=IPSEC_TUNNEL_SETTING_LABELS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
          "interfaces carry them.",

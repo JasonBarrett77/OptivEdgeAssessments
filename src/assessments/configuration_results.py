@@ -26,6 +26,7 @@ from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
 from assessments import ike_presentation as ike
+from assessments import ipsec_presentation as ipsec
 from assessments.security_rule_queries import build_security_rule_display_queryset
 from optivedge_integrations.integrations.presentation import (
     address_breadth_label,
@@ -45,6 +46,8 @@ from optivedge_integrations.integrations.models import (
     IkeCryptoProfile,
     IkeGateway,
     InterfaceManagementProfile,
+    IpsecCryptoProfile,
+    IpsecTunnel,
     ManagementInterface,
     AuthenticationSettings,
     LoggingSettings,
@@ -931,6 +934,50 @@ RESULTS = {
             _nothing(p.referrer_count, "place(s)"),
         ),
     ),
+    # --- Network > IPSec Tunnels ----------------------------------------------------------
+    # 2026-11-02, for PAN-IPS-006 to -009. A TOP-LEVEL Network item and not a Network Profile,
+    # because the vendor keeps the phase-2 BINDING a tab away from the reusable proposals it
+    # consumes - see the rail item's own comment.
+    #
+    # THREE OF THE EIGHT HEADINGS HAVE NO `query_fields` ENTRY AND THAT IS NOT AN OMISSION.
+    # `crypto_profile_name`, `crypto_profile_found`, `tunnel_monitor_destination_ip`,
+    # `tunnel_monitor_profile_name` and `monitor_action_effective` are stored and are NOT
+    # registered with the compiler - the repo's rule is that only a column a control asks for is
+    # registered, and no clause in this domain reads any of the five. Mapping a heading to an
+    # unregistered field would point the "build a query from these rows" button at a lookup that
+    # refuses itself.
+    #
+    # `Running on a chosen profile` IS registered and no shipped control asserts on it:
+    # PAN-IPS-009's tunnel-side stage 5 record was never built, because a `Control` is one model
+    # per control type and stage 8 could ship only the profile half. So the field is queryable
+    # here and reports nowhere, which is worth being able to ask about from this page.
+    "ipsec-tunnels": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Tunnel": "tunnel_name",
+                      "Switched off": "is_disabled", "Replay protection": "anti_replay",
+                      "Far-end monitoring": "tunnel_monitor_enable",
+                      "Running on a chosen profile": "effective_crypto_profile_chosen"},
+        columns=("Appliance", "Tunnel", "Switched off", "Replay protection",
+                 "Far-end monitoring", "Monitoring", "IPSec crypto profile",
+                 "Running on a chosen profile"),
+        base_queryset=_ordered(IpsecTunnel, "appliance__hostname", "tunnel_name"),
+        row=lambda t: (
+            str(t.appliance),
+            t.tunnel_name,
+            _yes_no(t.is_disabled),
+            ipsec.replay_protection(t),
+            ipsec.far_end_monitoring(t),
+            # One cell for the monitoring binding here, where the workbook's wider row splits
+            # the target, the profile and the resolved action into three: this page answers
+            # "which tunnels look like this" and has eight columns to do it in.
+            f"{ipsec.monitor_probe(t)}\n{ipsec.monitor_profile_named(t)}\n"
+            f"{ipsec.monitor_action(t)}",
+            # WITHOUT `provenance_of`, so this page cannot say that an absent reference was
+            # INFERRED as `default`. It has no provenance index and building one per row would
+            # cost a query per row for a column nothing queries. The findings tab does say it.
+            ipsec.crypto_profile_named(t),
+            ipsec.running_on_a_chosen_profile(t),
+        ),
+    ),
     # --- Network > Network Profiles -------------------------------------------------------
     # The two IKE objects, 2026-10-28, for the nine PAN-IKE controls. In the rail's order, which
     # is the product's: IKE Gateways above IKE Crypto above Interface Mgmt.
@@ -959,6 +1006,44 @@ RESULTS = {
             # answers "which gateways look like this" and has eight columns to do it in.
             ike.dead_peer_detection(g),
             ike.named_crypto_profiles(g),
+        ),
+    ),
+    # 2026-11-02, for PAN-IPS-001 to -005 and -009. BETWEEN the two IKE items, which is the
+    # group's own rail order and the vendor's: Network Profiles runs GlobalProtect IPSec Crypto,
+    # IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt.
+    #
+    # The algorithm cells are the offer set with the graded member marked, the way the phase-1
+    # page's are, and `query_fields` points at the `weakest_*` verdict column rather than at the
+    # list: all three lists are JSONFields, deliberately unregistered, so a heading mapped to one
+    # would be mapped to a lookup that silently matches nothing.
+    #
+    # `Key lifetime` maps to `lifetime_hours` and NOT to the unit beside it: `lifetime_unit` is
+    # stored and searchable and is deliberately unregistered, because no clause in this domain
+    # reads it. The cell shows both, because the number alone is this control's best state in one
+    # unit and its worst in another.
+    "ipsec-crypto": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Profile": "profile_name",
+                      "IPSec protocol": "protocol_branch",
+                      "Encryption": "weakest_encryption_offered",
+                      "Integrity": "weakest_integrity_offered",
+                      "Key agreement": "dh_group", "Key lifetime": "lifetime_hours",
+                      "Named by a tunnel": "referencing_tunnel_count"},
+        columns=("Appliance", "Profile", "IPSec protocol", "Encryption", "Integrity",
+                 "Key agreement", "Key lifetime", "Named by a tunnel"),
+        base_queryset=_ordered(IpsecCryptoProfile, "appliance__hostname", "profile_name"),
+        row=lambda p: (
+            str(p.appliance),
+            p.profile_name,
+            ipsec.protocol_branch(p),
+            ipsec.esp_encryption_offered(p),
+            ipsec.integrity_offered(p),
+            # RAW, and both of its odd tokens are real values rather than absences: `no-pfs`
+            # means the key already agreed is reused and `none` is a writable member, so neither
+            # may be softened into a word about missing data. The absent key materialises
+            # `group2`, which is a 1024-bit group and not an absence either.
+            p.dh_group,
+            ipsec.key_lifetime(p),
+            ipsec.referencing_tunnels(p),
         ),
     ),
     "ike-crypto": ResultsSpec(
@@ -1070,14 +1155,13 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
     # job rather than a side effect of it: an exemption that survives the work it was waiting
     # for is a permanent hole.
-    # `ipsec-crypto` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
-    # `IpsecCryptoProfile` and `IpsecTunnel` were both created by stage 7 for this domain and
-    # had never been queried from this repository at all. The rail's two IKE entries are the
-    # PHASE 1 objects at the adjacent xpath and reach neither of these. This entry is
-    # load-bearing for all nine PAN-IPS controls, and it fails once per catalogue QUERY rather
-    # than once per type - 33 queries ship here. Stage 9 for this domain is what gives the two
-    # models a page, and stage 8's contract forbids building one.
-    "PAN-IPS": "stage9-ipsec-crypto.json",
+    # `PAN-IPS` CAME OUT ON 2026-11-02, which is stage 9 of `ipsec-crypto` doing the thing the
+    # entry was waiting for. Both models - `integrations.IpsecCryptoProfile` and
+    # `integrations.IpsecTunnel` - now have rail items and results specs above, so all 33 of the
+    # domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole.
     # `user-id` reached stage 8 on 2026-11-01. FOUR models carry its six controls and none of
     # the four has a rail item: the two this domain created - the per-vsys User-ID collector
     # settings node and the per-vsys discovery bound - plus `integrations.Zone`, which has been

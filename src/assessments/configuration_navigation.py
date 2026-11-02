@@ -235,6 +235,25 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",
                  search_model="integrations.MasterKey"),
+    # Network, TOP-LEVEL rail item - no heading in the product either, and it sits ABOVE the
+    # Network Profiles group because that is where PAN-OS puts it. Measured in the vendor's own
+    # two enumerations of this tab rather than chosen: help p.359 lists the Network nodes as
+    # Interfaces, Traffic Objects, Zones, VLANs, Virtual Wires, Virtual Routers, Routing >
+    # Logical Routers, Routing > Routing Profiles, IPSec Tunnels, GRE Tunnels, DHCP, DNS Proxy,
+    # Proxy, QoS, LLDP, Network Profiles - Network Profiles LAST - and the admin-role privilege
+    # tree at guide p.115-118 runs the same order down to the same leaf.
+    #
+    # NOT UNDER `Network Profiles`, which is where build order would have put it: the two objects
+    # this domain presents are different kinds of thing at two different addresses. A crypto
+    # profile is a reusable PROPOSAL under Network Profiles; a tunnel is the phase-2 BINDING that
+    # consumes one, and the vendor keeps it a tab away. An engineer fixes one or the other.
+    #
+    # Turned on 2026-11-02 for the nine PAN-IPS controls, which query both of this domain's
+    # models: every control query must have a results page, and a query with nowhere to go is one
+    # an assessor cannot check.
+    ConfigObject("ipsec-tunnels", "IPSec Tunnels", "Network", "", "server",
+                 where="Network > IPSec Tunnels",
+                 search_model="integrations.IpsecTunnel"),
     # Network > Network Profiles. The rail order inside this group is the PRODUCT's, taken
     # from the vendor's own help, whose Network Profiles sections run GlobalProtect IPSec
     # Crypto, IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt, Zone Protection
@@ -248,6 +267,20 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("ike-gateways", "IKE Gateways", "Network", "Network Profiles", "server",
                  where="Network > Network Profiles > IKE Gateways",
                  search_model="integrations.IkeGateway"),
+    # IPSec Crypto sits BETWEEN the two IKE items, which is neither build order nor alphabetical:
+    # the group's rail order is the vendor's, and both its enumerations put it there - the
+    # Network Profiles sections run GlobalProtect IPSec Crypto, IKE Gateways, IPSec Crypto, IKE
+    # Crypto, Monitor, Interface Mgmt (help p.655-659, guide p.116-117). Phase 2 before phase 1
+    # reads backwards to us and is what the product does.
+    #
+    # Network > Network Profiles > Monitor has NO item, and that is the rule rather than an
+    # omission: `integrations.MonitorProfile` is stored and normalised for this domain and NO
+    # SHIPPED QUERY NAMES IT - the one stage 5 record that reads it is discharged to an
+    # engineer's question - so by Jason's rule of 2026-09-10 it has not earned a rail item. Its
+    # content still reaches a reader, through the tunnel row's resolved monitor action.
+    ConfigObject("ipsec-crypto", "IPSec Crypto", "Network", "Network Profiles", "shield",
+                 where="Network > Network Profiles > IPSec Crypto",
+                 search_model="integrations.IpsecCryptoProfile"),
     ConfigObject("ike-crypto", "IKE Crypto", "Network", "Network Profiles", "shield",
                  where="Network > Network Profiles > IKE Crypto",
                  search_model="integrations.IkeCryptoProfile"),

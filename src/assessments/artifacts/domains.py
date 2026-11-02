@@ -92,6 +92,22 @@ DOMAINS = (
     # the gateway, which is that tuple's own reasoning: a gateway's finding names the profile it
     # points at, so a reader meets the proposal before the binding that chooses it.
     _object_domain("ike-crypto-profiles", T.IKE_CRYPTO_PROFILE),
+    # Network, 2026-11-02 - the two PHASE 2 objects, BETWEEN the two phase-1 ones. That is this
+    # category's order in `finding_run.GENERATORS`, which runs ike crypto profile, ipsec crypto
+    # profile, ipsec tunnel, ike gateway - and within a category that tuple is this list's order.
+    #
+    # It reads oddly and it is deliberate on both sides: the proposal sets come before the
+    # bindings that choose them, because a binding's finding names the profile it points at, and
+    # a reader meets the thing being named before the thing that names it. Phase 2's pair sits
+    # inside phase 1's for that reason rather than for a chronological one.
+    #
+    # The crypto profile's tab is `IPSec Crypto`, at Network > Network Profiles > IPSec Crypto;
+    # the tunnel's is `IPSec Tunnels`, at Network > IPSec Tunnels. Both categorise as Network,
+    # DERIVED from the rail rather than declared on the sheet - which is right for every tab
+    # whose subject IS a configuration object, because deriving it means the workbook cannot
+    # disagree with the app about where an object lives.
+    _object_domain("ipsec-crypto-profiles", T.IPSEC_CRYPTO_PROFILE),
+    _object_domain("ipsec-tunnels", T.IPSEC_TUNNEL),
     _object_domain("ike-gateways", T.IKE_GATEWAY),
     # Device
     FindingsDomain("password-complexity", password_complexity.SPEC),

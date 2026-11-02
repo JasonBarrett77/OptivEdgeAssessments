@@ -69,7 +69,9 @@ class WorkbookBuildTests(TestCase):
         # 38 on 2026-11-01: Virtual System Rule Posture, first in Policies, and Policy Rule
         # Settings, last in Device - stage 9 of `security-policy`, for the two models stage 8
         # minted. The second draws no rows, by design: its one control ships inactive.
-        self.assertIn("Summary: 38 tabs linked, 0 findings in total", reports[0])
+        # 40 on 2026-11-02: IPSec Crypto and IPSec Tunnels, the phase-2 pair, between the two
+        # phase-1 tabs in Network - stage 9 of `ipsec-crypto`.
+        self.assertIn("Summary: 40 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -81,7 +83,8 @@ class WorkbookBuildTests(TestCase):
         # 35 since 2026-10-28, when the normalization coverage tab was added beside Coverage.
         # 37 later the same day: IKE Crypto and IKE Gateways.
         # 39 on 2026-11-01: Virtual System Rule Posture and Policy Rule Settings.
-        self.assertEqual(len(names), 39)
+        # 41 on 2026-11-02: IPSec Crypto and IPSec Tunnels.
+        self.assertEqual(len(names), 41)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
