@@ -93,6 +93,34 @@ DOMAINS = (
     # each kind gets a sheet whose Profiles cell names only its own verdicts.
     *(FindingsDomain(f"{slug}-by-rule", profile_rules.SPEC_BY_KIND[slug])
       for slug, _title, _ids, _fields in profile_rules.KINDS),
+    # Policies, 2026-11-02, for PAN-DEC-001 and -009 - the verdict over a whole decryption
+    # rulebase - and BEFORE the per-rule tab below it, on the same argument `vsys-rule-posture`
+    # makes at the top of this block: a finding here says this virtual system's policy opens no
+    # session for inspection at all, and that makes a finding about one rule inside it a smaller
+    # question. `finding_run.GENERATORS` runs the two in this order too.
+    #
+    # BOTH SIT AFTER THE SECURITY-POLICY TABS AND BEFORE `dos-protection-rules`, which is the
+    # vendor's own Policies rail order: Security, NAT, QoS, Policy Based Forwarding, DECRYPTION,
+    # Network Packet Broker, Tunnel Inspection, Application Override, Authentication, DoS
+    # Protection, SD-WAN. `check_tabs_follow_the_summary` constrains only that category RANKS do
+    # not decrease, so within a category this is a choice, and it is the same choice this list
+    # already made for the DoS tab.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`) on both, which is right for a subject whose
+    # address is a PAN-OS node: deriving it means the workbook cannot disagree with the app about
+    # where the subject lives. Both rail items are at Policies > Decryption, the second and third
+    # instance in this report of two items over two models at one vendor address.
+    #
+    # THIS DOMAIN'S THIRD TAB IS NOT BESIDE THEM, and that is required rather than untidy: its
+    # subject is at Device > Certificate Management > SSL Decryption Exclusion, so it
+    # categorises as Device and sits in that block. Tabs follow the Summary's category order
+    # rather than keeping a pipeline domain's tabs together.
+    #
+    # Neither disturbs the `_build_model_index` note above: that index takes the FIRST domain
+    # claiming a MODEL, and these two claim `integrations.DecryptionRulebaseVerdict` and
+    # `integrations.DecryptionPolicyRule`, which no other domain claims.
+    _object_domain("decryption-coverage", T.DECRYPTION_RULEBASE_COVERAGE),
+    _object_domain("decryption-rules", T.DECRYPTION_POLICY_RULE),
     # Policies, LAST in this category, 2026-11-02, for PAN-ZON-007.
     #
     # THE VENDOR'S RAIL ORDER WINS OVER `finding_run.GENERATORS` HERE, and the departure is
@@ -253,6 +281,22 @@ DOMAINS = (
     # Device > Certificate Management > Certificates - right for a subject that IS a configuration
     # object, and the second item at that one vendor address.
     _object_domain("forward-proxy-signing", T.DECRYPTION_SETTINGS),
+    # Device, 2026-11-02, for PAN-DEC-004's first record. HERE, immediately after
+    # `forward-proxy-signing`, because within a category this list takes
+    # `finding_run.GENERATORS`' order and both of these subjects are under the same rail group -
+    # Device > Certificate Management - so a reader meets the certificates, then the node that
+    # designates two of them, then the list of servers the firewall is told not to look inside.
+    #
+    # THIS DOMAIN'S OTHER TWO TABS ARE IN THE Policies BLOCK ABOVE, over the two models that
+    # carry the decryption policy itself. So `decryption-policy` is one domain at three grains in
+    # two PAN-OS categories, and tabs follow the Summary's category order rather than keeping a
+    # pipeline domain's tabs together.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `ssl-decryption-exclusion` at
+    # Device > Certificate Management > SSL Decryption Exclusion - right for a subject that IS a
+    # configuration object, and an address established in the vendor's own Help rather than
+    # inferred from the domain's name. See that rail item for the citation.
+    _object_domain("ssl-decryption-exclusions", T.SSL_DECRYPTION_EXCLUSION),
     _object_domain("authentication-profiles", T.AUTHENTICATION_PROFILE),
     _object_domain("authentication-sequences", T.AUTHENTICATION_SEQUENCE),
     _object_domain("password-profiles", T.PASSWORD_PROFILE),

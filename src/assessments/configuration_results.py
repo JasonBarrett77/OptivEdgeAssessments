@@ -25,6 +25,7 @@ from typing import Callable, NamedTuple
 from django.urls import reverse
 
 from assessments import configuration_navigation as config_nav
+from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
@@ -52,6 +53,9 @@ from optivedge_integrations.integrations.models import (
     DosPolicyRule,
     IkeCryptoProfile,
     IkeGateway,
+    DecryptionPolicyRule,
+    DecryptionRulebaseVerdict,
+    SslDecryptionExclusion,
     InterfaceManagementProfile,
     IpsecCryptoProfile,
     IpsecTunnel,
@@ -1996,6 +2000,131 @@ RESULTS = {
             _nothing(p.referrer_count, "referrer(s)"),
         ),
     ),
+    # Policies > Decryption, 2026-11-02, for PAN-DEC-002, -003, -005, -006, -007, -008 and -010.
+    # The FIRST page over `integrations.DecryptionPolicyRule`, which stage 7 minted for this
+    # domain and which had never been queried from this repository at all.
+    #
+    # EVERY HEADING IS A PROPOSAL (P399) and each is the SAME WORD the Decryption Rules findings
+    # sheet uses, character for character, so one column does not read two ways on two surfaces.
+    # The sourcing is written once, in `decryption_policy_presentation.RULE_SETTING_LABELS`,
+    # against PAN-OS Web Interface Help 11.2 p.170-175.
+    #
+    # EVERY `query_fields` ENTRY WAS CHECKED AGAINST THE COMPILER'S OWN REGISTRY rather than
+    # assumed, because stored, searchable and registered are three different things: all twelve
+    # below are keys of `search/decryption_policy_rule/compiler.py`'s `FIELD_OPERATOR_REGISTRY`.
+    # THE TWO WITHOUT AN ENTRY ARE DELIBERATE: "Position" presents `rule_position`, which is not
+    # registered - and should not be, because the stored number is the configuration rank and not
+    # the evaluation index, so a clause on it would ask a question the column cannot answer - and
+    # "Record of a successful session" IS registered but is a three-state verdict over two
+    # device leaves, which is fine to clause on and is therefore included.
+    "decryption-rules": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Object": "rule_name",
+                      "Action": "action", "URL Category": "category",
+                      "Source Address": "source", "Destination Address": "destination",
+                      "Source User": "source_user", "Service": "service",
+                      "Decryption Profile": "profile_name", "Description": "description",
+                      "Source match is inverted": "negate_source",
+                      "Log Unsuccessful SSL Handshake": "log_fail",
+                      "Record of a successful session": "success_record_disposition",
+                      "Disabled": "disabled"},
+        columns=("Appliance", "Vsys", "Rulebase", "Position", "Object", "Action", "URL Category",
+                 "Source Address", "Destination Address", "Source User", "Service",
+                 "Decryption Profile", "Description", "Source match is inverted",
+                 "Log Unsuccessful SSL Handshake", "Record of a successful session", "Disabled"),
+        base_queryset=_ordered(
+            DecryptionPolicyRule, "enforcement_point__vsys_name", "config_source",
+            "rule_position",
+            related=("enforcement_point__appliance", "enforcement_point__appliance_group")),
+        row=lambda r: (
+            _rule_appliance(r),
+            r.enforcement_point.vsys_name or "-",
+            r.get_config_source_display(),
+            r.rule_position,
+            r.rule_name,
+            # An em dash where the rule expresses no action at all. `action` is mandatory at
+            # commit validation, so blank is a CANDIDATE-only rule and not a default anybody
+            # applied - a different thing from an action we failed to read, and the schema's own
+            # @default=yes on `no-decrypt` is not an implicit value for the same reason.
+            r.action or "—",
+            # THE FIVE CRITERIA LIVE ON CHILD ROWS, one per line in the device's own order. The
+            # same readers the findings sheet uses, so the two surfaces cannot disagree about
+            # what a criterion says.
+            decryption_policy.joined(r.decryptionpolicyrulecategorys.all()),
+            decryption_policy.joined(r.decryptionpolicyrulesources.all()),
+            decryption_policy.joined(r.decryptionpolicyruledestinations.all()),
+            decryption_policy.joined(r.decryptionpolicyrulesourceusers.all()),
+            decryption_policy.joined(r.decryptionpolicyruleservices.all()),
+            # "Nothing named" and not a blank, and NOT "nothing applied": stage 4 measured the
+            # same absent key resolving to the predefined `default` profile under some conditions
+            # and to nothing under others, so this cell can only report what the rule SAYS.
+            r.profile_name or "Nothing named",
+            r.description or "—",
+            _yes_no(r.negate_source),
+            _yes_no(r.log_fail),
+            r.success_record_disposition,
+            _yes_no(r.disabled),
+        ),
+    ),
+    # Policies > Decryption, SECOND page at that address, 2026-11-02, for PAN-DEC-001 and -009.
+    # The FIRST page over `integrations.DecryptionRulebaseVerdict`.
+    #
+    # NO `scope` ON EITHER OF THE TWO: each names a model of its own, so
+    # `object_for_canonical_query` short-circuits on the single candidate and a scope would be
+    # dead weight. That is the same call `rule-posture` and `rulebase-device-match` made at
+    # Policies > Security, where three items share one address over three models.
+    #
+    # `rule_count` HAS NO `query_fields` ENTRY AND IS A COLUMN, measured: it is not in
+    # `search/decryption_rulebase_coverage/compiler.py`'s registry, and the repo's rule is that
+    # only a column a control asks for is registered. No PAN-DEC query clauses on it. It is here
+    # as the evidence that tells the two failing states of the verdict beside it apart - zero
+    # means there is no rulebase to change.
+    "decryption-coverage": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name",
+                      "Any rule opens an outbound web session": "opens_outbound_web",
+                      "What any outbound web session meets": "outbound_web_disposition",
+                      "Inbound TLS inspection": "inbound_inspection_posture"},
+        columns=("Appliance", "Vsys", "Rules in force",
+                 "Any rule opens an outbound web session",
+                 "What any outbound web session meets", "Inbound TLS inspection"),
+        base_queryset=_ordered(
+            DecryptionRulebaseVerdict, "enforcement_point__vsys_name",
+            related=("enforcement_point__appliance", "enforcement_point__appliance_group")),
+        row=lambda v: (
+            _rule_appliance(v),
+            v.enforcement_point.vsys_name or "-",
+            # A number and not `_nothing`: zero is the reportable end here, and a word like
+            # "Nothing" on a column named for a count reads as "not counted" rather than "none
+            # found". Same ruling the two existing count columns in this repository took.
+            v.rule_count,
+            _yes_no(v.opens_outbound_web),
+            v.outbound_web_disposition,
+            v.inbound_inspection_posture,
+        ),
+    ),
+    # Device > Certificate Management > SSL Decryption Exclusion, 2026-11-02, for PAN-DEC-004's
+    # first record. The FIRST page over `integrations.SslDecryptionExclusion`.
+    #
+    # `exclude` HAS NO `query_fields` ENTRY AND IS A COLUMN, measured: it is not in
+    # `search/ssl_decryption_exclusion/compiler.py`'s registry, because no shipped control asks
+    # for it. It is here because an exclusion carrying no reason is a different thing depending on
+    # whether it is in force.
+    "ssl-decryption-exclusion": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Where": "vsys_name", "Scope": "scope",
+                      "Object": "exclusion_name", "Description": "description"},
+        columns=("Appliance", "Scope", "Where", "Object", "Exclude", "Description"),
+        base_queryset=_ordered(
+            SslDecryptionExclusion, "appliance__hostname", "scope", "vsys_name", "name"),
+        row=lambda e: (
+            str(e.appliance),
+            e.scope,
+            _where(e),
+            e.name,
+            _yes_no(e.exclude),
+            # An em dash and not a blank: an exclusion with no reason written on it is the whole
+            # of PAN-DEC-004's first record, and a blank cell would read as a gap in the report.
+            e.description or "—",
+        ),
+    ),
     # Objects > Decryption Profile, 2026-11-02, for PAN-DCP-001 to -005 and -007 - the NINTH page
     # over `integrations.SecurityProfile`. See that rail item for why it is not under Security
     # Profiles and why its scope is exactly one `kind eq` clause.
@@ -2401,20 +2530,32 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # `integrations.ZoneProtectionProfile`, `dos-protection-rules` over
     # `integrations.DosPolicyRule`, and `dos-protection`, the FIFTH page over
     # `integrations.SecurityProfile`, scoped by `kind eq "dos-protection"`.
-    # `decryption-policy` reached stage 8 on 2026-11-01. FOUR models carry its ten controls and
-    # NONE of the four has a rail item: all four were created by stage 7 for this domain and had
-    # never been queried from this repository at all. Stage 9 for this domain is what gives them a
-    # page, and stage 8's contract forbids building one. The two rule models will want two pages
-    # rather than one, because a PAN-DEC-001 finding names a VIRTUAL SYSTEM and a PAN-DEC-002
-    # finding names a RULE inside it.
+    # `PAN-DEC` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `decryption-policy`, which
+    # is the artifact the entry named. All 21 of the domain's shipped queries now resolve on their
+    # own through three new rail items and results specs above - `decryption-rules` over
+    # `integrations.DecryptionPolicyRule` and `decryption-coverage` over
+    # `integrations.DecryptionRulebaseVerdict`, both at Policies > Decryption, and
+    # `ssl-decryption-exclusion` over `integrations.SslDecryptionExclusion` at Device >
+    # Certificate Management > SSL Decryption Exclusion - so
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole.
     #
-    # THIS DEBT IS FOR NINE OF THE DOMAIN'S TEN CONTROLS, and the tenth is worth naming rather than
-    # leaving to arithmetic: every one of the ten has a catalog entry and at least one query, so
-    # every one has links that would go nowhere - `_awaiting` is consulted only where
-    # `query_results_url` returns nothing, and it returns nothing for all four of these models. The
-    # count of QUERIES is what this clears, not the count of controls: `test_configuration_links`
-    # fails once per catalog query of a homeless model, and this domain seeds 21.
-    "PAN-DEC": "stage9-decryption-policy.json",
+    # ON THE WAY OUT, A CORRECTION TO THE RECORD rather than to anything that still runs. The
+    # comment deleted here opened "FOUR models carry its ten controls and NONE of the four has a
+    # rail item". THREE models carry queries, measured over the seed payload before the line was
+    # deleted: 16 against `DecryptionPolicyRule`, 4 against `DecryptionRulebaseVerdict` and 1
+    # against `SslDecryptionExclusion`, 21 in all. The fourth model,
+    # `integrations.SslDecryptionVendorExclusionOptOut`, is named by NO query at all - it carries
+    # PAN-DEC-004's second assertion record, which no catalogue id could hold because
+    # `_CONTROL_TYPE_TARGET_MODEL` maps one type to one model - so it was never homeless in the
+    # sense this map is about, because `query_results_url` is never asked about it. It is given no
+    # rail item and no findings tab, deliberately; its generator's docstring carries the three
+    # reasons, and splitting PAN-DEC-004 into two catalogue ids is Jason's decision.
+    #
+    # The rest of that comment read true and is left on the record by this paragraph: the debt was
+    # for nine of the ten controls by count of controls and for all 21 by count of QUERIES, which
+    # is what `test_configuration_links` fails once per.
     # `device-services` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
     # `integrations.DnsSettings` and `integrations.ServiceRoute` were both created by stage 7 for
     # this domain and had never been queried from this repository at all. The entry is keyed on

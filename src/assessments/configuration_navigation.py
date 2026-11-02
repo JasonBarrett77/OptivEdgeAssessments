@@ -134,6 +134,57 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("rulebase-device-match", "Device-ID Policy Match", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.RulebaseDeviceMatchVerdict"),
+    # Policies > Decryption, 2026-11-02, for PAN-DEC-001 to -003 and -005 to -010 - TWO items
+    # at one vendor address, over the two models that carry the decryption policy.
+    #
+    # ITS POSITION IS THE PRODUCT'S, like the DoS item below it. PAN-OS's Policies rail runs
+    # Security, NAT, QoS, Policy Based Forwarding, DECRYPTION, Network Packet Broker, Tunnel
+    # Inspection, Application Override, Authentication, DoS Protection, SD-WAN - so Decryption
+    # sits after the three Policies > Security items above and before DoS Protection at the tail.
+    #
+    # ITS SUBJECT IS A PAN-OS NODE, which is the test this module states for being on the rail at
+    # all: one virtual system's `rulebase/decryption/rules`, which an assessor opens at this
+    # address and reads. Help 11.2 p.170, under the section path `Policies > Decryption`
+    # verbatim: "You can configure the firewall to decrypt traffic for visibility, control, and
+    # granular security ... Add a decryption policy rule to define traffic that you want to
+    # decrypt."
+    #
+    # NOT `Objects > Decryption Profile`, WHICH IS A DIFFERENT SCREEN AND A DIFFERENT CATEGORY.
+    # That address belongs to the `decryption-profile` item in the Objects block, added the same
+    # week for PAN-DCP: a profile is a reusable proposal and a policy is where it is applied, and
+    # help p.174 points from one to the other ("For details on creating a Decryption profile,
+    # select Objects > Decryption Profile"). There is no `Objects > Decryption` group in any of
+    # the three indexed Help versions.
+    #
+    # THE LABEL IS THE VENDOR'S OWN RAIL WORD and the SLUG says `-rules`, for the mechanical
+    # reason `dos-protection-rules` below records: `configuration_results.RESULTS` is keyed on
+    # the slug ALONE while `CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug), so a bare
+    # `decryption` slug here and the Objects profile item could not both carry a results spec.
+    ConfigObject("decryption-rules", "Decryption", "Policies", "", "shield",
+                 where="Policies > Decryption",
+                 search_model="integrations.DecryptionPolicyRule"),
+    # Policies > Decryption, SECOND item at that address, 2026-11-02, for PAN-DEC-001 and -009 -
+    # whose subject is the virtual system's WHOLE decryption rulebase rather than any rule in it.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `decryption-rules`, which is `rule-posture`'s
+    # argument one rulebase over: an engineer fixes one or the other. Everything on the item
+    # above is fixed by EDITING a rule that exists; everything here is fixed by ADDING a rule
+    # that is not there, and the commonest state of this subject in the measured estate is no
+    # decryption rulebase at all. `objects_for_model` already allows two items over one model;
+    # this is the reverse - two items over two models at one vendor address, the same shape as
+    # the three at Policies > Security.
+    #
+    # WHY IT IS ON THE RAIL, since every column of the model is a verdict this assessment
+    # computes. `rule-posture` states the test and this passes it the same way: the subject is a
+    # PAN-OS node - one virtual system's `rulebase/decryption/rules` - which an assessor opens at
+    # this address and reads, and the rail item promises the NODE, not our reading of it.
+    #
+    # THE LABEL IS OURS AND IS A PROPOSAL. The vendor has no word for the state of a whole
+    # rulebase: help 11.2 p.170-175 describes the decryption RULE and its five field tables and
+    # names no rulebase-level state at all.
+    ConfigObject("decryption-coverage", "Decryption Coverage", "Policies", "", "shield",
+                 where="Policies > Decryption",
+                 search_model="integrations.DecryptionRulebaseVerdict"),
     # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007 - the DoS rulebase's own rows.
     #
     # LAST IN Policies AND NOT BESIDE THE THREE ABOVE, which is the product's order rather than
@@ -450,6 +501,28 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  "Certificate Management", "clipboard-check",
                  where="Device > Certificate Management > Certificates",
                  search_model="integrations.DecryptionSettings"),
+    # Device > Certificate Management > SSL Decryption Exclusion, 2026-11-02, for PAN-DEC-004 -
+    # the exclusions the organisation added itself.
+    #
+    # THE ADDRESS IS THE VENDOR'S AND IT IS NOT IN `Policies`, which is where the rest of this
+    # pipeline domain lands and where the dispatch brief put it. Established in the corpus rather
+    # than inferred: PAN-OS Web Interface Help 11.2 p.901, under the section path
+    # `Device > Certificate Management > SSL Decryption Exclusion` verbatim - "View and manage
+    # SSL/TLS decryption exclusions. There are two types of decryption exclusions, predefined
+    # exclusions and custom exclusions" - and again on p.903 naming the screen in running text,
+    # "the SSL Decryption Exclusion List (Device Certificate Management SSL Decryption
+    # Exclusion)". The same section path exists in all three indexed Help versions, at p.889 in
+    # 11.1 and p.940 in 12.2, so the address is stable across releases.
+    #
+    # SO THIS DOMAIN'S THREE ITEMS SIT IN TWO CATEGORIES, which is required rather than untidy:
+    # tabs and rail items follow the product's own organisation, and an assessor sent to Policies
+    # for this object would not find it.
+    #
+    # THE LABEL IS THE VENDOR'S OWN, singular as the screen spells it.
+    ConfigObject("ssl-decryption-exclusion", "SSL Decryption Exclusion", "Device",
+                 "Certificate Management", "clipboard-check",
+                 where="Device > Certificate Management > SSL Decryption Exclusion",
+                 search_model="integrations.SslDecryptionExclusion"),
     ConfigObject("certificate-profile", "Certificate Profile", "Device",
                  "Certificate Management", "server",
                  where="Device > Certificate Management > Certificate Profile",

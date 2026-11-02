@@ -27,6 +27,7 @@ from assessments.models import Control
 
 from optivedge_integrations.integrations.models import AddressObject, SecurityProfile
 
+from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
@@ -1284,6 +1285,87 @@ DATA_FILTERING_POSTURE_LABELS = {
 }
 
 
+# --------------------------------------------------------------------------------------------
+# THE THREE DECRYPTION-POLICY TABS, 2026-11-02, for PAN-DEC-001 to -010. Three models, three
+# grains, and the whole domain is new to presentation: nothing in this repository drew a row for
+# any of these three control types before today, and not one of their seventeen clause fields had
+# a heading.
+#
+# WHY THREE AND NOT ONE. A PAN-DEC-001 finding names a VIRTUAL SYSTEM - "this enforcement point
+# opens no outbound web session at all" - and a PAN-DEC-002 finding names a RULE inside it, and an
+# engineer fixes one or the other: the coverage findings are fixed by ADDING a rule that is not
+# there, and the rule findings by editing a rule that is. The exclusion is a third subject at a
+# third vendor address. That is the same split `vsys_rule_posture` and `security_rules` already
+# make over the security rulebase, and the rail items follow it.
+#
+# WHY NOT FOUR. `integrations.SslDecryptionVendorExclusionOptOut` carries PAN-DEC-004's second
+# assertion record and is named by NO SHIPPED QUERY, measured over the seed payload - so no
+# finding of its kind can exist and it is owed no tab. See
+# `decryption_policy_presentation`'s module docstring, and the generator's own, for the three
+# reasons that is a recorded state rather than an omission.
+#
+# `hidden_fields` IS EMPTY ON ALL THREE AND IS NOT DECLARED. The gate counts a field as presented
+# if a subject column, a settings column OR the sheet's own `hidden_fields` carries it, so a
+# non-empty tuple is a CLAIM accepted as proof and it is the only known cause in this repository
+# of a findings row that marks nothing as the thing to fix. Every one of the seventeen fields gets
+# a real column here.
+
+#: A row of one virtual system's decryption rulebase, as the four columns stage 5 keys the subject
+#: on, in the shape the policy tabs already name a rule.
+#:
+#: VSYS-SCOPED AND SO NO APPLIANCE COLUMN. A decryption rule belongs to a virtual system, which on
+#: an HA pair spans both members, so there is no one appliance to name or to link to - which is
+#: also why `appliance_of` returns None on this spec. The Firewalls column lists the pair from the
+#: enforcement point's own owner.
+#:
+#: NOT ONE OF THESE FOUR DECLARES A `field`, and on this tab that is the SAFE side of the trap
+#: rather than the unsafe one. A subject column that declares no field does not suppress the
+#: derived setting column for the same attribute - so one value can reach a tab twice under two
+#: headings, and because the headings differ the duplicate-header guard never fires. None of these
+#: four attributes is a clause field of any PAN-DEC control, so there is no derived column for any
+#: of them and nothing to collide with; `rule_rulebase` carries the reasoning for the one that is
+#: a stored column.
+#:
+#: THE POSITION IS DELIBERATELY ABSENT, which is where this differs from the DoS rules tab beside
+#: it. Stage 5 excluded `rule_position` from the identity with a measurement: a rule keeps its name
+#: and its uuid across an `action=move` - stage 4 moved a pair twice and both uuids were unchanged
+#: - so keying on position would make a reorder look like a delete and an insert. And the stored
+#: column is the CONFIGURATION rank rather than the evaluation index: `show running
+#: decryption-policy` skips a disabled rule, so from the first disabled rule onward every rule
+#: after it renders one lower than the number stored here. Printing it as "Position" would state
+#: an evaluation order that is false on exactly the rulebases this domain is about.
+DECRYPTION_RULE_SUBJECT = VSYS_SCOPED + (
+    ("Rulebase", 16, False, decryption_policy.rule_rulebase),
+    ("Object", None, False, lambda s, _p: s.rule_name or NONE),
+)
+
+#: A row of one virtual system's decryption rulebase as a CONCLUSION over all of its rules, with
+#: the one piece of evidence that makes the three verdicts beside it legible.
+#:
+#: NEITHER ADDRESS COLUMN DECLARES A `field` AND NEITHER SHOULD: every value these two controls
+#: assert on is a derived setting column, and declaring a field here would move the
+#: value-at-fault mark off the verdict and onto the row's address. `data-filtering-posture`
+#: records the same decision for the same reason.
+#:
+#: "Firewalls" PLURAL AND THE HA QUESTION IS ALREADY ANSWERED BY THE MODEL. Stage 5 declared this
+#: subject's identity as (appliance, vsys_name) and said in prose that an HA pair yields TWO rows
+#: for one real configuration. The shipped model does not do that: `DecryptionRulebaseVerdict`'s
+#: unique constraint is on `enforcement_point` ALONE, and an enforcement point on an HA pair is
+#: ONE point spanning both members - so the store already deduplicates on the PAIR, which is what
+#: this stage's contract asks for, and there is no duplicate for this sheet to fold. The column
+#: lists both members because both are what enforces the verdict.
+DECRYPTION_RULEBASE_SUBJECT = VSYS_SCOPED + (
+    ("Rules in force", 14, False, decryption_policy.rules_in_force),
+)
+
+#: One SSL decryption exclusion the organisation added itself. The standard named-object shape,
+#: plus the vendor's `Exclude` switch - see `exclusion_excludes` for why that one is a subject
+#: column and not a derived one.
+SSL_DECRYPTION_EXCLUSION_SUBJECT = APPLIANCE + SCOPE + NAME + (
+    ("Exclude", 10, False, decryption_policy.exclusion_excludes),
+)
+
+
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
         control_types=(control_type,), title=title, description=description,
@@ -1768,6 +1850,125 @@ SPECS = (
     # (p.170, p.889); "Signing" is ours, joining the two.
     #
     # EVERY HEADING BELOW IS A PROPOSAL, sourced in place.
+    # --- decryption-policy, 2026-11-02 -------------------------------------------------------
+    spec(T.DECRYPTION_POLICY_RULE,
+         "Each decryption rule that leaves a session encrypted, and what it exempts. A rule here "
+         "is not a defence that is weak - it is traffic the whole inspection stack downstream "
+         "never sees, and every control on this tab is about how MUCH traffic one exemption "
+         "covers: whether it is keyed on any criterion at all, whether it says why it exists, "
+         "whether the population it exempts is a set of people somebody can review, and whether "
+         "the firewall keeps any record of the sessions it declines to open. WHAT THIS TAB "
+         "CANNOT SAY is whether the exempted traffic matters: a rule naming one 32-address "
+         "object and a rule naming `any` differ by a number no column holds, because nothing in "
+         "the configuration measures how large an address object is - that arithmetic belongs to "
+         "PAN-POL-002 and is not built, and stage 8 carries it as an open question. A DISABLED "
+         "RULE IS STILL IN SCOPE (Jason, 2026-10-14) and the Disabled column is where a reader "
+         "sees which side of that each row is on.",
+         title="Decryption Rules", subject=DECRYPTION_RULE_SUBJECT,
+         setting_labels=decryption_policy.RULE_SETTING_LABELS,
+         # THE FIVE CRITERIA WHOSE VALUE IS NOT ON THE RULE ROW. Required rather than chosen -
+         # `tested_fields` raises without them - and the module they live in records what the
+         # declaration costs and why there is no alternative.
+         value_readers=decryption_policy.RULE_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET, which means `Fires when` is on the workbook as well as the live page.
+         # The default is `("Provenance",)` and taking it would make the two surfaces disagree
+         # about which cell a reader meets. It earns the space on this tab for a reason the rows
+         # show: PAN-DEC-010 reports through TWO records over the same model at the same severity
+         # - one about the failed-handshake record and one about the successful-session record -
+         # and two rules identical in every other cell report differently between them. The
+         # applicability clause `action = no-decrypt` is the other thing no other cell explains:
+         # it is why a decrypting rule with an empty description draws no PAN-DEC-003 row.
+         #
+         # AND IT RENDERS IN FIELD NAMES, measured on the built table rather than assumed.
+         # `render_node` consults `setting_labels` nowhere, so the condition reads
+         # `source_user_is_keyword_population = Yes` directly above a column headed "Exempt
+         # population is only platform keywords" - the same value named two ways on one row. The
+         # alternative is the contradicting value with no stated condition beside it at all,
+         # which is worse, so the column stays and the defect is recorded.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # A rule belongs to a vsys, which on an HA pair spans both firewalls, so there is no one
+         # appliance to link a row to - the same answer every vsys-scoped tab gives.
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         # THE FIVE MEMBER COLLECTIONS, PREFETCHED, and this is the one line on the spec that is
+         # about cost rather than content. Each of the five readers walks a related manager with
+         # `.all()`, which honours a prefetch - `.filter()` does not, which is the defect that
+         # made `rules_by_device_group.fold()` issue one query per row and 88% of the whole
+         # report build. Without these five entries this tab would pay five queries per RULE.
+         subject_prefetch=("enforcement_point__appliance_group__appliances",
+                           "decryptionpolicyrulecategorys",
+                           "decryptionpolicyrulesources",
+                           "decryptionpolicyruledestinations",
+                           "decryptionpolicyrulesourceusers",
+                           "decryptionpolicyruleservices")),
+    spec(T.DECRYPTION_RULEBASE_COVERAGE,
+         "Whether each virtual system's decryption policy opens a session for inspection at all, "
+         "outbound and inbound. THE ROW IS A CONCLUSION ABOUT ALL THE RULES AND NOT ABOUT ANY "
+         "ONE OF THEM, and that is the whole reason this subject exists beside the per-rule tab: "
+         "the commonest failing state measured in this estate is an enforcement point with NO "
+         "decryption rulebase at all, and a comparison over rule rows reports nothing where "
+         "there is no row to compare - so the absence would be silent on exactly the firewalls "
+         "where it matters most. An enforcement point nobody collected reads the same as one "
+         "that decrypts nothing, deliberately: every column here defaults to its firing value, "
+         "so silence reports itself rather than passing. WHAT THIS TAB CANNOT SAY is WHERE the "
+         "gap is - a rule pushed from a device group contributes to these verdicts and this "
+         "subject has no scope column, so a finding cannot tell a gap in the firewall's own "
+         "rulebase from one in the device group; the per-rule tab answers that with its Rulebase "
+         "column. Nor can it say which zone pair is the corporate web egress, which needs the "
+         "engineer's own path list.",
+         title="Decryption Coverage", subject=DECRYPTION_RULEBASE_SUBJECT,
+         setting_labels=decryption_policy.RULEBASE_SETTING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # EVERY COLUMN OF THIS MODEL IS IN ITS `DERIVED_FIELDS` and the model writes NO
+         # provenance row for any of them - its own docstring says so: "A verdict is computed
+         # rather than read: no key supplies it, so there is no marker to store." So the
+         # per-field walk finds no row, `remediation_accessor` discards a synthesised DERIVED row
+         # on purpose, and nothing writes an `__entry__` row for this model either - which lands
+         # `provenance_cells` on its `row is None` arm and prints "Not recorded" THREE TIMES on
+         # every row. That means "nothing tracks that field" and reads to a customer as a gap in
+         # the collection, about three values this assessment computed. Board record P451.
+         #
+         # ONE ANSWER FOR THE ROW IS THE HONEST SHAPE, and it is a `provenance_cell` rather than
+         # a `value_readers` entry because a reader answers for a COLUMN and this answers for the
+         # ROW. `rulebase-device-match` and `vsys-rule-posture`, the two existing verdict tabs,
+         # made the same call for the same reason. It says only "Derived" and names nothing
+         # beside it - unlike `forward-proxy-signing`, which has four measured payload keys to
+         # name - because there is no recorded provenance anywhere on this model to name.
+         provenance_cell=lambda v, _p, _f: "Derived",
+         # A Template column would be blank on every row: there is no pushed key here to name a
+         # template for, because there is no key at all.
+         source_columns=(),
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+    spec(T.SSL_DECRYPTION_EXCLUSION,
+         "Each SSL decryption exclusion THE ORGANISATION ADDED ITSELF, and whether it says why. "
+         "An exclusion keeps every session to or from the named server encrypted, so it is a "
+         "standing hole in inspection that only the reason written on it can justify - and the "
+         "device checks neither that a reason exists nor that it is still true. BOTH WRITABLE "
+         "SCOPES ARE HERE: the appliance's own shared container and every virtual system, and "
+         "the vsys scope matters because PAN-OS puts the screen at the shared one - a "
+         "vsys-scoped exclusion is real, committable configuration no operator can see or remove "
+         "through the interface they use. WHAT THIS TAB DOES NOT HOLD is the vendor's own 330 or "
+         "385 predefined exclusions, which are a separate object invisible to the read behind "
+         "this model, although the web interface renders both collections in ONE grid "
+         "distinguished only by a Location column. Nor does it hold which of those an operator "
+         "has switched OFF: that is this control's other half, over a model no shipped query "
+         "names.",
+         title="SSL Decryption Exclusions", subject=SSL_DECRYPTION_EXCLUSION_SUBJECT,
+         setting_labels=decryption_policy.EXCLUSION_SETTING_LABELS,
+         hidden_fields=(),
+         # `Fires when` is worth the column here for the narrowest of this tab's reasons: the
+         # control's one clause is `description is empty`, which a NULL also matches, so a reader
+         # meeting `(empty)` in the Description cell is owed the statement that empty is the
+         # condition. The Provenance cell is the default per-field walk and answers honestly on
+         # this model - `description` is a stored column with a real `FieldProvenance` row, and an
+         # `__entry__` row exists behind it.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.DECRYPTION_SETTINGS,
          "Which certificate this firewall signs with when it stands in for a destination it is "
          "decrypting. One row per appliance, because the designation is device-wide and the "

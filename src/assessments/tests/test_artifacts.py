@@ -101,7 +101,17 @@ class WorkbookBuildTests(TestCase):
         # for this domain - needed a tab of its own. `probe.surface_for` is what answered that per
         # control; the domain's 25 queries needed a results DESTINATION, which is a different
         # surface from a tab.
-        self.assertIn("Summary: 50 tabs linked, 0 findings in total", reports[0])
+        # 53 on 2026-11-02 by stage 9 of `decryption-policy`. THREE tabs for a TEN-control
+        # domain, which is the largest build of this shape so far and the first to put one
+        # domain's tabs in TWO PAN-OS categories: Decryption Coverage and Decryption Rules in
+        # Policies, over the two models that carry the policy, and SSL Decryption Exclusions in
+        # Device, because the vendor keeps that object at Device > Certificate Management > SSL
+        # Decryption Exclusion. `probe.surface_for` answered per control that all ten reached NO
+        # tab beforehand. A FOURTH model of the domain gets no tab deliberately -
+        # `SslDecryptionVendorExclusionOptOut` is named by no shipped query, so no finding of its
+        # kind can exist - and the domain's 21 queries needed a results DESTINATION, which is a
+        # different surface from a tab.
+        self.assertIn("Summary: 53 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -127,7 +137,13 @@ class WorkbookBuildTests(TestCase):
         # them. NOTE FOR THE NEXT RUN: this literal and the one above are TWO separate assertions
         # in this file and the second fails only once the first is fixed, so a run that bumps one
         # and re-runs sees a single failure and can believe it is done.
-        self.assertEqual(len(names), 51)
+        # 54 later on 2026-11-02: Decryption Coverage, Decryption Rules and SSL Decryption
+        # Exclusions. `decryption-policy` adds THREE tabs for ten controls - no PAN-DEC control
+        # reached any existing tab, measured per control with `probe.surface_for` - and they are
+        # not adjacent in this list: two categorise as Policies and one as Device, so the
+        # Summary's category order splits them. The note above still holds and now cost this run
+        # nothing: both literals were bumped together.
+        self.assertEqual(len(names), 54)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
