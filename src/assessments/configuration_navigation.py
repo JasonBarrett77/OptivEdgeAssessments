@@ -88,6 +88,28 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("security", "Security", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.SecurityRule"),
+    # Policies > Security, second rail item, 2026-11-01, for the five PAN-POL controls whose
+    # subject is the virtual system's WHOLE policy rather than any rule in it - no catch-all
+    # refusal, no application block above the permits, nothing about geography.
+    #
+    # WHY IT IS ON THE RAIL AT ALL, since every column of the model is a verdict this assessment
+    # computes and the rail is "the promise about what can be asked" of a firewall. The subject
+    # is a PAN-OS node: one virtual system's `rulebase/security/rules`, which an assessor opens
+    # at this address and reads. What the model holds is our reading of that node, the way
+    # `has_antivirus_profile` is our reading of a rule's profile-setting - and the rail item
+    # promises the NODE, not the reading. Contrast Normalization Coverage, which is off the rail
+    # and carries an explicit sheet category instead: its subject is our own record of an object
+    # that failed to build, and there is no address on a firewall where an assessor could go and
+    # look at it. The test is whether the subject HAS a vendor path; this one does and that one
+    # does not.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `security`, because an engineer fixes one or
+    # the other: a rule's own settings are edited in the rule, and everything here is fixed by
+    # ADDING a rule that is not there. `objects_for_model` already allows two items over one
+    # model; this is the reverse - two items over two models at one vendor address.
+    ConfigObject("rule-posture", "Rulebase Posture", "Policies", "", "shield",
+                 where="Policies > Security",
+                 search_model="integrations.VsysRulePosture"),
     # Objects > Addresses, 2026-10-02. Turned on for the PAN-COV coverage controls, which query
     # address objects: every control query must have a results page, and a query with nowhere to
     # go is one an assessor cannot check.
@@ -158,6 +180,26 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("password-complexity", "Minimum Password Complexity", "Device", "Setup", "eye",
                  where="Device > Setup > Management > Minimum Password Complexity",
                  search_model="integrations.PasswordComplexityPolicy"),
+    # Device > Setup > Management > Policy Rulebase Settings, 2026-11-01. The two device-wide
+    # switches the PAN-POL rulebase controls depend on, at `deviceconfig/setting/management`.
+    #
+    # IT IS DEVICE CONFIGURATION AND THE EASIER OF THE TWO CALLS: both columns read a real key
+    # at a real xpath, both carry a provenance row saying whether the key was present,
+    # template-supplied or absent, and the first of them has a checkbox on this screen an
+    # assessor can tick. The second does not - the vendor's Policy Rulebase Settings panel
+    # enumerates its controls and `disable-shadow-rule-check` is not among them, so that key is
+    # reachable only through the configuration - which is a reason the FINDING names the node
+    # rather than a reason the node is not configuration.
+    #
+    # ITS ONE CONTROL SHIPS INACTIVE, which does not earn or forfeit a rail item: PAN-AUTH-020
+    # set that precedent on Administrators. What earns this one is that the catalogue ships
+    # QUERIES over the model - `test_every_query_in_the_shipped_catalog_has_somewhere_to_go`
+    # reads the seed payload and does not consult `is_active` - so without the item PAN-POL-011's
+    # query has nowhere to go the moment `security-policy` leaves AWAITING_PRESENTATION.
+    ConfigObject("policy-rule-settings", "Policy Rulebase Settings", "Device", "Setup",
+                 "settings",
+                 where="Device > Setup > Management > Policy Rulebase Settings",
+                 search_model="integrations.PolicyRuleSettings"),
     # Device, top-level rail items - no heading in the product either.
     ConfigObject("password-profiles", "Password Profiles", "Device", "", "book-marked",
                  where="Device > Password Profiles",

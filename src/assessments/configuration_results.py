@@ -59,9 +59,11 @@ from optivedge_integrations.integrations.models import (
     UpdateServerSettings,
     PasswordComplexityPolicy,
     PasswordProfile,
+    PolicyRuleSettings,
     SecurityProfile,
     ServerProfile,
     SslTlsServiceProfile,
+    VsysRulePosture,
 )
 
 
@@ -111,6 +113,37 @@ def _where(obj):
 
 
 def _yes_no(value):
+    return "yes" if value else "no"
+
+
+def _enforced_by(point) -> str:
+    """The firewalls that run one virtual system, comma-separated.
+
+    A vsys belongs to an enforcement point, which on an HA pair spans both members - so this
+    lists the owner's appliances rather than naming one of them.
+
+    ONE PER LINE, not comma-joined. The first version of this joined on commas on the reasoning
+    that this surface's cells are single-line, and `MultiValueCellTests` refused it with Jason's
+    own words from 2026-09-27: "In fields where multiple values may exist, the values should be
+    separated by new lines." The template runs every cell through `linebreaksbr`, so the page
+    renders the break; the test was right and the reasoning was wrong.
+    """
+    owner = point.appliance_group or point.appliance
+    if owner is None:
+        return "-"
+    members = (owner.appliances.all() if hasattr(owner, "appliances") else [owner])
+    return "\n".join(sorted(a.hostname or a.serial_number for a in members)) or "-"
+
+
+def _tri(value) -> str:
+    """yes / no / "not read" for a nullable boolean.
+
+    `_yes_no` answers two ways for a three-state column, and on both of these models NULL is
+    the FIRING side: it means nobody established what the absent key does. Printing it as "no"
+    would put the reassuring answer in the cell the control fired on.
+    """
+    if value is None:
+        return "not read"
     return "yes" if value else "no"
 
 
@@ -545,12 +578,78 @@ RESULTS = {
             _yes_no(p.report_grayware_file),
         ),
     ),
+    # --- Policies > Security, second rail item: the virtual system's policy taken as a whole.
+    # Every column but the first two is a VERDICT this assessment computed over the vsys's
+    # stored rules, which is why the page says so in its headings ("exists", "answered") rather
+    # than printing a bare yes/no that reads like a key off the device.
+    #
+    # `Firewalls` has no `query_fields` entry and cannot have one: it lists the HA pair, and a
+    # clause over one hostname would not select the row it was read from - the model's own
+    # appliance FK is NULL for a pair. That is the composite-column case this map's own comment
+    # describes.
+    "rule-posture": ResultsSpec(
+        query_fields={
+            "Vsys": "vsys_name",
+            "Rulebase read answered": "rules_collected",
+            "Logged catch-all deny": "has_logged_catch_all_deny",
+            "Default rules log at session end": "default_rules_log_session_end",
+            "Application block above the permits": "has_application_block_rule_above_permits",
+            "Hostile-list directions unblocked":
+                "vendor_hostile_list_block_directions_missing",
+            "Geography expressed": "expresses_geographic_boundary",
+            "Port-matched block rule": "has_port_matched_block_rule"},
+        columns=("Firewalls", "Vsys", "Rulebase read answered", "Logged catch-all deny",
+                 "Default rules log at session end", "Application block above the permits",
+                 "Hostile-list directions unblocked", "Geography expressed",
+                 "Pre-staged blocklist rule", "Port-matched block rule"),
+        base_queryset=lambda: (VsysRulePosture.objects
+                               .select_related("enforcement_point__appliance",
+                                               "enforcement_point__appliance_group")
+                               .prefetch_related("enforcement_point__appliance_group__appliances")
+                               .order_by("enforcement_point__appliance_group__name",
+                                         "enforcement_point__appliance__hostname",
+                                         "enforcement_point__vsys_name")),
+        row=lambda p: (
+            _enforced_by(p.enforcement_point),
+            p.enforcement_point.vsys_name or "-",
+            _yes_no(p.rules_collected),
+            _yes_no(p.has_logged_catch_all_deny),
+            _yes_no(p.default_rules_log_session_end),
+            _yes_no(p.has_application_block_rule_above_permits),
+            # A count of two, printed as the number: 0 is healthy and 2 is the default and the
+            # worst band. `_nothing` would print "Nothing" for the healthy end, which on a
+            # column named for what is MISSING reads as "not counted".
+            str(p.vendor_hostile_list_block_directions_missing),
+            _yes_no(p.expresses_geographic_boundary),
+            # NO CONTROL CLAUSES ON THIS ONE, so it is a column with no `query_fields` entry
+            # rather than an omission: the model carries it, no shipped query reads it, and
+            # showing it is how an assessor can see the answer before a control exists for it.
+            _yes_no(p.has_prestaged_blocklist_rule),
+            _yes_no(p.has_port_matched_block_rule),
+        ),
+    ),
     "logging-and-reporting": ResultsSpec(
         query_fields={"Appliance": "hostname",
                       "Log on High DP Load": "log_on_high_dp_load"},
         columns=("Appliance", "Log on High DP Load"),
         base_queryset=_ordered(LoggingSettings, "appliance__hostname"),
         row=lambda p: (str(p.appliance), _yes_no(p.log_on_high_dp_load)),
+    ),
+    # --- Device > Setup > Management > Policy Rulebase Settings, 2026-11-01. Both columns are
+    # NULLABLE and `_tri` is used rather than `_yes_no`, because NULL here is the firing side:
+    # the key is absent and nobody has established what an absent key does.
+    #
+    # THE SHADOW COLUMN KEEPS THE DEVICE'S POLARITY, so the heading names the SUPPRESSION. A
+    # heading reading "Shadow-rule check" above a cell reading "yes" would say the opposite of
+    # what the device means by the key.
+    "policy-rule-settings": ResultsSpec(
+        query_fields={"Appliance": "hostname",
+                      "Rule hit count enabled": "rule_hit_count_enabled",
+                      "Shadow-rule check suppressed": "disable_shadow_rule_check"},
+        columns=("Appliance", "Rule hit count enabled", "Shadow-rule check suppressed"),
+        base_queryset=_ordered(PolicyRuleSettings, "appliance__hostname"),
+        row=lambda s: (str(s.appliance), _tri(s.rule_hit_count_enabled),
+                       _tri(s.disable_shadow_rule_check)),
     ),
     "interfaces": ResultsSpec(
         query_fields={"Appliance": "hostname", "Plane": "plane",
@@ -919,20 +1018,13 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # the same reason. Stage 9 for this domain is what gives the two models a page, and stage
     # 8's contract forbids building one.
     "PAN-LOG": "stage9-logging.json",
-    # `security-policy` reached stage 8 on 2026-11-01. ONE LINE FOR TWENTY-ONE CONTROLS over
-    # four models, and it is load-bearing for exactly SIX of them. Measured with a canonical-query
-    # DICT rather than a bare label, which is the only way to measure it: `integrations.
-    # SecurityRule` already resolves to `/assessments/configuration/policies/security/` and
-    # `integrations.AddressObject` to `/assessments/configuration/objects/addresses/`, so the
-    # fifteen controls on rules were never homeless. The two models this stage MINTED -
-    # `integrations.VsysRulePosture` and `integrations.PolicyRuleSettings` - resolve to nothing,
-    # and that is the five posture controls plus PAN-POL-011. The entry is harmless for the other
-    # fifteen: `_awaiting` is consulted only where `query_results_url` returns nothing. A SECOND
-    # line would have nowhere to go - the dict is keyed by control-id PREFIX and
-    # `tests/test_configuration_links.py::_awaiting` prefix-matches, so one `PAN-POL` covers the
-    # domain however many models it mints. Stage 9 for this domain is what gives the two models a
-    # page, and stage 8's contract forbids building one.
-    "PAN-POL": "stage9-security-policy.json",
+    # `PAN-POL` WAS HERE AND IS GONE, removed by stage 9 of `security-policy` on 2026-11-01,
+    # which is the work the entry was waiting for. The two models it covered -
+    # `integrations.VsysRulePosture` and `integrations.PolicyRuleSettings` - now have rail items
+    # and results specs above, so every PAN-POL query resolves on its own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting
+    # for is a permanent hole.
     # `ipsec-crypto` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
     # `IpsecCryptoProfile` and `IpsecTunnel` were both created by stage 7 for this domain and
     # had never been queried from this repository at all. The rail's two IKE entries are the

@@ -21,8 +21,10 @@ from django.db.models import Count
 from assessments.models import Control
 
 from .sheets import authentication_settings, management_crypto, objects, password_complexity
+from .sheets import policy_rule_settings
 from .sheets import profile_rules
 from .sheets import security_rules
+from .sheets import vsys_rule_posture
 from .sheets.findings import DeviceSettingSheet
 
 T = Control.ControlType
@@ -52,6 +54,16 @@ def _object_domain(slug, control_type) -> FindingsDomain:
 #: category's domains follow the order findings are generated in.
 DOMAINS = (
     # Policies
+    #
+    # BEFORE the rules, 2026-11-01, which is `finding_run.GENERATORS` order and is also the
+    # order a reader needs: a finding here says this virtual system's policy refuses nothing at
+    # all, and that makes a finding about one rule inside it a smaller question. GENERATORS'
+    # own comment makes the same argument for the generator order it takes this from.
+    #
+    # It does not disturb the note below. That one is about `_build_model_index` taking the
+    # FIRST domain claiming a MODEL, and this domain claims `VsysRulePosture`, which no other
+    # domain claims - `SecurityRule` links still land on `security-rules`.
+    FindingsDomain("vsys-rule-posture", vsys_rule_posture.SPEC),
     #
     # The generic rules sheet comes first and stays first: `_build_model_index` takes the FIRST
     # domain claiming a model, so SecurityRule links keep landing here rather than on one of
@@ -104,6 +116,15 @@ DOMAINS = (
     _object_domain("password-profiles", T.PASSWORD_PROFILE),
     _object_domain("administrators", T.ADMIN_USER),
     _object_domain("aaa-server-profiles", T.SERVER_PROFILE),
+    # Device, LAST, 2026-11-01: `finding_run.GENERATORS` runs "policy rule settings" after every
+    # other device generator, and within a category that tuple is this list's order.
+    #
+    # ITS TAB IS EMPTY, by design and not by accident - its one control ships inactive - which
+    # is why the sheet's description says so in the customer's words. A domain for a control
+    # type nobody can see is the other half of the hazard "a tab with no rows is
+    # indistinguishable from a tab that is broken": a MISSING tab for a shipped control type is
+    # indistinguishable from a control nobody built.
+    FindingsDomain("policy-rule-settings", policy_rule_settings.SPEC),
 )
 
 DOMAIN_BY_SLUG = {domain.slug: domain for domain in DOMAINS}

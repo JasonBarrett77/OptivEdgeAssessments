@@ -17,6 +17,17 @@ column showing one value means every member agreed, and "(differs)" means they d
 Notes column naming which. Two local rules can share a name in different vsys and hold different
 services, and a row claiming one service for both would be wrong.
 
+ITS COLUMN LIST IS A SECOND COPY OF THE PER-FINDING TAB'S, AND THAT IS A DEFECT RATHER THAN A
+DESIGN. `COLUMNS`, `VALUE_READERS` and `FIELD_BY_COLUMN` are hand-kept here while the Security
+Rules tab derives its setting columns from the controls' own clauses, and the guard in `fold()`
+below is a hand-kept copy of `findings.check_every_tested_field_is_presented`. On 2026-11-01 the
+same EIGHTEEN columns had to be added in both places, in the same order, from the same headings -
+and only the headings are actually shared. A control added to the catalogue brings its column to
+the other tab by itself and raises here until somebody types it. Inside this module they had to
+go in FOUR places, which is why `SETTING_FIELDS` below exists: the first version of this change
+appended the last two to each list separately and put one of them eleven columns away from where
+the other tab draws it.
+
 NO LINKS ON THIS TAB. A collapsed row can name several controls, and Excel allows one hyperlink
 per cell - so the Control ID cell lists them as text. The Controls tab is a click away in the tab
 strip, sorted by id.
@@ -33,11 +44,50 @@ from ..layout import (
     NONE, SEVERITY_FILL, SheetInfo, TAB_COLOURS, plural, severity_group, utc, write_header_block,
     write_table)
 from .enforcement_points import natural_key
-from .findings import (collected_at_by_snapshot, implicated_format, load, newest_collection,
-                       provenance_index, tested_fields)
+from .findings import (collected_at_by_snapshot, display_value, implicated_format, load,
+                       newest_collection, provenance_index, tested_fields)
 from ..errors import ArtifactBuildError
 
 TITLE = "Rules by Device Group"
+
+#: The eighteen fields the Security Rules tab derives a setting column for, IN THAT TAB'S ORDER -
+#: by control id, and within a control in its baseline's clause order. Stated once here because
+#: this module needs it four times (the column list, the readers, the field map and the row) and
+#: four copies drift; it is still a SECOND copy of a list the other tab derives, which is the
+#: defect this module's docstring records.
+#:
+#: THE ORDER IS LOAD-BEARING. `tested_fields()` decides which setting a customer reads first on
+#: the per-finding tab, and a reader moving between the two tabs reads the same row twice - so a
+#: different order here is a second layout for one fact. Appending the two late columns at the
+#: end, which is what the first version of this did, put "Inspection kinds in force" eleven
+#: columns away from where the other tab puts it.
+SETTING_FIELDS = (
+    "permitted_port_count", "permitted_port_count_known",        # PAN-POL-003
+    "permits_high_risk_application", "high_risk_application_characteristic",   # PAN-POL-006
+    "threat_profile_kinds_in_force",                             # PAN-POL-008
+    "log_end", "log_setting",                                    # PAN-POL-009
+    "has_exact_duplicate", "duplicate_comparison_computed",      # PAN-POL-012
+    "days_since_last_hit", "hit_count_reading_known",            # PAN-POL-013
+    "busy_rule_placed_late",                                     # PAN-POL-015
+    "has_url_filtering_profile", "url_inspection_posture",       # PAN-POL-020
+    "description",                                               # PAN-POL-021
+    "schedule_kind", "schedule_window_expired",                  # PAN-POL-022
+    "open_zone_side_count",                                      # PAN-POL-024
+)
+
+#: Width and wrap per setting column, since neither is derivable from the field name.
+SETTING_WIDTHS = {
+    "permitted_port_count": (14, False), "permitted_port_count_known": (14, False),
+    "permits_high_risk_application": (16, True),
+    "high_risk_application_characteristic": (18, True),
+    "threat_profile_kinds_in_force": (12, False), "log_end": (12, False),
+    "log_setting": (20, True), "has_exact_duplicate": (14, False),
+    "duplicate_comparison_computed": (14, False), "days_since_last_hit": (14, False),
+    "hit_count_reading_known": (14, False), "busy_rule_placed_late": (14, False),
+    "has_url_filtering_profile": (14, False), "url_inspection_posture": (18, True),
+    "description": (34, True), "schedule_kind": (14, False),
+    "schedule_window_expired": (14, False), "open_zone_side_count": (12, False),
+}
 
 COLUMNS = [
     ("Findings", 10, False),
@@ -63,6 +113,15 @@ COLUMNS = [
     ("Application", 24, True),
     ("Action", 10, False),
     ("Profiles", 26, True),
+    # THE EIGHTEEN SETTING COLUMNS, 2026-11-01, in the order the per-finding tab derives them -
+    # by control id, and within a control in its baseline's clause order. They are hand-kept
+    # here and derived there, which is the defect this run filed rather than fixed: this
+    # module's own guard below is a second copy of
+    # `findings.check_every_tested_field_is_presented`, and the two can only be kept in step by
+    # somebody remembering. The HEADINGS are `security_rules.SETTING_LABELS`, read rather than
+    # retyped, so a heading changes in one place.
+    *((security_rules_sheet.SETTING_LABELS[field], *SETTING_WIDTHS[field])
+      for field in SETTING_FIELDS),
     ("Notes", 30, True),
     ("Config collected (UTC)", 20, False),
 ]
@@ -79,6 +138,12 @@ VALUE_READERS = {
     "Application": security_rules_sheet.APPLICATIONS_READER.read,
     "Action": lambda rule: rule.action or NONE,
     "Profiles": security_rules_sheet.profiles_in_force,
+    # The eighteen settings, read the same way the per-finding tab reads them: `display_value`,
+    # so "Yes"/"No"/"(none)"/"(empty)" mean the same thing on both tabs. A plain `getattr` would
+    # print `True`, `None` and `` - three spellings this workbook does not use anywhere else.
+    **{security_rules_sheet.SETTING_LABELS[field]:
+       (lambda rule, _f=field: display_value(getattr(rule, _f)))
+       for field in SETTING_FIELDS},
 }
 
 #: Which column presents which tested field, so the value at fault is marked here as it is on the
@@ -87,8 +152,14 @@ FIELD_BY_COLUMN = {
     "Source zone": "from_zone", "Sources": "source_address",
     "Destination zone": "to_zone", "Destinations": "destination_address",
     "Service": "service", "Application": "application", "Action": "action",
-    # Declares one of the three; its "in force" line renders all of them.
+    # Declares one of the three; its "in force" line renders all of them. It does NOT declare
+    # `threat_profile_kinds_in_force`: that count has a column of its own below, because a field
+    # declared through `hidden_fields` cannot be marked as the value at fault.
     "Profiles": "has_antivirus_profile",
+    # The eighteen settings, 2026-11-01. One column each, so each declares its own field and the
+    # value at fault is marked here as it is on the per-finding tab.
+    **{security_rules_sheet.SETTING_LABELS[field]: field
+       for field in SETTING_FIELDS},
 }
 
 #: Sorts before every device group name, and renders as an empty cell - the Rulebase column says
@@ -195,6 +266,11 @@ def fold(subjects=None) -> dict:
             values["Application"],
             values["Action"],
             values["Profiles"],
+            # The eighteen settings, in COLUMNS order. Read off `values`, so a group holding
+            # several rule objects that disagree on one of them shows "(differs)" and the Notes
+            # column names which - the same treatment Service and Action have always had.
+            *(values[security_rules_sheet.SETTING_LABELS[field]]
+              for field in SETTING_FIELDS),
             notes_for(members, values),
             newest_collection(group_findings, collected),
         ])
