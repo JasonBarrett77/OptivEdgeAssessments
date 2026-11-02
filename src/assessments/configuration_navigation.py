@@ -161,6 +161,31 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("addresses", "Addresses", "Objects", "", "list-checks",
                  where="Objects > Addresses",
                  search_model="integrations.AddressObject"),
+    # Objects > Custom Objects > URL Category, 2026-11-02, for PAN-URL-006 - a NEW GROUP, and the
+    # first rail item over `integrations.CustomUrlCategory`, which stage 7 minted for this domain
+    # and which had never been queried from this repository at all.
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test: does the subject HAVE a vendor path?
+    # It does - `Objects > Custom Objects > URL Category` is a real PAN-OS screen an assessor can
+    # open, and the Categories tab of a URL Filtering profile lists these entries under its own
+    # "Custom URL Categories" drop-down (Web Interface Help 11.2 p.296, verbatim). So the item
+    # promises a node that exists. Contrast Normalization Coverage, which is off the rail with an
+    # explicit sheet category because its subject is our own record of a failed build.
+    #
+    # THE GROUP SITS BEFORE `Security Profiles`, WHICH IS THE PRODUCT'S OWN ORDER: PAN-OS lists
+    # Custom Objects above Security Profiles in the Objects tree. Placing it here inserts a new
+    # group ahead of an existing one and REARRANGES NO EXISTING ITEM relative to any other, which
+    # is the line `dos-protection` and `file-blocking` both drew - they declined to reorder the
+    # four older profile items among themselves, which is a different thing from putting a new
+    # group where the vendor puts it. `group`s render in the order their first object appears.
+    #
+    # IT DECLARES NO `scope`, and that is required rather than tidy: its model has exactly ONE
+    # page, so `object_for_canonical_query` short-circuits on the single candidate and a scope
+    # would be dead weight a later second page would have to reckon with. Same call as
+    # `data-filtering-posture`.
+    ConfigObject("custom-url-categories", "URL Category", "Objects", "Custom Objects",
+                 "list-checks", where="Objects > Custom Objects > URL Category",
+                 search_model="integrations.CustomUrlCategory"),
     # Objects > Security Profiles - the first Objects items, 2026-09-11. PAN-OS lists each profile
     # type as its own rail child, and so does this: two items over one model, split by kind in
     # configuration_results, each backed by a completed control.
@@ -173,6 +198,27 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  search_model="integrations.SecurityProfile"),
     ConfigObject("antivirus", "Antivirus", "Objects", "Security Profiles", "shield",
                  where="Objects > Security Profiles > Antivirus",
+                 search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > URL Filtering, 2026-11-02, for PAN-URL-001 to -005 - the
+    # EIGHTH rail item over `SecurityProfile`, and ONE item for five controls rather than five:
+    # all five carry `kind eq "url-filtering"` and nothing else, so they share one page.
+    #
+    # PLACED IN THE VENDOR'S OWN ORDER, which the `file-blocking` block below enumerates from the
+    # product: Antivirus, Anti-Spyware, Vulnerability Protection, URL FILTERING, File Blocking,
+    # WildFire Analysis, Data Filtering, DoS Protection. So URL Filtering sits immediately before
+    # File Blocking. The three items above it are not themselves in the vendor's order - that is
+    # older and is not this entry's to rearrange, which is the judgement `dos-protection` made
+    # for itself and `file-blocking` repeated.
+    #
+    # ITS SCOPE IS EXACTLY ONE `kind eq` CLAUSE AND NOTHING LOOSER, for the reason the
+    # `dos-protection` block below states at length: `object_for_canonical_query` keeps every
+    # candidate whose own scope clauses are a SUBSET of the query's and answers only when exactly
+    # one matched, so a scope of {} would be a subset of EVERY query over this model and would
+    # push ALL EIGHT kinds to None. The seven pages that already work are what a wrong scope here
+    # breaks, which is why `tests/test_url_filtering_presentation.py` asserts all eight resolve
+    # rather than only the one that is new.
+    ConfigObject("url-filtering", "URL Filtering", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > URL Filtering",
                  search_model="integrations.SecurityProfile"),
     # Objects > Security Profiles > File Blocking, 2026-11-02, for PAN-FIL-001, -002 and -004 -
     # the SIXTH rail item over `SecurityProfile`, with `data-filtering` below the seventh.

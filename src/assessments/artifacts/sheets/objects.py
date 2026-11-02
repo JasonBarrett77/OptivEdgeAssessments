@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from assessments.models import Control
 
-from optivedge_integrations.integrations.models import AddressObject
+from optivedge_integrations.integrations.models import AddressObject, SecurityProfile
 
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
@@ -1050,6 +1050,77 @@ REFERENCE_REACH = findings_sheet.ValueReader(
     provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
 )
 
+# --------------------------------------------------------------------------------------------
+# TWO READERS ADDED 2026-11-02 BY STAGE 9 OF `url-filtering`, and both fix a cell rather than
+# adding a column. Each one replaces a placeholder that reads as MISSING DATA on a row where the
+# honest answer is the PASSING state - the shape Jason caught once already, where "the most
+# reassuring cell on the row was the finding".
+#
+# MEASURED BEFORE WRITING THEM, over this domain's 21 findings rows:
+#   `worst_unrecorded_request_header`         `(empty)` on the 2 rows that log all three headers
+#   `broadest_inline_analysis_exemption_type` `(none)`  on 15 rows, 13 of which exempt nothing
+# `display_value` has exactly three answers - a value, `(none)` for NULL and `(empty)` for the
+# empty string - so neither state can be said through it.
+#
+# THEY COST NO PROVENANCE, which is the only reason they are allowed. Both fields are in
+# `SecurityProfile.DERIVED_FIELDS`, and a reader is free on a derived field: there is no
+# `FieldProvenance` row for `remediation_accessor` to discard. Contrast
+# `credential_detection_mode`, which is a MEASURED PAYLOAD KEY carrying such a row - this run
+# REFUSED a reader there and left the device's own token in the cell, because whether the
+# credential-enforcement node was absent or explicitly `disabled` is what that control is about.
+#
+# AND THEY BRANCH ON `kind`, WHICH IS WHAT MAKES THEM SAFE ON A SHARED SPEC. This spec serves
+# seven profile kinds and five other domains' controls, so a reader that answered unconditionally
+# would put a sentence about HTTP request headers on an antivirus row, where the question does
+# not exist. `reader.read(subject)` is handed the subject, so each reader answers for its own
+# kind and returns `layout.NONE` - the em dash, U+2014, the sanctioned vocabulary for "this
+# branch does not exist on this subject" - for every other kind. That is strictly more honest
+# than the `(empty)`/`(none)` those rows show today, and it is the one thing this run changes
+# about what another domain's rows read.
+#
+# NOTE THAT THIS MAKES THE EM-DASH ESCAPE REACHABLE ON A MULTI-KIND MODEL, which the stage 9
+# contract's finding 4 says it is not: that finding says "your own subject columns can use an em
+# dash for that state; the derived settings columns cannot, because `display_value` is shared by
+# every tab". True of `display_value` - and `setting_columns` consults `value_readers` BEFORE it,
+# so a reader branching on the row's own kind reaches the state per KIND rather than per MODEL.
+# --------------------------------------------------------------------------------------------
+
+def _url_filtering_only(read):
+    """Answer for a url-filtering row; give every other kind the em dash.
+
+    The columns these readers head are derived from THIS domain's clauses, so they appear on
+    every kind's row of the shared tab while meaning something on one. The em dash says that.
+    """
+    def answer(profile):
+        if profile.kind != SecurityProfile.KIND_URL_FILTERING:
+            return NONE
+        return read(profile)
+    return answer
+
+
+#: THE PASSING STATE WAS THE BLANK ONE. The store holds "" when every one of the three request
+#: headers IS logged, so `display_value` printed `(empty)` on exactly the rows where nothing is
+#: wrong - a cell that reads as "nobody collected this" where it means "we checked all three".
+#: The header NAMES are the vendor's own (X-Forwarded-For, User-Agent, Referer) and are stored as
+#: labels, so a failing cell needed no help; only the empty one did.
+WORST_UNRECORDED_HEADER = findings_sheet.ValueReader(
+    read=_url_filtering_only(
+        lambda p: p.worst_unrecorded_request_header or "None missing"),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+#: NULL HERE HAS TWO MEANINGS and `(none)` serves neither: the profile exempts nothing, or an
+#: exemption names a category whose own row this assessment never read - which is the estate where
+#: the categories are in force through the pushed read and nobody issued it. The COUNT separates
+#: them and the reader reads it, so the cell says which.
+BROADEST_EXEMPTION = findings_sheet.ValueReader(
+    read=_url_filtering_only(
+        lambda p: (p.broadest_inline_analysis_exemption_type
+                   or ("Nothing exempted" if not p.inline_analysis_exemption_count
+                       else "Exempted category not read"))),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
 
 #: Which appliance spoke for this point, and which virtual system the verdict is about.
 #:
@@ -1554,7 +1625,14 @@ SPECS = (
                         "has_non_blocking_mlav_decoder": MLAV_COVERAGE,
                         # SIXTH READER, 2026-11-02 by stage 9 of `file-data-filtering`, and it
                         # fixes a cell rather than adding a column. See REFERENCE_REACH below.
-                        "reference_reach": REFERENCE_REACH},
+                        "reference_reach": REFERENCE_REACH,
+                        # SEVENTH AND EIGHTH, 2026-11-02 by stage 9 of `url-filtering`. Both fix a
+                        # cell whose placeholder read as missing data on a PASSING row, both are
+                        # free because their fields are DERIVED, and both branch on `kind` so that
+                        # the other six kinds get the em dash rather than a sentence about a
+                        # question their rows do not ask. The reasoning is above the readers.
+                        "worst_unrecorded_request_header": WORST_UNRECORDED_HEADER,
+                        "broadest_inline_analysis_exemption_type": BROADEST_EXEMPTION},
          # THE FIRST `setting_labels` THIS SHEET HAS CARRIED, added 2026-11-02 by stage 9 of
          # `zone-dos-protection` for PAN-ZON-008. Both are PROPOSALS.
          #
@@ -1645,12 +1723,244 @@ SPECS = (
              # derives no column for it, and `setting_labels` is consulted only for columns that
              # exist. The heading is written on the Data Filtering EXPLORER page, where the column
              # does exist. Add the entry here the day that half is built, not before.
+             #
+             # ----------------------------------------------------------------------------------
+             # SIXTEEN MORE, 2026-11-02 by stage 9 of `url-filtering`, for PAN-URL-001 to -005.
+             # EVERY ONE IS A PROPOSAL - Jason takes the heading pass once across many domains
+             # (P399) - and each is sourced below to the vendor's own words where the vendor has
+             # them, and SAYS SO WHERE IT DOES NOT.
+             #
+             # MEASURED BEFORE WRITING THEM, by building this table over this domain's six
+             # controls and reading `FindingsTable.headers`: SIXTEEN of the 35 headings read as
+             # Django field names and ALL SIXTEEN were this domain's. That is the same count the
+             # `file-data-filtering` run recorded as left for `url-filtering` and `decryption`,
+             # reached by a different route. The `decryption` share is NOT touched here - it is
+             # not this run's to name and those headings stay raw until that domain's stage 9.
+             #
+             # THESE COLUMNS APPEAR ON EVERY KIND'S ROW, so labelling them improves other
+             # domains' rows too: before this change a vulnerability-protection row showed a
+             # customer `credential_detection_mode`, and a file-blocking row showed
+             # `all_hostile_categories_blocked`. `setting_columns` is derived from the clauses of
+             # whatever controls are seeded, so which of these columns a given build draws
+             # depends on the catalogue - but when one is drawn it is drawn for every row.
+             #
+             # THE HEADINGS ARE THE SAME WORDS THE `url-filtering` EXPLORER PAGE USES, character
+             # for character, so one column does not read two ways on two surfaces.
+             #
+             # WHAT THE VENDOR CALLS THESE THINGS, measured across THREE Help versions rather
+             # than assumed. Web Interface Help 11.2 p.296-299 (Objects > Security Profiles >
+             # URL Filtering) gives `Category`, `Site Access`, `User Credential Submission` and
+             # `Log container page only` verbatim. BUT `probe.corpus --all` returns NOTHING for
+             # `Inline Categorization`, `User Credential Detection` or `HTTP Header Logging` in
+             # help 11.1, 11.2 OR 12.2 - a complete count, so that is silence worth citing: the
+             # Web Interface Help has no label for those three screens at all. The URL Filtering
+             # admin guide p.59 and p.61 do, and four headings below are sourced to it alone.
+             # ----------------------------------------------------------------------------------
+             #
+             # PAN-URL-001. OURS, and deliberately NOT "Dangerous categories blocked": the
+             # vendor's p.297 instruction is "Block all known dangerous URL categories" over a
+             # list of ELEVEN, while this column is over the THREE the model calls confirmed
+             # hostile (`HOSTILE_URL_CATEGORIES`), so the vendor's phrase would overstate the
+             # question by eight categories. Built from the vendor's own three category NAMES
+             # instead, which is the one wording that cannot be read too widely.
+             "all_hostile_categories_blocked":
+                 "Malware, phishing and command-and-control blocked",
+             # "Site Access" is the vendor's own column name, p.297. "Weakest" is ours and is the
+             # convention `file-blocking` set above: a profile that blocks two of the three and
+             # shows a warning page on the third is not protected by the two.
+             "weakest_hostile_category_action": "Weakest Site Access on those categories",
+             #
+             # PAN-URL-002. OURS - the vendor has the verb and not a label, p.297 verbatim:
+             # "allow—...Because allow doesn't log unblocked traffic, set alert as the Action for
+             # categories of traffic you don't block if you want to log the access attempts".
+             # "Reachable" is ours and names the denominator: a category the profile blocks
+             # outright is not reachable, and one at the inert action matches nothing.
+             "all_reachable_categories_logged": "Every reachable category logged",
+             "worst_reachable_unlogged_category": "Worst unlogged category",
+             #
+             # A COMPANION COLUMN, headed as the QUESTION IT ANSWERS and not as a setting: a `No`
+             # here means this assessment never established the category population, NOT that the
+             # device is set a particular way. Phrased as a question for the reason
+             # `device-id-iot` gave - a reader should meet "was this established?" before "what
+             # did it establish?".
+             #
+             # AND ON THIS TAB IT IS DRAWN AFTER THE VERDICT IT QUALIFIES, WHICH IS THE WRONG WAY
+             # ROUND AND IS NOT FIXABLE FROM A SHEET. Measured off `FindingsTable.headers`: the
+             # order is `all_reachable_categories_logged`, `worst_reachable_unlogged_category`,
+             # then this - because `tested_fields` sorts the non-baseline queries ALPHABETICALLY
+             # BY QUERY NAME and "The category population behind this verdict was never
+             # established" sorts last. It matters here in a way it did not for
+             # `reference_reach_resolved` above, which got the lucky order: both
+             # `worst_reachable_unlogged_category` and `worst_credential_permissive_category` are
+             # NULL FOR TWO UNRELATED REASONS - the catalogue was never read, or the failing set
+             # is empty and the profile passes - so a reader meeting the verdict cell first sees
+             # the reassuring answer before the caveat that invalidates it. On a real estate that
+             # is every row, because stage 5 records that the operational catalogue read is
+             # issued by no collector. `auto_setting_columns` is all-or-nothing and renaming a
+             # shipped calibration query is stage 8's, so this is RECORDED rather than fixed; the
+             # `url-filtering` explorer page, whose column order this module does control, draws
+             # it BEFORE the pair instead.
+             "category_catalogue_collected": "Category list read from the device?",
+             #
+             # PAN-URL-003. THE VENDOR'S OWN LABEL, exactly: the drop-down is called "User
+             # Credential Detection" (URL Filtering admin guide p.61 and p.132). The Web
+             # Interface Help is silent on it in all three versions, so this one is sourced to the
+             # admin guide alone.
+             #
+             # THE CELL STILL SHOWS THE DEVICE'S OWN KEY - `ip-user`, not "Use IP User Mapping" -
+             # and that is a REFUSAL rather than an omission. The field has no `choices`, so
+             # `display_value` prints the stored string, and the only way to change it is a
+             # `value_readers` entry. This column is a MEASURED PAYLOAD KEY carrying a
+             # `FieldProvenance` row, and a reader makes `build_rows` hand `stored=False` to
+             # `remediation_accessor`, which then never reads that row - so whether the
+             # credential-enforcement node was ABSENT or explicitly `disabled` would stop being
+             # visible, and that distinction is exactly what PAN-URL-003 is about (`disabled` is
+             # the measured absent value AND the firing side, per the model's own comment). The
+             # explorer page carries the vendor's sentence instead, where the cell is that
+             # module's own lambda and costs no provenance.
+             "credential_detection_mode": "User Credential Detection",
+             # "User Credential Submission" is the vendor's column, p.298. "Restricted" is ours
+             # and is deliberately weaker than "blocked": this column is satisfied by `block` OR
+             # by the category being unreachable, which is not the claim the next one makes.
+             "all_reachable_categories_credential_restricted":
+                 "Every reachable category restricts credential submission",
+             "credential_submission_blocked_for_every_category":
+                 "Credential submission blocked on every category",
+             "worst_credential_permissive_category": "Worst category accepting credentials",
+             #
+             # PAN-URL-004. "HTTP Header Logging" is the vendor's own label (admin guide p.59,
+             # "Enabling HTTP Header Logging provides visibility into the attributes in the HTTP
+             # request sent to a server"), and the three header names are the vendor's:
+             # X-Forwarded-For, User-Agent, Referer. "All three" is ours and is a fact about the
+             # device - the object offers these three and no more on all four lab appliances.
+             "records_all_request_headers": "All three HTTP headers logged",
+             "worst_unrecorded_request_header": "Worst HTTP header not logged",
+             #
+             # PAN-URL-005. THE VENDOR'S OWN LABELS, admin guide p.59, minus its "Enable "
+             # prefix, which names the checkbox rather than the state: "Enable cloud Inline
+             # Categorization" and "Enable local Inline Categorization". The screen they sit on
+             # the vendor calls "Advanced URL Inline Categorization".
+             "cloud_inline_categorization": "Cloud Inline Categorization",
+             # THE HEADING DROPS THE `_on` SUFFIX because the suffix distinguishes this derived
+             # boolean from the nullable measured key `local_inline_categorization`, which no
+             # shipped query clauses on and which therefore draws no column here. If that key
+             # ever gains a clause the two would collide under one heading, and the
+             # duplicate-header guard would not fire because it compares HEADINGS and these two
+             # would then be equal - so the day that happens, one of them needs a different word.
+             "local_inline_categorization_on": "Local Inline Categorization",
+             # "URL exceptions" is the vendor's noun, admin guide p.59: "Use the Advanced URL
+             # Inline Categorization to enable and configure real-time web page analysis and
+             # manage URL exceptions." "Broadest" is ours and ranks the two stored category types.
+             "inline_analysis_exemption_count": "URL exceptions",
+             "broadest_inline_analysis_exemption_type": "Broadest URL exception",
+             # THE SECOND COMPANION COLUMN, and it has the same order problem: "The exemption list
+             # behind this verdict was never read" sorts after the two it qualifies.
+             "inline_analysis_exemptions_computed": "Exception list read from the device?",
          },
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders", "ml_models",
                            "application_overrides")),
+    # Objects > Custom Objects > URL Category, 2026-11-02, for PAN-URL-006 - a NEW TAB, because
+    # `probe.surface_for PAN-URL-006` reported NO SHEET SHOWS IT while the domain's other five
+    # controls already reach `Security Profile`. One domain, two tabs.
+    #
+    # THE ROW IS ONE CUSTOM CATEGORY DEFINITION AT THE SCOPE IT IS DEFINED AT, which is the grain
+    # a PAN-URL-006 finding names. Names repeat across scopes - the same name can exist at a vsys,
+    # at the firewall's own shared scope and in the pushed view, and the remediation differs by
+    # scope - so the scope columns are part of the identity and not decoration.
+    #
+    # ITS CATEGORY IS DERIVED FROM THE RAIL (`category=''`), which is right for a subject that IS
+    # a configuration object: deriving it means the workbook cannot disagree with the app about
+    # where the object lives. The rail item is `custom-url-categories`, at Objects > Custom
+    # Objects > URL Category.
+    #
+    # `hidden_fields` IS EMPTY, and there was no reason for a new sheet to declare one: the gate
+    # counts a field as presented if `hidden_fields` carries it, so a non-empty tuple is a CLAIM
+    # accepted as proof and is the only known cause in this repository of a findings row that
+    # marks nothing as the thing to fix (P409).
+    #
+    # `tested_columns` IS `ALL_TESTED_COLUMNS` AND THAT IS A CHOICE. The default is
+    # `('Provenance',)`, which keeps `Fires when` on the live page and silently DROPS it from the
+    # xlsx, so the two surfaces disagree about which cell a reader meets (P427). Carrying it is
+    # safe here in the way it was for `data-filtering-posture` and is not on most tabs: this
+    # control's baseline is the clause that fires on every row this tab draws, so the rendered
+    # condition is the clause that actually fired. The cost is that the condition prints
+    # `is_used eq False` in the field's own name - `render_node` builds its text from the clause's
+    # field and consults `setting_labels` NOWHERE - which is recorded in the stage 9 artifact as
+    # shared machinery rather than worked around here.
+    #
+    # EVERY HEADING IS A PROPOSAL (P399), sourced below.
+    spec(T.CUSTOM_URL_CATEGORY,
+         "The custom URL categories defined on this firewall, and whether anything on it still "
+         "names them: a category's stored type, how many entries its list holds, and how many "
+         "referring surfaces this assessment read. A category is either a list of SITES or a "
+         "conjunction of PREDEFINED CATEGORIES and the same stored key holds both, so the type "
+         "is what makes the member list mean anything. AN UNREFERENCED CATEGORY IS A CANDIDATE "
+         "FOR REVIEW AND NEVER A REMOVAL INSTRUCTION: the walk reads TWELVE surfaces - a URL "
+         "filtering profile's six site-access lists and four credential lists, its inline "
+         "analysis exemptions, and a security rule's category match - while the vendor documents "
+         "FOUR rulebases that can match on a URL category and this project's normalizer collects "
+         "TWO of them. So every error this reports is in the direction of calling a LIVE category "
+         "unreferenced, and the count of surfaces searched is presented beside the verdict so "
+         "that `unreferenced` is never printed without its denominator.",
+         title="Custom URL Category",
+         subject=VSYS_SCOPED + NAME + (
+             # THE DENOMINATOR, and stage 5 requires it: it says this column must be "presented
+             # beside every finding so that `unreferenced` is never printed without its
+             # denominator". No shipped query clauses on it, so `setting_columns` derives no
+             # column for it and this is the only thing that puts it on the row.
+             #
+             # IT NAMES ITS `field`, which matters even though nothing would collide today: a
+             # subject column that declares no field does NOT suppress the derived column for the
+             # same attribute, so one value would reach the tab twice under two headings - and
+             # because the headings differ the duplicate-header guard would never fire.
+             #
+             # OURS, no vendor word: the vendor has no notion of "how far did an audit look".
+             ("Referring surfaces searched", 26, True,
+              lambda c, _p: len(c.reference_surfaces_searched or []),
+              "reference_surfaces_searched"),
+             # "Sites" IS THE VENDOR'S LABEL AND IS DELIBERATELY NOT USED, which is the one
+             # judgement on this tab worth arguing. Web Interface Help 11.2 p.271 heads the
+             # member list "Sites" - "Manage sites for the custom URL category" - but p.270 says
+             # a `Category Match` entry's list holds "the specified URL categories" and not
+             # sites, and the model's own comment says the same key holds two incompatible kinds
+             # of thing with only `category_type` to say which. So the vendor's own word is
+             # correct for one of the two types and wrong for the other, and "Members" is ours
+             # precisely because it is true of both.
+             ("Members", 12, False,
+              lambda c, _p: (c.match_entry_count if c.match_entry_count_computed else NONE),
+              "match_entry_count"),
+             # THE COMPANION TO THE COUNT, and it earns its place because the count is NULLABLE
+             # for exactly this reason: `match_entry_count` is null when the list was never read,
+             # which is a different thing from a category that matches nothing. Drawn
+             # IMMEDIATELY AFTER the count it qualifies - this module controls the order of its
+             # own subject columns, unlike the derived settings columns further along the row.
+             ("Member list read?", 18, False,
+              lambda c, _p: ("Yes" if c.match_entry_count_computed else "No"),
+              "match_entry_count_computed"),),
+         setting_labels={
+             # PAN-URL-006's BASELINE. OURS - the vendor has no word for this at all: it is a
+             # fact about what else on the firewall names the object, not a setting on the
+             # object, and `probe.corpus --all` offers nothing at this position. "Anything this
+             # assessment read" and not "anything": the walk reads TWELVE surfaces while the
+             # vendor documents FOUR rulebases that can match on a URL category and this project's
+             # normalizer collects TWO, so the heading must not promise the whole firewall when
+             # the `Referring surfaces searched` column beside it says twelve.
+             "is_used": "Named by anything this assessment read",
+             # THE VENDOR'S OWN LABEL, exactly: Web Interface Help 11.2 p.270 heads this leaf
+             # "Type" and names its two values "Category Match" and "URL List", which are the
+             # strings the store holds - so the cell needs no reader and the heading needs no
+             # gloss. Kept as the bare vendor word rather than expanded to "Category type",
+             # because this tab's subject IS a category and the longer form says it twice.
+             "category_type": "Type",
+         },
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance_group",
+                                 "enforcement_point__appliance", "appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     # Objects > Security Profiles > Data Filtering, 2026-11-02, for PAN-FIL-003.
     #
     # THE ROW IS THE ENFORCEMENT POINT AND NOT A PROFILE, and on this tab that is the whole point.

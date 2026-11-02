@@ -59,11 +59,18 @@ from optivedge_integrations.integrations.models import (
 #: a "no heading reads as a raw field name" assertion over that table passes vacuously.
 PAN_FIL = ("PAN-FIL-001", "PAN-FIL-002", "PAN-FIL-003", "PAN-FIL-004")
 
-#: Every kind this model is split by, with the rail slug each resolves to. SEVEN since 2026-11-02.
+#: Every kind this model is split by, with the rail slug each resolves to. SEVEN since 2026-11-02,
+#: and EIGHT later the same day: stage 9 of `url-filtering` added the `url-filtering` kind's page.
+#: That row is added HERE, in the vendor's own position, rather than this fixture being widened or
+#: a second list kept beside it - the assertion below is on the exact list AND its order, so the
+#: honest way to add a page is to put its row where the rail puts the item.
 KINDS_AND_SLUGS = (
     ("spyware", "anti-spyware"),
     ("vulnerability", "vulnerability-protection"),
     ("virus", "antivirus"),
+    # PAN-OS lists URL Filtering fourth, between Vulnerability Protection and File Blocking, and
+    # the rail item was placed there - so it sorts here and not at the tail.
+    ("url-filtering", "url-filtering"),
     ("file-blocking", "file-blocking"),
     ("wildfire-analysis", "wildfire-analysis"),
     ("data-filtering", "data-filtering"),

@@ -113,6 +113,27 @@ DOMAINS = (
     # Category DERIVED from the rail (`category=''`), whose item is `dos-protection-rules` at
     # Policies > DoS Protection - right for a subject that IS a configuration object.
     _object_domain("dos-protection-rules", T.DOS_POLICY_RULE),
+    # Objects, 2026-11-02, for PAN-URL-006, and BEFORE `security-profiles` on purpose.
+    #
+    # The `url-filtering` domain reports to two tabs: its other five controls land on the shared
+    # profile tab below, and this one is the only control over
+    # `integrations.CustomUrlCategory`. A custom category is an INPUT to a URL filtering profile -
+    # the profile's Categories grid lists these entries under its own "Custom URL Categories"
+    # drop-down (Web Interface Help 11.2 p.296) - so a reader meets the objects a profile is built
+    # out of before the profiles built out of them, and that is also PAN-OS's own tree order:
+    # Custom Objects sits above Security Profiles.
+    #
+    # `finding_run.GENERATORS` order governs only WITHIN a category and both of these are Objects,
+    # so the order here is this list's own choice and this is the editorial one.
+    # `check_tabs_follow_the_summary` constrains only that category RANKS do not decrease.
+    #
+    # It does not disturb the `_build_model_index` note above: that index takes the FIRST domain
+    # claiming a MODEL, and this domain claims `integrations.CustomUrlCategory`, which no other
+    # domain claims. `SecurityProfile` links still land on `security-profiles`.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `custom-url-categories` at
+    # Objects > Custom Objects > URL Category - right for a subject that IS a configuration object.
+    _object_domain("custom-url-categories", T.CUSTOM_URL_CATEGORY),
     # Objects
     _object_domain("security-profiles", T.SECURITY_PROFILE),
     # Objects, 2026-11-02, for PAN-FIL-003, and IMMEDIATELY AFTER `security-profiles` on purpose.

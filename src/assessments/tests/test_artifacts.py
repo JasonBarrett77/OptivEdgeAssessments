@@ -88,7 +88,13 @@ class WorkbookBuildTests(TestCase):
         # 48 on 2026-11-02 by stage 9 of `file-data-filtering`. ONE tab for a FOUR-control domain:
         # PAN-FIL-001, -002 and -004 report onto Security Profile, which already drew them, and
         # only PAN-FIL-003's per-enforcement-point verdict needed a subject of its own.
-        self.assertIn("Summary: 48 tabs linked, 0 findings in total", reports[0])
+        # 49 on 2026-11-02 by stage 9 of `url-filtering`. ONE tab for a SIX-control domain, and it
+        # is Custom URL Category, placed in Objects BEFORE Security Profile: PAN-URL-001 to -005
+        # all report onto Security Profile, which already drew them, and only PAN-URL-006's
+        # subject - `integrations.CustomUrlCategory`, minted by stage 7 for this domain - needed a
+        # tab of its own. That domain ships 32 queries, the most in its batch, and 31 of them
+        # needed a results DESTINATION rather than a tab; the two are different surfaces.
+        self.assertIn("Summary: 49 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -107,7 +113,9 @@ class WorkbookBuildTests(TestCase):
         # 49 later on 2026-11-02: Data Filtering Posture. `file-data-filtering` adds ONE tab for
         # four controls - its other three report onto the Security Profile tab, which already drew
         # them before that stage ran.
-        self.assertEqual(len(names), 49)
+        # 50 later on 2026-11-02: Custom URL Category. `url-filtering` adds ONE tab for six
+        # controls - its other five report onto the Security Profile tab, which already drew them.
+        self.assertEqual(len(names), 50)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
