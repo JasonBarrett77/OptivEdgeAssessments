@@ -47,6 +47,7 @@ from optivedge_integrations.integrations.models import (
     CertificateProfile,
     CustomUrlCategory,
     DataFilteringPosture,
+    DecryptionSettings,
     DeviceIdentificationState,
     DosPolicyRule,
     IkeCryptoProfile,
@@ -243,6 +244,75 @@ CREDENTIAL_DETECTION_LABELS = {
 
 def _credential_mode(value) -> str:
     return CREDENTIAL_DETECTION_LABELS.get(value, value or "Disabled")
+
+
+#: THE VENDOR'S OWN UI VALUES for the decryption profile's two protocol-version leaves, against
+#: the device spelling the store holds. Help 11.2 p.341 names five verbatim - "PAN-OS supports
+#: SSLv3, TLSv1.0, TLSv1.1, TLSv1.2, and TLSv1.3" - and p.345 names the sixth, which the ceiling
+#: carries and the floor refuses: "You can choose the option Max so that no maximum version is
+#: specified". A token this map does not carry is printed as it was stored rather than guessed at.
+TLS_VERSION_LABELS = {
+    "sslv3": "SSLv3", "tls1-0": "TLSv1.0", "tls1-1": "TLSv1.1",
+    "tls1-2": "TLSv1.2", "tls1-3": "TLSv1.3", "max": "Max",
+}
+
+
+def _tls_version(value) -> str:
+    """The vendor's label for a stored version token. "Not set" for the empty string.
+
+    The empty string is not a state this node reaches on a collected profile - both columns carry
+    a MEASURED non-null default - so this arm exists to keep an unrecomputed row from printing a
+    blank cell beside a firing verdict.
+    """
+    if not value:
+        return "Not set"
+    return TLS_VERSION_LABELS.get(value, value)
+
+
+def _resolved_ceiling(profile) -> str:
+    """What `Max Version` actually means on THIS appliance, with the unresolvable case named.
+
+    Three columns and not one, because the stored literal is a POINTER: two appliances storing
+    `max` can negotiate different ceilings, and an appliance upgraded between two collections
+    changes what the literal means without the stored value moving. BLANK in the store means the
+    build was not one the resolver covers, and the verdict beside it then stays on the firing
+    side - so this says that rather than leaving the cell empty, which would read as "nobody
+    looked" on the one row where the resolution is the finding.
+    """
+    if profile.ssl_max_version_resolved:
+        return _tls_version(profile.ssl_max_version_resolved)
+    return "Could not be resolved for this build"
+
+
+def _permitted(value) -> str:
+    """One decryption-profile ALGORITHM switch, which is an ALLOW and not a block.
+
+    `yes`/`no` is ambiguous on this family in a way it is not elsewhere on the row: the twelve
+    `block-*` keys beside them are BLOCK switches where false is the weak direction, and these
+    seven are ALLOW switches where TRUE is. A column of `yes` and `no` under two opposite
+    polarities, with nothing in the heading announcing the change, is the shape the model's own
+    comment warns a query author about - so the cell says which it means.
+    """
+    return "permitted" if value else "not permitted"
+
+
+def _weakest_primitive(value) -> str:
+    """The worst algorithm a profile still leaves negotiable, with `none` SPELLED.
+
+    `none` is the compliant member of both of these columns and the one a bare token reads
+    wrongly: a cell saying `none` beside a passing row reads as "no value recorded" where it
+    means "nothing weak is negotiable". The algorithm names themselves are the vendor's own -
+    RC4, 3DES, MD5, SHA1 on help 11.2 p.345-346, and RSA / AES-128-CBC / AES-256-CBC from its
+    Key Exchange and Encryption Algorithms lists - so only the compliant member needs help.
+    """
+    if not value:
+        return "Not computed"
+    if value == SecurityProfile.PRIMITIVE_NONE:
+        return "None negotiable"
+    # Upper-casing reproduces the vendor's own spelling for all seven members exactly - RC4,
+    # 3DES, MD5, SHA1, RSA, AES-128-CBC, AES-256-CBC - so no per-token map is needed and a member
+    # added to either ordering tuple comes out right rather than coming out missing.
+    return value.upper()
 
 
 def _kind_scope(kind):
@@ -1926,6 +1996,197 @@ RESULTS = {
             _nothing(p.referrer_count, "referrer(s)"),
         ),
     ),
+    # Objects > Decryption Profile, 2026-11-02, for PAN-DCP-001 to -005 and -007 - the NINTH page
+    # over `integrations.SecurityProfile`. See that rail item for why it is not under Security
+    # Profiles and why its scope is exactly one `kind eq` clause.
+    #
+    # EVERY HEADING HERE IS A PROPOSAL (P399) and each is the SAME WORD the Security Profile
+    # findings sheet's `setting_labels` uses, character for character, so one column does not read
+    # two ways on two surfaces. The sourcing is written once, in that sheet, against PAN-OS Web
+    # Interface Help 11.2 p.339-346.
+    #
+    # THE CELLS DIFFER FROM THE FINDINGS TAB ON THE TWO VERSION COLUMNS, and that is a decision
+    # rather than drift. The store holds the DEVICE's spelling - `tls1-0`, `tls1-2`, `max` - and
+    # the model's own docstring requires that (the two leaves do not share a value set and `max`
+    # sorts first while meaning the strongest setting there is). Here the lambda maps them to the
+    # vendor's own UI values, which help 11.2 p.341 and p.345 give verbatim: "PAN-OS supports
+    # SSLv3, TLSv1.0, TLSv1.1, TLSv1.2, and TLSv1.3" and "You can choose the option Max". On the
+    # findings tab those two columns keep `display_value`'s raw token, because a `value_readers`
+    # entry there would make `build_rows` hand the field `stored=False` and discard the column's
+    # `FieldProvenance` row - and that row is the only thing separating a floor the operator typed
+    # from one nobody ever set. Recorded rather than unified: it is the same split the
+    # `url-filtering` run accepted for `credential_detection_mode`.
+    "decryption-profile": ResultsSpec(
+        query_fields={
+            "Profile": "name", "Scope": "namespace_type",
+            # INHERITED, not chosen: set by stage 9 of `file-data-filtering` and kept character
+            # for character.
+            "Vendor-shipped": "is_predefined",
+            "Min Version": "ssl_min_version",
+            "Max Version": "ssl_max_version",
+            "Min Version below TLSv1.2": "ssl_min_version_below_tls12",
+            "Max Version caps below what the appliance supports": "ssl_max_version_restrictive",
+            "Weakest broken algorithm still negotiable": "weakest_broken_primitive_permitted",
+            "Weakest algorithm lacking forward secrecy or authenticated encryption":
+                "weakest_non_pfs_or_unauthenticated_permitted",
+            # THE SEVEN INDIVIDUAL ALGORITHM SWITCHES HAVE NO `query_fields` ENTRY and are
+            # COLUMNS, measured: none of the seven is in
+            # `search/security_profile/compiler.py`'s registry, and the repo's rule is that only
+            # a column a control asks for is registered. The two weakest-* verdicts above are
+            # what a clause rests on; these are the evidence beside them.
+            "Forward proxy: Block sessions with expired certificates":
+                "fwd_block_expired_certificate",
+            "Forward proxy: Block sessions with untrusted issuers": "fwd_block_untrusted_issuer",
+            "Forward proxy: Block sessions with unsupported versions":
+                "fwd_block_unsupported_version",
+            "Forward proxy: Block sessions with unsupported cipher suites":
+                "fwd_block_unsupported_cipher",
+            "Forward proxy: Block sessions if resources not available": "fwd_block_if_no_resource",
+            "Forward proxy: Block sessions if HSM not available": "fwd_block_if_hsm_unavailable",
+            "Forward proxy: Block downgrade on no resources":
+                "fwd_block_tls13_downgrade_no_resource",
+            "Inbound inspection: Block sessions with unsupported versions":
+                "inb_block_unsupported_version",
+            "Inbound inspection: Block sessions with unsupported cipher suites":
+                "inb_block_unsupported_cipher",
+            "Inbound inspection: Block sessions if resources not available":
+                "inb_block_if_no_resource",
+            "Inbound inspection: Block sessions if HSM not available":
+                "inb_block_if_hsm_unavailable",
+            "Inbound inspection: Block downgrade on no resources":
+                "inb_block_tls13_downgrade_no_resource",
+            "No decryption rule narrows its destination": "rule_destination_unrestricted",
+            "Decryption rulebase read from the device?": "decryption_rulebase_collected",
+            "Named by a rule or profile group": "is_used",
+            "Used by": "referrer_count",
+            # `Max Version in force` HAS NO ENTRY ON PURPOSE. `ssl_max_version_resolved` is NOT in
+            # `search/security_profile/compiler.py`'s registry - measured, not assumed - and a
+            # heading mapped to an unregistered field points the "build a query from these rows"
+            # button at a lookup that refuses itself. The column stays, because it is the evidence
+            # the control's own `audit` text promises ("prints what the ceiling resolved to on that
+            # appliance where the stored value is the no-maximum literal"); only the clause is
+            # withheld.
+        },
+        columns=("Owner", "Profile", "Scope", "Vendor-shipped",
+                 "Min Version", "Max Version", "Max Version in force",
+                 "Min Version below TLSv1.2",
+                 "Max Version caps below what the appliance supports",
+                 "Weakest broken algorithm still negotiable",
+                 "Weakest algorithm lacking forward secrecy or authenticated encryption",
+                 # THE SEVEN SWITCHES BEHIND THOSE TWO VERDICTS, and STAGE 5 REQUIRES THEM. Its
+                 # own words on the model: "COLLAPSING COSTS SOMETHING AND IT IS NAMED: where two
+                 # broken primitives are permitted this holds only the worse, so a report naming
+                 # RC4 is silent about SHA-1 on the same profile. The seven booleans above are all
+                 # presented for exactly that reason." They cannot go on the FINDINGS tab: no
+                 # shipped query clauses on any of them, so `setting_columns` derives nothing, and
+                 # adding them as subject columns to the SHARED Security Profile sheet would put
+                 # seven decryption columns on every one of the other eight kinds' rows. This page
+                 # is scoped to `kind eq "decryption"`, so it is where they belong.
+                 #
+                 # THE VENDOR'S OWN GROUP AND ALGORITHM NAMES, help 11.2 p.345-346: "Key Exchange
+                 # Algorithms ... All three algorithms (RSA, DHE, and ECDHE)", "Encryption
+                 # Algorithms ... the weak 3DES or RC4", "Authentication Algorithms ... the old,
+                 # weak MD5 algorithm ... SHA1". The group prefix is the vendor's heading and is
+                 # kept because it is what an assessor reads down the left of that tab.
+                 "Key Exchange Algorithms: RSA",
+                 "Encryption Algorithms: 3DES",
+                 "Encryption Algorithms: RC4",
+                 "Encryption Algorithms: AES-128-CBC",
+                 "Encryption Algorithms: AES-256-CBC",
+                 "Authentication Algorithms: MD5",
+                 "Authentication Algorithms: SHA1",
+                 "Forward proxy: Block sessions with expired certificates",
+                 "Forward proxy: Block sessions with untrusted issuers",
+                 "Forward proxy: Block sessions with unsupported versions",
+                 "Forward proxy: Block sessions with unsupported cipher suites",
+                 "Forward proxy: Block sessions if resources not available",
+                 "Forward proxy: Block sessions if HSM not available",
+                 "Forward proxy: Block downgrade on no resources",
+                 "Inbound inspection: Block sessions with unsupported versions",
+                 "Inbound inspection: Block sessions with unsupported cipher suites",
+                 "Inbound inspection: Block sessions if resources not available",
+                 "Inbound inspection: Block sessions if HSM not available",
+                 "Inbound inspection: Block downgrade on no resources",
+                 "No decryption rule narrows its destination",
+                 "Decryption rulebase read from the device?",
+                 "Named by a rule or profile group", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("decryption"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            _yes_no(p.is_predefined),
+            _tls_version(p.ssl_min_version),
+            _tls_version(p.ssl_max_version),
+            _resolved_ceiling(p),
+            _yes_no(p.ssl_min_version_below_tls12),
+            _yes_no(p.ssl_max_version_restrictive),
+            _weakest_primitive(p.weakest_broken_primitive_permitted),
+            _weakest_primitive(p.weakest_non_pfs_or_unauthenticated_permitted),
+            _permitted(p.keyxchg_algo_rsa),
+            _permitted(p.enc_algo_3des),
+            _permitted(p.enc_algo_rc4),
+            _permitted(p.enc_algo_aes_128_cbc),
+            _permitted(p.enc_algo_aes_256_cbc),
+            _permitted(p.auth_algo_md5),
+            _permitted(p.auth_algo_sha1),
+            _yes_no(p.fwd_block_expired_certificate),
+            _yes_no(p.fwd_block_untrusted_issuer),
+            _yes_no(p.fwd_block_unsupported_version),
+            _yes_no(p.fwd_block_unsupported_cipher),
+            _yes_no(p.fwd_block_if_no_resource),
+            _yes_no(p.fwd_block_if_hsm_unavailable),
+            _yes_no(p.fwd_block_tls13_downgrade_no_resource),
+            _yes_no(p.inb_block_unsupported_version),
+            _yes_no(p.inb_block_unsupported_cipher),
+            _yes_no(p.inb_block_if_no_resource),
+            _yes_no(p.inb_block_if_hsm_unavailable),
+            _yes_no(p.inb_block_tls13_downgrade_no_resource),
+            _yes_no(p.rule_destination_unrestricted),
+            _yes_no(p.decryption_rulebase_collected),
+            _yes_no(p.is_used),
+            _nothing(p.referrer_count, "referrer(s)"),
+        ),
+    ),
+    # Device > Certificate Management > Certificates, 2026-11-02, for PAN-DCP-006 - a SECOND page
+    # at one vendor address over a different model. See that rail item.
+    #
+    # THE FOUR DESIGNATION SLOTS ARE COLUMNS AND NOT `query_fields`, and the compiler says why in
+    # its own words: they are "deliberately not registered ... They are what a READER is shown so
+    # a finding can name WHICH slot is empty, which is stage 9's business, and registering them
+    # would ship a search surface no control asks for". So they are shown and not clauseable, and
+    # that is the division of labour rather than a gap.
+    #
+    # ONE ROW PER APPLIANCE, which is the grain the model takes and the reason it can report at
+    # all: the commonest failing state is that NO certificate is designated, and a per-slot grain
+    # has no row in exactly that state.
+    "forward-proxy-signing": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Trust certificate is a local self-signed CA":
+                "forward_trust_is_designated_local_ca",
+            "Untrust authority differs from trust": "untrust_distinct_from_trust"},
+        columns=("Appliance", "Serial", "Forward Trust Certificate (RSA)",
+                 "Forward Trust Certificate (ECDSA)", "Forward Untrust Certificate (RSA)",
+                 "Forward Untrust Certificate (ECDSA)",
+                 "Trust certificate is a local self-signed CA",
+                 "Untrust authority differs from trust"),
+        base_queryset=_ordered(DecryptionSettings, "appliance__hostname"),
+        row=lambda d: (
+            str(d.appliance),
+            d.appliance.serial_number or "-",
+            # "Nothing designated" and not a blank. An empty slot is the whole finding
+            # PAN-DCP-006 makes, and an empty cell reads as missing data - which is the same
+            # argument the NTP page's "None" makes one screen over.
+            d.forward_trust_cert_rsa or "Nothing designated",
+            d.forward_trust_cert_ecdsa or "Nothing designated",
+            d.forward_untrust_cert_rsa or "Nothing designated",
+            d.forward_untrust_cert_ecdsa or "Nothing designated",
+            _yes_no(d.forward_trust_is_designated_local_ca),
+            _yes_no(d.untrust_distinct_from_trust),
+        ),
+    ),
 }
 
 
@@ -2098,21 +2359,27 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # reached the shared `Security Profile` tab and needed only this results destination, while
     # PAN-URL-006 needed both. The results destination and the findings tab are two different
     # surfaces and this entry was only ever a debt against the first.
-    # `decryption-profiles` reached stage 8 on 2026-11-01. ONE PREFIX COVERS BOTH OF THIS
-    # DOMAIN's MODELS. `integrations.DecryptionSettings` was created by stage 7 for this domain
-    # and has never been queried from this repository, so it has no rail item - and
+    # `PAN-DCP` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `decryption-profiles`,
+    # which is the work the entry was waiting for. Its own words were: "ONE PREFIX COVERS BOTH OF
+    # THIS DOMAIN's MODELS. `integrations.DecryptionSettings` was created by stage 7 for this
+    # domain and has never been queried from this repository, so it has no rail item - and
     # `SecurityProfile`'s results pages are per profile KIND, mirroring PAN-OS's own tabs, so the
-    # `decryption` kind that PAN-DCP-001 to -005 and -007 query has no page either. Stage 9 for
-    # this domain is what gives both of them one, and stage 8's contract forbids building it.
+    # `decryption` kind that PAN-DCP-001 to -005 and -007 query has no page either."
     #
-    # THIS DEBT IS FOR ALL SEVEN OF THE DOMAIN's CONTROLS, and it is worth saying that PAN-DCP-006
-    # is included rather than exempt: two of its four stage 5 assertion records are discharged
-    # `not_in_configuration` and `engineer_answers` and owe no query, but its other two are
-    # `expression` over the signing model and carry three queries between them, so the control
-    # has a catalog entry and links that go nowhere. The entry fails once per catalog QUERY
-    # rather than once per control, which for this domain is twenty-five queries - twenty-three
-    # over the profile model and two over the signing model.
-    "PAN-DCP": "stage9-decryption-profiles.json",
+    # BOTH NOW HAVE ONE: `decryption-profile`, the NINTH page over `integrations.SecurityProfile`
+    # scoped by one `kind eq` clause, and `forward-proxy-signing` over
+    # `integrations.DecryptionSettings`. So all TWENTY-FIVE shipped PAN-DCP queries - twenty-three
+    # over the profile model and two over the signing model - resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect: an exemption that survives the work it was waiting for is a
+    # permanent hole.
+    #
+    # THE ENTRY WAS RIGHT THAT THE DEBT COVERED ALL SEVEN CONTROLS, and only ONE of the seven
+    # needed a new findings tab's worth of work: `probe.surface_for` reports PAN-DCP-001 to -005
+    # and -007 already reaching the shared `Security Profile` tab and needing only this results
+    # destination, while PAN-DCP-006 reached NO SHEET AT ALL and needed both. The results
+    # destination and the findings tab are two different surfaces and this entry was only ever a
+    # debt against the first.
     # `globalprotect-gateway` reached stage 8 on 2026-11-01. FOUR models carry its seven controls
     # and none of the four has a rail item: the three this domain's stage 7 created - the gateway
     # entry, its client-authentication row and its agent client-settings row - plus

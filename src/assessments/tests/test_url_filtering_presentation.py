@@ -122,13 +122,20 @@ class UrlFilteringRailTests(TestCase):
         self.assertEqual("kind", scope["clauses"][0]["field"])
         self.assertEqual("url-filtering", scope["clauses"][0]["value"])
 
-    def test_all_eight_pages_over_the_shared_model_still_resolve(self):
+    def test_all_pages_over_the_shared_model_still_resolve(self):
         """Measured over the whole model and not only this domain's kind. The sibling list lives
         in `test_file_data_filtering_presentation.KINDS_AND_SLUGS`, which this domain's row was
         added to; this asserts the COUNT independently so that deleting a row there to make a
-        failure go away cannot pass both files."""
+        failure go away cannot pass both files.
+
+        EIGHT when this was written, and NINE from 2026-11-02, when stage 9 of
+        `decryption-profiles` added the `decryption` kind's page. The literal is BUMPED rather
+        than the assertion widened, which is the whole point of keeping it: it is a second
+        independent guard on the same fact, so a run adding a page has to say so in both files.
+        The method name lost its number at the same time, because a name carrying a count has to
+        be renamed on every addition and a reader greps the number rather than the fact."""
         items = objects_for_model("integrations.SecurityProfile")
-        self.assertEqual(8, len(items))
+        self.assertEqual(9, len(items))
         self.assertIn("url-filtering", [o.slug for o in items])
         for obj in items:
             with self.subTest(slug=obj.slug):

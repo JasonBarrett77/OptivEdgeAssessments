@@ -233,6 +233,26 @@ DOMAINS = (
     _object_domain("ssl-tls-service-profiles", T.SSL_TLS_SERVICE_PROFILE),
     _object_domain("certificate-profiles", T.CERTIFICATE_PROFILE),
     _object_domain("certificates", T.CERTIFICATE),
+    # Device, 2026-11-02, for PAN-DCP-006. HERE, immediately after `certificates`, because within
+    # a category this list takes `finding_run.GENERATORS`' order and that tuple already put this
+    # control type exactly there, with its own stated reason: "Beside `certificate` on purpose,
+    # and AFTER it: the forward-proxy signing designation is a POINTER into the certificate store,
+    # so a reader meets the certificates before the node that names two of them."
+    #
+    # THIS DOMAIN'S OTHER SIX CONTROLS ADD NO ENTRY HERE. PAN-DCP-001 to -005 and -007 report onto
+    # `security-profiles` in the Objects block - they target `integrations.SecurityProfile` with
+    # `kind eq "decryption"` - which already exists and is claimed by that domain. So these two
+    # tabs are one domain at two grains in two different PAN-OS categories, and tabs follow the
+    # Summary's category order rather than keeping a pipeline domain's tabs together.
+    #
+    # It does not disturb the `_build_model_index` note above: that index takes the FIRST domain
+    # claiming a MODEL, and this domain claims `integrations.DecryptionSettings`, which no other
+    # domain claims. `SecurityProfile` links still land on `security-profiles`.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `forward-proxy-signing` at
+    # Device > Certificate Management > Certificates - right for a subject that IS a configuration
+    # object, and the second item at that one vendor address.
+    _object_domain("forward-proxy-signing", T.DECRYPTION_SETTINGS),
     _object_domain("authentication-profiles", T.AUTHENTICATION_PROFILE),
     _object_domain("authentication-sequences", T.AUTHENTICATION_SEQUENCE),
     _object_domain("password-profiles", T.PASSWORD_PROFILE),

@@ -296,6 +296,38 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("dos-protection", "DoS Protection", "Objects", "Security Profiles", "shield",
                  where="Objects > Security Profiles > DoS Protection",
                  search_model="integrations.SecurityProfile"),
+    # Objects > Decryption Profile, 2026-11-02, for PAN-DCP-001 to -005 and -007 - the NINTH rail
+    # item over `integrations.SecurityProfile`, and ONE item for six controls rather than six: all
+    # six carry `kind eq "decryption"` and nothing else, so they share one page.
+    #
+    # IT IS NOT UNDER `Security Profiles` AND IT IS NOT UNDER A `Decryption` GROUP, which is the
+    # one thing about this entry that was checked rather than assumed. The brief that commissioned
+    # it said PAN-OS lists the profile at `Objects > Decryption > Decryption Profile` in current
+    # releases and at `Objects > Decryption Profile` in older ones. MEASURED across all three Help
+    # versions the corpus carries, and the brief is wrong: 11.1 p.213, 11.2 p.213 and 12.2 p.215
+    # each enumerate the Objects rail with the SAME entry, verbatim - "Objects>Authentication •
+    # Objects>Decryption Profile • Objects > SD-WAN Link Management • Objects>Schedules" - and a
+    # complete rung-1 count over every document for `Objects>Decryption` returns those three pages
+    # and nothing else. So it is a TOP-LEVEL Objects rail item in every version we hold,
+    # `group=""`, and not a child of anything.
+    #
+    # PLACED IN THE VENDOR'S OWN ORDER. That same list runs ... Security Profiles, Security Profile
+    # Groups, Log Forwarding, Authentication, DECRYPTION PROFILE, SD-WAN Link Management,
+    # Schedules - so Decryption Profile follows the whole `Security Profiles` block above, which is
+    # where it sits. (The items above it are not themselves in the vendor's order; that is older
+    # and is not this entry's to rearrange, which is the judgement `dos-protection` made for itself
+    # and `file-blocking` and `url-filtering` each repeated.)
+    #
+    # ITS SCOPE IS EXACTLY ONE `kind eq` CLAUSE AND NOTHING LOOSER, for the reason the
+    # `dos-protection` block above states at length: `object_for_canonical_query` keeps every
+    # candidate whose own scope clauses are a SUBSET of the query's and answers only when exactly
+    # one matched, so a scope of {} would be a subset of EVERY query over this model and would push
+    # ALL NINE kinds to None. The eight pages that already work are what a wrong scope here breaks,
+    # which is why `tests/test_decryption_presentation.py` asserts all nine resolve rather than
+    # only the one that is new.
+    ConfigObject("decryption-profile", "Decryption Profile", "Objects", "", "shield",
+                 where="Objects > Decryption Profile",
+                 search_model="integrations.SecurityProfile"),
     # Device > Setup. Six of our tabs are all one PAN-OS screen with sub-tabs; they sit under
     # Setup as rail children rather than being flattened, so the address stays the vendor's.
     # `management` came OUT on 2026-09-10. Every completed control that read
@@ -381,6 +413,43 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("certificates", "Certificates", "Device", "Certificate Management",
                  "clipboard-check", where="Device > Certificate Management > Certificates",
                  search_model="integrations.Certificate"),
+    # Device > Certificate Management > Certificates, 2026-11-02, for PAN-DCP-006 - a SECOND item
+    # at that one vendor address, over a DIFFERENT model, which is `data-filtering-posture`'s
+    # pattern and `rule-posture`'s argument.
+    #
+    # THE VENDOR'S OWN ADDRESS FOR IT, and it is not the node's own address. The designation lives
+    # at `/config/shared/ssl-decrypt`, and PAN-OS presents it as something you select while
+    # editing the CERTIFICATE: Web Interface Help 11.2 p.170 verbatim, "Create a certificate on the
+    # Device > Certificate Management > Certificates page and then click the name of the
+    # certificate and select Forward Trust Certificate", and p.889 carries "usage is set to Forward
+    # Trust Certificate or Forward Untrust Certificate" under that same section. So an engineer
+    # looking for "where is the forward trust certificate set" finds the certificate screen, and
+    # `where` sends them there rather than to the xpath.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `certificates`, by `rule-posture`'s own test -
+    # an engineer fixes one or the other. A certificate's key, CA flag and validity are edited in
+    # the certificate; everything THIS model reports is fixed by changing WHICH certificate the
+    # firewall signs with, which is a different act on the same screen. `RESULTS` is keyed on the
+    # slug alone, so one page cannot serve two models anyway.
+    #
+    # ITS LABEL IS A PROPOSAL. The vendor has a word for the USAGE - "Forward Trust Certificate",
+    # "Forward Untrust Certificate" - and no word for the node as an object; "Forward Proxy" is the
+    # vendor's own name for the decryption mode (help 11.2 p.339, "SSL FORWARD PROXY TAB ...
+    # decrypted using Forward Proxy"), so the label is built from the vendor's two terms. Jason
+    # takes the heading pass once across many domains (P399).
+    #
+    # IT DECLARES NO `scope`: its model has exactly ONE page, so `object_for_canonical_query`
+    # short-circuits on the single candidate and a scope would be dead weight a later second page
+    # would have to reckon with. Same call as `data-filtering-posture` and `custom-url-categories`.
+    #
+    # AND IT IS REQUIRED RATHER THAN OPTIONAL. PAN-DCP-006's baseline is a shipped query over this
+    # model, and clearing `PAN-DCP` from `AWAITING_PRESENTATION` leaves no off-rail route:
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` walks the SEED PAYLOAD without
+    # consulting `is_active`, and `LEGACY_SURFACE` is asserted `== {}` by a test of its own.
+    ConfigObject("forward-proxy-signing", "Forward Proxy Signing", "Device",
+                 "Certificate Management", "clipboard-check",
+                 where="Device > Certificate Management > Certificates",
+                 search_model="integrations.DecryptionSettings"),
     ConfigObject("certificate-profile", "Certificate Profile", "Device",
                  "Certificate Management", "server",
                  where="Device > Certificate Management > Certificate Profile",

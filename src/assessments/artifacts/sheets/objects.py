@@ -1122,6 +1122,119 @@ BROADEST_EXEMPTION = findings_sheet.ValueReader(
 )
 
 
+# --------------------------------------------------------------------------------------------
+# SIX MORE READERS, 2026-11-02 by stage 9 of `decryption-profiles`, for PAN-DCP-001, -002, -005
+# and -007. Each one FIXES A CELL and none adds a column.
+#
+# ALL SIX ARE ON FIELDS IN `SecurityProfile.DERIVED_FIELDS`, which is the condition that makes a
+# reader free: `tested_fields` marks a field that has a reader `stored=False`, `build_rows` hands
+# that to `remediation_accessor`, which then never reads the field's `FieldProvenance` row - and
+# for a derived column there is no such row to discard, so the Provenance cell goes from "Not
+# recorded", which means "nothing tracks this field", to "Derived", which is the true answer.
+# Verified per field with `field in SecurityProfile.DERIVED_FIELDS` rather than assumed.
+#
+# FIVE OF THE SIX BRANCH ON `kind` AND THE SIXTH DELIBERATELY DOES NOT. The columns these head are
+# derived from THIS domain's clauses, so they are drawn on every kind's row of the shared tab while
+# meaning something on one: an antivirus row carries `ssl_min_version_below_tls12 = True` and
+# `weakest_broken_primitive_permitted = "rc4"`, because those are the measured implicit values of
+# keys an antivirus profile has no container for at all. Before this change a vulnerability
+# protection row told a customer its protocol floor was below TLS 1.2. The em dash says instead
+# that the branch does not exist on that subject.
+#
+# `is_used` IS THE EXCEPTION AND THE REFUSAL IS ON THE RECORD. It is not a decryption column -
+# it is `SecurityProfile.is_used`, declared beside `referrer_count` for every kind, and
+# PAN-AVW-006 ("Unused AV / WildFire Profiles") is a shipped control over exactly it. A kind gate
+# there would print an em dash over a value that is true and load-bearing on five other kinds,
+# which is the opposite of what these readers are for. `display_value`'s Yes/No is honest for it
+# and it keeps it.
+#
+# THE FOURTEEN MEASURED PAYLOAD KEYS GET NO READER AT ALL and that refusal is the larger half of
+# this decision. See the `setting_labels` block on the SECURITY_PROFILE spec below, which records
+# each one and why.
+# --------------------------------------------------------------------------------------------
+
+def _decryption_only(read):
+    """Answer for a decryption row; give every other kind the em dash.
+
+    `layout.NONE` - U+2014 EM DASH - is the sanctioned vocabulary for "this branch does not exist
+    on this subject", and `read_value` consults `value_readers` BEFORE `display_value`, so a
+    reader branching on the row's own kind reaches that state per KIND on a model that carries
+    nine of them.
+    """
+    def answer(profile):
+        if profile.kind != SecurityProfile.KIND_DECRYPTION:
+            return NONE
+        return read(profile)
+    return answer
+
+
+#: PAN-DCP-001's and PAN-DCP-002's applicability clause. Kind-gated only: `Yes`/`No` is the honest
+#: rendering on a decryption row, and the three states behind a `Yes` - every rule naming it leaves
+#: the destination open, NO rule names it, or the rulebase was not collected - are not separable
+#: from this column and are not a cell's to invent. The companion column
+#: `Decryption rulebase read from the device?` is what tells the third from the other two, and
+#: stage 8 has that disagreement on the record as a `needs_human`.
+RULE_DESTINATION_UNRESTRICTED = findings_sheet.ValueReader(
+    read=_decryption_only(
+        lambda p: findings_sheet.display_value(p.rule_destination_unrestricted)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+#: PAN-DCP-001's two verdicts. Both default TRUE so an unrecomputed row reports itself, and both
+#: are meaningless on the other eight kinds, which is the whole reason for the gate.
+SSL_MIN_BELOW_TLS12 = findings_sheet.ValueReader(
+    read=_decryption_only(
+        lambda p: findings_sheet.display_value(p.ssl_min_version_below_tls12)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+SSL_MAX_RESTRICTIVE = findings_sheet.ValueReader(
+    read=_decryption_only(
+        lambda p: findings_sheet.display_value(p.ssl_max_version_restrictive)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
+def _weakest(value) -> str:
+    """The worst algorithm still negotiable, with `none` SPELLED and the blank named.
+
+    `none` is the COMPLIANT member of both of these columns and is the one a bare token reads
+    wrongly: a cell reading `none` beside a passing row reads as "no value recorded" where it
+    means "nothing weak is negotiable" - the same shape as `WORST_UNRECORDED_HEADER` above, where
+    the passing state was the blank one.
+
+    The algorithm names themselves are the vendor's own, upper-cased: RC4, 3DES, MD5 and SHA1 are
+    help 11.2 p.345-346's own spellings, and RSA, AES-128-CBC and AES-256-CBC come from its Key
+    Exchange and Encryption Algorithms lists. Upper-casing reproduces all seven exactly, so a
+    member added to either ordering tuple comes out right rather than coming out missing.
+    """
+    if not value:
+        return "Not computed"
+    if value == SecurityProfile.PRIMITIVE_NONE:
+        return "None negotiable"
+    return value.upper()
+
+
+#: PAN-DCP-002's two graded columns.
+WEAKEST_BROKEN_PRIMITIVE = findings_sheet.ValueReader(
+    read=_decryption_only(lambda p: _weakest(p.weakest_broken_primitive_permitted)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+WEAKEST_NON_PFS = findings_sheet.ValueReader(
+    read=_decryption_only(
+        lambda p: _weakest(p.weakest_non_pfs_or_unauthenticated_permitted)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+#: PAN-DCP-007's companion. It defaults FALSE, so on the other eight kinds the cell answered `No`
+#: to "was the decryption rulebase read?" - a question those rows do not ask, answered in the
+#: alarming direction. The em dash is the honest cell there.
+DECRYPTION_RULEBASE_COLLECTED = findings_sheet.ValueReader(
+    read=_decryption_only(
+        lambda p: findings_sheet.display_value(p.decryption_rulebase_collected)),
+    provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
+)
+
+
 #: Which appliance spoke for this point, and which virtual system the verdict is about.
 #:
 #: NEITHER DECLARES A `field`, and that is deliberate: the verdict this control asserts on is a
@@ -1588,6 +1701,175 @@ SPECS = (
          "The certificates held on the firewall: who issued each, how strong its key is, and what "
          "signed it.",
          subject=APPLIANCE + SCOPE + NAME,),
+    # Device > Certificate Management > Certificates, 2026-11-02, for PAN-DCP-006 - a NEW TAB,
+    # because `probe.surface_for PAN-DCP-006` reported NO SHEET SHOWS IT while the domain's other
+    # six controls already reach `Security Profile`. One domain, two tabs.
+    #
+    # IMMEDIATELY AFTER `certificate` AND THAT IS NOT INCIDENTAL. `finding_run.GENERATORS` already
+    # placed this control type there, with its own reasoning: "the forward-proxy signing
+    # designation is a POINTER into the certificate store, so a reader meets the certificates
+    # before the node that names two of them". Within a category the `DOMAINS` list takes that
+    # tuple's order, so the tab follows `Certificates` in the Device block.
+    #
+    # THE ROW IS ONE APPLIANCE, which is the grain the model takes and the reason it can report at
+    # all: the commonest failing state is that NO certificate is designated anywhere, and
+    # `/config/shared/ssl-decrypt` was absent on all four lab appliances before stage 6 built a
+    # designation on one of them. A per-SLOT grain has no row in exactly that state, so it could
+    # not carry the finding. THE HA CONSEQUENCE IS THE DUPLICATING ONE: the designation is
+    # device-wide, one node per firewall, and `deviceconfig`'s non-HA fields are synchronised
+    # across peers - so on an HA pair this tab draws TWO rows for ONE real configuration and
+    # nothing downstream deduplicates them. Stage 5 declares `one_row_per: one appliance` and says
+    # so in those words. IT COULD NOT BE EXERCISED HERE and that is recorded rather than denied:
+    # stage 8's census states that every appliance group in this population is STANDALONE, one per
+    # appliance, and that `fw-core-tpa-a` is one half of a real lab HA pair with only the one peer
+    # collected. What would establish it is a collection carrying BOTH peers of one group; what
+    # would fix it is a fold on the appliance GROUP rather than on the serial, which is not a
+    # sheet's to do.
+    #
+    # THE FOUR DESIGNATION SLOTS ARE SUBJECT COLUMNS and each NAMES ITS `field`. No shipped query
+    # clauses on any of them - the compiler declines to register them in terms, because
+    # "registering them would ship a search surface no control asks for" - so `setting_columns`
+    # derives no column for them and this is the only thing that puts them on the row. Stage 5
+    # requires them presented, and the finding needs them: both of this control's verdicts cover
+    # two failing states each ("nothing designated" and "something designated that is the wrong
+    # thing"), and these four cells are what tells a reader which. They declare their `field` for
+    # the reason the `Custom URL Category` tab's count column does: a subject column that declares
+    # no field does NOT suppress a derived column for the same attribute, so one value could reach
+    # the tab twice under two headings - and because the headings differ the duplicate-header
+    # guard would never fire.
+    #
+    # `hidden_fields` IS EMPTY, and there was no reason for a new sheet to declare one: the gate
+    # counts a field as presented if `hidden_fields` carries it, so a non-empty tuple is a CLAIM
+    # accepted as proof and is the only known cause in this repository of a findings row that
+    # marks nothing as the thing to fix (P409).
+    #
+    # `tested_columns` IS `ALL_TESTED_COLUMNS` AND THAT IS A CHOICE, MADE KNOWING ONE ROW IN THREE
+    # RENDERS A WRONG `Fires when`. The default is `('Provenance',)`, which keeps `Fires when` on
+    # the live page and silently DROPS it from the xlsx, so the two surfaces disagree about which
+    # cell a reader meets (P427). The cost here is measured and named: `fires_when` renders the
+    # BASELINE alone, and on `fw-core-tpa-a` and `pan-fw-201` the finding is matched by the
+    # calibration query `No distinct forward-untrust authority` and NOT by the baseline - so those
+    # rows print `forward_trust_is_designated_local_ca = No` beside a cell reading `Yes`. Carried
+    # anyway, on `ipsec-crypto`'s reasoning: the alternative is the contradicting value with no
+    # stated condition beside it at all, and `Matched queries` plus the marked cell resolve it
+    # between them. Not fixable from a sheet - `fires_when` is shared machinery.
+    #
+    # ITS CATEGORY IS DERIVED FROM THE RAIL (`category=''`), which is right for a subject that IS a
+    # configuration object: deriving it means the workbook cannot disagree with the app about where
+    # the object lives. The rail item is `forward-proxy-signing`, at Device > Certificate
+    # Management > Certificates, the second item at that address.
+    #
+    # THE TAB TITLE IS A PROPOSAL (P399). Without one the title derives from the control type's own
+    # label, "Decryption Settings", which is both vague and misleading beside the `decryption-policy`
+    # domain that runs next - this tab is not about decryption settings in general, it is about
+    # which certificate the firewall signs with when it stands in for a destination. "Forward
+    # Proxy" is the vendor's own name for that mode (help 11.2 p.339, "SSL FORWARD PROXY TAB ...
+    # decrypted using Forward Proxy") and "Forward Trust Certificate" its own name for the usage
+    # (p.170, p.889); "Signing" is ours, joining the two.
+    #
+    # EVERY HEADING BELOW IS A PROPOSAL, sourced in place.
+    spec(T.DECRYPTION_SETTINGS,
+         "Which certificate this firewall signs with when it stands in for a destination it is "
+         "decrypting. One row per appliance, because the designation is device-wide and the "
+         "commonest failing state is that nothing is designated at all - in which state the "
+         "firewall answers `No SSL Decryption CERT` in its own words and a per-slot row would not "
+         "exist to report it. Each of the two verdicts covers TWO failing states that need "
+         "different remediations - nothing designated, or something designated that is not a "
+         "certificate authority this firewall holds and signed itself - so the four designation "
+         "cells are presented beside them and a reader is never given a verdict without the slots "
+         "behind it. WHAT THIS DOES NOT READ: the set of authorities the firewall trusts FOR "
+         "decryption, at /config/shared/ssl-decrypt/trusted-root-CA, is owned by no model and "
+         "asserted by no control, so a trust decision this tab reports on is tested against a "
+         "boundary no part of this assessment reads.",
+         title="Forward Proxy Signing",
+         subject=APPLIANCE + (
+             # THE VENDOR'S OWN LABELS for the two usages, help 11.2 p.889 verbatim ("usage is set
+             # to Forward Trust Certificate or Forward Untrust Certificate") and p.170 for the
+             # trust half. The algorithm in parentheses is the device's own child key - each
+             # container carries an `rsa` and an `ecdsa` child - and the pair is not decoration:
+             # the first verdict passes only when EVERY filled slot qualifies, because the weaker
+             # of the two is what a session can end up negotiating.
+             #
+             # "Nothing designated" and not a blank. An empty slot is the whole finding, and an
+             # empty cell reads as a gap in the collection - which is the distinction
+             # `display_value` exists to make and which it cannot make here, because the store
+             # holds "" rather than NULL (the search layer's `is_empty` compiles to
+             # `filter(field="")`, so emptiness is only assertable on an empty string).
+             ("Forward Trust Certificate (RSA)", 24, False,
+              lambda d, _p: d.forward_trust_cert_rsa or "Nothing designated",
+              "forward_trust_cert_rsa"),
+             ("Forward Trust Certificate (ECDSA)", 24, False,
+              lambda d, _p: d.forward_trust_cert_ecdsa or "Nothing designated",
+              "forward_trust_cert_ecdsa"),
+             ("Forward Untrust Certificate (RSA)", 24, False,
+              lambda d, _p: d.forward_untrust_cert_rsa or "Nothing designated",
+              "forward_untrust_cert_rsa"),
+             ("Forward Untrust Certificate (ECDSA)", 24, False,
+              lambda d, _p: d.forward_untrust_cert_ecdsa or "Nothing designated",
+              "forward_untrust_cert_ecdsa"),),
+         setting_labels={
+             # BOTH OURS, and the vendor has no word for either: each is a quantifier this
+             # assessment computes over the four slots above, one of them following a designated
+             # name into the certificate store. `probe.corpus --all` returns the vendor's label for
+             # the USAGE and nothing at this position.
+             #
+             # "local self-signed CA" spells the on-device proxy the column actually tests - the
+             # name resolves to a certificate THIS appliance holds, marked a certificate authority,
+             # and self-signed - rather than claiming "issued by the organisation", which is what
+             # it stands in for and is not what was read. A name resolving to NO certificate row
+             # makes this `No`, deliberately: a designation pointing at nothing is a worse state
+             # than no designation, not a better-evidenced one. The finding sentence cannot say
+             # WHICH of those three states it found, which stage 8 has on the record as a
+             # `needs_human`; closing it needs a second column, which is stage 7's.
+             "forward_trust_is_designated_local_ca":
+                 "Trust certificate is a local self-signed CA",
+             # "differs from" and not "is distinct from": the column is FALSE where no untrust
+             # authority is designated at all and FALSE where any untrust slot names a certificate
+             # a trust slot also names, and "differs" covers both without implying that one exists.
+             # The reason the pair matters is the vendor's own purpose for it - a firewall using
+             # one certificate for both gives a user no way to tell a trustworthy site from an
+             # untrustworthy one.
+             "untrust_distinct_from_trust": "Untrust authority differs from trust",
+         },
+         # BOTH TESTED FIELDS ARE IN `DecryptionSettings.DERIVED_FIELDS` and NEITHER GETS A
+         # `value_readers` ENTRY, which is worth stating because it is the opposite call from the
+         # six this run made on the shared profile tab. There is nothing for a reader to fix here:
+         # both are non-nullable booleans, `display_value` prints `Yes`/`No`, and there is no
+         # branch that fails to exist on this subject - the model has one kind and no kind column.
+         #
+         # BUT THE DEFAULT PROVENANCE CELL WAS WRONG AND THAT WAS FOUND BY READING THE ROWS, not
+         # by reasoning about them. It printed "Not recorded" twice on all three rows, which means
+         # "nothing tracks this field" and reads to a customer as a gap in the collection. The
+         # mechanism is `data-filtering-posture`'s, one model over: `remediation_accessor` treats a
+         # DERIVED row as NO ANSWER on purpose - "it is the case the object has to answer" - and
+         # walks to the object's `__entry__` row, which nothing writes for this model, so
+         # `provenance_cells` falls through to its `row is None` arm. The value is not untracked;
+         # it is derived, and `provenance_cell` is the hook that says so.
+         #
+         # IT ALSO NAMES WHERE THE EVIDENCE CAME FROM, which the three existing verdict tabs have
+         # no need to: EVERY column of their models is derived, and here only three of seven are.
+         # The four designation slots ARE measured payload keys carrying real `FieldProvenance`
+         # rows, they are the only thing on this row a device wrote, and whether `oep-p1-cert` was
+         # designated on the firewall or pushed by a Panorama template is the first thing a reader
+         # fixing this finding needs. Nothing is decided in this cell - it reads the recorded rows
+         # and prints the distinct answers, which is what every provenance cell does.
+         provenance_cell=lambda settings, provenance_of, _fields: "\n".join(
+             ["Derived"] + [
+                 label for label in dict.fromkeys(
+                     (lambda row: row.get_provenance_type_display() if row is not None else None)(
+                         provenance_of(slot))
+                     for slot in ("forward_trust_cert_rsa", "forward_trust_cert_ecdsa",
+                                  "forward_untrust_cert_rsa", "forward_untrust_cert_ecdsa"))
+                 if label]),
+         # CHECKED BEFORE DESIGNING THIS SHEET, because `device-id-iot` lost about an hour to the
+         # inverse of the above: `build_findings_table`'s `provenance_of` closure reads
+         # `field in _model.DERIVED_FIELDS` as a plain attribute whenever no stored row exists, so
+         # a `SyncTrackedModel` that is NOT a `ProvenancedMixin` raises `AttributeError` for every
+         # field of every row and the error does not say why. `DecryptionSettings(ProvenancedMixin,
+         # SyncTrackedModel)` declares both, so that trap does not apply here - but the check is
+         # one line and it is the line to run before choosing a spec option.
+         subject_select_related=("appliance__appliance_group",),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.AUTHENTICATION_PROFILE,
          "How administrators and users are authenticated: the identity service behind each "
          "profile, its lockout settings and who it admits.",
@@ -1632,7 +1914,18 @@ SPECS = (
                         # the other six kinds get the em dash rather than a sentence about a
                         # question their rows do not ask. The reasoning is above the readers.
                         "worst_unrecorded_request_header": WORST_UNRECORDED_HEADER,
-                        "broadest_inline_analysis_exemption_type": BROADEST_EXEMPTION},
+                        "broadest_inline_analysis_exemption_type": BROADEST_EXEMPTION,
+                        # NINTH TO FOURTEENTH, 2026-11-02 by stage 9 of `decryption-profiles`.
+                        # All six fix a cell and none adds a column; all six are on fields in
+                        # `DERIVED_FIELDS`, so all six are free; five branch on `kind`. The
+                        # reasoning, and the refusal on `is_used` and on this domain's fourteen
+                        # measured payload keys, is above the readers.
+                        "rule_destination_unrestricted": RULE_DESTINATION_UNRESTRICTED,
+                        "ssl_min_version_below_tls12": SSL_MIN_BELOW_TLS12,
+                        "ssl_max_version_restrictive": SSL_MAX_RESTRICTIVE,
+                        "weakest_broken_primitive_permitted": WEAKEST_BROKEN_PRIMITIVE,
+                        "weakest_non_pfs_or_unauthenticated_permitted": WEAKEST_NON_PFS,
+                        "decryption_rulebase_collected": DECRYPTION_RULEBASE_COLLECTED},
          # THE FIRST `setting_labels` THIS SHEET HAS CARRIED, added 2026-11-02 by stage 9 of
          # `zone-dos-protection` for PAN-ZON-008. Both are PROPOSALS.
          #
@@ -1856,6 +2149,164 @@ SPECS = (
              # THE SECOND COMPANION COLUMN, and it has the same order problem: "The exemption list
              # behind this verdict was never read" sorts after the two it qualifies.
              "inline_analysis_exemptions_computed": "Exception list read from the device?",
+             #
+             # ----------------------------------------------------------------------------------
+             # TWENTY-ONE MORE, 2026-11-02 by stage 9 of `decryption-profiles`, for PAN-DCP-001 to
+             # -005 and -007. EVERY ONE IS A PROPOSAL - Jason takes the heading pass once across
+             # many domains (P399) - and each is sourced below to the vendor's own words where the
+             # vendor has them, and SAYS SO WHERE IT DOES NOT.
+             #
+             # MEASURED BEFORE WRITING THEM, by building this table over this domain's seven
+             # controls and reading `FindingsTable.headers`: TWENTY-ONE of the 41 headings read as
+             # Django field names and ALL TWENTY-ONE were this domain's. That is the block the
+             # `file-data-filtering` and `url-filtering` runs each recorded as left for
+             # `decryption`, reached by a third route. STATE THE SEEDED LIST BESIDE THE NUMBER:
+             # 21 of 41 is over PAN-DCP-001..007 alone. `setting_columns` derives a column per
+             # clause field of the controls PRESENT in the build, so that denominator is a
+             # function of the seed and is NOT comparable with the 16 of 35 `url-filtering`
+             # measured or the 44 of 65 before it. All three are right.
+             #
+             # `kind` AND `is_predefined` ARE NOT IN THIS BLOCK and neither is an omission. `kind`
+             # is the `KIND` subject column, which declares `field="kind"` and therefore takes the
+             # mark instead of a derived column being drawn; `is_predefined` is already headed
+             # `Vendor-shipped` above, set by `file-data-filtering` and shared with PAN-AVW-006.
+             #
+             # THESE COLUMNS APPEAR ON EVERY KIND'S ROW, so labelling them improves other domains'
+             # rows too: before this change an antivirus row showed a customer
+             # `fwd_block_expired_certificate`, and a url-filtering row showed `ssl_min_version`.
+             # Six of them now also print an EM DASH on a non-decryption row rather than the
+             # measured implicit of a key that kind has no container for - see the six readers
+             # above.
+             #
+             # AND LABELLING THEM DOES NOT MAKE THIS TAB CLEAN. Measured AFTER the labels landed,
+             # which is the order the `url-filtering` run established: `render_node` consults
+             # `setting_labels` NOWHERE, so every stated condition still reads in Django field
+             # names. On this tab the workbook does not draw `Fires when` at all - `tested_columns`
+             # is the default `('Provenance',)` here - while the live findings page passes
+             # `ALL_TESTED_COLUMNS` and shows it, so the same value is named two ways on one row
+             # of one surface and one way on the other. That is P437 and P427, both shared
+             # machinery, and both are recorded in this run's stage 9 artifact rather than worked
+             # around here.
+             #
+             # WHAT THE VENDOR CALLS THESE THINGS, PAN-OS Web Interface Help 11.2 p.339-346, the
+             # section `Settings to Control Decrypted Traffic` under `Objects > Decryption
+             # Profile`. Eleven of the twenty-one are the vendor's own label verbatim; the other
+             # ten are ours and each says so.
+             #
+             # THE TAB-NAME PREFIX ON TWELVE OF THEM IS REQUIRED AND NOT DECORATION. The vendor
+             # uses the SAME label on its two tabs - "Block sessions with unsupported versions"
+             # heads a forward-proxy row on p.341 and an inbound-inspection row on p.343, and so
+             # do four others - so five bare vendor labels would produce five DUPLICATE HEADINGS.
+             # A table with a duplicate header is rejected by Excel and xlsxwriter drops it with a
+             # warning, leaving a sheet of stray cells where the table should be, which this
+             # module's `NAME` comment records having happened on this very tab on 2026-09-18.
+             # `SSL Forward Proxy` and `SSL Inbound Inspection` are the vendor's own tab names
+             # (p.339, p.343), shortened to the words that disambiguate.
+             # ----------------------------------------------------------------------------------
+             #
+             # PAN-DCP-001. OURS, no vendor label: the vendor has the REMEDY and not a name for
+             # this verdict. Its p.341 and p.344 sentences are "create a separate Decryption
+             # profile that allows the weaker protocol and specify it in a Decryption policy rule
+             # that applies only to the sites for which you must allow the weaker protocol", and
+             # this column is the detection of that remedy's ABSENCE. Phrased in the negative
+             # because that is the direction the column is stored in and the direction that fires:
+             # `Yes` means no rule narrows it, which is when the control applies.
+             "rule_destination_unrestricted": "No decryption rule narrows its destination",
+             # "Min Version" is the vendor's own label (p.344) and "TLSv1.2" its own spelling
+             # (p.341, "set the minimum Protocol Version to TLSv1.2"). "below" is ours.
+             "ssl_min_version_below_tls12": "Min Version below TLSv1.2",
+             # "Max Version" is the vendor's label (p.345) and the comparison is its own sentence:
+             # "Set the Max Version to Max so that as protocols improve, the firewall
+             # automatically supports them." "caps below what the appliance supports" is ours, and
+             # names the APPLIANCE rather than the profile deliberately - the verdict is computed
+             # against what that build implements, not against a fixed newest version.
+             "ssl_max_version_restrictive": "Max Version caps below what the appliance supports",
+             # THE VENDOR'S OWN LABELS, exactly, from the SSL PROTOCOL SETTINGS tab, p.344-345.
+             # THE CELL STILL SHOWS THE DEVICE'S OWN TOKEN - `tls1-0`, not "TLSv1.0" - and that is
+             # a REFUSAL rather than an omission, the same shape as `credential_detection_mode`
+             # above. Both are MEASURED PAYLOAD KEYS carrying a `FieldProvenance` row, and a
+             # `value_readers` entry makes `build_rows` hand the field `stored=False` to
+             # `remediation_accessor`, which then never reads that row - so whether the floor was
+             # ABSENT (provenance `pan_os_default`, the measured implicit `tls1-0`) or TYPED
+             # locally as `tls1-0` would stop being visible, and that distinction is most of what
+             # PAN-DCP-001 is about. The `decryption-profile` explorer page carries the vendor's
+             # spelling instead, where the cell is that module's own lambda and costs no
+             # provenance.
+             "ssl_min_version": "Min Version",
+             "ssl_max_version": "Max Version",
+             #
+             # PAN-DCP-002. BOTH OURS. The vendor names the ALGORITHMS and not the verdict:
+             # p.345 "Don't support the weak 3DES or RC4 encryption algorithms", p.346 "Block the
+             # old, weak MD5 algorithm (blocked by default). If no necessary sites use SHA1, block
+             # SHA1." The cell carries those names, upper-cased, so the heading carries the
+             # question. "Weakest" is the convention `file-blocking` set: a profile that disables
+             # three of four broken primitives is not protected by the three.
+             "weakest_broken_primitive_permitted": "Weakest broken algorithm still negotiable",
+             # "forward secrecy" is the vendor's own term, p.345 verbatim: "The DHE
+             # (Diffie-Hellman) and ECDHE (elliptic curve Diffie-Hellman) enable Perfect Forward
+             # Secrecy (PFS)". "authenticated encryption" is OURS and is the second half the
+             # column covers - the two CBC members are not a forward-secrecy question at all - so
+             # the heading names both rather than letting the PFS half stand for the whole.
+             "weakest_non_pfs_or_unauthenticated_permitted":
+                 "Weakest algorithm lacking forward secrecy or authenticated encryption",
+             #
+             # PAN-DCP-003 and PAN-DCP-004. THE VENDOR'S OWN LABELS, exactly, p.340. These two
+             # keys exist on the forward container ONLY - an inbound-proxy session presents the
+             # organisation's own certificate and there is no issuer to distrust - so there is no
+             # inbound twin to collide with, and the prefix is kept anyway so that all twelve
+             # block switches read the same way down the row.
+             "fwd_block_expired_certificate":
+                 "Forward proxy: Block sessions with expired certificates",
+             "fwd_block_untrusted_issuer":
+                 "Forward proxy: Block sessions with untrusted issuers",
+             #
+             # PAN-DCP-005, all ten. EVERY LABEL BELOW IS THE VENDOR'S OWN, exactly: the forward
+             # five from p.341-342 (`Unsupported Mode Checks` and `Failure Checks` on the SSL
+             # FORWARD PROXY tab) and the inbound five from p.343-344 (the same two groups on the
+             # SSL INBOUND INSPECTION tab). The five pairs are what makes the prefix load-bearing.
+             "fwd_block_unsupported_version":
+                 "Forward proxy: Block sessions with unsupported versions",
+             "fwd_block_unsupported_cipher":
+                 "Forward proxy: Block sessions with unsupported cipher suites",
+             "inb_block_unsupported_version":
+                 "Inbound inspection: Block sessions with unsupported versions",
+             "inb_block_unsupported_cipher":
+                 "Inbound inspection: Block sessions with unsupported cipher suites",
+             "fwd_block_if_hsm_unavailable":
+                 "Forward proxy: Block sessions if HSM not available",
+             "inb_block_if_hsm_unavailable":
+                 "Inbound inspection: Block sessions if HSM not available",
+             "fwd_block_if_no_resource":
+                 "Forward proxy: Block sessions if resources not available",
+             "inb_block_if_no_resource":
+                 "Inbound inspection: Block sessions if resources not available",
+             # "Block downgrade on no resources" is the vendor's label verbatim, p.342 and p.344.
+             # NOTE FOR WHOEVER READS A FINDING ON THIS ONE: stage 2 recorded a vendor
+             # contradiction about its polarity - the field table says setting it terminates the
+             # session instead of downgrading, while the device's own completion help-string says
+             # the opposite - and the control asserts the FIELD TABLE's reading. The heading is the
+             # field table's label, so the heading and the assertion agree; the sighting is in
+             # `reference/known-vendor-contradictions.md` and in stage 8's `needs_human`.
+             "fwd_block_tls13_downgrade_no_resource":
+                 "Forward proxy: Block downgrade on no resources",
+             "inb_block_tls13_downgrade_no_resource":
+                 "Inbound inspection: Block downgrade on no resources",
+             #
+             # PAN-DCP-007. THE COMPANION COLUMN, headed as the QUESTION IT ANSWERS and not as a
+             # setting - the convention `url-filtering` and `device-id-iot` set, because a `No`
+             # here means this assessment never reached the decryption rulebase and NOT that the
+             # device is set a particular way. It is stage 5's clause order and it is the RIGHT
+             # way round on this tab: it is drawn BEFORE the verdict it qualifies, because it is a
+             # baseline clause of PAN-DCP-007 rather than a calibration query sorted
+             # alphabetically. OURS - the vendor has no notion of "did an audit reach this".
+             "decryption_rulebase_collected": "Decryption rulebase read from the device?",
+             # OURS, and it is NOT a decryption column: `is_used` sits beside `referrer_count` for
+             # every kind of this model and PAN-AVW-006 is a shipped control over exactly it, so
+             # the heading must not say "decryption". The model's own words are "Rules and profile
+             # groups that name this definition", which is where the wording comes from. NOTE that
+             # this column reads `No` wherever the rulebase was not collected as well as where
+             # nothing names the profile, which is what the companion above exists to separate.
+             "is_used": "Named by a rule or profile group",
          },
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",

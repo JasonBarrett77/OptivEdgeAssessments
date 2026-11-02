@@ -94,7 +94,14 @@ class WorkbookBuildTests(TestCase):
         # subject - `integrations.CustomUrlCategory`, minted by stage 7 for this domain - needed a
         # tab of its own. That domain ships 32 queries, the most in its batch, and 31 of them
         # needed a results DESTINATION rather than a tab; the two are different surfaces.
-        self.assertIn("Summary: 49 tabs linked, 0 findings in total", reports[0])
+        # 50 on 2026-11-02 by stage 9 of `decryption-profiles`. ONE tab for a SEVEN-control
+        # domain, and it is Forward Proxy Signing, placed in DEVICE beside Certificates:
+        # PAN-DCP-001 to -005 and -007 all report onto Security Profile, which already drew them,
+        # and only PAN-DCP-006's subject - `integrations.DecryptionSettings`, minted by stage 7
+        # for this domain - needed a tab of its own. `probe.surface_for` is what answered that per
+        # control; the domain's 25 queries needed a results DESTINATION, which is a different
+        # surface from a tab.
+        self.assertIn("Summary: 50 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -115,7 +122,12 @@ class WorkbookBuildTests(TestCase):
         # them before that stage ran.
         # 50 later on 2026-11-02: Custom URL Category. `url-filtering` adds ONE tab for six
         # controls - its other five report onto the Security Profile tab, which already drew them.
-        self.assertEqual(len(names), 50)
+        # 51 later on 2026-11-02: Forward Proxy Signing. `decryption-profiles` adds ONE tab for
+        # seven controls - its other six report onto the Security Profile tab, which already drew
+        # them. NOTE FOR THE NEXT RUN: this literal and the one above are TWO separate assertions
+        # in this file and the second fails only once the first is fixed, so a run that bumps one
+        # and re-runs sees a single failure and can believe it is done.
+        self.assertEqual(len(names), 51)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

@@ -60,8 +60,9 @@ from optivedge_integrations.integrations.models import (
 PAN_FIL = ("PAN-FIL-001", "PAN-FIL-002", "PAN-FIL-003", "PAN-FIL-004")
 
 #: Every kind this model is split by, with the rail slug each resolves to. SEVEN since 2026-11-02,
-#: and EIGHT later the same day: stage 9 of `url-filtering` added the `url-filtering` kind's page.
-#: That row is added HERE, in the vendor's own position, rather than this fixture being widened or
+#: EIGHT later the same day (stage 9 of `url-filtering` added the `url-filtering` kind's page), and
+#: NINE later still (stage 9 of `decryption-profiles` added the `decryption` kind's).
+#: Each row is added HERE, in the vendor's own position, rather than this fixture being widened or
 #: a second list kept beside it - the assertion below is on the exact list AND its order, so the
 #: honest way to add a page is to put its row where the rail puts the item.
 KINDS_AND_SLUGS = (
@@ -75,6 +76,16 @@ KINDS_AND_SLUGS = (
     ("wildfire-analysis", "wildfire-analysis"),
     ("data-filtering", "data-filtering"),
     ("dos-protection", "dos-protection"),
+    # NINTH, 2026-11-02, by stage 9 of `decryption-profiles`. AT THE TAIL and not in the middle,
+    # which is this fixture's own rule applied rather than an exception to it - the row goes where
+    # the RAIL puts the item, and the rail puts it after the whole Security Profiles block because
+    # PAN-OS does. Web Interface Help 11.1 p.213, 11.2 p.213 and 12.2 p.215 each enumerate the
+    # Objects rail identically: "... Objects>Security Profiles ... Objects>Security Profile Groups
+    # • Objects>Log Forwarding • Objects>Authentication • Objects>Decryption Profile • Objects >
+    # SD-WAN Link Management • Objects>Schedules". So the decryption profile is not a Security
+    # Profiles CHILD at all in any version we hold; it is a top-level Objects rail item that
+    # follows them, which is why its `group` is "" and its row is last.
+    ("decryption", "decryption-profile"),
 )
 
 #: The fields this domain's four controls test. The heading assertion below is scoped to these:
