@@ -689,9 +689,20 @@ def build_rows(spec, findings, controls, settings, tested=None):
 
             `DERIVED_FIELDS` is declared on the model beside the column it describes - 103 of them
             across 21 models - rather than hand-kept here, a repository away from the field.
+
+            AND THE READ IS DEFENSIVE BECAUSE THE DECLARATION BELONGS TO `ProvenancedMixin`, which
+            not every subject a tab reports on is. `integrations.Zone` is a `SyncTrackedModel`: it
+            has no `DERIVED_FIELDS` attribute at all, and nothing writes a `FieldProvenance` row
+            for a zone either - so this branch was reached for every field of every row and the
+            whole Security Zones tab failed to build (run 147, 2026-11-02). A model that is not
+            provenanced has no computed columns to synthesise a row for, so "no row" IS the honest
+            answer here, and an empty tuple produces exactly that: `remediation_of` falls through
+            to `entry_row`, the object's own entry row, which is the right fallback because the
+            location of an unprovenanced field is the location of the object. For the 21 models
+            that do declare the attribute, behaviour is byte-identical.
             """
             row = provenance.get((_ct, _pk, field))
-            if row is None and field in _model.DERIVED_FIELDS:
+            if row is None and field in getattr(_model, "DERIVED_FIELDS", ()):
                 return FieldProvenance(
                     provenance_type=FieldProvenance.ProvenanceType.DERIVED)
             return row
