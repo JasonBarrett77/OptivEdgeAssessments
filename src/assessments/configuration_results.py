@@ -46,6 +46,7 @@ from optivedge_integrations.integrations.models import (
     Certificate,
     CertificateProfile,
     DeviceIdentificationState,
+    DosPolicyRule,
     IkeCryptoProfile,
     IkeGateway,
     InterfaceManagementProfile,
@@ -74,6 +75,7 @@ from optivedge_integrations.integrations.models import (
     SslTlsServiceProfile,
     VsysRulePosture,
     Zone,
+    ZoneProtectionProfile,
 )
 
 
@@ -1339,6 +1341,136 @@ RESULTS = {
             _nothing(p.bound_interface_count, "interface(s)"),
         ),
     ),
+    # Network > Network Profiles > Zone Protection, 2026-11-02, for PAN-ZON-002 to -006.
+    #
+    # THE OWNER IS THE APPLIANCE AND NOT A VSYS, which stage 4 measured: this collection has
+    # exactly one scope on a firewall - `action=complete` answers code=6 Invalid sequence at
+    # both the shared and the vsys spelling of `network/profiles/zone-protection-profile` - so
+    # there is no `_where` to print and `str(p.appliance)` is the whole owner.
+    #
+    # "Zones attached" HAS NO `query_fields` ENTRY AND PRESENTS ONE FIELD, which is the one
+    # column here that breaks this spec's own pattern. `attached_zone_count` is not in
+    # `search/zone_protection_profile/compiler.py`'s registry - no control asserts on it, and
+    # this repo registers only what a control asks for - so mapping it would point the "build a
+    # query from these rows" button at a lookup that refuses itself. It is shown because it is
+    # the evidence behind "In force": a reader who sees `no` needs the count to know whether the
+    # sweep found nothing or never ran.
+    "zone-protection": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Profile": "profile_name",
+                      "In force": "is_in_force",
+                      "SYN flood enabled": "syn_flood_enabled",
+                      "Volumetric flood gap": "volumetric_flood_gap",
+                      "Discards spoofed IP": "discard_ip_spoof",
+                      "Packet drop gap": "packet_drop_gap",
+                      "Non-SYN reject (resolved)": "non_syn_reject_effective",
+                      "Scan detection gap": "scan_detection_gap",
+                      "Weakest scan action": "scan_weakest_action",
+                      "Exempted sources": "scan_white_list_count",
+                      "Unreferenced": "is_unreferenced"},
+        columns=("Appliance", "Profile", "In force", "Zones attached", "SYN flood enabled",
+                 "Volumetric flood gap", "Discards spoofed IP", "Packet drop gap",
+                 "Non-SYN reject (resolved)", "Scan detection gap", "Weakest scan action",
+                 "Exempted sources", "Unreferenced"),
+        base_queryset=_ordered(ZoneProtectionProfile, "appliance__hostname", "profile_name"),
+        row=lambda p: (
+            str(p.appliance),
+            p.profile_name,
+            _yes_no(p.is_in_force),
+            # "Nothing" rather than 0, for `_nothing`'s own reason: a bare zero here reads as
+            # "not counted" exactly where it means "counted, and no zone names this profile".
+            _nothing(p.attached_zone_count, "zone(s)"),
+            _yes_no(p.syn_flood_enabled),
+            _yes_no(p.volumetric_flood_gap),
+            _yes_no(p.discard_ip_spoof),
+            _yes_no(p.packet_drop_gap),
+            # The RESOLVED value, not the profile's own leaf. The leaf is a three-valued
+            # pointer whose commonest state is `global` - a deferral to a device-wide setting
+            # read separately - so printing the leaf would read as an answer where there is
+            # none. The leaf itself is the next column.
+            p.non_syn_reject_effective or NOT_APPLICABLE,
+            _yes_no(p.scan_detection_gap),
+            # An em dash, not "(empty)": a profile carrying no scan entry at all has no weakest
+            # action BY STRUCTURE rather than by choice, and `layout.NONE` is the vocabulary
+            # for that. The shared `display_value` has no way to say it.
+            p.scan_weakest_action or "—",
+            _nothing(p.scan_white_list_count, "address(es)"),
+            _yes_no(p.is_unreferenced),
+        ),
+    ),
+    # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007.
+    #
+    # THE POSITION IS PART OF THE ROW'S IDENTITY and is printed first among the rule's own
+    # columns for that reason: a DoS rulebase resolves by ORDER, not by name, and stage 4
+    # recorded `name_resolution` as unmeasured on this object because the collision question
+    # that field asks is the wrong shape for a rulebase. It has no `query_fields` entry -
+    # `rule_position` is not registered, and no control asserts on it.
+    #
+    # "Disabled" IS A STRING AND NOT A BOOLEAN on this model, so it is printed as it was read
+    # rather than through `_yes_no`. Every DoS rule in the measured estate carries
+    # `disabled: yes` - stage 6 could not commit an enabled one - and PAN-ZON-007 deliberately
+    # fires regardless, because no implicit was measured for that key and taking an absence for
+    # "disabled" would silently suppress every rule in an estate. The column is here so a
+    # reader can see that is what happened.
+    "dos-protection-rules": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Rule": "rule_name",
+                      "Action": "rule_action", "Names a profile": "names_a_profile"},
+        columns=("Appliance", "Vsys", "Position", "Rule", "Action", "Names a profile",
+                 "Aggregate profile", "Classified profile", "Classification", "Disabled"),
+        base_queryset=_ordered(
+            DosPolicyRule, "enforcement_point__vsys_name", "rule_position",
+            related=("enforcement_point__appliance", "enforcement_point__appliance_group")),
+        row=lambda r: (
+            _rule_appliance(r),
+            r.enforcement_point.vsys_name or "-",
+            r.rule_position,
+            r.rule_name,
+            # An em dash where the rule expresses no action at all: the three actions are CHILD
+            # NODES rather than values - stage 4 measured the stored shape as
+            # `action: {'protect': None}` - so an empty string here is a rule with no action
+            # branch, which is a different thing from an action we failed to read.
+            r.rule_action or "—",
+            _yes_no(r.names_a_profile),
+            r.aggregate_profile or "None",
+            r.classified_profile or "None",
+            r.classification_address or "—",
+            r.rule_disabled or "—",
+        ),
+    ),
+    # Objects > Security Profiles > DoS Protection, 2026-11-02, for PAN-ZON-008. THE FIFTH page
+    # over `SecurityProfile`, and its `scope` is what makes the resolver answer for this kind -
+    # see the rail entry in `configuration_navigation` for the measurement.
+    #
+    # NOT `_security_profile_row`, which the anti-spyware and vulnerability pages share: that row
+    # prints the critical/high/medium severity verdicts, and a DoS protection profile answers no
+    # severity question at all - no severity verdict row, no DNS tree, no category verdict - so
+    # all three would read `n/a` on every row. What this kind IS assessed for is whether anything
+    # references it, so the reach columns take that space instead.
+    #
+    # TWO COLUMNS FOR ONE QUESTION, deliberately. "Reference reach" is the walk's answer and
+    # "Walk completed" says whether the walk had the whole picture. They are different in kind:
+    # an incomplete set of reads can only hide a REFERRER, so it can turn "nothing names this"
+    # into a wrong answer and can never turn "a rule names this" into one. A reader who sees
+    # "Nothing on this firewall names it" beside a "no" in the second column is being told the
+    # first cell is not established, and PAN-ZON-008 reports those two states through two
+    # different queries at the SAME severity - so the sentence, not the severity, is what tells
+    # them apart.
+    "dos-protection": ResultsSpec(
+        query_fields={"Profile": "name", "Scope": "namespace_type",
+                      "Reference reach": "reference_reach",
+                      "Walk completed": "reference_reach_resolved",
+                      "Used by": "referrer_count"},
+        columns=("Owner", "Profile", "Scope", "Reference reach", "Walk completed", "Used by"),
+        base_queryset=_security_profiles,
+        scope=_kind_scope("dos-protection"),
+        row=lambda p: (
+            p.appliance_group.name if p.appliance_group_id else str(p.enforcement_point),
+            p.name,
+            p.get_namespace_type_display(),
+            p.get_reference_reach_display(),
+            _yes_no(p.reference_reach_resolved),
+            _nothing(p.referrer_count, "referrer(s)"),
+        ),
+    ),
 }
 
 
@@ -1524,27 +1656,14 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # Stage 9 for this domain is what gives the three new models a page, and stage 8's contract
     # forbids building one.
     "PAN-GPG": "stage9-globalprotect-gateway.json",
-    # `zone-dos-protection` reached stage 8 on 2026-11-01. FOUR models carry its eight controls:
-    # the two this domain's stage 7 created - the zone protection profile and the DoS policy rule
-    # - plus `integrations.Zone`, plus `integrations.SecurityProfile`, whose results pages are per
-    # profile KIND, mirroring PAN-OS's own tabs, so the `dos-protection` kind that PAN-ZON-008
-    # queries has no page either. Stage 9 for this domain is what gives the homeless ones a page,
-    # and stage 8's contract forbids building it.
-    #
-    # CORRECTED 2026-11-02 by stage 9 of `device-id-iot`: this said NONE of the four has a rail
-    # item and named the `PAN-IOT` and `PAN-UID` entries as carrying Zone's debt. `PAN-IOT` is
-    # gone and `integrations.Zone` now HAS a page - the shared `zones` rail item, written for this
-    # domain to reuse, with `zone_protection_profile` and `zone_protection_unresolved` already
-    # among its columns because this domain's controls were known to be coming. So THREE of the
-    # four are still homeless, not four, and PAN-ZON's zone-attachment queries already resolve.
-    #
-    # THIS DEBT IS FOR SEVEN OF THE DOMAIN'S EIGHT CONTROLS AND ONE LINE CLEARS TWENTY-FIVE
-    # FAILURES, because `test_configuration_links` fails once per catalog QUERY of a homeless
-    # model rather than once per model. The eighth control is PAN-ZON-007, whose queries are over
-    # a model created by the same stage 7 and are therefore homeless too - so in practice all
-    # eight are covered and none of this domain's twenty-five queries has anywhere to go until
-    # stage 9 lands.
-    "PAN-ZON": "stage9-zone-dos-protection.json",
+    # `PAN-ZON` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `zone-dos-protection`,
+    # which is the artifact the entry named. Its comment was checked against the code before the
+    # line was deleted and it read true: `integrations.Zone` already had the shared `zones` rail
+    # item (so PAN-ZON-001's queries already resolved), and the other three models were homeless.
+    # All three now have a rail item of their own - `zone-protection` over
+    # `integrations.ZoneProtectionProfile`, `dos-protection-rules` over
+    # `integrations.DosPolicyRule`, and `dos-protection`, the FIFTH page over
+    # `integrations.SecurityProfile`, scoped by `kind eq "dos-protection"`.
     # `decryption-policy` reached stage 8 on 2026-11-01. FOUR models carry its ten controls and
     # NONE of the four has a rail item: all four were created by stage 7 for this domain and had
     # never been queried from this repository at all. Stage 9 for this domain is what gives them a

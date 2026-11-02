@@ -377,7 +377,33 @@ def tested_fields(subject_model, control, readers=()) -> list[tuple[str, bool]]:
     for clause in clauses(baseline_query(control).canonical_query):
         if clause["field"] not in names:
             names.append(clause["field"])
-    for query in control.queries.filter(is_active=True).order_by("-is_baseline", "name", "pk"):
+    # READ THE PREFETCHED LIST AND SORT IN PYTHON. This was
+    # `control.queries.filter(is_active=True).order_by("-is_baseline", "name", "pk")` until
+    # 2026-11-02, and `.filter()` on a related manager IGNORES `prefetch_related("queries")` -
+    # which `load()` and `selected_controls(spec).prefetch_related("queries")` both set up - so it
+    # issued a fresh `assessments_controlquery` SELECT on EVERY CALL. `baseline_query()` two lines
+    # above already used the prefetch, so the two halves of this function disagreed.
+    #
+    # MEASURED COST, 2026-11-02, on a seeded 13,200-finding estate: most tabs escape it because
+    # `build_rows` computes `fields_by_control` once per CONTROL - the security-rules tab pays a
+    # flat 78 queries for 6,000 rows - but `rules_by_device_group.fold()` calls this once per
+    # FINDING, so it paid one query per row: 6,036 of the whole report build's 6,843 queries, 88%,
+    # and exactly linear (12,036 at 12,000 findings). After this change the fold is 17 queries and
+    # `store_run_tables` is 381 rather than 6,843, 4.56s rather than 2.44s, with rows, implicated
+    # cells and count asserted BYTE-IDENTICAL.
+    #
+    # THE ORDER IS PRESERVED EXACTLY and that was checked rather than assumed: `-is_baseline`
+    # descending on a boolean puts True first, which `not q.is_baseline` ascending reproduces.
+    # `order_by("name")` sorts in the DATABASE's collation and `list.sort()` by Python codepoint,
+    # which can differ - measured across the whole catalogue: 578 query names, ZERO non-ASCII, and
+    # exactly one control (PAN-NET-007) where codepoint and case-insensitive order disagree, on
+    # `BGP peer ...` versus `Baseline ...` - and that one resolves because the baseline is pulled
+    # out first by the primary key. This project is on SQLite, whose default collation is binary
+    # and therefore identical to Python's. ON A LOCALE-AWARE POSTGRES, PAN-NET-007 IS WHERE A
+    # DIVERGENCE WOULD SHOW UP FIRST.
+    active = [query for query in control.queries.all() if query.is_active]
+    active.sort(key=lambda query: (not query.is_baseline, query.name, query.pk))
+    for query in active:
         for clause in clauses(query.canonical_query):
             if clause["field"] not in names:
                 names.append(clause["field"])

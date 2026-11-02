@@ -560,8 +560,25 @@ ZONE_READERS = {
     # one-time fix for the model. The three readers above made this tab buildable for
     # PAN-IOT-002's three fields on the day it was written; the next control to reuse the tab
     # brought a fourth field and broke it again, and nothing fails until a row of that control
-    # exists. A third domain (`zone-dos-protection`, PAN-ZON) reuses this tab after us and will
-    # need an entry here for every field ITS controls clause on.
+    # exists.
+    #
+    # THAT PREDICTION WAS WRONG AND IS CORRECTED HERE - 2026-11-02, by stage 9 of
+    # `zone-dos-protection`, which is the third domain the original sentence named. It said a
+    # PAN-ZON entry would be needed "for every field ITS controls clause on". It is not needed,
+    # and adding one would FAIL A SHIPPED TEST:
+    #
+    #   - `2ff6cd6` changed the `provenance_of` closure to read
+    #     `getattr(_model, "DERIVED_FIELDS", ())`, so the reader-less path no longer raises on a
+    #     model that declares none. That commit is what fixed "Could not store the
+    #     security-zones table for run 147".
+    #   - `tests/test_findings_unprovenanced_subject.py` drives PAN-ZON-001 through the STORED
+    #     path over this real spec and asserts BOTH that the table stores AND that none of
+    #     `can_receive_traffic`, `zone_protection_unresolved`, `zone_type` is in
+    #     `value_readers`. So an entry for any of those three would break that assertion.
+    #
+    # Measured by that run: all three of PAN-ZON-001's tested fields build, store and draw with
+    # no reader at all. A reader is still the right tool for the WORDING reason the block above
+    # gives; it is no longer a precondition for the tab being buildable.
     "enable_user_identification": user_id.ZONE_USER_ID_READER,
 }
 
@@ -586,6 +603,174 @@ ZONE_SETTING_LABELS = {
     # So this heading is the vendor's words and not ours - the Device-ID equivalent is absent
     # from three Help versions, which is why its comment says the opposite.
     "enable_user_identification": "Enable User Identification",
+    # PAN-ZON-001's THREE fields, added 2026-11-02 by stage 9 of `zone-dos-protection` - the
+    # third domain to report on this tab. ALL THREE ARE PROPOSALS, like every heading here.
+    #
+    # THEY WERE RAW DJANGO FIELD NAMES ON A CUSTOMER-FACING TAB UNTIL NOW, and the shipped
+    # regression test records one of them as such in an assertion:
+    # `test_findings_unprovenanced_subject.py` indexes `table.headers` by the literal string
+    # "zone_protection_unresolved". Measured by this run by building the table and grepping the
+    # headers for `_`.
+    #
+    # AND THAT ASSERTION HAD TO BE UPDATED, which is worth knowing before renaming any heading
+    # on any tab: `FindingsTable.headers.index(...)` takes the HEADING, not the field, so adding
+    # an entry here raised `ValueError: 'zone_protection_unresolved' is not in list` in a test
+    # whose subject is the STORED PATH and has nothing to do with wording. Nothing couples the
+    # two or warns that they are coupled - it was caught by the suite and not by reading. The
+    # test now indexes "Zone protection unresolved" and pins the same behaviour.
+    #
+    # "Can receive traffic" is the POPULATION column, not an assertion: a zone with no type
+    # subtree and no interfaces receives nothing, and stage 3 widened the population from the
+    # catalogue row's "Layer-3 zone" to every zone that can carry traffic. The vendor has no
+    # label for it - it is our reading of which subtree exists - so this wording is ours.
+    "can_receive_traffic": "Can receive traffic",
+    # THE ASSERTION, and the heading says `unresolved` rather than "has no profile" on purpose.
+    # The column is TRUE in two different states: no attachment leaf at all, and a leaf naming a
+    # profile that does not exist. Stage 4 measured that the attachment is a free string with no
+    # referential integrity the configuration expresses and that the join is case-sensitive, so
+    # a dangling name reads as configured while the zone meters nothing. A heading saying "no
+    # zone protection profile" would describe only the first state and would read as FALSE on
+    # exactly the dangerous rows this control exists for.
+    "zone_protection_unresolved": "Zone protection unresolved",
+    # The grading axis, and A PROXY WHICH THIS HEADING CANNOT ADMIT TO. What stage 3 grades on is
+    # the zone's EXPOSURE - which side of a perimeter it faces - and no column of any model holds
+    # that, so the nearest thing the configuration offers is which subtree carried the
+    # interfaces. The vendor's own word for that subtree is the zone's Type, so the heading is
+    # the vendor's even though the meaning is narrower than the grading wants.
+    "zone_type": "Zone type",
+}
+
+
+# --------------------------------------------------------------------------------------------
+# THE TWO ZONE/DoS TABS, 2026-11-02, for PAN-ZON-002 to -007. Two models, two grains and two
+# PAN-OS categories - a device-local profile under Network Profiles (Network) and a row of one
+# virtual system's DoS rulebase (Policies) - so they are two tabs in two different places in the
+# Summary rather than one domain's block. The domain's other two controls add no tab: PAN-ZON-001
+# reports on `Security Zones` and PAN-ZON-008 on `Security Profile`, both of which already exist.
+#
+# EVERY HEADING BELOW IS A PROPOSAL, on the Device-ID block's precedent above and for the same
+# reason: report content is Jason's and he takes the heading pass once across many domains (P399).
+#
+# BOTH MODELS ARE `ProvenancedMixin` AND BOTH DECLARE `DERIVED_FIELDS`, measured in
+# `integrations/models/zone_dos_protection.py` - `ZoneProtectionProfile(ProvenancedMixin,
+# SyncTrackedModel)` at line 66 with 14 derived fields, `DosPolicyRule(ProvenancedMixin,
+# SyncTrackedModel)` at line 506 with three. So neither tab needs the `ValueReader`-per-column
+# workaround the Security Zones tab above carries: the per-field Provenance cell and the default
+# template column both answer honestly here, and `provenance_cell` is left at the default.
+# `integrations.Zone` is the model that is NOT one, and it is already on its own tab.
+
+#: A zone protection profile. ITS OWNER IS THE APPLIANCE AND NOT A VSYS, which stage 4 measured:
+#: `action=complete` answers code=6 Invalid sequence at both the shared and the vsys spelling of
+#: `network/profiles/zone-protection-profile`, so the collection has exactly one scope on a
+#: firewall. That is why this uses `APPLIANCE` rather than `VSYS_SCOPED`, and it is also why a
+#: template-pushed profile attached on one device and not another is two rows saying different
+#: things - which is the truth about those two devices rather than a duplicate.
+#:
+#: THE NAME FIELD IS `profile_name`, NOT `name`, so this cannot reuse `NAME` above.
+#:
+#: THE TWO COLUMNS AFTER THE NAME ARE EVIDENCE RATHER THAN IDENTITY, on the IKE sheet's precedent
+#: for "Key lifetime (as set)": no control asserts on either, so `tested_fields` derives no
+#: settings column for them, and they are what the applicability gate `is_in_force` TURNS ON.
+#: Without them a reader who meets `In force: no` cannot tell a profile no zone names from one
+#: whose attachment sweep never ran - which is the zero-versus-unknown distinction, per field.
+#: Each declares its `field` so that a control later asserting on it marks THIS cell rather than
+#: drawing a second column headed the same way.
+ZONE_PROTECTION_PROFILE_SUBJECT = APPLIANCE + (
+    ("Object", None, False, lambda s, _p: s.profile_name or NONE, "profile_name"),
+    ("Zones attached", 16, False,
+     lambda s, _p: (f"{s.attached_zone_count} zone(s)" if s.attached_zone_count
+                    else "Nothing"), "attached_zone_count"),
+    ("Attachment sweep completed", 24, False,
+     lambda s, _p: ("Yes" if s.attachment_sweep_complete else "No"),
+     "attachment_sweep_complete"),
+)
+
+ZONE_PROTECTION_PROFILE_SETTING_LABELS = {
+    # The applicability gate all five controls on this tab share. TRUE is IN the population: at
+    # least one zone of some vsys of this appliance names the profile. Its default is TRUE, which
+    # is the safe side - a profile whose sweep has not run is assessed for its contents rather
+    # than excused - and the two evidence columns above are what let a reader check it.
+    "is_in_force": "In force (a zone names it)",
+    # PAN-ZON-002. FALSE FIRES. Named for the vendor's own SYN Flood tab.
+    "syn_flood_enabled": "SYN flood protection enabled",
+    # PAN-ZON-003, and a DISJUNCTION over four leaves rather than a reading of one - the four
+    # per-protocol enable columns behind it are deliberately not registered for search, because
+    # a clause on one would answer a quarter of the question under the whole question's name.
+    # "gap" is the word because TRUE is the FIRING side: it means at least one flood type is
+    # unprotected, so a heading like "Flood protection" would read backwards.
+    "volumetric_flood_gap": "Volumetric flood protection gap",
+    # PAN-ZON-005. FALSE FIRES. The vendor's Packet Based Attack Protection tab calls the
+    # checkbox "Spoofed IP address"; this heading is that label turned into a statement.
+    "discard_ip_spoof": "Discards spoofed IP addresses",
+    # PAN-ZON-006's second record, a disjunction over the four drops the catalogue row's
+    # description names. TRUE FIRES, so "gap" again.
+    "packet_drop_gap": "Packet drop protection gap",
+    # PAN-ZON-006's ASSERTION, and the RESOLVED value rather than the profile's own leaf. Two
+    # columns, two different questions, and the headings have to keep them apart: the leaf is a
+    # three-valued pointer whose commonest state is `global` - a deferral to a device-wide
+    # setting that has to be read separately - so comparing the leaf to `yes` is wrong in both
+    # directions at once.
+    "non_syn_reject_effective": "Non-SYN reject (resolved)",
+    # PAN-ZON-006's GRADING axis: what the profile itself holds. Graded apart from the other two
+    # states because the middle one is not an answer at all but that deferral.
+    "non_syn_reject_configured": "Non-SYN reject (as configured)",
+    # PAN-ZON-004's assertion. TRUE FIRES. The vendor's tab is Reconnaissance Protection, which
+    # is the word a reader will look for on the device; "scan" is this repo's field name.
+    "scan_detection_gap": "Reconnaissance detection gap",
+    # PAN-ZON-004's grading axis. An em dash where no scan entry exists at all - see the
+    # `unrenderable` note in the stage 9 artifact: a profile with no entry has no weakest action
+    # BY STRUCTURE, and the shared `display_value` prints `(empty)` for that.
+    "scan_weakest_action": "Weakest reconnaissance action",
+    # The column that answers the unknown, and it is a statement about OUR READ rather than about
+    # the profile: TRUE only where a profile carries at least one scan entry AND both sensitivity
+    # numbers were read. FALSE is the firing side.
+    "scan_sensitivity_known": "Scan interval and threshold both read",
+    # PAN-ZON-004's second record. A count of ADDRESSES and not of entries - an entry can carry
+    # both an ipv4 and an ipv6 leaf, so counting entries gives the same answer on this lab and a
+    # different one anywhere else.
+    "scan_white_list_count": "Sources exempt from detection",
+}
+
+#: A row of one virtual system's DoS rulebase. VSYS-SCOPED, so it names the firewalls that run
+#: the virtual system rather than one appliance - a vsys on an HA pair spans both members.
+#:
+#: THE POSITION IS PART OF THE ROW'S IDENTITY AND NOT DECORATION: a rulebase resolves by ORDER
+#: rather than by name, which is why stage 4 recorded `name_resolution` as unmeasured on this
+#: object - the collision question that field asks is the wrong shape for a rulebase. The name is
+#: what a finding prints; the position is what makes two rows of the same name different rows.
+#:
+#: "Disabled" IS A STRING ON THIS MODEL AND IS PRINTED AS READ. Every DoS rule in the measured
+#: estate carries `disabled: yes` - stage 6 could not commit an enabled one and marks all four
+#: `inoperative_support_object` - and PAN-ZON-007 deliberately fires regardless, because no
+#: implicit was measured for that key and taking an absence for "disabled" would silently
+#: suppress every rule in an estate. This column is here so a reader can see that is what
+#: happened, and it is the single most likely source of a false finding on a real estate.
+#:
+#: THE TWO PROFILE COLUMNS ARE THE EVIDENCE BEHIND `names_a_profile`, which is the applicability
+#: gate: that column is a verdict over these two leaves, and a reader who meets "Names a DoS
+#: profile: no" needs to see which slot was empty.
+DOS_POLICY_RULE_SUBJECT = VSYS_SCOPED + (
+    ("Rulebase", 16, False, lambda s, _p: s.get_config_source_display(), "config_source"),
+    ("Position", 10, False, lambda s, _p: s.rule_position, "rule_position"),
+    ("Object", None, False, lambda s, _p: s.rule_name or NONE, "rule_name"),
+    ("Aggregate profile", 22, False, lambda s, _p: s.aggregate_profile or "None",
+     "aggregate_profile"),
+    ("Classified profile", 22, False, lambda s, _p: s.classified_profile or "None",
+     "classified_profile"),
+    ("Disabled", 12, False, lambda s, _p: s.rule_disabled or NONE, "rule_disabled"),
+)
+
+DOS_POLICY_RULE_SETTING_LABELS = {
+    # PAN-ZON-007's APPLICABILITY. TRUE is in the population: the rule names a profile in at
+    # least one of its two protection slots. The two slot columns above are its evidence.
+    "names_a_profile": "Names a DoS profile",
+    # PAN-ZON-007's ASSERTION and its GRADING axis at once - the only column in this domain that
+    # is both. `protect` is the one action that consults the profile the rule names; `deny` and
+    # `allow` do not, and stage 3 grades them apart because a denying rule is at least refusing
+    # traffic while an allowing one is doing nothing at all. The three actions are CHILD NODES
+    # rather than values - stage 4 measured the stored shape as `action: {'protect': None}` - so
+    # an empty cell here is a rule with no action branch and not an action nobody read.
+    "rule_action": "Action",
 }
 
 #: The verdict's identity and its two counts, on `vsys_rule_posture`'s pattern.
@@ -1287,11 +1472,102 @@ SPECS = (
                         "has_non_blocking_application_override": APP_OVERRIDE_COVERAGE,
                         "has_non_blocking_wildfire_decoder": WILDFIRE_COVERAGE,
                         "has_non_blocking_mlav_decoder": MLAV_COVERAGE},
+         # THE FIRST `setting_labels` THIS SHEET HAS CARRIED, added 2026-11-02 by stage 9 of
+         # `zone-dos-protection` for PAN-ZON-008. Both are PROPOSALS.
+         #
+         # THEY WERE RAW DJANGO FIELD NAMES ON A CUSTOMER TAB, measured by building this table
+         # and grepping `FindingsTable.headers` for `_`: `reference_reach_resolved` and
+         # `reference_reach` were the only two headings on any of this domain's four tabs that
+         # read as code. Nothing says which columns head raw, and this sheet had no map at all.
+         #
+         # THIS IS THE SHAPE FOR TWO DOMAINS AND NOT ONE. `reference_reach` is asserted by
+         # exactly two controls in the catalogue - PAN-ZON-008 and PAN-FIL-004, whose domain
+         # (`file-data-filtering`) runs later - so these two headings are what that run inherits
+         # rather than chooses.
+         #
+         # TWO COLUMNS FOR ONE QUESTION, and the order is stage 5's clause order: the companion
+         # that says whether the walk was COMPLETE is an applicability clause and is drawn
+         # BEFORE the assertion it supports. That is the right way round here, unlike the
+         # alphabetical-by-query-name case further down the row: an incomplete set of reads can
+         # only hide a REFERRER, so it can turn "nothing names this" into a wrong answer and can
+         # never turn "a rule names this" into one. A reader meets "was this established?" and
+         # then "what did it establish?".
+         setting_labels={
+             # Not "Walk completed": the subject of the sentence is the REFERENCE walk, and this
+             # sheet carries four other profile kinds whose rows have walks of their own.
+             "reference_reach_resolved": "Reference walk completed",
+             # The model's own choice labels are already sentences - "Named by a security rule",
+             # "Nothing on this firewall names it", "The reference walk could not be completed" -
+             # so the heading is the short noun and the CELL carries the meaning.
+             "reference_reach": "Reference reach",
+         },
          appliance_of=lambda obj: None,
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances", "decoders", "ml_models",
                            "application_overrides")),
+    # Network > Network Profiles > Zone Protection, 2026-11-02, for PAN-ZON-002 to -006.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`), which is right for a subject that IS a
+    # configuration object: deriving it means the workbook cannot disagree with the app about
+    # where the object lives. The rail item is `zone-protection`.
+    #
+    # `hidden_fields` IS EMPTY AND STAYS EMPTY. The gate counts a field as presented if a subject
+    # column, a settings column OR `hidden_fields` carries it - so a non-empty tuple is a CLAIM
+    # accepted as proof, and it is the only known cause of a findings row that marks nothing as
+    # the thing to fix (P409). Every tested field of all five controls here is presented by a
+    # real column, so there is nothing to declare.
+    #
+    # `tested_columns=ALL_TESTED_COLUMNS` IS A CHOICE and the default would have been wrong: the
+    # default `("Provenance",)` silently drops `Fires when` from the WORKBOOK while the live page
+    # keeps it, so the two surfaces disagree about which cell a reader meets (P427). It is taken
+    # knowing that `fires_when` renders the BASELINE's condition alone, so on a row whose
+    # severity was moved by a calibration the stated condition is not the clause that moved it -
+    # the alternative is a contradicting value with no stated condition beside it at all.
+    spec(T.ZONE_PROTECTION_PROFILE,
+         "The zone protection profiles on each firewall, and what each one actually stops. A "
+         "profile is a reusable PROPOSAL: it enforces nothing until a zone names it, which is "
+         "what the In force column says and what the two columns beside it are the evidence "
+         "for. ONE PROFILE CAN BE IN FORCE ON MANY ZONES OF MIXED EXPOSURE, and the vendor asks "
+         "for some of these settings on internal zones only - so where a profile is attached to "
+         "several zones the remediation may be to SPLIT the profile rather than to change it, "
+         "and no column here can say which of its zones are internal. A PROFILE SATISFYING "
+         "EVERY CONTROL CAN STILL BE INERT: the firewall disables SYN cookies on an external "
+         "zone, and the profile holds no record of which zone type it is attached to.",
+         title="Zone Protection", subject=ZONE_PROTECTION_PROFILE_SUBJECT,
+         setting_labels=ZONE_PROTECTION_PROFILE_SETTING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007. Category DERIVED from the rail,
+    # whose item is `dos-protection-rules`, on the same reasoning as the tab above.
+    #
+    # `appliance_of` RETURNS None: the rule belongs to a virtual system, which on an HA pair
+    # spans both firewalls, so linking the row to one member of the pair would assert something
+    # false. Same ruling as the security rules and security profile tabs.
+    #
+    # THE PUSHED RULEBASES ARE UNEXERCISED and this tab is where that will show. Stage 7 measured
+    # the pushed DoS rulebase as EMPTY on every appliance in the estate, so the `pushed_pre` and
+    # `pushed_post` config sources are part of a rule's identity, are printed in the Rulebase
+    # column, and have never carried a row. On a Panorama-managed estate that is where most DoS
+    # rules live - and a rule pushed from a device group is the one this control cannot
+    # recommend editing locally.
+    spec(T.DOS_POLICY_RULE,
+         "The DoS protection rules in each virtual system's rulebase, and whether each one "
+         "actually protects. Only the `protect` action consults the profile a rule names; a "
+         "rule that denies is at least refusing traffic and a rule that allows is doing nothing "
+         "at all. EVERY RULE IN THIS ASSESSMENT'S ESTATE IS DISABLED and the control fires "
+         "anyway, deliberately: no implicit was measured for the disabled key, and taking an "
+         "absence for 'disabled' would silently suppress every rule on an estate. Read the "
+         "Disabled column before acting on a row - on a real estate the population is enabled "
+         "rules, and the false-finding rate of the disabled ones is unmeasured.",
+         title="DoS Protection Rules", subject=DOS_POLICY_RULE_SUBJECT,
+         setting_labels=DOS_POLICY_RULE_SETTING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         appliance_of=lambda obj: None,
+         subject_select_related=("enforcement_point__appliance",
+                                 "enforcement_point__appliance_group"),
+         subject_prefetch=("enforcement_point__appliance_group__appliances",)),
     spec(T.ADMIN_USER,
          "The administrator accounts on each firewall: what each may do, and what it authenticates "
          "with.",

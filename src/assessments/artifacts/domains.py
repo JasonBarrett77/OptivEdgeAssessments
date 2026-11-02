@@ -93,6 +93,26 @@ DOMAINS = (
     # each kind gets a sheet whose Profiles cell names only its own verdicts.
     *(FindingsDomain(f"{slug}-by-rule", profile_rules.SPEC_BY_KIND[slug])
       for slug, _title, _ids, _fields in profile_rules.KINDS),
+    # Policies, LAST in this category, 2026-11-02, for PAN-ZON-007.
+    #
+    # THE VENDOR'S RAIL ORDER WINS OVER `finding_run.GENERATORS` HERE, and the departure is
+    # stated rather than taken quietly. GENERATORS runs "DoS policy rule" at index 59, before
+    # "vsys rule posture" (72) and "security rule" (73) - so that tuple alone would put this tab
+    # at the TOP of the Policies block. PAN-OS's own Policies rail runs Security, NAT, QoS,
+    # Policy Based Forwarding, Decryption, Network Packet Broker, Tunnel Inspection, Application
+    # Override, Authentication, DoS Protection, SD-WAN, which puts the DoS rulebase at the tail.
+    #
+    # The Policies block above is ALREADY editorially ordered rather than GENERATORS-ordered -
+    # `vsys-rule-posture` is first on the argument that a whole-policy finding reframes a
+    # per-rule one, and GENERATORS puts it second-to-last - and the Network block below is
+    # ordered by the vendor's rail for the reason its own comment gives. This follows the
+    # second: a DoS rule is a DIFFERENT RULEBASE at a different screen, and a reader meets the
+    # security policy before it. `check_tabs_follow_the_summary` constrains only that category
+    # RANKS do not decrease, so within a category this is a choice and not a gate.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `dos-protection-rules` at
+    # Policies > DoS Protection - right for a subject that IS a configuration object.
+    _object_domain("dos-protection-rules", T.DOS_POLICY_RULE),
     # Objects
     _object_domain("security-profiles", T.SECURITY_PROFILE),
     # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
@@ -141,6 +161,24 @@ DOMAINS = (
     _object_domain("ipsec-crypto-profiles", T.IPSEC_CRYPTO_PROFILE),
     _object_domain("ipsec-tunnels", T.IPSEC_TUNNEL),
     _object_domain("ike-gateways", T.IKE_GATEWAY),
+    # Network, LAST in this category, 2026-11-02, for PAN-ZON-002 to -006 - and here BOTH orders
+    # agree for once, which is worth saying because the two neighbours above departed from each
+    # other. `finding_run.GENERATORS` runs "zone protection profile" at index 58, after every
+    # other Network generator (ike gateway is 29, security zone 49); and the vendor's Network
+    # rail puts Network Profiles LAST while its Network Profiles sections run GlobalProtect
+    # IPSec Crypto, IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt, ZONE
+    # PROTECTION (help 11.2 p.635-650) - so Zone Protection is the last section of the last
+    # group. GENERATORS order and rail order both land on this position.
+    #
+    # NOT BESIDE `security-zones` AT THE TOP OF THIS BLOCK, which is where the domain's name
+    # would have put it. The profile and the zone are two different subjects at two different
+    # vendor addresses: a profile is a reusable proposal under Network Profiles, and the
+    # ATTACHMENT of one to a zone is a leaf on the zone. That is the same split as between this
+    # domain's PAN-ZON-002..006 (here) and PAN-ZON-001 (on `security-zones`), and an engineer
+    # fixes one or the other.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `zone-protection`.
+    _object_domain("zone-protection", T.ZONE_PROTECTION_PROFILE),
     # Device
     FindingsDomain("password-complexity", password_complexity.SPEC),
     FindingsDomain("authentication-settings", authentication_settings.SPEC),

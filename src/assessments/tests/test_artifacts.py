@@ -78,7 +78,14 @@ class WorkbookBuildTests(TestCase):
         # 45 later on 2026-11-02: User-ID Collector and User-ID Discovery, adjacent in Device -
         # stage 9 of `user-id`. TWO tabs for a SIX-control domain: PAN-UID-001 and PAN-UID-005
         # report on Security Zones and Management Interface, tabs that already existed.
-        self.assertIn("Summary: 45 tabs linked, 0 findings in total", reports[0])
+        # 47 later on 2026-11-02: Zone Protection (Network, LAST in that category - the vendor
+        # puts Network Profiles last and Zone Protection last within it) and DoS Protection
+        # Rules (Policies, LAST - PAN-OS's Policies rail puts the DoS rulebase at the tail) -
+        # stage 9 of `zone-dos-protection`. TWO tabs for an EIGHT-control domain, and they are
+        # not adjacent: PAN-ZON-001 reports on Security Zones and PAN-ZON-008 on Security
+        # Profile, both of which already existed, and the two new subjects categorise into two
+        # different PAN-OS categories.
+        self.assertIn("Summary: 47 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -93,7 +100,8 @@ class WorkbookBuildTests(TestCase):
         # 41 on 2026-11-02: IPSec Crypto and IPSec Tunnels.
         # 44 later on 2026-11-02: Device-ID Policy Match, Security Zones and IoT Security.
         # 46 later on 2026-11-02: User-ID Collector and User-ID Discovery.
-        self.assertEqual(len(names), 46)
+        # 48 later on 2026-11-02: Zone Protection and DoS Protection Rules.
+        self.assertEqual(len(names), 48)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

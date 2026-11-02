@@ -134,6 +134,27 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("rulebase-device-match", "Device-ID Policy Match", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.RulebaseDeviceMatchVerdict"),
+    # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007 - the DoS rulebase's own rows.
+    #
+    # LAST IN Policies AND NOT BESIDE THE THREE ABOVE, which is the product's order rather than
+    # ours: PAN-OS's Policies rail runs Security, NAT, QoS, Policy Based Forwarding, Decryption,
+    # Network Packet Broker, Tunnel Inspection, Application Override, Authentication, DoS
+    # Protection, SD-WAN - so the DoS rulebase sits at the tail, after everything this report
+    # already has an item for. The three items above are all at Policies > Security; this is a
+    # different screen and a different rulebase.
+    #
+    # ITS SUBJECT IS A PAN-OS NODE, which is the test this module states for being on the rail:
+    # one virtual system's `rulebase/dos/rules`, which an assessor opens at this address and
+    # reads. A rule's identity includes its POSITION - a rulebase resolves by order and not by
+    # name - which is why the results page prints the position beside the name.
+    #
+    # THE SLUG SAYS `-rules` AND THE REASON IS MECHANICAL: `configuration_results.RESULTS` is
+    # keyed on the slug ALONE, while `CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug). So
+    # the DoS PROFILE item below could not also be `dos-protection` without one of the two
+    # results specs shadowing the other. The label is the vendor's own rail word for both.
+    ConfigObject("dos-protection-rules", "DoS Protection", "Policies", "", "shield",
+                 where="Policies > DoS Protection",
+                 search_model="integrations.DosPolicyRule"),
     # Objects > Addresses, 2026-10-02. Turned on for the PAN-COV coverage controls, which query
     # address objects: every control query must have a results page, and a query with nowhere to
     # go is one an assessor cannot check.
@@ -155,6 +176,30 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  search_model="integrations.SecurityProfile"),
     ConfigObject("wildfire-analysis", "WildFire Analysis", "Objects", "Security Profiles",
                  "shield", where="Objects > Security Profiles > WildFire Analysis",
+                 search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > DoS Protection, 2026-11-02, for PAN-ZON-008 - THE FIFTH rail
+    # item over `SecurityProfile`, and the one that makes that model's resolver work again for
+    # this kind.
+    #
+    # AFTER WildFire Analysis, which is the vendor's order: PAN-OS lists the Security Profiles
+    # children Antivirus, Anti-Spyware, Vulnerability Protection, URL Filtering, File Blocking,
+    # WildFire Analysis, Data Filtering, DoS Protection, so DoS Protection follows the four
+    # above. (The four above are not themselves in the vendor's order; that is older and is not
+    # this entry's to rearrange.)
+    #
+    # WHY IT HAS TO EXIST AT ALL, measured rather than reasoned. `object_for_canonical_query`
+    # short-circuits only when a model has ONE page; with several it keeps every candidate whose
+    # own `scope` clauses are a SUBSET of the query's and returns a result only if exactly one
+    # matched. `SecurityProfile` had four pages, each scoped by one `kind eq <kind>` clause, and
+    # both of PAN-ZON-008's queries carry `kind eq "dos-protection"` - which is a subset of
+    # nothing, so nothing matched and the resolver returned None for both.
+    #
+    # ITS SCOPE IS EXACTLY ONE CLAUSE AND NOTHING LOOSER. A scope of {} would be a subset of
+    # EVERY query over this model, so it would match alongside each sibling, make `matched`
+    # two long, and push all five kinds to None - the one change here that would break the four
+    # pages that already work. `_kind_scope("dos-protection")` is the whole scope.
+    ConfigObject("dos-protection", "DoS Protection", "Objects", "Security Profiles", "shield",
+                 where="Objects > Security Profiles > DoS Protection",
                  search_model="integrations.SecurityProfile"),
     # Device > Setup. Six of our tabs are all one PAN-OS screen with sub-tabs; they sit under
     # Setup as rail children rather than being flattened, so the address stays the vendor's.
@@ -395,6 +440,28 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("interface-mgmt", "Interface Mgmt", "Network", "Network Profiles",
                  "list-checks", where="Network > Network Profiles > Interface Mgmt",
                  search_model="integrations.InterfaceManagementProfile"),
+    # Network > Network Profiles > Zone Protection, 2026-11-02, for PAN-ZON-002 to -006.
+    #
+    # LAST IN THE GROUP, AND THE CITATION IS ALREADY IN THIS FILE: the `ike-gateways` entry
+    # above quotes the vendor's own Network Profiles enumeration as GlobalProtect IPSec Crypto,
+    # IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt, ZONE PROTECTION (help
+    # 11.2 p.635-650). Zone Protection is the last section in that run, so it goes here rather
+    # than beside the zone itself at Network > Zones - which is where build order and the
+    # domain's name would both have put it.
+    #
+    # NOT THE SAME SUBJECT AS `zones`, and the distinction is the one that entry's group makes
+    # for a profile and its binding: a zone protection profile is a reusable PROPOSAL under
+    # Network Profiles, and the ATTACHMENT of one to a zone is a leaf on the zone. An engineer
+    # fixes the profile's contents here and fixes a missing attachment on the zone - which is
+    # exactly the split between PAN-ZON-002..006 (this item) and PAN-ZON-001 (the `zones` item).
+    #
+    # A PROFILE IS DEVICE-LOCAL AND NOT VSYS-SCOPED, which stage 4 measured: `action=complete`
+    # answers code=6 Invalid sequence at both the shared and the vsys spelling of
+    # `network/profiles/zone-protection-profile`, so there is one scope on a firewall and the
+    # results page's owner column is the APPLIANCE rather than a vsys.
+    ConfigObject("zone-protection", "Zone Protection", "Network", "Network Profiles", "shield",
+                 where="Network > Network Profiles > Zone Protection",
+                 search_model="integrations.ZoneProtectionProfile"),
 )
 
 CONFIG_OBJECTS_BY_KEY = {(o.category, o.slug): o for o in CONFIG_OBJECTS}

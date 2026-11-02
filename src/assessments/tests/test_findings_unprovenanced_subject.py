@@ -111,7 +111,20 @@ class UnprovenancedSubjectFindingsTests(TestCase):
         # `provenance_cell` answers once for the whole row.
         self.assertEqual(device_id.ZONE_PROVENANCE, row[table.headers.index("Provenance")])
         # And the row still presents the three settings the control tests.
-        self.assertEqual("Yes", row[table.headers.index("zone_protection_unresolved")])
+        #
+        # THE HEADING CHANGED AND THIS LINE HAD TO FOLLOW IT - 2026-11-02, stage 9 of
+        # `zone-dos-protection`. It read `headers.index("zone_protection_unresolved")`, the raw
+        # Django field name, because this control's three fields had no `setting_labels` entry
+        # and so headed a customer-facing tab as code. That run gave all three a proposed
+        # heading, and `headers.index` takes the HEADING rather than the field, so this raised
+        # `ValueError: 'zone_protection_unresolved' is not in list` - a heading rename breaking
+        # a test whose subject is the STORED PATH and not the wording, with nothing to warn that
+        # the two were coupled.
+        #
+        # What this line is here to pin is unchanged: the row still carries the tested setting's
+        # value after the tab stores. The field it reads is `zone_protection_unresolved`; the
+        # column it reads it from is now headed in the customer's words.
+        self.assertEqual("Yes", row[table.headers.index("Zone protection unresolved")])
 
     def test_an_unprovenanced_field_falls_back_to_the_objects_entry_row(self):
         """What `remediation_of` answers once "no row" is reached honestly.
