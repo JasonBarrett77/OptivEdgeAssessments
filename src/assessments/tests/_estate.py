@@ -78,25 +78,56 @@ _SEGMENT = re.compile(r"^([^\[]+)(?:\[(?:@name=)?'?([^'\]]*)'?\])?$")
 
 # --------------------------------------------------------------------------- the key grammar
 
-def _split_key(key: str) -> list[tuple[str, int | None]]:
-    """`"scan/entry[0]/threshold"` -> `[("scan", None), ("entry", 0), ("threshold", None)]`."""
-    out: list[tuple[str, int | None]] = []
-    for raw in key.split("/"):
-        match = re.match(r"^(.+?)\[(\d+)\]$", raw)
-        if match:
-            out.append((match.group(1), int(match.group(2))))
-        else:
-            out.append((raw, None))
+def _split_key(key: str) -> list[tuple[str, int | str | None]]:
+    """`"scan/entry[0]/threshold"` -> `[("scan", None), ("entry", 0), ("threshold", None)]`.
+
+    A NAMED predicate is a third kind of segment and this read only the positional one until
+    2026-11-02. `portal-config/client-auth/entry[@name='r1']/os` came back as the literal tag
+    `"entry[@name='r1']"`, so the reader walking `client-auth` found no `entry` key and counted
+    nothing - and because the parent node existed, it read as a committed empty container rather
+    than failing. Measured across the 28 stage 6 artifacts on disk: 1,910 read_back keys in
+    SEVENTEEN domains carry one, `av-wildfire` alone 692, and the three domains this command was
+    proven on carry one between them (`ipsec-crypto`'s single key), which is why it survived.
+    A string index is a name, an int is a position; both reach `_descend`.
+
+    SPLIT THE SAME WAY AN XPATH IS, not on a bare `/`. A quoted name may contain a slash -
+    `entry[@name='ethernet1/1']` - and `_xpath_segments` already refuses to split inside a
+    predicate, with its own measurement of what a naive split costs. A read_back key is the same
+    grammar as the xpath tail it hangs off, so it gets the same splitter rather than a second
+    one that drifts from it.
+    """
+    out: list[tuple[str, int | str | None]] = []
+    for raw in _xpath_segments(key):
+        positional = re.match(r"^(.+?)\[(\d+)\]$", raw)
+        if positional:
+            out.append((positional.group(1), int(positional.group(2))))
+            continue
+        named = re.match(r"^(.+?)\[@name='([^']*)'\]$", raw)
+        if named:
+            out.append((named.group(1), named.group(2)))
+            continue
+        out.append((raw, None))
     return out
 
 
-def _descend(node: dict[str, Any], tag: str, index: int | None) -> dict[str, Any]:
-    """The child dict at `tag` (or at `tag[index]`), created if absent.
+def _descend(node: dict[str, Any], tag: str, index: int | str | None) -> dict[str, Any]:
+    """The child dict at `tag` (or at `tag[index]`, or at `tag[@name=index]`), created if absent.
 
     An indexed segment makes `tag` a LIST and pads it, because stage 6 writes
     `scan/entry[0]/...` before `scan/entry[1]/...` but nothing guarantees that order and a
     sparse list would silently drop an entry.
+
+    A NAMED segment goes through `_named_entry`, which is what the xpath walk uses, so a read_back
+    key and an xpath addressing the same entry land on the SAME dict and merge rather than
+    producing two shapes of the same node.
     """
+    if isinstance(index, str):
+        if tag != "entry":
+            # The same restriction `_walk` states for an xpath, for the same reason: every
+            # named predicate in every stage 6 artifact read so far predicates on `entry`, and
+            # inventing a placement for another tag would put configuration where no reader looks.
+            raise ValueError(f"read_back key predicates on {tag!r}, not 'entry'")
+        return _named_entry(node, index)
     if index is None:
         child = node.get(tag)
         if not isinstance(child, dict):
@@ -125,6 +156,14 @@ def _place(entry: dict[str, Any], key: str, value: Any) -> None:
         # `network/layer3/member[0]` with a scalar value: an indexed node whose own content is
         # text. PAN-OS spells that `#text`, and stage 6 does too, so this only has to make the
         # slot exist.
+        #
+        # A NAMED FINAL SEGMENT LANDS HERE TOO, and making the entry EXIST is the whole point of
+        # it: `global-protect-portal/entry[@name='oep-gpp6-a']` with the value `present` is stage
+        # 6's PRESENCE CENSUS on a container subject, and an entry count is what every reader of
+        # such a container takes. Measured over the 28 artifacts: 13 such keys, 9 valued
+        # `present` and 4 null. The census word goes to `#text` under the uniform rule rather
+        # than being special-cased out, because no reader looks there and a literal-string
+        # exception in a grammar is the thing that drifts.
         leaf = _descend(node, tag, index)
         if value is not None:
             leaf["#text"] = value
@@ -296,11 +335,46 @@ class PayloadSet:
 
 
 def _merge_into(target: dict[str, Any], entry: dict[str, Any]) -> None:
-    """Entry content onto a node the xpath walk created, keeping the `@name` the walk set."""
+    """Entry content onto a node the xpath walk created, keeping the `@name` the walk set.
+
+    DEEP, AND IT WAS A ONE-LEVEL OVERWRITE UNTIL 2026-11-02. Two subjects of one domain can
+    address the same node at different grains - a CONTAINER subject whose xpath is a strict
+    ANCESTOR of an entry subject's - and `target[key] = value` let whichever was placed second
+    destroy the first. Measured on `globalprotect-portal`: `gpp-14` is
+    `.../vsys/entry[@name='vsys4']/global-protect` and is an ancestor of the four portal entries
+    `gpp-04`, `-06`, `-08`, `-10`; it is placed later because it is later in the artifact's own
+    key order, and its census subtree replaced the `global-protect-portal` node the four had
+    built. Every portal row in the estate vanished, and the vsys then read as one holding no
+    portal at all - which is a real and graded state, so it reconciled as four honest
+    `no_finding`s rather than failing.
+
+    Twenty-two of the 28 artifacts on disk carry at least one strict-ancestor subject, so the
+    ORDER was deciding what the estate contained. It no longer decides anything: a dict merges
+    into a dict, and an `entry` list merges BY `@name` so the same named entry addressed twice
+    is one dict rather than two. Where the two genuinely disagree about a leaf the later value
+    still wins, which is the old behaviour narrowed to the leaf it is about.
+    """
     for key, value in entry.items():
         if key == "@name" and target.get("@name") and value != target.get("@name"):
             # The read_back's own `@name` wins nothing here: the xpath is the address, and for
             # `predefined-default` the two genuinely differ (subject label vs entry name).
+            continue
+        existing = target.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            _merge_into(existing, value)
+            continue
+        if (isinstance(existing, list) and isinstance(value, list)
+                and all(isinstance(item, dict) for item in existing)
+                and all(isinstance(item, dict) for item in value)):
+            # An entry list from both sides. Named entries are the same object; anything
+            # unnamed is appended, because nothing identifies it to merge onto.
+            by_name = {item["@name"]: item for item in existing if item.get("@name") is not None}
+            for item in value:
+                name = item.get("@name")
+                if name is not None and name in by_name:
+                    _merge_into(by_name[name], item)
+                else:
+                    existing.append(item)
             continue
         target[key] = value
 

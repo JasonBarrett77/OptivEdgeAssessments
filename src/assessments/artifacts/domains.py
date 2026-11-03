@@ -243,6 +243,44 @@ DOMAINS = (
     #
     # Category DERIVED from the rail (`category=''`), whose item is `zone-protection`.
     _object_domain("zone-protection", T.ZONE_PROTECTION_PROFILE),
+    # Network > GlobalProtect, 2026-11-02, for PAN-GPP-001 to -006 - THREE tabs, AFTER
+    # `zone-protection` and so last in this category, which is the Help's own chapter order:
+    # Network Profiles is p.635-650 and the GlobalProtect chapter is p.997-1085. The rail items
+    # sit in the same place relative to the same neighbours, so the two surfaces agree.
+    #
+    # THE ORDER WITHIN THE THREE IS THE VENDOR'S OWN SCREEN ORDER, from its enumeration at help
+    # 11.2 p.997: Portals, then Gateways, then the clientless screens. So the portal leads, its
+    # own authentication table follows it because that table is a tab INSIDE the portal dialog,
+    # and the vsys-wide verdict comes last - which is also the order `finding_run.GENERATORS`
+    # runs the three in. `check_tabs_follow_the_summary` constrains only that category RANKS do
+    # not decrease, so within a category this is a choice, and here nothing competes for it.
+    #
+    # THE COVERAGE TAB LAST AND NOT FIRST, which is the opposite of the call `decryption-policy`
+    # made one category up, and the difference is which finding makes the other smaller. There,
+    # a rulebase with no decryption rule at all made a finding about one rule a smaller question.
+    # Here the portal is the exposed service and the coverage row is a verdict about an OPTIONAL
+    # feature on top of it: a portal with no transport profile is the bigger problem than a vsys
+    # that publishes a web application, so the portal leads.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`) on all three, which is right for a subject
+    # whose address is a PAN-OS node: deriving it means the workbook cannot disagree with the app
+    # about where the subject lives. All three rail items are in the `Network` category under the
+    # vendor's own `GlobalProtect` group.
+    #
+    # THE THIRD ONE IS SHARED WITH THE DOMAIN AFTER THIS. `globalprotect-gateway`'s PAN-GPG-005
+    # reports on `integrations.GlobalProtectEnforcementPoint` too, so its findings will reach
+    # `globalprotect-coverage` without that domain adding a tab - and `setting_columns` will
+    # derive new columns on it for whatever that control clauses on. This entry is deliberately
+    # NOT narrowed with `control_ids`: narrowing it would leave PAN-GPG-005 with no tab and fail
+    # `check_every_finding_reached_a_tab` for the next domain.
+    #
+    # Neither disturbs the `_build_model_index` note above: that index takes the FIRST domain
+    # claiming a MODEL, and these three claim `integrations.GlobalProtectPortal`,
+    # `integrations.GlobalProtectPortalClientAuthRow` and
+    # `integrations.GlobalProtectEnforcementPoint`, which no other domain claims.
+    _object_domain("globalprotect-portals", T.GLOBALPROTECT_PORTAL),
+    _object_domain("globalprotect-portal-authentication", T.GLOBALPROTECT_PORTAL_CLIENT_AUTH),
+    _object_domain("globalprotect-coverage", T.GLOBALPROTECT_ENFORCEMENT_POINT),
     # Device
     FindingsDomain("password-complexity", password_complexity.SPEC),
     FindingsDomain("authentication-settings", authentication_settings.SPEC),

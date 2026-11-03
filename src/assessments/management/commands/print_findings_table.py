@@ -53,6 +53,14 @@ is what makes it domain-independent. The limits are real and named in
     `_estate.AUX_URL_CATEGORIES` and is a RECONSTRUCTION, not a measurement.
   * CHOICE NODES spelled as a text value need one line per domain in `_estate.CHOICE_NODES`,
     because stage 6 artifacts disagree about how to spell them and nothing pins it down.
+  * TWO OF ITS OUTPUTS ARE `DOMAINS`-DERIVED, so RUN IT TWICE AND READ A DIFFERENT HALF EACH
+    TIME. A shape-B stage 9 run has not written its `FindingsDomain` yet, and both the subject
+    census and `reconcile`'s pass-1 matching consult it. Before the sheets exist the census
+    answers from stage 8's `catalog.target_model` and SAYS SO, and pass-1 cannot match at all -
+    so every verdict falls to pass 2, whose order is arbitrary and whose attribution a reader
+    then has to check subject by subject. `globalprotect-portal` separated five such artefacts
+    from one real disagreement by hand. So: run it to CHECK THE ESTATE, write the rail, the
+    domains and the sheets, then run it again and read the RECONCILIATION.
 
 The three traps that cost those five runs the most are all handled in
 `_estate.build_base_estate`, each marked with its number at the line that handles it.
@@ -228,7 +236,7 @@ class Command(BaseCommand):
                               f"{appliance.software_version or '(no version)'}")
 
         self._normalize(station)
-        counts = self._subject_rows(controls)
+        counts = self._subject_rows(controls, stage8)
         self._findings(stage6, stage8)
         verdicts = reconcile(stage6, stage8)
         mismatches = self._report_reconciliation(verdicts)
@@ -281,27 +289,70 @@ class Command(BaseCommand):
         else:
             self.stdout.write("    every normaliser completed")
 
-    def _subject_rows(self, controls) -> dict[str, int]:
+    def _subject_rows(self, controls, stage8=None) -> dict[str, int]:
         """A census of the subject rows the normalisers actually wrote, per model.
 
         Printed because a row count is the first thing that tells a reader whether the estate
         came out at all - and because a silently empty one is precisely what trap 1 produces.
+
+        IT ASKED `DOMAINS` ALONE UNTIL 2026-11-02, AND THAT MADE IT SILENT ON EXACTLY THE RUN
+        THAT NEEDS IT. A domain reaches stage 9 with no `FindingsDomain` entry - writing one is
+        the stage's own job - so for a shape-B run this loop matched nothing and the section
+        printed an EMPTY LIST, which reads as "no models to count" and not as "I cannot tell
+        you". `globalprotect-portal` met it with all three of its subject models at zero rows,
+        and the heading above those zeros said nothing at all. The three domains this command
+        was proven on were FINISHED domains whose entries already existed, which is why it
+        survived.
+
+        So `DOMAINS` is consulted first - it is the authority on what a tab presents - and stage
+        8's own `catalog.target_model` fills in any control type it does not cover yet. That
+        declaration exists for every control before stage 9 starts, which is the property that
+        makes the census available to the run that has not written a sheet.
         """
+        from django.apps import apps
+
         from assessments.artifacts.domains import DOMAINS
 
         wanted = {control.control_type for control in controls}
         counts: dict[str, int] = {}
+        covered: set[str] = set()
         for domain in DOMAINS:
             spec = domain.spec
             for control_type in spec.control_types:
                 if control_type not in wanted:
                     continue
                 model = spec.subject_model(spec.kind_for(control_type))
+                covered.add(control_type)
                 counts.setdefault(model._meta.label, model.objects.count())
+        awaiting = sorted(wanted - covered)
+        for control_id, control in sorted((stage8 or {}).get("controls", {}).items()):
+            catalog = control.get("catalog") or {}
+            if catalog.get("control_type") not in awaiting:
+                continue
+            label = catalog.get("target_model")
+            if not label or label in counts:
+                continue
+            try:
+                model = apps.get_model(label)
+            except (LookupError, ValueError):
+                self.stdout.write(self.style.WARNING(
+                    f"    stage 8 names {label!r} for {control_id} and this installation has "
+                    f"no such model, so its rows cannot be counted"))
+                continue
+            counts[model._meta.label] = model.objects.count()
         self.stdout.write("### SUBJECT ROWS WRITTEN")
+        if not counts:
+            self.stdout.write(self.style.WARNING(
+                "    NOTHING TO COUNT. No `FindingsDomain` covers these control types and stage "
+                "8 names no target model either, so this says nothing about whether the estate "
+                "came out."))
         for label, count in sorted(counts.items()):
             flag = "   <-- EMPTY" if count == 0 else ""
-            self.stdout.write(f"    {label:<56} {count}{flag}")
+            via = "" if label in {
+                d.spec.subject_model(d.spec.kind_for(t))._meta.label
+                for d in DOMAINS for t in d.spec.control_types if t in covered} else \
+                "   (from stage 8's target_model: no findings tab for it yet)"
+            self.stdout.write(f"    {label:<56} {count}{flag}{via}")
         return counts
 
     def _findings(self, stage6, stage8) -> None:

@@ -29,6 +29,7 @@ from optivedge_integrations.integrations.models import AddressObject, SecurityPr
 
 from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
+from assessments import globalprotect_portal_presentation as globalprotect_portal
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
 from assessments import user_id_presentation as user_id
@@ -1366,6 +1367,69 @@ SSL_DECRYPTION_EXCLUSION_SUBJECT = APPLIANCE + SCOPE + NAME + (
 )
 
 
+# --------------------------------------------------------------------------------------------
+# THE THREE GLOBALPROTECT-PORTAL TABS, 2026-11-02, for PAN-GPP-001 to -006. Three models, three
+# grains, and the whole domain is new to presentation: nothing in this repository drew a row for
+# any of these three control types before today, and not one of their eight clause fields had a
+# heading.
+#
+# ALL THREE ARE APPLIANCE-ANCHORED AND SO NONE USES `VSYS_SCOPED`. That constant reads
+# `s.enforcement_point.vsys_name`, and these three models have no `enforcement_point` at all -
+# they carry `appliance`, `scope` and `vsys_name` directly, which is what their shipped
+# constraints key on. `APPLIANCE + SCOPE` is the shape that fits, and `scope_of` already prints
+# the vsys name for a `scope=vsys` row, so the Scope column IS stage 5's `vsys_name` column.
+#
+# THAT IS ALSO THE HA ANSWER AND IT IS THE OPPOSITE OF THE DOMAIN BEFORE THIS ONE. A vsys-scoped
+# model keyed on an enforcement point deduplicates itself across an HA pair, because the pair
+# shares one point per vsys - which is why `decryption-policy` had nothing to fold. All three of
+# these key on `appliance`, so an HA pair writes TWO rows for one configuration and the Appliance
+# and HA role columns are what tell them apart. Measured by seeding a real pair and counting.
+#
+# `hidden_fields` IS EMPTY ON ALL THREE AND IS NOT DECLARED. The gate counts a field as presented
+# if a subject column, a settings column OR the sheet's own `hidden_fields` carries it, so a
+# non-empty tuple is a CLAIM accepted as proof and it is the only known cause in this repository
+# of a findings row that marks nothing as the thing to fix. All eight fields get a real column.
+
+#: One named portal entry of one virtual system. The standard named-object shape, plus the two
+#: pieces of evidence the portal's own verdict columns cannot carry - see
+#: `globalprotect_portal.portal_tls_profile` for the binding and `portal_client_auth_rows` for the
+#: state no control on this tab can report.
+PORTAL_SUBJECT = APPLIANCE + SCOPE + NAME + (
+    ("SSL/TLS service profile", 22, False, globalprotect_portal.portal_tls_profile),
+    ("Authentication rows", 12, False, globalprotect_portal.portal_client_auth_rows),
+)
+
+#: One row of one portal's client-authentication table. The portal comes BEFORE the row's own
+#: name because it is the outer half of the identity and because the row name is meaningless on
+#: its own, and the endpoint class comes after both because it is what a reader actually goes by.
+#:
+#: FOUR EVIDENCE COLUMNS, WHICH IS WIDE, and the reason is that this tab has exactly ONE derived
+#: setting column: PAN-GPP-002 is the only control here and it clauses on one field. A verdict
+#: over two leaves with neither leaf beside it is a row a reader cannot act on, so the evidence
+#: has to be subject columns or it is nowhere.
+CLIENT_AUTH_SUBJECT = APPLIANCE + SCOPE + (
+    ("Portal", None, False, globalprotect_portal.portal_of_row),
+) + NAME + (
+    ("Endpoint class (OS)", 16, False, globalprotect_portal.row_operating_system),
+    ("Authentication Profile", 22, False, globalprotect_portal.row_authentication_profile),
+    ("Credentials OR certificate", 14, True, globalprotect_portal.row_either_factor_switch),
+    ("Certificate profile bound", 12, True, globalprotect_portal.row_certificate_profile_bound),
+)
+
+#: One virtual system as a verdict over its GlobalProtect objects as a whole. NO `NAME`, because
+#: the model has none: stage 5's identity is (appliance, scope, vsys_name) and the model's own
+#: comment says why it does not inherit `ApplianceScopedObject` - "a vsys is not a named entry".
+#:
+#: SO THIS TAB RECONCILES THROUGH `_estate.reconcile`'s SECOND PASS rather than by entry name,
+#: which is correct for a vsys-grain verdict and is worth knowing before reading a mismatch on
+#: it: there is no device entry name for a stage 6 subject to match against.
+ENFORCEMENT_POINT_SUBJECT = APPLIANCE + SCOPE + (
+    ("Portals", 9, False, globalprotect_portal.point_portal_count),
+    ("Clientless definitions", 26, True, globalprotect_portal.point_clientless_definitions),
+    ("GlobalProtect licence", 26, True, globalprotect_portal.point_licence),
+)
+
+
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
         control_types=(control_type,), title=title, description=description,
@@ -1763,6 +1827,138 @@ SPECS = (
          subject_select_related=("enforcement_point__appliance",
                                  "enforcement_point__appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances",)),
+    # --- globalprotect-portal, 2026-11-02 ----------------------------------------------------
+    # Three tabs over three models. See the subject-column block above for why none of them uses
+    # `VSYS_SCOPED` and what that means on an HA pair. Every heading is a PROPOSAL, sourced in
+    # `globalprotect_portal_presentation`.
+    spec(T.GLOBALPROTECT_PORTAL,
+         "Each GlobalProtect portal a virtual system publishes, and what it hands the endpoints "
+         "that reach it. A portal is the one service in this report that is MEANT to be reachable "
+         "from the internet by an unauthenticated browser, so every control here is about what "
+         "that exposure hands out: whether the portal presents a transport profile at all, "
+         "whether it serves a browser-reachable login page, whether it drives the agent to a "
+         "current version, and whether it lets the agent keep a credential on the endpoint. THE "
+         "ROW IS ONE PORTAL ON ONE APPLIANCE, so an HA pair draws two rows for one configuration "
+         "and the Appliance and HA role columns are what tell them apart - these models key on "
+         "the appliance, not on the virtual system, so nothing below presentation folds them. "
+         "WHAT THIS TAB CANNOT SAY is whether the certificate the portal presents chains to an "
+         "authority the connecting endpoint already trusts: that is the other half of PAN-GPP-001 "
+         "and stage 5 discharged it onto the engineer, because the firewall holds the certificate "
+         "and no endpoint's trust store. Nor can it say whether the TLS floor actually negotiated "
+         "is acceptable - the binding is a NAME, and on a template-managed appliance the profile "
+         "it names is not in the same payload. A PORTAL WITH 0 IN THE AUTHENTICATION ROWS COLUMN "
+         "IS THE WORST STATE ON THIS TAB AND NO CONTROL REPORTS IT: `client-auth` is optional at "
+         "commit, so such a portal demands nothing at all, which is weaker than the lowest rank "
+         "PAN-GPP-002 can grade - and it has no child row for that control to report on.",
+         title="GlobalProtect Portals", subject=PORTAL_SUBJECT,
+         setting_labels=globalprotect_portal.PORTAL_SETTING_LABELS,
+         # TWO READERS AND BOTH ARE FREE, because both fields are in `DERIVED_FIELDS` and the
+         # normalizer writes no `FieldProvenance` row for either. Without them a customer reads
+         # `no_agent_configuration` and `0` - and the `0` is PAN-GPP-004's PASSING value, which is
+         # the worst cell this tab could print. `custom_login_page` deliberately has NO reader:
+         # it is the one stored field of the eight, a reader would cost its provenance row, and
+         # whether that key was carried at all is what PAN-GPP-005's third query is about.
+         value_readers=globalprotect_portal.PORTAL_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET, so `Fires when` is on the workbook as well as the live page. The default
+         # is `("Provenance",)` and taking it would make the two surfaces disagree about which
+         # cell a reader meets. It earns the space here for a reason the rows show: four controls
+         # report on one row over five columns, and three of the four have SIX shipped queries
+         # splitting one column's values - so two portals identical in every other cell report at
+         # different severities, and the stated condition is the only cell that says on what.
+         #
+         # AND IT RENDERS IN FIELD NAMES, measured on the built table rather than assumed.
+         # `render_node` consults `setting_labels` nowhere, so the condition reads
+         # `saved_credentials_posture = 0` directly above a column headed "Save User Credentials"
+         # whose cell reads "No" - the same value named two ways on one row, and the raw `0` that
+         # the reader exists to keep out of the cell is printed in the condition anyway. The
+         # alternative is the contradicting value with no stated condition beside it at all, which
+         # is worse, so the column stays and the defect is recorded.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.GLOBALPROTECT_PORTAL_CLIENT_AUTH,
+         "Each row of each portal's client-authentication table, and what it demands before it "
+         "admits an endpoint. THE ROW AND NOT THE PORTAL IS THE GRAIN, which is the one thing to "
+         "read before acting on this tab: the table is keyed by the endpoint CLASS it serves, so "
+         "one portal can require both factors of a managed Windows endpoint and accept a password "
+         "alone from a browser - measured on this estate, where two rows of one portal sit at high "
+         "severity and at no finding at all. A portal-grain row would have had to print one of "
+         "those and would have reported the compliant sibling as the fault. THE DEMAND IS A "
+         "VERDICT OVER TWO LEAVES AND THE VENDOR'S POLARITY IS INVERTED: on the Credentials OR "
+         "certificate switch, `no` is the HARDENED answer - both factors required - and `yes` "
+         "means either will do, which is only a second factor at all where the owning portal binds "
+         "a certificate profile. Both leaves are beside the verdict for that reason. WHAT THIS TAB "
+         "CANNOT SAY is whether the thing named in Authentication Profile is a profile or a "
+         "SEQUENCE, which are different objects at different rail addresses; the row holds only a "
+         "name. Nor can it report a portal that demands NOTHING - a portal with no rows here has "
+         "no row on this tab, and the Authentication rows column on the Portals tab is where that "
+         "state appears.",
+         # "Portal Client Authentication" AND NOT "GlobalProtect Portal Client Authentication",
+         # which is what this tab wanted to be called: Excel caps a worksheet name at 31
+         # characters and `probe.surface_for` reported the longer title truncating to
+         # "GlobalProtect Portal Authentica" in the workbook while the live page kept the whole
+         # of it - the two surfaces disagreeing about the tab's own name. 28 characters fits
+         # both. "Client Authentication" is the vendor's own sub-heading for exactly this table
+         # (help 11.2 p.1002, the row of settings beginning "Client Authentication / Name / Enter
+         # a name to identify the client authentication configuration"), so what was dropped is
+         # the product name and not the thing's own word.
+         title="Portal Client Authentication", subject=CLIENT_AUTH_SUBJECT,
+         setting_labels=globalprotect_portal.CLIENT_AUTH_SETTING_LABELS,
+         # ONE READER AND IT IS FREE: `admission_demand` is in `DERIVED_FIELDS` and no payload key
+         # carries it. Without it the one setting column on this tab would read
+         # `password_and_certificate` to a customer.
+         value_readers=globalprotect_portal.CLIENT_AUTH_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET. One control, one setting column, and four shipped queries splitting that
+         # column's four values at three severities - so the stated condition is what distinguishes
+         # a critical row from a high one on cells that are otherwise identical.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.GLOBALPROTECT_ENFORCEMENT_POINT,
+         "Whether each virtual system publishes internal web applications to a browser with no "
+         "GlobalProtect agent installed. THE ROW IS A CONCLUSION OVER ALL THE VIRTUAL SYSTEM'S "
+         "GLOBALPROTECT OBJECTS AND NOT ABOUT ANY PORTAL, and that is the whole reason this "
+         "subject exists beside the portal tab: the state worth reporting is sometimes the "
+         "ABSENCE of a publishing portal while the application definitions sit there ready, and a "
+         "vsys holding a definition no portal publishes has NO PORTAL ROW anywhere in this report "
+         "to be reported on - measured on this estate's vsys6. What is graded here is PRESENCE, "
+         "so there is no well-configured rank: the acceptable state is that the feature is not "
+         "there. THE PIECES LIVE AT THREE RAIL ADDRESSES and the Clientless definitions cell is "
+         "what says which one to open - the definitions at Network > GlobalProtect > Clientless "
+         "Apps and Clientless App Groups, and the publishing at a portal's own Clientless VPN "
+         "tab. WHAT THIS TAB CANNOT SAY is whether the applications published are ones somebody "
+         "REVIEWED, which is the engineer's half of the control, nor whether the transport floor "
+         "those browser sessions negotiate is acceptable - that is per portal, and stage 8 "
+         "records it as the half it did not build. A LICENCE ROW READING `No` IN THE LICENSING "
+         "COLUMN COVERS TWO STATES, licensed and never asked, and the GlobalProtect licence cell "
+         "beside it is the only place they are told apart.",
+         title="GlobalProtect Coverage", subject=ENFORCEMENT_POINT_SUBJECT,
+         setting_labels=globalprotect_portal.ENFORCEMENT_POINT_SETTING_LABELS,
+         value_readers=globalprotect_portal.ENFORCEMENT_POINT_VALUE_READERS,
+         hidden_fields=(),
+         # EVERY COLUMN OF THIS MODEL IS IN ITS `DERIVED_FIELDS` and nothing writes a provenance
+         # row for any of them - the model's own docstring says so ("CARRIES NO PER-FIELD
+         # PROVENANCE, and that is a real `false` rather than a lapse: every column is computed")
+         # and `normalization/globalprotect.py` passes `provenance=()` at the write. AND
+         # `write_node_row` WRITES NO `__entry__` ROW EITHER, which is the half that decides this:
+         # `write_scoped_objects` always writes one, so the other two tabs of this domain resolve
+         # to `Local` and need nothing, while this one lands `provenance_cells` on its `row is
+         # None` arm and prints "Not recorded" about values this assessment computed. Board record
+         # P451, and it bites ONE of this domain's three tabs rather than two.
+         #
+         # ONE ANSWER FOR THE ROW IS THE HONEST SHAPE, copied from `T.DECRYPTION_RULEBASE_COVERAGE`
+         # and `2b5f744`. It is a `provenance_cell` and not a `value_readers` entry because a
+         # reader answers for a COLUMN and this answers for the ROW - and the reader on
+         # `clientless_vpn_feature_state` above would fix only that one of the two cells, leaving
+         # `licence_excludes_globalprotect` reading "Not recorded". It says only "Derived" and
+         # names nothing beside it, because there is no recorded provenance anywhere on this model
+         # to name.
+         provenance_cell=lambda point, _p, _f: "Derived",
+         # A Template column would be blank on every row: there is no pushed key here to name a
+         # template for, because there is no key at all.
+         source_columns=(),
+         # THE FULL SET. Two setting columns, one of which is an applicability gate reading the
+         # same value on every row, and four queries splitting the other's values - so the stated
+         # condition is what says why a `live` vsys is medium and a `latent` one is low.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
          "interfaces carry them.",

@@ -699,6 +699,97 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("zone-protection", "Zone Protection", "Network", "Network Profiles", "shield",
                  where="Network > Network Profiles > Zone Protection",
                  search_model="integrations.ZoneProtectionProfile"),
+    # Network > GlobalProtect, 2026-11-02, for PAN-GPP-001 to -006 - THREE items in a NEW rail
+    # group, over the three models this domain's stage 7 minted and which had never been queried
+    # from this repository at all.
+    #
+    # THE GROUP IS THE VENDOR'S OWN AND SO IS ITS CONTENT. Help 11.2 p.997 enumerates the eight
+    # GlobalProtect screens verbatim: "The following firewall web interface pages allow you to
+    # configure and manage GlobalProtect components: • Network > GlobalProtect > Portals •
+    # Network > GlobalProtect > Gateways • Network > GlobalProtect > MDM • Network > GlobalProtect
+    # > Clientless Apps • Network > GlobalProtect > Clientless App Groups • Objects >
+    # GlobalProtect > HIP Objects • Objects > GlobalProtect > HIP Profiles • Device >
+    # GlobalProtect Client". So the group spans THREE PAN-OS categories in the product, and the
+    # two items this domain needs are both in the Network five.
+    #
+    # LAST IN Network AND AFTER `Network Profiles`, which is the Help's own chapter order rather
+    # than a layout anybody chose: Network Profiles is p.635-650 and the GlobalProtect chapter is
+    # p.997-1085. `GlobalProtect` is a top-level chapter of the Help whose SCREENS are addressed
+    # under Network, which is why the vendor's Network-node enumeration at p.359 (quoted on the
+    # `ipsec-tunnels` item above) does not list it and this is still a Network group.
+    #
+    # THE NEXT DOMAIN ADDS TO THIS GROUP AND DOES NOT CHANGE IT. `globalprotect-gateway` is the
+    # `Gateways` screen plus its own two child models, and `GlobalProtectEnforcementPoint` - the
+    # third item below - is SHARED with it: that domain's `AWAITING_PRESENTATION` comment names
+    # this entry as load-bearing for six of its seven controls.
+    ConfigObject("globalprotect-portals", "Portals", "Network", "GlobalProtect", "server",
+                 where="Network > GlobalProtect > Portals",
+                 search_model="integrations.GlobalProtectPortal"),
+    # Network > GlobalProtect > Portals > <portal-config> > Authentication, 2026-11-02, for
+    # PAN-GPP-002 - a SECOND item under the portal's own address, over the child row.
+    #
+    # ITS `where` IS A TAB INSIDE A DIALOG AND THAT IS A REAL ADDRESS, not a formality. Help 11.2
+    # p.1001 verbatim: "GlobalProtect Portals Authentication Configuration Tab • Network >
+    # GlobalProtect > Portals > <portal-config> > Authentication", and p.1002 describes the table
+    # this model's rows ARE: "Client Authentication ... You can create multiple client
+    # authentication configurations and differentiate them by operating system." So an assessor
+    # following a PAN-GPP-002 finding opens the portal and selects that tab, and naming only
+    # `Network > GlobalProtect > Portals` would send them to a grid of portals with no indication
+    # that the row they are looking for is two clicks inside one of them.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `globalprotect-portals`, on the argument
+    # `decryption-coverage` makes one rulebase over: an engineer fixes one or the other. A
+    # PAN-GPP-002 row is fixed by editing ONE ROW of ONE portal's table, and the portal item's own
+    # controls are fixed on three other tabs of the same dialog. `configuration_results.RESULTS`
+    # is keyed on the slug alone, so each needs a slug of its own in any case.
+    #
+    # THE LABEL IS THE VENDOR'S RAIL WORD FOR THE TAB and the slug says which portal thing it is.
+    # `shield` AND NOT `lock`, WHICH IS NOT IN THE VENDORED SET. The field's own comment above
+    # says an icon "must exist in OptivEdge's vendored icon set - templates/components/icons/.
+    # Not lucide's full catalogue; a name that is not there renders a 500" - and it is worth
+    # recording what that costs, because nothing validates the name at import time and the whole
+    # set is nineteen files: book-marked, chevron-right, circle-question-mark, clipboard-check,
+    # download, eye, flag, layout-dashboard, list-checks, monitor, plus, refresh-cw, server,
+    # settings, shield, trash-2, triangle-alert, wand-sparkles, x. `lock` read as obviously
+    # present and is not there, and because the RAIL renders on every page of the explorer the
+    # `FileNotFoundError` took out FIFTY-SIX tests across `test_configuration_queries`,
+    # `test_navigation` and `test_table_presentation` - for every rail item, not just this one -
+    # and not one of their names mentions an icon.
+    ConfigObject("globalprotect-portal-authentication", "Portal Authentication", "Network",
+                 "GlobalProtect", "shield",
+                 where="Network > GlobalProtect > Portals > <portal-config> > Authentication",
+                 search_model="integrations.GlobalProtectPortalClientAuthRow"),
+    # Network > GlobalProtect, 2026-11-02, for PAN-GPP-006 - and SHARED WITH `globalprotect-
+    # gateway`, which runs next and whose PAN-GPG-005 reports on the same model.
+    #
+    # ITS `where` NAMES THE GROUP AND NOT A SCREEN, which is the honest answer for this subject
+    # rather than a vagueness. The row is one virtual system's GlobalProtect configuration taken
+    # as a whole, and the verdict on it is computed from THREE of the group's screens at once:
+    # `Clientless Apps` and `Clientless App Groups` hold the definitions, and a portal's own
+    # `Clientless VPN` tab holds the publishing. There is no single vendor screen for the vsys's
+    # posture, and picking one of the three would send a reader to the wrong one on two thirds of
+    # the rows - the `latent` rank is specifically the state where NO portal publishes, so the
+    # portal screen is empty of it. The Clientless definitions cell on the findings tab names the
+    # counts so a reader knows which of the three to open. A compound `where` has precedent on
+    # this rail ("Device > Setup > Management > General Settings, and Setup > Interfaces").
+    #
+    # WHY IT IS ON THE RAIL AT ALL, since every column of the model is a verdict this assessment
+    # computes. `rule-posture` and `decryption-coverage` state the test and this passes it the same
+    # way: the subject is a PAN-OS node - one virtual system's `global-protect` subtree - which an
+    # assessor opens at this address and reads, and the rail item promises the NODE, not our
+    # reading of it. The model's own docstring records that node PRESENCE is the wrong test and an
+    # entry count the right one, which is what the page shows.
+    #
+    # THE LABEL IS OURS AND IS A PROPOSAL. The vendor has no word for the state of a whole virtual
+    # system's GlobalProtect configuration: p.997 names eight screens and no roll-up over them.
+    # "Coverage" follows `Decryption Coverage`, which is this report's established word for a
+    # verdict over everything at one enforcement point, and it is deliberately NOT "Clientless
+    # VPN": the next domain adds host-posture columns to the same model for PAN-GPG-005, and a
+    # feature-specific label would become a lie the day it lands.
+    ConfigObject("globalprotect-coverage", "GlobalProtect Coverage", "Network", "GlobalProtect",
+                 "clipboard-check",
+                 where="Network > GlobalProtect",
+                 search_model="integrations.GlobalProtectEnforcementPoint"),
 )
 
 CONFIG_OBJECTS_BY_KEY = {(o.category, o.slug): o for o in CONFIG_OBJECTS}

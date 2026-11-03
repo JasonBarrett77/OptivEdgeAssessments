@@ -55,6 +55,9 @@ from optivedge_integrations.integrations.models import (
     IkeGateway,
     DecryptionPolicyRule,
     DecryptionRulebaseVerdict,
+    GlobalProtectEnforcementPoint,
+    GlobalProtectPortal,
+    GlobalProtectPortalClientAuthRow,
     SslDecryptionExclusion,
     InterfaceManagementProfile,
     IpsecCryptoProfile,
@@ -1926,6 +1929,212 @@ RESULTS = {
             _yes_no(p.is_unreferenced),
         ),
     ),
+    # Network > GlobalProtect > Portals, 2026-11-02, for PAN-GPP-001, -003, -004 and -005. The
+    # FIRST page over `integrations.GlobalProtectPortal`, which stage 7 minted for this domain and
+    # which had never been queried from this repository at all.
+    #
+    # EVERY HEADING THAT ALSO HEADS A FINDINGS COLUMN IS THE SAME WORD, character for character,
+    # so one column does not read two ways on two surfaces. The sourcing is written once, in
+    # `globalprotect_portal_presentation.PORTAL_SETTING_LABELS`, against PAN-OS Web Interface Help
+    # 11.2 `Network > GlobalProtect > Portals` (p.999-1039).
+    #
+    # EVERY `query_fields` ENTRY WAS CHECKED AGAINST THE COMPILER'S OWN REGISTRY rather than
+    # assumed, because stored, searchable and registered are three different things: all eleven
+    # below are keys of `search/globalprotect_portal/compiler.py`'s `FIELD_OPERATOR_REGISTRY`.
+    # THE TWO WITHOUT AN ENTRY ARE DELIBERATE. "SSL/TLS service profile" presents
+    # `ssl_tls_service_profile`, which is NOT registered - the controls ask the verdict beside it
+    # instead, and the repo's rule is that only a column a control asks for is registered - and
+    # "Authentication rows" presents `client_auth_row_count`, which is not registered either and
+    # is here because zero is the one portal state no control on this domain can report.
+    #
+    # THE THREE CLIENTLESS COLUMNS ARE REGISTERED FOR A HALF NOBODY SHIPPED, and that is why they
+    # are on this page and draw no findings column. `clientless_vpn_state`,
+    # `clientless_vpn_min_version` and `clientless_vpn_floor_known` are in the registry because
+    # PAN-GPP-006's SECOND half - the portal's own clientless transport floor - asked for them;
+    # stage 8 built only the first half and recorded the second in `subjects_in_two_models`. No
+    # shipped query clauses on any of the three, so `tested_fields` derives nothing for them, and
+    # an assessor can still ask the question here while the control is unbuilt.
+    "globalprotect-portals": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Portal": "portal_name",
+                      "No SSL/TLS service profile is bound": "tls_profile_binding_missing",
+                      "Portal Login Page": "custom_login_page",
+                      "Allow User to Upgrade GlobalProtect App": "upgrade_posture",
+                      "Save User Credentials": "saved_credentials_posture",
+                      "All four keys the device requires were read": "mandatory_keys_present",
+                      "Clientless VPN branch": "clientless_vpn_state",
+                      "Clientless transport floor": "clientless_vpn_min_version",
+                      "Transport floor was written": "clientless_vpn_floor_known"},
+        columns=("Appliance", "Vsys", "Portal", "SSL/TLS service profile", "Certificate Profile",
+                 "No SSL/TLS service profile is bound", "Portal Login Page",
+                 "Allow User to Upgrade GlobalProtect App", "Save User Credentials",
+                 "Authentication rows", "All four keys the device requires were read",
+                 "Clientless VPN branch", "Clientless transport floor",
+                 "Transport floor was written"),
+        base_queryset=_ordered(
+            GlobalProtectPortal, "appliance__hostname", "vsys_name", "name"),
+        row=lambda p: (
+            str(p.appliance),
+            p.vsys_name or "-",
+            p.portal_name,
+            # "(empty)" and not a blank or an em dash: the key is MANDATORY at commit validation,
+            # so a portal that carries it and holds nothing is a real observed state - it is what
+            # this estate's PA-5220 portal reads - and a blank cell would read as a gap in the
+            # collection. The verdict column beside it is what says that is the firing state.
+            p.ssl_tls_service_profile or "(empty)",
+            # VENDOR'S OWN WORD, help 11.2 p.1003: "Certificate Profile - (Optional) Select the
+            # Certificate Profile the portal uses to match those client certificates that come
+            # from user endpoints." HERE AND NOWHERE ELSE, which is worth stating: stage 5 marks
+            # this column `presented: true` and no shipped query clauses on it, so it draws no
+            # findings column - and the verdict that DOES reach a findings row is
+            # `certificate_profile_bound` on the client-auth tab, which says Yes or No and not
+            # WHICH. A reader following a PAN-GPP-002 finding to the portal's Authentication tab
+            # needs the name, and this is the only cell in the report that carries it.
+            #
+            # `(none)` RATHER THAN `(empty)`: the key is OPTIONAL on a committed portal, so a
+            # null is a portal that binds no certificate profile - which is the permissive state
+            # measured on this estate's one PA-5220 portal - and not a reading nobody took.
+            p.certificate_profile or "(none)",
+            _yes_no(p.tls_profile_binding_missing),
+            # The device's own token, DELIBERATELY UNTRANSLATED, and the findings tab makes the
+            # same call for the same reason: `factory-default` and `Disable` are this screen's own
+            # two words (help 11.2 p.1001), not Django's, so there is nothing to translate.
+            p.custom_login_page or "(empty)",
+            # THE CHOICE LABEL AND NOT THE TOKEN on both of these, because the stored values are
+            # `0`/`1`/`2`/`3` and `no_agent_configuration`, and a `0` under "Save User Credentials"
+            # reads as a count. The findings tab reaches the same words through a `value_readers`
+            # entry, because the shared `display_value` behind that surface is choices-unaware.
+            p.get_upgrade_posture_display(),
+            p.get_saved_credentials_posture_display(),
+            # A number and not `_nothing`: zero is the reportable end here - a portal that demands
+            # nothing of any endpoint - and "Nothing" on a column named for a count would read as
+            # "not counted" rather than "none found".
+            str(p.client_auth_row_count),
+            _yes_no(p.mandatory_keys_present),
+            p.get_clientless_vpn_state_display(),
+            # `(empty)` rather than an em dash: an OPTIONAL key, so a portal that configured
+            # Clientless VPN and wrote no floor is a real state, and the column beside it is what
+            # reports whether it was written at all.
+            p.clientless_vpn_min_version or "(empty)",
+            _yes_no(p.clientless_vpn_floor_known),
+        ),
+    ),
+    # Network > GlobalProtect > Portals > <portal-config> > Authentication, 2026-11-02, for
+    # PAN-GPP-002. The FIRST page over `integrations.GlobalProtectPortalClientAuthRow`.
+    #
+    # ALL NINE HEADINGS HAVE A `query_fields` ENTRY, which is unusual on this rail and is a
+    # property of the model rather than of this page: every column of it except the FK is in
+    # `search/globalprotect_portal_client_auth/compiler.py`'s registry, because every one of them
+    # is either part of the row's identity or one of the two leaves PAN-GPP-002's verdict is
+    # computed from.
+    #
+    # THE ROW NAME IS NOT WHAT A READER GOES BY and the column order says so: Portal, then Row,
+    # then the endpoint class. Stage 5 measured that the row's own name is operator-chosen and
+    # carries no meaning, so it is here to tell two rows apart and `os` is the key the table is
+    # actually keyed by (help 11.2 p.1002: "The OS is the primary differentiator between
+    # configurations").
+    "globalprotect-portal-authentication": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Portal": "portal_name",
+                      "Row": "row_name", "Endpoint class (OS)": "os",
+                      "Authentication Profile": "authentication_profile",
+                      "Credentials OR certificate": "user_credential_or_client_cert_required",
+                      "Certificate profile bound": "certificate_profile_bound",
+                      "What this row demands before admitting an endpoint": "admission_demand"},
+        columns=("Appliance", "Vsys", "Portal", "Row", "Endpoint class (OS)",
+                 "Authentication Profile", "Credentials OR certificate",
+                 "Certificate profile bound",
+                 "What this row demands before admitting an endpoint"),
+        base_queryset=_ordered(
+            GlobalProtectPortalClientAuthRow, "appliance__hostname", "vsys_name", "portal_name",
+            "name"),
+        row=lambda r: (
+            str(r.appliance),
+            r.vsys_name or "-",
+            r.portal_name,
+            r.row_name,
+            # `(empty)` rather than an em dash on these two: each key is mandatory on a committed
+            # row, so an empty one is a reading nobody took rather than a branch that does not
+            # exist, and stage 5 reads both as firing for that reason.
+            r.os or "(empty)",
+            r.authentication_profile or "(empty)",
+            # THE DEVICE'S OWN `yes`/`no` AND NOT `_yes_no`, which would give the same two words
+            # by accident and the wrong one in the third state. This leaf is a CharField whose
+            # NULL is two states at once - the key absent on a committed row, or a row the
+            # collector did not carry - and stage 5 says neither is safe, so it must not print as
+            # "no". "no" is the HARDENED answer on this switch (help 11.2 p.1003), which is the
+            # reverse of nearly every other switch in this report.
+            r.user_credential_or_client_cert_required or "not read",
+            _yes_no(r.certificate_profile_bound),
+            # The choice label, which is a sentence. The raw token is `password_and_certificate`.
+            r.get_admission_demand_display(),
+        ),
+    ),
+    # Network > GlobalProtect, 2026-11-02, for PAN-GPP-006. The FIRST page over
+    # `integrations.GlobalProtectEnforcementPoint` - and the page `globalprotect-gateway` inherits
+    # for PAN-GPG-005, which reports on the same model.
+    #
+    # NO `scope` ON ANY OF THE THREE PAGES THIS DOMAIN ADDS: each names a model of its own, so
+    # `object_for_canonical_query` short-circuits on the single candidate and a scope would be
+    # dead weight. That is the same call `decryption-rules` and `decryption-coverage` made.
+    #
+    # THE THREE CLIENTLESS COUNTS ARE THREE COLUMNS HERE AND ONE CELL ON THE FINDINGS TAB, which
+    # is a deliberate difference between the two surfaces rather than a drift. This page's job is
+    # to be QUERIED, and each of the three is separately registered and separately askable; the
+    # findings tab's job is to be READ, and the three are never read apart - they are the evidence
+    # behind one verdict, so they are one cell there and the tab stays narrow enough to read.
+    #
+    # `hip_objects_testing_client_version` IS REGISTERED AND IS A COLUMN AND NO SHIPPED QUERY
+    # CLAUSES ON IT. It is PAN-GPP-003's SECOND half - whether an out-of-date agent is refused
+    # rather than merely invited to upgrade - which stage 8 did not build: stage 5 discharged the
+    # enforcement half as unclausable, because a HIP object no security rule references refuses
+    # nobody and the attachment point is a security rule's `hip-profiles`. So the number is here
+    # for an assessor to ask about while the control is unbuilt, and it draws no findings column.
+    "globalprotect-coverage": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Portals": "portal_count",
+                      "Clientless apps": "clientless_app_count",
+                      "Clientless app groups": "clientless_app_group_count",
+                      "Portals publishing": "portals_publishing_clientless_apps",
+                      "Clientless VPN surface": "clientless_vpn_feature_state",
+                      "GlobalProtect Portal licence": "globalprotect_portal_licensed",
+                      "Licensing rules GlobalProtect out": "licence_excludes_globalprotect",
+                      "Licence entries read": "licence_entry_count",
+                      "Licence reply collected": "licence_reply_collected",
+                      "HIP objects testing client version":
+                          "hip_objects_testing_client_version"},
+        columns=("Appliance", "Vsys", "Portals", "Clientless apps", "Clientless app groups",
+                 "Portals publishing", "Clientless VPN surface",
+                 "GlobalProtect Portal licence", "Licensing rules GlobalProtect out",
+                 "Licence reply collected", "Licence entries read",
+                 "HIP objects testing client version"),
+        base_queryset=_ordered(
+            GlobalProtectEnforcementPoint, "appliance__hostname", "vsys_name"),
+        row=lambda v: (
+            str(v.appliance),
+            v.vsys_name or "-",
+            # Numbers and not `_nothing` on all five counts: zero is the reportable end of every
+            # one of them, and the model's own docstring is why a zero here is a real reading -
+            # "NODE PRESENCE IS THE WRONG TEST AND AN ENTRY COUNT IS THE RIGHT ONE", measured,
+            # because deleting the last entry leaves the container present and empty.
+            str(v.portal_count),
+            str(v.clientless_app_count),
+            str(v.clientless_app_group_count),
+            str(v.portals_publishing_clientless_apps),
+            # Choice labels on both: the tokens are `latent` and `unknown`, and `latent` is the
+            # rank this whole subject exists for.
+            v.get_clientless_vpn_feature_state_display(),
+            v.get_globalprotect_portal_licensed_display(),
+            _yes_no(v.licence_excludes_globalprotect),
+            # OURS, AND THE COLUMN THAT MAKES THE TWO BESIDE IT HONEST. The licence reply cannot
+            # tell "holds nothing" from "nobody asked" - the model's own comment records that
+            # `{'licenses': None}` arrives with status=success - so this boolean is what says
+            # whether the question was put at all. Stage 5 marks it `presented: true` and no
+            # shipped query clauses on it, so it draws no findings column; it is here because
+            # without it a reader cannot tell which of the two states a `No` in the applicability
+            # column covers.
+            _yes_no(v.licence_reply_collected),
+            str(v.licence_entry_count),
+            str(v.hip_objects_testing_client_version),
+        ),
+    ),
     # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007.
     #
     # THE POSITION IS PART OF THE ROW'S IDENTITY and is printed first among the rule's own
@@ -2447,12 +2656,33 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # PAN-FIL queries resolve on their own and `test_no_prefix_outlives_its_stage_9_artifact`
     # passes. Removing it is part of that stage's job rather than a side effect: an exemption that
     # survives the work it was waiting for is a permanent hole.
-    # `globalprotect-portal` reached stage 8 on 2026-10-31. THREE models and none of them has a
-    # rail item: all three were created by stage 7 for this domain and had never been queried from
-    # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's
-    # contract forbids building one. The portal and its client-auth ROW will want two pages rather
-    # than one, because the row is the grain a PAN-GPP-002 finding names.
-    "PAN-GPP": "stage9-globalprotect-portal.json",
+    # `PAN-GPP` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `globalprotect-portal`,
+    # which is the work the entry was waiting for. Its own words were: "`globalprotect-portal`
+    # reached stage 8 on 2026-10-31. THREE models and none of them has a rail item: all three were
+    # created by stage 7 for this domain and had never been queried from this repository at all.
+    # Stage 9 for this domain is what gives them a page, and stage 8's contract forbids building
+    # one. The portal and its client-auth ROW will want two pages rather than one, because the row
+    # is the grain a PAN-GPP-002 finding names."
+    #
+    # ALL THREE NOW HAVE ONE, in a NEW rail group - `Network > GlobalProtect`, the vendor's own
+    # group, enumerated verbatim at help 11.2 p.997: `globalprotect-portals` over
+    # `integrations.GlobalProtectPortal`, `globalprotect-portal-authentication` over
+    # `integrations.GlobalProtectPortalClientAuthRow`, and `globalprotect-coverage` over
+    # `integrations.GlobalProtectEnforcementPoint`. So all TWENTY-FOUR shipped PAN-GPP queries
+    # resolve on their own and `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it
+    # is part of that stage's job rather than a side effect: an exemption that survives the work
+    # it was waiting for is a permanent hole.
+    #
+    # THE ENTRY WAS RIGHT ABOUT THE TWO PAGES AND RIGHT THAT THE DEBT COVERED ALL SIX CONTROLS,
+    # and `probe.surface_for` confirmed the harder half: all six reached NO SHEET AT ALL, so every
+    # one of them needed both surfaces rather than only a results destination. That is the
+    # opposite of `PAN-URL` and `PAN-DCP` above, where most controls already had a tab.
+    #
+    # `PAN-GPG` BELOW STILL NEEDS ITS OWN ENTRY AND IS NOW SMALLER BY ONE MODEL.
+    # `integrations.GlobalProtectEnforcementPoint` is shared between the two domains and is the
+    # one this run gave a page to, so that entry's remaining debt is the three models
+    # `globalprotect-gateway`'s own stage 7 created. Its text is left exactly as it stands,
+    # because an entry is the debt its own stage 9 clears.
     # `platform-lifecycle` reached stage 8 on 2026-11-01. THREE models and none of them has a
     # rail item: all three were created by stage 7 for this domain and had never been queried from
     # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's

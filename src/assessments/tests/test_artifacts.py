@@ -111,7 +111,15 @@ class WorkbookBuildTests(TestCase):
         # `SslDecryptionVendorExclusionOptOut` is named by no shipped query, so no finding of its
         # kind can exist - and the domain's 21 queries needed a results DESTINATION, which is a
         # different surface from a tab.
-        self.assertIn("Summary: 53 tabs linked, 0 findings in total", reports[0])
+        # 56 on 2026-11-02 by stage 9 of `globalprotect-portal`. THREE tabs for a SIX-control
+        # domain, and the first build whose tabs all land in ONE NEW rail GROUP: GlobalProtect
+        # Portals, Portal Client Authentication and GlobalProtect Coverage, all three in Network
+        # under the vendor's own `Network > GlobalProtect` group (help 11.2 p.997 enumerates its
+        # eight screens). `probe.surface_for` answered per control that all six reached NO tab
+        # beforehand, so every one of them needed both surfaces rather than only a results
+        # destination. The third tab is SHARED FORWARD: `globalprotect-gateway`'s PAN-GPG-005
+        # reports on the same model, so that domain inherits GlobalProtect Coverage.
+        self.assertIn("Summary: 56 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -143,7 +151,19 @@ class WorkbookBuildTests(TestCase):
         # not adjacent in this list: two categorise as Policies and one as Device, so the
         # Summary's category order splits them. The note above still holds and now cost this run
         # nothing: both literals were bumped together.
-        self.assertEqual(len(names), 54)
+        # 57 later on 2026-11-02: GlobalProtect Portals, Portal Client Authentication and
+        # GlobalProtect Coverage. `globalprotect-portal` adds THREE tabs for six controls - no
+        # PAN-GPP control reached any existing tab, measured per control with
+        # `probe.surface_for` - and unlike the three above they ARE adjacent, because all three
+        # categorise as Network. The note above still holds and again cost nothing: both
+        # literals were bumped together.
+        #
+        # "Portal Client Authentication" AND NOT "GlobalProtect Portal Client Authentication",
+        # which is what that tab wanted to be called: this list is Excel's worksheet names,
+        # capped at 31 characters, and the longer title truncated to "GlobalProtect Portal
+        # Authentica" in the book while the live page kept all of it. `probe.surface_for` prints
+        # that truncation, which is how it was caught before it shipped.
+        self.assertEqual(len(names), 57)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
