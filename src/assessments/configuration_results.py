@@ -79,6 +79,8 @@ from optivedge_integrations.integrations.models import (
     AuthenticationSettings,
     LoggingSettings,
     WildfireSettings,
+    HighAvailabilityConfig,
+    PanoramaRegistration,
     LoginBanner,
     ManagementTlsBinding,
     ManagementSshSettings,
@@ -2068,6 +2070,158 @@ RESULTS = {
             _alarm_switch(s.web_alarm_notification_enabled),
         ),
     ),
+    # Device > High Availability, 2026-11-03, for PAN-HAP-001 to 004. The rail item is
+    # `high-availability` and this is what `query_results_url` resolves for all nine of those
+    # controls' queries.
+    #
+    # EVERY `query_fields` ENTRY IS IN `search/high_availability_config/compiler.py`'s
+    # `FIELD_OPERATOR_REGISTRY`, checked against it rather than assumed - stored, searchable and
+    # REGISTERED are three different things, and a heading mapped to an unregistered field points
+    # the "build a query from these rows" button at a lookup that refuses itself. Twelve fields
+    # are registered and the raw configuration keys deliberately are NOT: that module's docstring
+    # gives a reason per omission, the governing one being that five booleans on this model are
+    # nullable and this language has no is-null operator, so a clause over one would pass every
+    # appliance nobody read. So the four columns below that present a raw key - the two monitoring
+    # switches, the encryption switch and the backup port - carry NO entry, which is the same
+    # answer a composite column gets.
+    "high-availability": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "HA pair enabled": "ha_enabled",
+            "Config collected": "ha_config_collected",
+            "Runtime read collected": "ha_runtime_state_collected",
+            "No live redundant peer": "no_live_redundant_peer",
+            "Link not encrypted": "ha1_control_link_not_encrypted",
+            "Control link exposure": "ha1_control_link_exposure",
+            "Monitors nothing": "ha_monitors_nothing",
+            "Monitoring state": "ha_monitoring_state",
+            "No second keepalive path": "no_independent_second_keepalive_path",
+            "Second keepalive path": "second_keepalive_path_state"},
+        columns=("Appliance", "Serial", "HA pair enabled", "Mode", "Config collected",
+                 "Runtime read collected", "No live redundant peer", "Link not encrypted",
+                 "HA1 encryption switch", "Control link exposure", "Monitors nothing",
+                 "Monitoring state", "Link monitoring", "Path monitoring", "Link groups",
+                 "No second keepalive path", "Second keepalive path", "Backup peer address",
+                 "Heartbeat backup"),
+        base_queryset=_ordered(HighAvailabilityConfig, "appliance__hostname"),
+        row=lambda h: (
+            str(h.appliance),
+            h.appliance.serial_number or "-",
+            _yes_no(h.ha_enabled),
+            # `group/mode` is a CHOICE NODE read as WHICH CHILD is present, so blank is a real
+            # reading and not a gap: fw-core-tpa-b holds no `mode` key beside a partner that
+            # holds `active-passive`, measured by stage 4. "-" rather than "none", because the
+            # key's absence is what it is.
+            h.ha_mode or "-",
+            _yes_no(h.ha_config_collected),
+            # THE COLUMN THAT TELLS FOUR VERDICTS APART FROM FOUR FINDINGS. `show high-availability
+            # all` is issued by no collector today, so this reads `no` on every appliance in every
+            # estate and the runtime-dependent verdicts stand at their not-collected value.
+            _yes_no(h.ha_runtime_state_collected),
+            _yes_no(h.no_live_redundant_peer),
+            _yes_no(h.ha1_control_link_not_encrypted),
+            # THREE STATES, AND NULL IS NOT "no": null is the key being absent from the
+            # configuration. And it does NOT mean the link is encrypted either way - the switch
+            # cannot take effect without an imported HA key, and `validate full` refuses the
+            # commit without one.
+            _alarm_switch(h.ha1_encryption_enabled),
+            h.ha1_control_link_exposure or "-",
+            _yes_no(h.ha_monitors_nothing),
+            h.ha_monitoring_state or "-",
+            # BOTH READ `yes` WHEN THE KEY IS ABSENT, and that is the device's own answer rather
+            # than ours - `show high-availability state` reports `enabled: yes` with
+            # `groups: null` on an appliance holding no monitoring node. They are shown here, on
+            # a reference page an assessor reads next to the rest of the node, and NOT on the
+            # findings tab, where they would sit beside a verdict they contradict. Neither is
+            # registered and no control may clause on either.
+            _yes_no(h.link_monitoring_enabled),
+            _yes_no(h.path_monitoring_enabled),
+            # The names, with the count: a group carrying NO interface is configuration
+            # `validate full` accepts, so a positive count does not mean anything is monitored.
+            # ONE PER LINE and not comma-joined, per the repository's multi-value cell rule.
+            # `test_no_presentation_module_comma_joins_a_list` enforces it by GREPPING THIS FILE
+            # for a comma join as source text, so naming that literal in a comment fails the
+            # test as surely as writing it - which this comment found out.
+            "\n".join([_nothing(h.monitored_link_group_count, "groups")]
+                      + list(h.monitored_link_groups or [])),
+            _yes_no(h.no_independent_second_keepalive_path),
+            h.second_keepalive_path_state or "-",
+            # `group/peer-ip-backup`. Blank means the backup control link has no far end, which
+            # is the half-configured state both PA-5220s are measured in - and the container
+            # above `ha1_backup_port` is PRESENT AND EMPTY on both, so an existence test at the
+            # container reports a backup link that does not exist.
+            h.peer_ip_backup or "-",
+            # `group/election-option/heartbeat-backup`. A DIFFERENT SUBTREE from the backup
+            # control link and NOT VALID ON A PA-VM AT ALL (`code=6` at the position), so a null
+            # here on a virtual firewall is a position the schema does not have rather than a
+            # setting left off.
+            _alarm_switch(h.heartbeat_backup_enabled),
+        ),
+    ),
+    # Device > Setup > Management, the `Panorama Settings` panel, 2026-11-03, for PAN-HAP-005.
+    # The rail item is `panorama-settings`.
+    #
+    # ALL SEVEN REGISTERED FIELDS ARE OFFERED and the two nullable switches are not, which is the
+    # compiler's own decision: `is_empty` is the only operator in this language about absence and
+    # it tests the empty string alone, so a clause over `secure_panorama_communication_enabled`
+    # or `check_server_identity_enabled` would pass every appliance whose certificate posture
+    # nobody read. `client_certificate_name` and `client_certificate_type` are unregistered too -
+    # the name points at a certificate object no subject of this domain models, so an
+    # unresolvable name is indistinguishable from a resolvable one in a query.
+    "panorama-settings": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Config collected": "management_config_collected",
+            "Panorama server": "panorama_server_primary",
+            "Secondary Panorama server": "panorama_server_secondary",
+            "Estate assumed a pair": "management_estate_is_a_pair",
+            "Channel not hardened": "management_channel_not_hardened"},
+        columns=("Appliance", "Serial", "Config collected", "Panorama server",
+                 "Secondary Panorama server", "Estate assumed a pair", "Secure Client "
+                 "Communication", "Check Server Identity", "Device certificate type",
+                 "Bound certificate", "Channel not hardened", "Address in force unverified"),
+        base_queryset=_ordered(PanoramaRegistration, "appliance__hostname"),
+        row=lambda p: (
+            str(p.appliance),
+            p.appliance.serial_number or "-",
+            _yes_no(p.management_config_collected),
+            # Blank means the firewall names no management appliance at all and is centrally
+            # managed by nothing - a reading, not a gap.
+            p.panorama_server_primary or "-",
+            # THE FINDING SIDE for PAN-HAP-005's redundancy half, and blank is a MEASURED
+            # reading: an absent `panorama-server-2` asserts the firewall names no secondary
+            # appliance, paid in both directions on fw-core-tpa-a against `show panorama-status`
+            # (commit jobs 540 and 541).
+            p.panorama_server_secondary or "-",
+            # TRUE BY DEFAULT AND FALSE BY NOTHING. The answer lives on the management station's
+            # own high-availability node, which is out of assessment scope, so only an engineer
+            # can set this. The heading says "assumed" because nothing read it.
+            _yes_no(p.management_estate_is_a_pair),
+            # The vendor's own two field names, Help 11.2 p.710-711. Three states each, because
+            # both are nullable and NULL is the key being absent rather than switched off - no
+            # firewall-side oracle reports either value, so no positive control for them is
+            # payable at all.
+            _alarm_switch(p.secure_panorama_communication_enabled),
+            # The FIREWALL checking the STATION's certificate common name against the configured
+            # address. NOT the station checking the firewall, which is the control's own words
+            # and lives on Panorama.
+            _alarm_switch(p.check_server_identity_enabled),
+            # `certificate-type` read as WHICH CHILD is present. Blank and the explicit `none`
+            # branch MEAN THE SAME THING and are stored differently - measured on this estate,
+            # where three appliances hold no key and one holds `certificate-type/none` - so both
+            # are printed as they stand rather than folded together.
+            p.client_certificate_type or "-",
+            # Blank means nothing is bound and the appliance falls back to the vendor's
+            # predefined certificate pair. A name here resolves against a certificate collection
+            # no subject of this domain models, so it is shown and not followed.
+            p.client_certificate_name or "-",
+            _yes_no(p.management_channel_not_hardened),
+            # NO CONTROL CLAUSES ON THIS and it is shown because it is why PAN-HAP-005 is not
+            # written against the configured slot alone: three different nodes can hold a
+            # Panorama address on one appliance and only one is the live setting.
+            _yes_no(p.panorama_address_in_force_unverified),
+        ),
+    ),
     "password-profiles": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
@@ -3348,11 +3502,23 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # above it. Measured before deleting: two of the four were homeless, and the Zone and
     # ManagementInterface halves both resolved on their own. Noted because appending a correction
     # under a wrong sentence leaves a reader to work out which half to believe.
-    # PAN-HAP-001 to 005 target two device-wide management-plane models that no rail item
-    # reaches yet. PAN-HAP-006 and 007 have no entry in the catalog at all - they assert over
-    # Panorama's own configuration, which is out of assessment scope - so this debt is for five
-    # controls and not seven.
-    "PAN-HAP": "stage9-ha-panorama.json",
+    # `PAN-HAP` CAME OUT ON 2026-11-03, which is stage 9 of `ha-panorama` doing the thing the
+    # entry was waiting for. Its own words were: "PAN-HAP-001 to 005 target two device-wide
+    # management-plane models that no rail item reaches yet. PAN-HAP-006 and 007 have no entry in
+    # the catalog at all - they assert over Panorama's own configuration, which is out of
+    # assessment scope - so this debt is for five controls and not seven." Both models -
+    # `integrations.HighAvailabilityConfig` and `integrations.PanoramaRegistration` - now have
+    # rail items (`high-availability` and `panorama-settings`) and results specs above, so all
+    # eleven of the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole, and clearing it is also what FORCES the rail entries -
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the seed payload and
+    # never consults `is_active`, so with the exemption gone there is no off-rail route left.
+    #
+    # The count of five controls was right and is kept: PAN-HAP-006 and 007 remain absent from
+    # the catalog, `probe.surface_for` answers "is not an ACTIVE control in the seed catalogue"
+    # for both, and nothing was built for either.
     "PAN-NET": "stage9-network-hardening.json",
     # `PAN-SAS-` CAME OUT ON 2026-11-02, which is stage 9 of `saas-security` doing the thing the
     # entry was waiting for. Its own words were: "`saas-security` reached stage 8 on 2026-10-30.

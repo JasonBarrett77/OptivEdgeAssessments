@@ -170,7 +170,11 @@ class WorkbookBuildTests(TestCase):
         # the committed seeder's own: all 20 of this domain's stage 6 subjects are CONFIGURATION
         # reads with no `op://` among them, so P470 does not apply and the normalised columns were
         # checked field by field against stage 6's `verified.read_back` before any row was read.
-        self.assertIn("Summary: 67 tabs linked, 0 findings in total", reports[0])
+        # 67 -> 69 on 2026-11-03: stage 9 of `ha-panorama` added `High Availability` and
+        # `Panorama Settings` - two tabs over two models, two specs in `sheets/objects.py` each
+        # registered with `_object_domain` (P465). Both literals in this file were bumped in one
+        # edit and both numbers were read off the failure rather than off a brief.
+        self.assertIn("Summary: 69 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -256,7 +260,12 @@ class WorkbookBuildTests(TestCase):
         # BOTH LITERALS WERE GREPPED OUT OF THIS FILE AND BUMPED IN ONE EDIT, which is what the
         # paragraph above asks for, and the numbers were read off the file rather than off a brief
         # that quoted them one run stale.
-        self.assertEqual(len(names), 68)
+        # 68 -> 70 on 2026-11-03, the second of the two literals, same edit: `ha-panorama`'s two
+        # tabs. They sit between "System Identity" and "Management Interfaces", which is
+        # `finding_run.GENERATORS` order - that tuple runs management service paths, high
+        # availability, panorama registration, management interface - read off the finding run's
+        # own `by_kind` ordering rather than assumed.
+        self.assertEqual(len(names), 70)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

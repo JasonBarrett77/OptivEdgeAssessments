@@ -569,7 +569,47 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("ace", "ACE", "Device", "Setup", "settings",
                  where="Device > Setup > ACE",
                  search_model="integrations.CloudAppEngineSetting"),
+    # Device > Setup > Management, 2026-11-03, for PAN-HAP-005. ANOTHER PANEL OF THE SAME SCREEN
+    # the eleven items above sit on, which is why it is in this group and not a top-level item:
+    # `PAN-OS Web Interface Help 11.2` p.700 lists the panels of `Device > Setup > Management` as
+    # "General Settings, Authentication Settings, Policy Rulebase Settings, Panorama Settings,
+    # Logging and Reporting Settings, ...", so this belongs beside `authentication-settings`,
+    # `policy-rule-settings` and `logging-and-reporting`.
+    #
+    # THE LABEL IS THE VENDOR'S OWN AND IS NOT "Panorama Registration", which is what the
+    # control type is called internally. Help 11.2 p.709 heads the panel
+    # "Panorama Settings: Device > Setup > Management" and says of it "Configure the following
+    # settings on the firewall or in a template on Panorama. These settings establish a
+    # connection from the firewall to Panorama" - so `Panorama Settings` is the words an assessor
+    # will be looking for on the screen. PROPOSAL, per P399.
+    #
+    # APPENDED TO THE GROUP rather than placed at the vendor's p.700 position, on `ace`'s own
+    # ruling six lines above: this group is not in the product's order today and putting one item
+    # right would mean rearranging the eleven that are not.
+    #
+    # NO `scope`: one page over this model, so `object_for_canonical_query` short-circuits.
+    ConfigObject("panorama-settings", "Panorama Settings", "Device", "Setup", "monitor",
+                 where="Device > Setup > Management",
+                 search_model="integrations.PanoramaRegistration"),
     # Device, top-level rail items - no heading in the product either.
+    #
+    # Device > High Availability, 2026-11-03, for PAN-HAP-001 to 004. FIRST among the top-level
+    # items because that is the product's own order and placing it here rearranges nothing:
+    # Help 11.2 p.697 lists the Device sections as "Device > Setup, Device > High Availability,
+    # Device > Log Forwarding Card, Device > Config Audit, Device > Password Profiles,
+    # Device > Administrators, ...", so it falls immediately after the Setup group above and
+    # before `password-profiles`. Its own section heading, p.800, is `Device > High Availability`.
+    #
+    # ON THE RAIL AT ALL, although four of this model's seven presented columns are verdicts this
+    # assessment computes: the SUBJECT is a vendor screen with an address an assessor can open -
+    # p.801 `> General`, p.805 `> HA Communications`, p.810 `> Link and Path Monitoring`,
+    # p.804 Clustering Settings - and the rail is the promise about what can be asked of a
+    # firewall. The verdict columns are reachable because stage 8 registered them in
+    # `search/high_availability_config/compiler.py`; the raw keys deliberately are not, and that
+    # module's docstring says why for each.
+    ConfigObject("high-availability", "High Availability", "Device", "", "server",
+                 where="Device > High Availability",
+                 search_model="integrations.HighAvailabilityConfig"),
     ConfigObject("password-profiles", "Password Profiles", "Device", "", "book-marked",
                  where="Device > Password Profiles",
                  search_model="integrations.PasswordProfile"),

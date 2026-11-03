@@ -363,6 +363,31 @@ DOMAINS = (
     _object_domain("ntp", T.NTP_SETTINGS),
     _object_domain("snmp", T.SNMP_SETTINGS),
     _object_domain("system-identity", T.SYSTEM_IDENTITY),
+    # Device, 2026-11-03, for PAN-HAP-001 to 005. HERE, between `system-identity` and
+    # `management-interfaces`, because within a category this list takes
+    # `finding_run.GENERATORS`' order and that tuple already runs ... management service paths,
+    # HIGH AVAILABILITY, PANORAMA REGISTRATION, management interface ... - so this is the
+    # generator order rather than a preference. Verified by reading the finding run's own
+    # `by_kind` ordering, 2026-11-03.
+    #
+    # BOTH REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)`, and that
+    # is not a style choice (P465): `probe.oea_registry.domain_slug` in OptivEdgeProbe parses
+    # THIS FILE as text, and its second form requires the attribute to be literally `SPEC`, so it
+    # admits exactly ONE spec per sheet module. This domain has two specs over two models, which
+    # that form cannot express - and naming them `SPEC_*` would be worse than failing, because
+    # the unanchored regex would match the prefix and return the FIRST slug for both control
+    # types. `_object_domain` names the control type in this file, so the lookup resolves per
+    # type and cannot be ambiguous. The failure it avoids is invisible to every OEA check:
+    # `tests/test_oea_registry.py::test_every_built_control_reaches_a_findings_domain_today`
+    # lives in OptivEdgeProbe and only fires once this domain's stage 9 artifact exists.
+    #
+    # TWO TABS AND NOT ONE. Two vendor screens, two sets of columns sharing nothing but the
+    # appliance, and two different remediations - adding an address versus enrolling a
+    # certificate. One tab would also print `layout.NONE` in every column belonging to the other
+    # model on every row, because `setting_columns` reads a field off the model its own control
+    # targets. See `ha_panorama_presentation`'s docstring.
+    _object_domain("high-availability", T.HIGH_AVAILABILITY),
+    _object_domain("panorama-settings", T.PANORAMA_REGISTRATION),
     _object_domain("management-interfaces", T.MANAGEMENT_INTERFACE),
     _object_domain("ssl-tls-service-profiles", T.SSL_TLS_SERVICE_PROFILE),
     _object_domain("certificate-profiles", T.CERTIFICATE_PROFILE),

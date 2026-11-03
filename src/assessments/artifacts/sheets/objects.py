@@ -31,6 +31,7 @@ from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
 from assessments import globalprotect_gateway_presentation as globalprotect_gateway
 from assessments import globalprotect_portal_presentation as globalprotect_portal
+from assessments import ha_panorama_presentation as ha_panorama
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
 from assessments import platform_lifecycle_presentation as platform_lifecycle
@@ -3822,6 +3823,103 @@ SPECS = (
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
          source_columns=(),
          provenance_cell=platform_lifecycle.DERIVED_CELL),
+    # Device > High Availability, 2026-11-03, for PAN-HAP-001 to 004. Category DERIVED from the
+    # rail (`category=''`), whose item is `high-availability` - right for a subject that IS a
+    # vendor screen an assessor opens, and deriving it means the workbook cannot disagree with
+    # the app about where the subject lives. APPENDED rather than placed among the Device specs
+    # above: order in `SPECS` decides nothing, `DOMAINS` decides the tab order.
+    #
+    # `subject=APPLIANCE` IS THE WHOLE HA ANSWER AND IT IS ALREADY RIGHT. The pair's two rows are
+    # told apart by `HA role`, which `APPLIANCE` carries and which reads Active / Passive off the
+    # appliance group. MEASURED on a hand-built pair, 2026-11-03: one `ha_pair` group, one
+    # `EnforcementPoint` with a NULL `appliance` and two `EnforcementNode`s gives TWO rows for
+    # one real relationship, reading Active and Passive - and those two rows DISAGREE, `ha_mode`
+    # being `active-passive` on the active member and `''` on the passive one, which is what
+    # stage 4 measured on this estate and what the model's own docstring records. So the pair is
+    # NOT deduplicated here, deliberately: collapsing it would be a pair half assessed. The
+    # device-wide-settings warning in AGENTS.md:174-183 is about subjects whose peers are
+    # expected to AGREE, and stage 5 says in terms that these are not.
+    spec(T.HIGH_AVAILABILITY,
+         "The redundant relationship each firewall is configured for, and whether it would "
+         "actually carry a failover. A finding names the APPLIANCE because "
+         "`deviceconfig/high-availability` is device-wide, so an HA pair draws TWO rows and the "
+         "`HA role` column is what tells them apart - that is correct and not a duplicate, "
+         "because the two members' configurations are NOT expected to agree and this estate "
+         "measures the divergence directly. WHAT A ROW HERE CANNOT SAY: whether the pair is "
+         "live. Every column is one appliance's, and whether a peer is answering, whether state "
+         "is being exchanged and whether the control link is encrypted IN FORCE are properties "
+         "of the PAIR that only `show high-availability all` reports - and NO COLLECTOR ISSUES "
+         "IT, so `HA configuration collected` reads Yes while the runtime half is missing on "
+         "every appliance in every estate today. PAN-HAP-001 therefore fires on every "
+         "HA-enabled firewall and PAN-HAP-002 on every one of them too, and both sentences say "
+         "the setting was NOT ESTABLISHED rather than that it failed. AND THE DEVICE'S OWN "
+         "DEFAULTS READ THE REASSURING WAY ROUND HERE, which is why two switches a reader might "
+         "expect are absent from this tab: `show high-availability state` answers link "
+         "monitoring and path monitoring `enabled: yes` with `groups: null` on an appliance "
+         "holding no monitoring node at all, so the honest column is the one that reports the "
+         "GROUPS and the model forbids a clause on either switch.",
+         title="High Availability",
+         subject=ha_panorama.HIGH_AVAILABILITY_SUBJECT,
+         setting_labels=ha_panorama.HIGH_AVAILABILITY_LABELS,
+         # EMPTY, not a claim. `check_every_tested_field_is_presented` accepts `hidden_fields` as
+         # PROOF that a field is presented, so a non-empty one is a claim rather than a column -
+         # and it forfeits the value-at-fault mark, because the two `implicated` loops walk
+         # `subject_columns` and the settings columns and never consult it. All seven clause
+         # fields get a real derived column here and every row marks a real cell.
+         hidden_fields=(),
+         # The full set, knowing what it costs (P427): the default `("Provenance",)` drops
+         # `Fires when` from the WORKBOOK while the live page keeps it, so the two surfaces would
+         # disagree about which cell a reader meets. Taken knowing `fires_when` renders the
+         # BASELINE's condition alone, so on a row whose finding came from the not-collected
+         # calibration the stated condition is one that row does not meet. The alternative is a
+         # contradicting value with no stated condition beside it at all.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # BRANCHING, and this is the first branching provenance cell in the repository. Six of
+         # the seven clause fields are declared in `DERIVED_FIELDS` and `ha_enabled` is not -
+         # it is a real key with a real `FieldProvenance` row - so the shipped constant "Derived"
+         # would print a falsehood about it, and the DEFAULT cell prints "Not recorded" on the
+         # other six. Both measured on built rows. See the module docstring.
+         provenance_cell=ha_panorama.provenance_cell),
+    # Device > Setup > Management, the `Panorama Settings` panel, 2026-11-03, for PAN-HAP-005.
+    # Category DERIVED from the rail, whose item is `panorama-settings`.
+    #
+    # ONE CONTROL, TWO ASSERTION RECORDS, ONE ROW. The hardening half is the BASELINE tier at
+    # `low` and the redundancy half is a CALIBRATION above it at `medium`, so a row failing both
+    # is reported at `medium` and `Matched queries` says which halves fired. Measured on built
+    # rows: `fw-core-tpa-a` matches the baseline alone at `low`, `pan-fw-7d6e` and `pan-fw-b458`
+    # match both at `medium`.
+    #
+    # THE PAIR'S TWO ROWS AGREE HERE, which is the opposite of the tab above and is also
+    # measured: `panorama-server-2`, written on one member alone, read back on BOTH twenty
+    # minutes later, carried by the pair's configuration synchronisation with nothing ever
+    # addressed to the peer. They are still two rows, because both members must be collected and
+    # the management channel is per appliance.
+    spec(T.PANORAMA_REGISTRATION,
+         "The channel each firewall uses to reach its central management estate: which "
+         "appliances it names, and whether the conversation runs on the customer's own "
+         "certificate material with the station's name checked. A finding names the APPLIANCE "
+         "because both nodes behind it are device-wide `deviceconfig`. WHAT A ROW HERE CANNOT "
+         "SAY: whether the channel is authenticated. This is the FIREWALL'S HALF of the "
+         "handshake and only that half - whether the management appliance accepts the "
+         "certificate every appliance of this make ships with is `secure-conn-server` on the "
+         "station, which is out of assessment scope, so even every column here on the hardened "
+         "side leaves the question open. AND THE REDUNDANCY HALF APPLIES BY AN ASSUMPTION AND "
+         "NOT BY A READING: whether the management estate is a pair lives on the station's own "
+         "high-availability node, which nothing collects, and the column defaults to the "
+         "APPLYING side because a false there would suppress the control on every firewall. The "
+         "consequence is on the row rather than left to be discovered - on a single-appliance "
+         "estate this fires everywhere and its remediation would point a firewall at an "
+         "appliance that does not exist, which is the measured state of this lab. An engineer's "
+         "answer should override that column.",
+         title="Panorama Settings",
+         setting_labels=ha_panorama.PANORAMA_REGISTRATION_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # Two of the three clause fields are derived and `panorama_server_secondary` is a stored
+         # `CharField` carrying a real provenance row - and it is the field the calibration
+         # asserts on, so a constant "Derived" would be a falsehood about the very value this
+         # control reports. Measured on a built row.
+         provenance_cell=ha_panorama.provenance_cell),
 )
 
 
