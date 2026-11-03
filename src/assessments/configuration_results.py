@@ -29,6 +29,7 @@ from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import logging_presentation as logging_pres
 from assessments import user_id_presentation as user_id
 from assessments.security_rule_queries import build_security_rule_display_queryset
 from optivedge_integrations.integrations.presentation import (
@@ -56,6 +57,7 @@ from optivedge_integrations.integrations.models import (
     FirewallContentStreams,
     LicenceInventory,
     LogAlarmSettings,
+    LogServerTarget,
     IkeCryptoProfile,
     IkeGateway,
     DecryptionPolicyRule,
@@ -79,6 +81,7 @@ from optivedge_integrations.integrations.models import (
     PanOsRoutingAdjacency,
     PanOsSessionSettings,
     PanOsTunnelInspectionCoverage,
+    VsysLogForwarding,
     UserIdCollectorSettings,
     UserIdDiscoveryBound,
     AuthenticationSettings,
@@ -1227,12 +1230,174 @@ RESULTS = {
             user_id.include_networks(b),
         ),
     ),
+    # --- Device > Setup > Management > Logging and Reporting Settings. TWO COLUMNS UNTIL
+    # 2026-11-03, when stage 9 of `logging` added the eight PAN-LOG controls that report on this
+    # model and the ten searchable columns stage 7 had registered for them. The page offered
+    # PAN-MGT-011's single switch and nothing else, so ten of this model's thirteen registered
+    # fields could carry a control's clause and could not be asked here.
+    #
+    # EVERY HEADING THAT ALSO HEADS A FINDINGS COLUMN IS THE SAME WORD, character for character,
+    # read out of `logging_presentation.LOGGING_SETTING_LABELS` rather than retyped - so one
+    # column cannot read two ways on two surfaces. The sourcing for each is written once, there,
+    # against PAN-OS Web Interface Help 11.2.
+    #
+    # `Log on High DP Load` BECAME `Enable Log on High DP Load`, which is the vendor's own label
+    # verbatim (Help 11.2 p.720) and is a PROPOSAL like every other heading here. It is a label
+    # and not a slug, so no link changes; `query_fields` is keyed on the heading and moves with it.
+    #
+    # THREE COLUMNS ARE SHOWN AND NOT QUERYABLE, each with no `query_fields` entry for the same
+    # reason: `config_log_offbox_destination`, `config_log_filter_narrows` and
+    # `central_store_status_collected` are not in
+    # `search/logging_settings/compiler.py::FIELD_OPERATOR_REGISTRY`, because the repo's rule is
+    # that only a column a control asks for is registered and no clause reads any of the three.
+    # They are shown because they are the difference between two opposite causes of one verdict -
+    # a configuration log with no destination against one a filter holds back, and an unhealthy
+    # collector against a reading nobody took.
     "logging-and-reporting": ResultsSpec(
-        query_fields={"Appliance": "hostname",
-                      "Log on High DP Load": "log_on_high_dp_load"},
-        columns=("Appliance", "Log on High DP Load"),
+        query_fields={
+            "Appliance": "hostname",
+            "Serial": "serial_number",
+            **{logging_pres.LOGGING_SETTING_LABELS[field]: field for field in (
+                "offbox_destination_count", "syslog_destination_in_use",
+                "system_log_severity_gaps", "config_log_fully_offbox", "panorama_managed",
+                "panorama_log_type_gaps", "require_audit_comment",
+                "email_alerting_for_critical_system_events", "log_retention_configured",
+                "central_store_delivery_healthy", "log_on_high_dp_load")}},
+        columns=("Appliance", "Serial",
+                 logging_pres.LOGGING_SETTING_LABELS["offbox_destination_count"],
+                 logging_pres.LOGGING_SETTING_LABELS["syslog_destination_in_use"],
+                 logging_pres.LOGGING_SETTING_LABELS["system_log_severity_gaps"],
+                 logging_pres.LOGGING_SETTING_LABELS["config_log_fully_offbox"],
+                 "Configuration logs have a destination",
+                 "A filter holds configuration logs back",
+                 logging_pres.LOGGING_SETTING_LABELS["panorama_managed"],
+                 logging_pres.LOGGING_SETTING_LABELS["panorama_log_type_gaps"],
+                 logging_pres.LOGGING_SETTING_LABELS["require_audit_comment"],
+                 logging_pres.LOGGING_SETTING_LABELS[
+                     "email_alerting_for_critical_system_events"],
+                 logging_pres.LOGGING_SETTING_LABELS["log_retention_configured"],
+                 logging_pres.LOGGING_SETTING_LABELS["central_store_delivery_healthy"],
+                 "Delivery status was collected",
+                 logging_pres.LOGGING_SETTING_LABELS["log_on_high_dp_load"]),
         base_queryset=_ordered(LoggingSettings, "appliance__hostname"),
-        row=lambda p: (str(p.appliance), _yes_no(p.log_on_high_dp_load)),
+        row=lambda p: (
+            str(p.appliance),
+            p.appliance.serial_number or "-",
+            # The NUMBER and not `_nothing`: zero is the REPORTABLE end here - it is the worst
+            # rung of PAN-LOG-001's own grading - and "Nothing" on a column named for a count
+            # reads as "not counted" exactly where it means "counted, and the answer was none".
+            str(p.offbox_destination_count),
+            _yes_no(p.syslog_destination_in_use),
+            # A GAP LIST, where an EMPTY one is the reassuring end. "-" would read as "not
+            # measured", which is the opposite, so both states are spelled out in words.
+            p.system_log_severity_gaps or "none missing",
+            _yes_no(p.config_log_fully_offbox),
+            _yes_no(p.config_log_offbox_destination),
+            _yes_no(p.config_log_filter_narrows),
+            _yes_no(p.panorama_managed),
+            p.panorama_log_type_gaps or "none missing",
+            _yes_no(p.require_audit_comment),
+            _yes_no(p.email_alerting_for_critical_system_events),
+            _yes_no(p.log_retention_configured),
+            _yes_no(p.central_store_delivery_healthy),
+            _yes_no(p.central_store_status_collected),
+            _yes_no(p.log_on_high_dp_load),
+        ),
+    ),
+    # --- Device > Server Profiles > Syslog / Email, 2026-11-03, for PAN-LOG-002. The FIRST page
+    # over `integrations.LogServerTarget`, which stage 7 minted for this domain and which had
+    # never been queried from this repository at all - so until this entry existed none of the
+    # three shipped PAN-LOG-002 queries had anywhere to go.
+    #
+    # THIS IS THE SURFACE THE TWO-KINDS-ONE-MODEL SHAPE ACTUALLY LANDS ON. Stage 5 declares two
+    # subjects over this one table, and the findings tab can only ever hold the syslog half,
+    # because PAN-LOG-002's scope clause is `kind = "syslog"`. This page lists the CONFIGURATION,
+    # so it holds both kinds and five of its columns mean nothing on one of them. The per-kind
+    # cells are `logging_presentation.transport_cell`, `protocol_cell` and `email_only_cell`, each
+    # printing an EM DASH - `layout.NONE`, U+2014 - where the column does not exist on that kind
+    # by structure, on `zone-protection`'s precedent above. `transport` is the one that matters
+    # most: the column carries `default=Transport.UDP`, so without the branch every mail relay in
+    # the estate would read "UDP".
+    #
+    # FIVE REGISTERED FIELDS, read off
+    # `search/log_server_target/compiler.py::FIELD_OPERATOR_REGISTRY` rather than assumed -
+    # `hostname`, `serial_number`, `kind`, `transport`, `profile_referrer_count`. The profile and
+    # server names, the address, the port and all five e-mail columns are SHOWN and not queryable,
+    # and none has a `query_fields` entry.
+    "log-server-profiles": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Serial": "serial_number", "Kind": "kind",
+                      "Transport": "transport",
+                      logging_pres.LOG_SERVER_TARGET_SETTING_LABELS["profile_referrer_count"]:
+                          "profile_referrer_count"},
+        columns=("Appliance", "Serial", "Location", "Kind", "Server profile", "Server",
+                 "Address", "Port", "Transport",
+                 logging_pres.LOG_SERVER_TARGET_SETTING_LABELS["profile_referrer_count"],
+                 logging_pres.EMAIL_ONLY_LABELS["protocol"],
+                 logging_pres.EMAIL_ONLY_LABELS["tls_version"],
+                 logging_pres.EMAIL_ONLY_LABELS["auth_method"],
+                 logging_pres.EMAIL_ONLY_LABELS["meets_authenticated_tls"],
+                 logging_pres.EMAIL_ONLY_LABELS["transport_grade"]),
+        base_queryset=_ordered(LogServerTarget, "appliance__hostname", "kind", "scope",
+                               "vsys_name", "profile_name", "server_name"),
+        row=lambda t: (
+            str(t.appliance),
+            t.appliance.serial_number or "-",
+            logging_pres.location_cell(t),
+            t.get_kind_display(),
+            t.profile_name or "-",
+            t.server_name or "-",
+            t.server_address or "-",
+            # The port is nullable and an absent port is a real observation: Help 11.2 p.918 says
+            # "for TCP you must specify a port number", so a blank one on a TCP destination is a
+            # state worth seeing rather than a gap in the page.
+            str(t.port) if t.port is not None else "(no port key)",
+            logging_pres.transport_cell(t),
+            # The NUMBER: zero is PAN-LOG-002's own applicability boundary - a destination
+            # nothing sends to - so it is the reportable end and must not read as uncounted.
+            str(t.profile_referrer_count),
+            logging_pres.protocol_cell(t),
+            logging_pres.email_only_cell(t, "tls_version"),
+            logging_pres.email_only_cell(t, "auth_method"),
+            logging_pres.email_only_cell(t, "meets_authenticated_tls"),
+            logging_pres.email_only_cell(t, "transport_grade"),
+        ),
+    ),
+    # --- Objects > Log Forwarding, 2026-11-03, for PAN-LOG-005. The FIRST page over
+    # `integrations.VsysLogForwarding`, likewise minted by stage 7 for this domain and never
+    # queried from this repository before today.
+    #
+    # ONE ROW PER VIRTUAL SYSTEM AND NOT PER PROFILE, which is this page's one unusual property
+    # and the control type's own reason: the gap reported is a vsys with no adequate profile, and
+    # a profile-keyed row cannot report something that does not exist. `Profiles available` is how
+    # a reader gets from the verdict to the object - it lists each profile reachable from the
+    # partition, where it came from, and which log types it actually sends off the box.
+    #
+    # FOUR REGISTERED FIELDS, read off
+    # `search/vsys_log_forwarding/compiler.py::FIELD_OPERATOR_REGISTRY` - `hostname`,
+    # `serial_number`, `offbox_log_type_gaps`, `pushed_profile_sources_collected`. `profile_names`
+    # is a JSONField, declared not searchable, and so has no `query_fields` entry.
+    "log-forwarding": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            logging_pres.VSYS_LOG_FORWARDING_SETTING_LABELS["offbox_log_type_gaps"]:
+                "offbox_log_type_gaps",
+            logging_pres.VSYS_LOG_FORWARDING_SETTING_LABELS["pushed_profile_sources_collected"]:
+                "pushed_profile_sources_collected"},
+        columns=("Appliance", "Serial", "Virtual system",
+                 logging_pres.VSYS_LOG_FORWARDING_SETTING_LABELS["offbox_log_type_gaps"],
+                 logging_pres.VSYS_LOG_FORWARDING_SETTING_LABELS[
+                     "pushed_profile_sources_collected"],
+                 "Profiles available"),
+        base_queryset=_ordered(VsysLogForwarding, "appliance__hostname", "vsys_name"),
+        row=lambda v: (
+            str(v.appliance),
+            v.appliance.serial_number or "-",
+            v.vsys_name or "-",
+            # A GAP LIST again, with the empty one spelled out rather than dashed.
+            v.offbox_log_type_gaps or "none missing",
+            _yes_no(v.pushed_profile_sources_collected),
+            logging_pres.profiles_available_cell(v),
+        ),
     ),
     # --- Device > Setup > Management > Policy Rulebase Settings, 2026-11-01. Both columns are
     # NULLABLE and `_tri` is used rather than `_yes_no`, because NULL here is the firing side:
@@ -3647,17 +3812,25 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # stage and have no rail item. It is harmless for the other eleven. Stage 9 for this domain
     # is what gives the two models a page, and stage 8's contract forbids building one.
     "PAN-MGT": "stage9-management-services.json",
-    # `logging` reached stage 8 on 2026-11-01. TWO of its three models have no rail item:
-    # `LogServerTarget` and `VsysLogForwarding` were both created by stage 7 for this domain and
-    # had never been queried from this repository at all. The third, `LoggingSettings`, DOES
-    # have a page - `Device > Setup > Management > Logging and Reporting Settings` - which it
-    # has had since PAN-MGT-011, so this entry is load-bearing for exactly TWO of the ten
-    # PAN-LOG controls (002 and 005) and harmless for the other eight: `_awaiting` is consulted
-    # only where `query_results_url` returns nothing, and the eight logging-settings controls
-    # resolve on their own. NOTE that PAN-MGT-011 has no entry here and never needed one, for
-    # the same reason. Stage 9 for this domain is what gives the two models a page, and stage
-    # 8's contract forbids building one.
-    "PAN-LOG": "stage9-logging.json",
+    # `PAN-LOG` CAME OUT ON 2026-11-03, which is stage 9 of `logging` doing the thing the entry
+    # was waiting for. Its own words were: "`logging` reached stage 8 on 2026-11-01. TWO of its
+    # three models have no rail item: `LogServerTarget` and `VsysLogForwarding` were both created
+    # by stage 7 for this domain and had never been queried from this repository at all. The
+    # third, `LoggingSettings`, DOES have a page ... so this entry is load-bearing for exactly TWO
+    # of the ten PAN-LOG controls (002 and 005) and harmless for the other eight."
+    #
+    # BOTH MODELS NOW HAVE ONE, in two PAN-OS categories: `log-server-profiles` at Device > Server
+    # Profiles > Syslog / Email, and `log-forwarding` at Objects > Log Forwarding. So all 25 of
+    # the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole, and clearing it is also what FORCES the two rail entries -
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the seed payload and
+    # never consults `is_active`, so with the exemption gone there is no off-rail route left.
+    #
+    # The count of two load-bearing controls was right and is kept. The other eight resolved
+    # through `logging-and-reporting` throughout, which is also why PAN-MGT-011 never needed an
+    # entry of its own.
     # `PAN-POL` WAS HERE AND IS GONE, removed by stage 9 of `security-policy` on 2026-11-01,
     # which is the work the entry was waiting for. The two models it covered -
     # `integrations.VsysRulePosture` and `integrations.PolicyRuleSettings` - now have rail items

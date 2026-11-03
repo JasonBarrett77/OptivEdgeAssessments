@@ -180,7 +180,13 @@ class WorkbookBuildTests(TestCase):
         # this literal has taken. They land in THREE PAN-OS categories rather than one, which no
         # earlier stage 9 domain has done. Both literals in this file were bumped in one edit and
         # both numbers were read off the failure rather than off a brief.
-        self.assertIn("Summary: 74 tabs linked, 0 findings in total", reports[0])
+        # 74 -> 76 on 2026-11-03: stage 9 of `logging` added TWO tabs over two models stage 7
+        # minted for that domain - `Syslog and Email Destinations` over
+        # `integrations.LogServerTarget` (Device > Server Profiles > Syslog / Email) and
+        # `Virtual System Log Forwarding` over `integrations.VsysLogForwarding` (Objects > Log
+        # Forwarding). Its other eight controls joined an EXISTING tab, PAN-MGT-011's `Logging
+        # and Reporting Settings`, which is why ten controls add two tabs and not three.
+        self.assertIn("Summary: 76 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -278,7 +284,15 @@ class WorkbookBuildTests(TestCase):
         # first in Device. Two of those placements follow the vendor's rail and two follow
         # `finding_run.GENERATORS`, which disagree here; `domains.py` records which and why at
         # each site.
-        self.assertEqual(len(names), 75)
+        # 75 -> 77 on 2026-11-03, the second of the two literals, same edit: `logging`'s two new
+        # tabs. They are NOT beside each other, because the domain's three subjects categorise as
+        # Objects and Device - `Virtual System Log Forwarding` sits in the Objects block after the
+        # security-profile family and before Coverage, following the vendor's own Objects rail
+        # (Help 11.2 p.213), and `Syslog and Email Destinations` sits in the Device block
+        # immediately before `aaa-server-profiles`, following the vendor's own Server Profiles
+        # order (Help 11.2 p.915). `domains.py` records both placements and the generator order
+        # each one disagrees with.
+        self.assertEqual(len(names), 77)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

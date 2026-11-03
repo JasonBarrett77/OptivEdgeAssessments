@@ -34,6 +34,7 @@ from assessments import globalprotect_portal_presentation as globalprotect_porta
 from assessments import ha_panorama_presentation as ha_panorama
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import logging_presentation as logging
 from assessments import network_hardening_presentation as network_hardening
 from assessments import platform_lifecycle_presentation as platform_lifecycle
 from assessments import user_id_presentation as user_id
@@ -1873,8 +1874,76 @@ SPECS = (
     spec(T.UPDATE_SERVER,
          "How the firewall talks to Palo Alto's update servers, and whether it verifies their "
          "identity."),
+    # NINE CONTROLS ON ONE TAB, 2026-11-03: PAN-MGT-011, which has been here since
+    # `management-services` minted the type, and the EIGHT `logging` controls PAN-LOG-001, -003,
+    # -004, -006, -007, -008, -009 and -010. This spec was a bare two-liner until stage 9 of
+    # `logging` - no title, no `setting_labels`, one derived settings column - so
+    # `log_on_high_dp_load` was a raw Django field name heading a shipped tab, and eight controls
+    # arriving would have added TEN more raw headings beside it.
+    #
+    # THE DESCRIPTION CHANGED AND IT IS A PROPOSAL (P399). The sentence it replaced described
+    # PAN-MGT-011's one setting, which is now one column of eleven; a tab's description is the
+    # SHEET's, and the sheet is what a customer reads.
+    #
+    # `log_on_high_dp_load` IS LABELLED HERE ALTHOUGH THE COLUMN IS NOT THIS DOMAIN'S, with the
+    # vendor's own label from Help 11.2 p.720. The `management-services` run inherits it and may
+    # replace it: labelling a column changes nothing about its control, and an eleven-column tab
+    # with one bare heading is worse than one with eleven labelled.
+    #
+    # COLUMN ORDER, read off `FindingsTable.headers` on built rows rather than derived. Because
+    # `setting_columns` walks `order_by("control_id")` and `PAN-LOG-001` sorts before
+    # `PAN-MGT-011`, PAN-MGT-011's column - which was FIRST on this tab - is now eleventh.
+    # Nothing gates that and nothing here can change it: `auto_setting_columns` is all or nothing.
+    #
+    # `tested_columns` IS THE FULL SET rather than the default `("Provenance",)` (P427), so the
+    # workbook keeps `Fires when` and the two surfaces agree about which cells a reader meets.
     spec(T.LOGGING_SETTINGS,
-         "What the firewall does about logging when the data plane is under load."),
+         logging.LOGGING_SETTINGS_DESCRIPTION,
+         subject=APPLIANCE + logging.LOGGING_POSTURE_EVIDENCE,
+         setting_labels=logging.LOGGING_SETTING_LABELS,
+         provenance_cell=logging.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # `logging`, 2026-11-03, for PAN-LOG-002 - the only control of this type. One row per server
+    # entry inside one server profile, which is the grain transport is set at.
+    #
+    # ITS `provenance_cell` REPRODUCES THE DEFAULT'S ANSWER AND DE-DUPLICATES IT, and
+    # `logging_presentation` carries the measurement that decided that: this model's clause fields
+    # are MIXED, which the two-grep rule says to branch on `provenance_of`, and branching that way
+    # is WRONG here because `kind` is a stored clause field carrying no provenance row of its own -
+    # it would print "Not recorded" about it, and would lose the "Template" the one
+    # template-contributed row carries. The default is right and reads "Local | Local | Local",
+    # one line per clause field; this prints each distinct answer once.
+    #
+    # NO `value_readers`, AND `transport` IS THE ONE THAT WAS REFUSED - see
+    # `LOG_SERVER_TARGET_READERS` for the measurement. A reader on a stored key costs that key's
+    # own provenance row, and whether the transport key was ABSENT is what this control reports.
+    spec(T.LOG_SERVER_TARGET,
+         logging.LOG_SERVER_TARGET_DESCRIPTION,
+         title=logging.LOG_SERVER_TARGET_TITLE,
+         subject=logging.LOG_SERVER_TARGET_SUBJECT,
+         setting_labels=logging.LOG_SERVER_TARGET_SETTING_LABELS,
+         value_readers=logging.LOG_SERVER_TARGET_READERS,
+         provenance_cell=logging.provenance_cell_through_the_object,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # `logging`, 2026-11-03, for PAN-LOG-005 - the only control of this type. One row per virtual
+    # system, because the gap it reports is a vsys with no adequate profile, and a profile-keyed
+    # row cannot report something that does not exist.
+    #
+    # BOTH CLAUSE FIELDS ARE DECLARED DERIVED and the model carries no `choices` at all, so a
+    # labelling reader would be FATAL here - `get_<field>_display()` raises `AttributeError` at
+    # template render on a field with no choices - and the sheet-level provenance cell is the only
+    # remedy left. Measured on built rows: the DEFAULT cell reads "Not recorded" on every row,
+    # because `remediation_accessor` discards DERIVED and walks to an `__entry__` row this model
+    # never carries. `logging.provenance_cell` is measured to return exactly "Derived" here, which
+    # is the honest constant the rule asks for, written as the branch so that a stored clause
+    # field added later cannot make it lie.
+    spec(T.VSYS_LOG_FORWARDING,
+         logging.VSYS_LOG_FORWARDING_DESCRIPTION,
+         title=logging.VSYS_LOG_FORWARDING_TITLE,
+         subject=logging.VSYS_LOG_FORWARDING_SUBJECT,
+         setting_labels=logging.VSYS_LOG_FORWARDING_SETTING_LABELS,
+         provenance_cell=logging.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.WILDFIRE_SETTINGS,
          "What the firewall forwards to WildFire: the per-type file size limits, and whether "
          "session context and benign/grayware verdicts are shared. DEVICE-WIDE, as against "

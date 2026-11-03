@@ -484,6 +484,34 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     # ALL NINE kinds to None. The eight pages that already work are what a wrong scope here breaks,
     # which is why `tests/test_decryption_presentation.py` asserts all nine resolve rather than
     # only the one that is new.
+    # Objects > Log Forwarding, 2026-11-03, for PAN-LOG-005 - one virtual system's log-forwarding
+    # coverage, taken over every profile available to it.
+    #
+    # PLACED IN THE VENDOR'S OWN ORDER, read off the corpus rather than written from memory. Help
+    # 11.2 p.213 enumerates the Objects rail verbatim: "Objects>Security Profiles ...
+    # Objects>Security Profile Groups • Objects>Log Forwarding • Objects>Authentication •
+    # Objects>Decryption Profile • Objects > SD-WAN Link Management • Objects>Schedules" - so Log
+    # Forwarding follows the whole Security Profiles block above and precedes `decryption-profile`
+    # below, which is where this sits. A top-level Objects item, `group=""`, exactly as that entry
+    # established for itself.
+    #
+    # THE LABEL IS THE VENDOR'S OWN, from the section title `Objects > Log Forwarding`. Its first
+    # sentence, Help 11.2 p.332: "By default, the logs that the firewall generates reside only in
+    # its local storage. However, you can use Panorama, the Logging Service, or external services
+    # (such as a syslog server) to centrally monitor log information by defining a Log Forwarding
+    # profile and assigning that profile to Security, Authentication, DoS Protection, and Tunnel
+    # Inspection policy rules."
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test: the subject has a vendor address an
+    # assessor opens and reads. THE ROW IS THE VSYS AND NOT THE PROFILE, which is the one thing
+    # about this item that needs saying - the control reports a virtual system with no adequate
+    # profile, and a profile-keyed row cannot report something that does not exist. So this page
+    # answers "what can this partition get off the box at all" at the address where the profiles
+    # live. Contrast Normalization Coverage, which is off the rail because no address on a
+    # firewall answers for it.
+    ConfigObject("log-forwarding", "Log Forwarding", "Objects", "", "clipboard-check",
+                 where="Objects > Log Forwarding",
+                 search_model="integrations.VsysLogForwarding"),
     ConfigObject("decryption-profile", "Decryption Profile", "Objects", "", "shield",
                  where="Objects > Decryption Profile",
                  search_model="integrations.SecurityProfile"),
@@ -755,6 +783,38 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("log-alarms", "Alarm Settings", "Device", "", "triangle-alert",
                  where="Device > Log Settings",
                  search_model="integrations.LogAlarmSettings"),
+    # Device > Server Profiles > Syslog / Email, 2026-11-03, for PAN-LOG-002 - every syslog
+    # collector and mail relay a firewall can send logs to, one row per server ENTRY.
+    #
+    # TWO VENDOR SCREENS, ONE RAIL ITEM, ONE `where`, and the choice is stated rather than taken
+    # quietly. One model holds both kinds - `LogServerTarget`, discriminated by `kind`, because
+    # `log-settings` holds `syslog` and `email` as sibling containers of the same shape - so there
+    # is one item, exactly as `aaa-server-profiles` below holds six authentication kinds on one
+    # object and spells all six in its `where`. Help 11.2 p.918 is `Device > Server Profiles >
+    # Syslog` and p.920 is `Device > Server Profiles > Email`.
+    #
+    # ABOVE `aaa-server-profiles` IN THE VENDOR'S OWN ORDER, read off the corpus. Help 11.2 p.915,
+    # section `Device > Server Profiles`, enumerates its children verbatim: "• Device > Server
+    # Profiles > SNMP Trap • Device > Server Profiles > Syslog • Device > Server Profiles > Email •
+    # Device > Server Profiles > HTTP • Device > Server Profiles > NetFlow • Device > Server
+    # Profiles > RADIUS • Device > Server Profiles > SCP • Device > Server Profiles > TACACS+ •
+    # Device > Server Profiles > LDAP • Device > Server Profiles > Kerberos • Device > Server
+    # Profiles > SAML Identity Provider • Device > Server Profiles > DNS • Device > Server Profiles
+    # > Multi Factor Authentication". Syslog and Email precede every authentication kind.
+    #
+    # THE LABEL IS A PROPOSAL (P399) AND THE VENDOR HAS NO WORD FOR THE PAIR. It names each screen
+    # separately and has no collective noun for "the two profiles that carry logs off the box", so
+    # this label is ours and names both screens rather than implying a vendor term.
+    #
+    # WHY IT IS ON THE RAIL: the subject is a PAN-OS configuration node an assessor opens at this
+    # address and reads, and every column of the model is a leaf of that node or a reading of it.
+    # THE ROW IS A SERVER ENTRY AND NOT A PROFILE, because transport is per server - one profile
+    # can hold a TLS collector and a UDP one, measured on the lab PA-5220 - and the remediation is
+    # to change that server's transport.
+    ConfigObject("log-server-profiles", "Syslog and Email Server Profiles", "Device",
+                 "Server Profiles", "server",
+                 where="Device > Server Profiles > Syslog / Email",
+                 search_model="integrations.LogServerTarget"),
     # Device > Server Profiles. PAN-OS lists one rail child per protocol; we hold all the
     # authentication kinds on one object today, so it is one child until that splits.
     ConfigObject("aaa-server-profiles", "AAA Server Profiles", "Device", "Server Profiles",

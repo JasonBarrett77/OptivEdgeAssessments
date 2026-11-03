@@ -229,6 +229,26 @@ DOMAINS = (
     # everything above rather than as another finding family.
     _object_domain("sanctioned-application-marking", T.SANCTIONED_APPLICATION_MARKING),
     _object_domain("saas-url-filtering-posture", T.SAAS_URL_FILTERING_POSTURE),
+    # Objects, 2026-11-03, for PAN-LOG-005 - one of the `logging` domain's three tabs, and the
+    # only one of the three that categorises as Objects. Category DERIVED from the rail
+    # (`category=''`), which is right for a subject whose address is a PAN-OS node: the rail item
+    # is `log-forwarding`, at Objects > Log Forwarding.
+    #
+    # HERE RATHER THAN FIRST IN THIS CATEGORY, AND THE TWO ORDERS DISAGREE. `finding_run.GENERATORS`
+    # runs `vsys log forwarding` twenty-first, immediately after `log server targets` and the
+    # device-wide settings, which within the Objects block alone would put it FIRST. The VENDOR's
+    # Objects rail puts it after the security-profile family and before Authentication and
+    # Decryption Profile - Help 11.2 p.213 enumerates the rail verbatim: "Objects>Security
+    # Profiles ... Objects>Security Profile Groups • Objects>Log Forwarding • Objects>Authentication
+    # • Objects>Decryption Profile". This follows the vendor, on `decryption-profile`'s own
+    # precedent in `configuration_navigation`: an assessor already knows where the object lives in
+    # the product, and the rail and the tab strip reading the same way is worth more here than a
+    # generator order nobody navigates by. The disagreement is recorded rather than hidden.
+    #
+    # THIS DOMAIN'S OTHER TWO TABS ARE NOT BESIDE IT, which is required rather than untidy: its
+    # three subjects categorise as Objects and Device, so they sit in two different blocks of this
+    # list, on the precedent `network-hardening` and `certificates` both set.
+    _object_domain("log-forwarding", T.VSYS_LOG_FORWARDING),
     # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
     # that reason - but the workbook requires tabs to follow the Summary's category order, and
     # coverage categorises as Objects because its subject is an address object. The product's
@@ -502,6 +522,27 @@ DOMAINS = (
     _object_domain("authentication-sequences", T.AUTHENTICATION_SEQUENCE),
     _object_domain("password-profiles", T.PASSWORD_PROFILE),
     _object_domain("administrators", T.ADMIN_USER),
+    # Device, 2026-11-03, for PAN-LOG-002, and IMMEDIATELY BEFORE `aaa-server-profiles` on
+    # purpose. Both tabs report on objects at Device > Server Profiles, and the vendor lists the
+    # children of that rail item in one order which the corpus carries verbatim - Help 11.2 p.915,
+    # section `Device > Server Profiles`: "• Device > Server Profiles > SNMP Trap • Device > Server
+    # Profiles > Syslog • Device > Server Profiles > Email • Device > Server Profiles > HTTP •
+    # Device > Server Profiles > NetFlow • Device > Server Profiles > RADIUS • ... • Device >
+    # Server Profiles > Multi Factor Authentication". Syslog and Email come before every
+    # authentication kind, so this tab comes before the AAA one.
+    #
+    # THE TWO ORDERS DISAGREE AND THIS FOLLOWS THE VENDOR. `finding_run.GENERATORS` runs `log
+    # server targets` twenty-first, immediately after the device-wide settings and before
+    # `management plane addressing`, which would put this tab up beside `logging-settings`. The
+    # vendor's Device rail puts Server Profiles far later, after Administrators and the
+    # authentication objects, and this list already groups by vendor address in three places - the
+    # certificates block, the decryption block and the GlobalProtect block. An assessor looking
+    # for a server profile looks where the other server profiles are.
+    #
+    # Category DERIVED from the rail (`category=''`): the rail item is `log-server-profiles`, at
+    # Device > Server Profiles > Syslog / Email, so the workbook cannot disagree with the app
+    # about where the object lives.
+    _object_domain("log-server-profiles", T.LOG_SERVER_TARGET),
     _object_domain("aaa-server-profiles", T.SERVER_PROFILE),
     # Device, 2026-11-02, for PAN-IOT-001 and PAN-IOT-003. HERE rather than beside the master key
     # at the top of this block, because within a category this list takes
