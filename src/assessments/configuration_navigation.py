@@ -565,6 +565,34 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("system-identity", "System Identity", "Device", "Setup", "settings",
                  where="Device > Setup > Management > General Settings, and Setup > Interfaces",
                  search_model="integrations.SystemIdentity"),
+    # TWO NEW ITEMS, 2026-11-03, stage 9 of `device-services`, for the two models stage 7 minted
+    # and nothing had ever queried: `DnsSettings` (PAN-SVC-003) and `ServiceRoute` (PAN-SVC-006).
+    # Both sit on the SAME vendor screen as `ntp` above - Device > Setup > Services - which is why
+    # they are here rather than grouped with each other somewhere else, and the `where` paths are
+    # read out of the corpus rather than written from memory: PAN-OS Web Interface Help 11.2 p.749
+    # heads the block "DNS Settings" inside "Global Services Settings - Device > Setup > Services",
+    # and p.748 says "In Service Features, click Service Route Configuration".
+    #
+    # BOTH TITLES ARE PROPOSALS (P399) and both are the vendor's own nouns. The control types'
+    # own labels are "Management Resolvers" and "Management Service Paths", which are OURS.
+    #
+    # ICON NAMES COME FROM THE NINETEEN VENDORED FILES, enumerated 2026-11-03 at
+    # `OptivEdge/src/optivedge/templates/components/icons/` - the HOST repo, not this one.
+    # `ConfigObject.icon` is unvalidated and a name that is not there raises `FileNotFoundError`
+    # at TEMPLATE RENDER on every explorer page, taking out every explorer test with not one test
+    # name mentioning an icon. `server` is already carried by `snmp` above and reuse is normal
+    # here (`settings` is carried twice); `list-checks` reads as what a service-route row is, a
+    # list of originated services each needing a chosen path.
+    ConfigObject("dns-settings", "DNS Settings", "Device", "Setup", "server",
+                 where="Device > Setup > Services > DNS Settings",
+                 search_model="integrations.DnsSettings"),
+    # `where` names the GLOBAL path. The same dialogue is reached from the Virtual Systems tab for
+    # a single virtual system - Help 11.2 p.748, "Select a Location (virtual system) and click
+    # Service Route Configuration" - and the tab's Scope column is what tells the two apart on a
+    # row, so the rail does not need two addresses.
+    ConfigObject("service-routes", "Service Routes", "Device", "Setup", "list-checks",
+                 where="Device > Setup > Services > Service Route Configuration",
+                 search_model="integrations.ServiceRoute"),
     ConfigObject("authentication-settings", "Authentication Settings", "Device", "Setup",
                  "clipboard-check", where="Device > Setup > Management > Authentication Settings",
                  search_model="integrations.AuthenticationSettings"),

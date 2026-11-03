@@ -440,6 +440,38 @@ DOMAINS = (
     _object_domain("ntp", T.NTP_SETTINGS),
     _object_domain("snmp", T.SNMP_SETTINGS),
     _object_domain("system-identity", T.SYSTEM_IDENTITY),
+    # Device, 2026-11-03, for PAN-SVC-003 - stage 9 of `device-services`. HERE, immediately after
+    # `system-identity`, because within a category this list takes `finding_run.GENERATORS`' order
+    # and that tuple runs NTP (9), SNMP (10), system identity (11), management resolvers (12) -
+    # read off the generator tuple rather than assumed. It is also the vendor's own order on
+    # Device > Setup > Services, where the DNS Settings block sits beside NTP.
+    #
+    # REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)` (P465):
+    # `probe.oea_registry.domain_slug` in OptivEdgeProbe parses THIS FILE as text and its second
+    # form requires the attribute to be literally `SPEC`, so it admits exactly one spec per sheet
+    # module. `device-services` has FIVE specs over five models, which that form cannot express -
+    # and naming them `SPEC_*` would be worse than failing, because the unanchored regex would
+    # match the prefix and return the FIRST slug for all five control types. The failure it avoids
+    # is invisible to every OEA check: `tests/test_oea_registry.py::
+    # test_every_built_control_reaches_a_findings_domain_today` lives in OptivEdgeProbe and only
+    # fires once this domain's stage 9 artifact exists.
+    #
+    # Category DERIVED from the rail (`category=''`): the rail item is `dns-settings`, at
+    # Device > Setup > Services.
+    _object_domain("dns-settings", T.DNS_SETTINGS),
+    # Device, 2026-11-03, for PAN-SVC-006 - stage 9 of `device-services`, and NOT beside
+    # `dns-settings` above although both belong to this domain. `finding_run.GENERATORS` runs
+    # management resolvers (12), log server targets (13), vsys log forwarding (14), management
+    # plane addressing (15), appliance operational mode (16), management service paths (17), high
+    # availability (18) - so this control type's place is after all of those and immediately
+    # before the HA pair below. The three generator slots between them belong to domains whose
+    # Device-category tabs sit elsewhere in this list or do not exist yet, so nothing separates
+    # these two entries on the page; the gap is the generator order rather than a preference, and
+    # it is recorded because the two tabs being adjacent would look tidier and would be wrong.
+    #
+    # Category DERIVED from the rail (`category=''`): the rail item is `service-routes`, at
+    # Device > Setup > Services.
+    _object_domain("service-routes", T.SERVICE_ROUTE),
     # Device, 2026-11-03, for PAN-HAP-001 to 005. HERE, between `system-identity` and
     # `management-interfaces`, because within a category this list takes
     # `finding_run.GENERATORS`' order and that tuple already runs ... management service paths,

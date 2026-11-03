@@ -186,7 +186,15 @@ class WorkbookBuildTests(TestCase):
         # `Virtual System Log Forwarding` over `integrations.VsysLogForwarding` (Objects > Log
         # Forwarding). Its other eight controls joined an EXISTING tab, PAN-MGT-011's `Logging
         # and Reporting Settings`, which is why ten controls add two tabs and not three.
-        self.assertIn("Summary: 76 tabs linked, 0 findings in total", reports[0])
+        # 77 -> 79 on 2026-11-03, BOTH literals bumped in one edit: `device-services`' two new
+        # tabs, `DNS Settings` and `Service Routes`. They are NOT adjacent, although both belong
+        # to one pipeline domain and both sit on one vendor screen (Device > Setup > Services):
+        # `finding_run.GENERATORS` runs management resolvers at 12 and management service paths at
+        # 17, with four other domains' control types between them, and within a category this list
+        # takes that order. `domains.py` records both placements and the gap. The domain's other
+        # THREE tabs - `NTP`, `SNMP` and `System Identity` - already existed, so nine controls add
+        # two tabs and not five; what this stage owed those three was sixteen column headings.
+        self.assertIn("Summary: 78 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -292,7 +300,15 @@ class WorkbookBuildTests(TestCase):
         # immediately before `aaa-server-profiles`, following the vendor's own Server Profiles
         # order (Help 11.2 p.915). `domains.py` records both placements and the generator order
         # each one disagrees with.
-        self.assertEqual(len(names), 77)
+        # 77 -> 79 on 2026-11-03, BOTH literals bumped in one edit: `device-services`' two new
+        # tabs, `DNS Settings` and `Service Routes`. They are NOT adjacent, although both belong
+        # to one pipeline domain and both sit on one vendor screen (Device > Setup > Services):
+        # `finding_run.GENERATORS` runs management resolvers at 12 and management service paths at
+        # 17, with four other domains' control types between them, and within a category this list
+        # takes that order. `domains.py` records both placements and the gap. The domain's other
+        # THREE tabs - `NTP`, `SNMP` and `System Identity` - already existed, so nine controls add
+        # two tabs and not five; what this stage owed those three was sixteen column headings.
+        self.assertEqual(len(names), 79)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

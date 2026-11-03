@@ -53,6 +53,7 @@ from optivedge_integrations.integrations.models import (
     DataFilteringPosture,
     DecryptionSettings,
     DeviceIdentificationState,
+    DnsSettings,
     DosPolicyRule,
     FirewallContentStreams,
     LicenceInventory,
@@ -94,6 +95,7 @@ from optivedge_integrations.integrations.models import (
     ManagementSshSettings,
     MasterKey,
     NtpSettings,
+    ServiceRoute,
     SnmpSettings,
     SystemIdentity,
     UpdateServerSettings,
@@ -836,6 +838,56 @@ RESULTS = {
             # different configurations - see the tab for why that distinction is kept.
             ("DHCP client" if i.addressing_mode == "dhcp-client"
              else ("Static" if i.addressing_mode_explicit else "Static - by default")),
+        ),
+    ),
+    # TWO NEW PAGES, 2026-11-03, stage 9 of `device-services`, for the two models stage 7 minted
+    # and no query had anywhere to go to. Every `query_fields` entry below was checked against the
+    # model's OWN search registry rather than against the model - stored, searchable and
+    # REGISTERED are three different things, and the repo's rule is that only a column a control
+    # asks for is registered. `assessments/search/dns_settings/compiler.py` registers exactly
+    # {hostname, serial_number, chosen_resolver_count, management_resolver_posture} and
+    # `search/service_route/compiler.py` exactly {hostname, serial_number, scope, vsys_name,
+    # every_originated_service_has_a_chosen_path, per_system_path_choice_recorded,
+    # per_system_path_posture, service_path_posture}. A heading mapped outside those sets would
+    # point the "build a query from these rows" button at a lookup that refuses itself.
+    "dns-settings": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Resolvers": "chosen_resolver_count",
+                      "Posture": "management_resolver_posture"},
+        columns=("Appliance", "Resolvers", "Addresses", "Posture"),
+        base_queryset=_ordered(DnsSettings, "appliance__hostname"),
+        row=lambda d: (
+            str(d.appliance),
+            # The COUNT, spelled so that zero says what it means. `_nothing` is the house answer
+            # to a bare 0 in a reference column reading as "not counted" where it means
+            # "counted, and the answer was none".
+            _nothing(d.chosen_resolver_count, "chosen"),
+            # NO single registered field behind this column, so it has no `query_fields` entry:
+            # it presents the two address slots at once, and a DNS proxy object instead of either.
+            # The vendor's own words for the three, Help 11.2 p.749: "Primary DNS Server",
+            # "Secondary DNS Server", "DNS Proxy Object".
+            ("\n".join(a for a in (d.primary_resolver_address, d.secondary_resolver_address) if a)
+             or (f"DNS proxy: {d.dns_proxy_object_name}" if d.dns_proxy_object_name
+                 else "no resolver chosen")),
+            d.get_management_resolver_posture_display(),
+        ),
+    ),
+    "service-routes": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Scope": "scope",
+                      "Virtual System": "vsys_name", "Posture": "service_path_posture"},
+        columns=("Appliance", "Scope", "Virtual System", "Services", "Posture"),
+        base_queryset=_ordered(ServiceRoute, "appliance__hostname", "scope", "vsys_name"),
+        row=lambda r: (
+            str(r.appliance),
+            r.get_scope_display(),
+            # An em dash where the branch does not exist: a firewall-wide row does not HAVE a
+            # virtual system rather than having an empty one, and `layout.NONE` is the one
+            # vocabulary member that says so. A blank would read as missing data.
+            r.vsys_name or "—",
+            # COMPOSITE and therefore unmapped: how many of the services this row originates have
+            # a chosen path, which is two fields and not one.
+            f"{r.services_with_a_chosen_path} of {len(r.services_originated)} with a chosen path",
+            (r.get_service_path_posture_display() if r.scope == "device-local"
+             else r.get_per_system_path_posture_display()),
         ),
     ),
     "authentication-settings": ResultsSpec(
@@ -4120,17 +4172,26 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # The rest of that comment read true and is left on the record by this paragraph: the debt was
     # for nine of the ten controls by count of controls and for all 21 by count of QUERIES, which
     # is what `test_configuration_links` fails once per.
-    # `device-services` reached stage 8 on 2026-11-01. TWO models and neither has a rail item:
+    # `PAN-SVC` CAME OUT ON 2026-11-03, which is stage 9 of `device-services` doing the thing the
+    # entry was waiting for. Its own words were: "TWO models and neither has a rail item:
     # `integrations.DnsSettings` and `integrations.ServiceRoute` were both created by stage 7 for
-    # this domain and had never been queried from this repository at all. The entry is keyed on
-    # the whole `PAN-SVC` prefix and is therefore wider than the debt - the seven controls this
-    # domain already shipped target NTP, SNMP and system identity, all three of which have a
-    # rail item and resolve on their own - and that is harmless, because `_awaiting` is consulted
-    # only where `query_results_url` returns nothing. So this is load-bearing for the seven
-    # queries of PAN-SVC-003 and PAN-SVC-006 and inert for the other twenty-five. Stage 9 for
-    # this domain is what gives the two models a page, and stage 8's contract forbids building
-    # one.
-    "PAN-SVC": "stage9-device-services.json",
+    # this domain and had never been queried from this repository at all ... this is load-bearing
+    # for the seven queries of PAN-SVC-003 and PAN-SVC-006 and inert for the other twenty-five."
+    #
+    # BOTH MODELS NOW HAVE ONE, both at Device > Setup > Services beside the `ntp` item that was
+    # already there: `dns-settings` over `integrations.DnsSettings` and `service-routes` over
+    # `integrations.ServiceRoute`, each with a `ResultsSpec` above and a `FindingsDomain` in
+    # `artifacts/domains.py`. So all 33 of the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole, and clearing it is also what FORCES the two rail entries -
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the seed payload and
+    # never consults `is_active`, so with the exemption gone there is no off-rail route left.
+    #
+    # The count of two load-bearing controls was right and is kept. The other seven resolved
+    # through `ntp`, `snmp` and `system-identity` throughout - which is also why those three had
+    # findings tabs before this stage ran, and why what this stage owed them was sixteen column
+    # headings rather than a surface.
 }
 
 

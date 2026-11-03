@@ -29,6 +29,7 @@ from optivedge_integrations.integrations.models import AddressObject, SecurityPr
 
 from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
+from assessments import device_services_presentation as device_services
 from assessments import globalprotect_gateway_presentation as globalprotect_gateway
 from assessments import globalprotect_portal_presentation as globalprotect_portal
 from assessments import ha_panorama_presentation as ha_panorama
@@ -1949,19 +1950,81 @@ SPECS = (
          "session context and benign/grayware verdicts are shared. DEVICE-WIDE, as against "
          "the WildFire analysis profile, which decides what is asked for and is reported on "
          "the security rule."),
+    # THE FIVE `device-services` TABS, stage 9, 2026-11-03. The three below already existed as
+    # bare stubs - a description and a title and nothing else - so all 16 of their settings
+    # columns were raw Django field names in front of a customer. Every heading and both new tab
+    # titles are PROPOSALS (P399) sourced to the vendor's own Help where the vendor has a word;
+    # `device_services_presentation` carries the source per heading and says so where it does not.
+    #
+    # ALL FIVE DECLARE `provenance_cell`, AND THAT IS MEASURED RATHER THAN COPIED. Not one of the
+    # 23 clause fields across the five models carries a `FieldProvenance` row except
+    # `community_is_default` and `addressing_mode`, and no model carries an `__entry__` row - so
+    # the DEFAULT cell reads "Not recorded" on every row of all five tabs. Three of the five
+    # models are MIXED, not two: a constant cell would also lie about `community_is_default` on
+    # every PAN-SVC-005 row and about `addressing_mode` on every PAN-SVC-007 row. The module's
+    # docstring has the per-tab, per-control measurement.
+    #
+    # `tested_columns=ALL_TESTED_COLUMNS` on all five, so the workbook keeps `Fires when` rather
+    # than silently dropping it while the live page shows it (P427). The condition it prints reads
+    # in Django field names on all five tabs - `render_node` consults `setting_labels` nowhere -
+    # which is recorded as a defect in the stage 9 artifact rather than worked around here.
+    #
+    # `hidden_fields` is left empty on all five, so `check_every_tested_field_is_presented` passes
+    # on REAL columns rather than on a claim (P409).
     spec(T.NTP_SETTINGS,
-         "Where each firewall gets its time, and whether those exchanges are authenticated. "
-         "Whether a configured server is reachable or synchronized is not assessed - that is "
-         "live device state, not configuration.",
-         title="NTP",),
+         device_services.NTP_DESCRIPTION,
+         title="NTP",
+         setting_labels=device_services.NTP_SETTING_LABELS,
+         value_readers=device_services.NTP_READERS,
+         provenance_cell=device_services.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.SNMP_SETTINGS,
          "Whether each firewall exposes SNMP, which version, and whether its community string is "
          "a default one.",
-         title="SNMP",),
+         title="SNMP",
+         setting_labels=device_services.SNMP_SETTING_LABELS,
+         value_readers=device_services.SNMP_READERS,
+         provenance_cell=device_services.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.SYSTEM_IDENTITY,
          "How each firewall is named, what time zone its logs are written in, and whether its "
          "management address is static.",
-         title="System Identity",),
+         title="System Identity",
+         setting_labels=device_services.SYSTEM_IDENTITY_SETTING_LABELS,
+         value_readers=device_services.SYSTEM_IDENTITY_READERS,
+         provenance_cell=device_services.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # NEW 2026-11-03, for PAN-SVC-003. `integrations.DnsSettings` was created by stage 7 for this
+    # domain and had never been queried from this repository at all, so it had no rail item, no
+    # results page and no tab. Category DERIVED from the rail (`category=''`), which is right for
+    # a subject that IS a configuration object: the rail item is `dns-settings` at Device > Setup >
+    # Services, so the workbook cannot disagree with the app about where the object lives.
+    spec(T.DNS_SETTINGS,
+         device_services.DNS_SETTINGS_DESCRIPTION,
+         title=device_services.DNS_SETTINGS_TITLE,
+         setting_labels=device_services.DNS_SETTINGS_SETTING_LABELS,
+         value_readers=device_services.DNS_SETTINGS_READERS,
+         provenance_cell=device_services.provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # NEW 2026-11-03, for PAN-SVC-006, and the same history: created by stage 7, never queried,
+    # no surface of any kind. ITS OWN SUBJECT COLUMNS, because the row is not identified by an
+    # appliance alone - a firewall-wide set and a virtual system's own set are two rows on one
+    # appliance. `Scope` names `field="scope"` so the identity column IS the presentation of that
+    # field and no duplicate settings column is derived for it, which also buys
+    # `get_scope_display()` without paying a `value_reader`'s price.
+    #
+    # ITS OWN `provenance_cell`, and the difference is one skipped field. `scope` is the FOURTH
+    # provenance case - stored, not derived, not reader-only, and carrying no `FieldProvenance`
+    # row at all - and `ServiceRoute` carries no `__entry__` row either, so the remedy the fourth
+    # case normally has does not exist here. See `SERVICE_ROUTE_SCOPE_NOTE`.
+    spec(T.SERVICE_ROUTE,
+         device_services.SERVICE_ROUTE_DESCRIPTION,
+         title=device_services.SERVICE_ROUTE_TITLE,
+         subject=device_services.SERVICE_ROUTE_SUBJECT,
+         setting_labels=device_services.SERVICE_ROUTE_SETTING_LABELS,
+         value_readers=device_services.SERVICE_ROUTE_READERS,
+         provenance_cell=device_services.service_route_provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.MANAGEMENT_INTERFACE,
          "Every surface an administrator can reach the firewall on - the management port, the aux "
          "ports and any data-plane interface offering administrative services - and what each "
