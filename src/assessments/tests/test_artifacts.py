@@ -158,7 +158,19 @@ class WorkbookBuildTests(TestCase):
         # REQUIRED AN ESTATE THE COMMITTED SEEDER DOES NOT BUILD, which this count cannot show:
         # PAN-PLT-002 and PAN-PLT-004 read `show system info` and `request license info`, and
         # `print_findings_table` builds configuration snapshots only - see the stage 9 artifact.
-        self.assertIn("Summary: 66 tabs linked, 0 findings in total", reports[0])
+        # 67 on 2026-11-03 by stage 9 of `updates`. ONE tab for FOUR controls, which is the most
+        # concentrated shape in the pipeline so far and the reverse of the entry above: PAN-UPD-001,
+        # -002, -004 and -005 all report on `integrations.ContentUpdateSchedule`, so they share one
+        # tab, one rail item, one results page and one findings domain. The other two controls can
+        # never have one - PAN-UPD-003 is discharged `engineer_answers` and PAN-UPD-006
+        # `not_in_configuration` plus `engineer_answers`, and neither is in `seed.json` at all.
+        # `probe.surface_for` answered per control that all four reached NO tab beforehand.
+        #
+        # THE TAB DRAWS ELEVEN ROWS ON THE MEASURED ESTATE, over four appliances, and the estate is
+        # the committed seeder's own: all 20 of this domain's stage 6 subjects are CONFIGURATION
+        # reads with no `op://` among them, so P470 does not apply and the normalised columns were
+        # checked field by field against stage 6's `verified.read_back` before any row was read.
+        self.assertIn("Summary: 67 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -233,7 +245,18 @@ class WorkbookBuildTests(TestCase):
         # AND THE NOTE ABOVE WAS READ BEFORE RE-RUNNING RATHER THAN AFTER: both literals were
         # grepped out of this file and bumped in one edit, which is what that paragraph asks
         # the next run to do.
-        self.assertEqual(len(names), 67)
+        # 68 on 2026-11-03 by stage 9 of `updates`: "Dynamic Update Schedule" (23 characters,
+        # counted against the 31-character Excel cap before it was chosen and not truncated), ONE
+        # tab carrying FOUR controls. It sits between "Licenses" and "Installed Content", which is
+        # `finding_run.GENERATORS` order - licence inventory, content update schedule, firewall
+        # content streams - and that file's own comment carries the reader's argument for the second
+        # adjacency: this subject is the configured CAUSE of stale content and PAN-PLT-002's streams
+        # are the runtime SYMPTOM.
+        #
+        # BOTH LITERALS WERE GREPPED OUT OF THIS FILE AND BUMPED IN ONE EDIT, which is what the
+        # paragraph above asks for, and the numbers were read off the file rather than off a brief
+        # that quoted them one run stale.
+        self.assertEqual(len(names), 68)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

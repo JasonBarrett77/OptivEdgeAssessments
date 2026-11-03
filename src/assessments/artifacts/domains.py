@@ -488,6 +488,35 @@ DOMAINS = (
     # control type to register and nothing that could write a finding. Two of them are CRITICAL
     # severity; stage 8's `needs_human` is where that is on the record.
     _object_domain("licenses", T.LICENCE_INVENTORY),
+    # Device, 2026-11-03, for PAN-UPD-001, -002, -004 and -005 - FOUR controls on ONE model and so
+    # ONE tab, which is the most concentrated shape the pipeline has produced. `probe.surface_for`
+    # answered per control that all four reached NO sheet beforehand.
+    #
+    # BETWEEN `licenses` AND `content-streams`, which is `finding_run.GENERATORS` order read off
+    # that file rather than chosen here: licence inventory, content update schedule, firewall
+    # content streams. GENERATORS already carries the reader's argument for the second adjacency
+    # in its own comment - this subject "is the CONFIGURED CAUSE of stale content and
+    # PAN-PLT-002's streams are the RUNTIME SYMPTOM" - so a reader meets "this appliance retrieves
+    # no antivirus content at all" before "its antivirus stream is a year old".
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`), which is right for a subject an assessor
+    # opens a vendor screen to read: the rail item is `content-update-schedule` at
+    # Device > Dynamic Updates, and deriving the category means the workbook cannot disagree with
+    # the app about where the subject lives.
+    #
+    # REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)`, for the reason
+    # the entries around it record: `probe.oea_registry.domain_slug` parses THIS FILE as text and
+    # its second form requires the attribute to be literally `SPEC`, so it admits one spec per
+    # sheet module. This spec lives in `sheets/objects.py` beside fifty others.
+    #
+    # THE DOMAIN'S OTHER TWO CONTROLS ADD NO ENTRY HERE, and neither ever will under the current
+    # ruling. PAN-UPD-003 is discharged `engineer_answers` by stage 5; PAN-UPD-006 is
+    # `not_in_configuration` (a scope ruling) plus `engineer_answers`. Neither has a catalog entry
+    # in `seed.json` at all - checked control by control, the file carries exactly PAN-UPD-001,
+    # -002, -004 and -005 - so there is no control type to register and nothing that could write a
+    # finding. PAN-UPD-006's own subject model `ContentDeploymentSchedule` exists and reaches no
+    # tab by the same token; the stage 9 artifact records why rather than dropping it.
+    _object_domain("content-update-schedule", T.CONTENT_UPDATE_SCHEDULE),
     _object_domain("content-streams", T.FIREWALL_CONTENT_STREAMS),
     _object_domain("log-alarms", T.LOG_ALARM_SETTINGS),
     _object_domain("user-id-collector", T.USER_ID_COLLECTOR),

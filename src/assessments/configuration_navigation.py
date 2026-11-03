@@ -783,6 +783,38 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("content-streams", "Installed Content", "Device", "", "download",
                  where="Device > Dynamic Updates",
                  search_model="integrations.FirewallContentStreams"),
+    # Device > Dynamic Updates, 2026-11-03, for PAN-UPD-001, -002, -004 and -005 - the SCHEDULE on
+    # which the appliance retrieves content, as against `content-streams` immediately above, which
+    # is what it has already loaded. `integrations.ContentUpdateSchedule` was minted by stage 7 for
+    # the `updates` domain and had never been queried from this repository, so it had no rail item;
+    # `probe.surface_for` answered per control that all four reached NO findings tab either.
+    #
+    # IMMEDIATELY BELOW `content-streams` AND ABOVE `licenses`, which is the product's own order
+    # applied to a screen that carries two of our subjects. The entry above cites the Help's own
+    # section sequence - `Device > Software` p.950, `Device > Dynamic Updates` p.950-953,
+    # `Device > Licenses` p.954 - and both items sit at the middle one.
+    #
+    # THE LABEL IS A PROPOSAL (P399) AND IT IS THE VENDOR'S OWN PHRASE, not ours: Help 11.2 p.1224
+    # titles the field table that configures exactly this object "Dynamic Update Schedule Settings".
+    # 23 characters, counted against the workbook's 31-character sheet-name cap before it was
+    # chosen. The entry above deliberately did NOT take the screen name `Dynamic Updates` so that
+    # this item would have one to take - its own comment says so - and this is the other half of
+    # that decision.
+    #
+    # WHERE IS THE VENDOR PATH VERBATIM, Help 11.2 p.950 (`probe.corpus --id c84560`), which is the
+    # firewall screen; the schedule is reached through that screen's own `Schedule` option, whose
+    # description on the same page is "Allows you to schedule the frequency for retrieving
+    # updates". Two rail items sharing one `where` has precedent in `security` / `rule-posture`.
+    #
+    # ICON `refresh-cw` AND NOT `download`, which `content-streams` holds. Both are in OptivEdge's
+    # vendored set - `~/PythonProjects/OptivEdge/src/optivedge/templates/components/icons/`,
+    # enumerated at nineteen files on 2026-11-03 rather than taken from any list, because the field
+    # is unvalidated and a name that is not there raises `FileNotFoundError` at template render on
+    # EVERY explorer page. A recurring retrieval is what this subject is, so the recurrence glyph
+    # carries it and the download glyph stays with the thing that was downloaded.
+    ConfigObject("content-update-schedule", "Dynamic Update Schedule", "Device", "", "refresh-cw",
+                 where="Device > Dynamic Updates",
+                 search_model="integrations.ContentUpdateSchedule"),
     # Device > Licenses, 2026-11-02, for PAN-PLT-004 - a verdict over the appliance's whole
     # entitlement set. Immediately below Dynamic Updates and above Master Key, per the citation on
     # the entry above.

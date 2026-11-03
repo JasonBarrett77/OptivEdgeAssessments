@@ -3570,6 +3570,169 @@ SPECS = (
          "The identity services the firewall authenticates against - LDAP, RADIUS, TACACS+, "
          "Kerberos and SAML - and how it connects to each.",
          subject=APPLIANCE + SCOPE + KIND + NAME),
+    # Device > Dynamic Updates, 2026-11-03, for PAN-UPD-001, -002, -004 and -005 - FOUR controls
+    # sharing ONE model and so one tab. Category DERIVED from the rail (`category=''`), whose item
+    # is `content-update-schedule`, beside `content-streams` below at the same vendor screen: this
+    # tab is the SCHEDULE and that one is what the schedule has already loaded.
+    #
+    # NINE DERIVED SETTINGS COLUMNS AND NOT ONE `value_reader`, which is a decision rather than an
+    # omission, and both halves of the `choices` rule were checked in the model's own `_meta`
+    # before anything was written. All nine clause fields are `CharField(blank=True, default="")`
+    # with `choices=None`, so `get_<field>_display()` DOES NOT EXIST on any of them and a reader
+    # calling it would raise `AttributeError` at TEMPLATE RENDER - past `django check` and past all
+    # three cross-domain gates (P462). The cells therefore print the device's own tokens, and
+    # `configuration_results._update_token` carries the full reason that is the right answer here
+    # rather than a map: the vendor documents no word for ANY recurrence value (a complete count -
+    # `probe.corpus --all 'every-30-mins'` matches the CLI command hierarchy alone and 'Every 30
+    # Minutes' matches nothing in eleven indexes), and translating the two actions it DOES name
+    # would print one value two ways on one row, because `render_node` writes the `Fires when`
+    # cell and consults `setting_labels` nowhere. The English goes in the headings below instead.
+    #
+    # P451 DOES BITE THIS TAB AND THE SHEET-LEVEL `provenance_cell` IS WHAT ANSWERS IT, which was
+    # MEASURED on built rows after being reasoned the other way round first - the wrong reasoning
+    # is recorded here because it is the plausible one. The caller
+    # `normalization/content_updates.py:249` passes `write_node_row` a provenance list naming only
+    # `threats_threshold_hours` and `threats_new_app_threshold_hours` - neither a clause field of
+    # any of these four controls - and `write_node_row` writes no `__entry__` row. Measured on the
+    # seeded estate: all eight `FieldProvenance` rows this model carries belong to those two
+    # threshold fields and none to any of the nine clause fields.
+    #
+    # THE TEMPTING WRONG ANSWER was that nothing is owed, because all nine clause fields ARE
+    # declared in `ContentUpdateSchedule.DERIVED_FIELDS` and `build_findings_table`'s
+    # `provenance_of` closure SYNTHESISES a `FieldProvenance(DERIVED)` for a declared computed
+    # column when no stored row exists. It does - and `remediation_accessor` then DISCARDS that
+    # synthesised row on purpose ("DERIVED counts as no answer... it is the case the object has to
+    # answer") and falls back to the object's `__entry__` row, which this normaliser never writes.
+    # So `resolved` is None with `stored=True` and `provenance_cells` returns "Not recorded", whose
+    # own docstring defines it as "nothing tracks that field" - the opposite of true here. Measured
+    # before this line was added: every row's Provenance cell read "Not recorded" once per tested
+    # field. The synthesis only reaches the cell for a field that is NOT a stored column, which
+    # none of these nine is.
+    #
+    # SO THIS IS THE DISPROOF CONDITION OF A STANDING NOTE AND IT DOES NOT DISPROVE IT.
+    # `reference/consumer-repo-notes.md` asks for "a stored column named in a model's
+    # `DERIVED_FIELDS` whose Provenance cell reads `Derived` on a sheet with no `provenance_cell`
+    # override and whose normaliser writes no `__entry__` row". All nine fields here are exactly
+    # that, and all nine read "Not recorded". The note stands and the stage 9 artifact says so.
+    #
+    # `hidden_fields=()` ON PURPOSE. The gate counts a field as presented if `hidden_fields`
+    # carries it, so a non-empty tuple is a CLAIM accepted as proof and is the only known cause of
+    # a findings row that marks nothing as the thing to fix (P409). Every one of the nine is a real
+    # column here.
+    #
+    # `tested_columns` IS THE FULL SET, KNOWING TWO ROWS OF ELEVEN RENDER A WRONG `Fires when`. The
+    # default is `("Provenance",)`, which would silently drop `Fires when (failing condition)` from
+    # the workbook while the live page kept it, so the two surfaces would disagree about which cell
+    # a reader meets (P427). The cost is contract finding 1 and it was measured rather than
+    # predicted: `fires_when` renders the BASELINE alone, and on PAN-UPD-001 and PAN-UPD-002 the
+    # baseline is the CADENCE half while the ACTION half is carried by calibration queries - so
+    # pan-fw-b458, whose antivirus runs `hourly` and only downloads, prints a condition requiring
+    # the recurrence NOT to be hourly beside a correctly marked `av_action` cell. Those two rows
+    # are the ones whose `Matched queries` names a calibration and NOT the baseline, which is how a
+    # reader spots the state. The alternative is the contradicting value with no stated condition
+    # beside it at all, which is worse. PAN-UPD-005's rows are NOT affected and that is worth
+    # stating because its sign is the inverted one: stage 8 compiled `finding_when_clauses_fail`
+    # INTO the baseline as an `or` group of the failing states, so its stated condition IS the
+    # firing condition and reads correctly.
+    spec(T.CONTENT_UPDATE_SCHEDULE,
+         "The schedule on which each firewall retrieves Palo Alto's dynamic content updates, and "
+         "whether the scheduled run INSTALLS what it fetches. Five content types on one row - "
+         "antivirus, Applications and Threats, WildFire, the GlobalProtect data file and the "
+         "clientless VPN content - because the node is one per appliance under "
+         "`deviceconfig/system` with no vsys axis, so each content type is a COLUMN and not a row. "
+         "A CADENCE FAULT AND AN ACTION FAULT ARE DIFFERENT FINDINGS AT THE SAME SEVERITY: a "
+         "schedule that runs hourly and only downloads is a real failing with a faultless cadence, "
+         "so read the MARKED CELL rather than the severity to see which half failed. TWO ROWS FOR "
+         "AN HA PAIR ARE NOT A DUPLICATE AND NOTHING HERE DEDUPLICATES THEM - the update schedule "
+         "does not synchronise across peers and must be configured on both, so two rows are two "
+         "independent configurations and a pair showing one row is a pair half covered. "
+         "`none` AND `not read` ARE DIFFERENT ANSWERS: the first is an absence the firewall "
+         "reported, the second is an absence nobody collected, and the Schedule read column is "
+         "what tells them apart. WHAT A ROW HERE CANNOT SAY: whether the schedule has ever RUN, or "
+         "how old the content it fetched actually is. This is the configured cause; PAN-PLT-002 on "
+         "the Installed Content tab owns the symptom, and both will report on a firewall with no "
+         "schedule and stale content.",
+         title="Dynamic Update Schedule",
+         subject=APPLIANCE + (
+             # THE COLUMN THAT SAYS WHETHER ANYBODY LOOKED, and the reason every token cell on the
+             # row can be read literally. No clause of any of the four controls carries it, so
+             # `tested_fields` derives NO settings column for it - and without this cell the tab
+             # cannot tell a configured `none` from an uncollected read, which the model's own
+             # comment calls "the only column here a control may rely on to tell 'we never asked'
+             # from 'we asked and it was fine'". Stage 5 marks it `presented` and `fires` when
+             # unknown. NOTE it reads Yes on all four appliances of the measured estate, so the
+             # firing side of this column is UNEXERCISED there and the cell is load-bearing only
+             # on an estate where a management-plane read failed.
+             #
+             # IT DECLARES ITS `field` though nothing derives a column for it today, per the rule
+             # that every subject column names one: a control that later clauses on it would
+             # otherwise add a SECOND column of the same value under a different heading, and
+             # because the two headings differ the duplicate-header guard would not fire.
+             ("Schedule read", 14, False,
+              lambda s, _p: "Yes" if s.update_schedule_collected else "No",
+              "update_schedule_collected"),
+         ),
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         # `source_columns=()` - THE TEMPLATE COLUMN IS DROPPED, and this was measured before it
+         # was decided. `_default_template_cell` names the pushed template PER TESTED FIELD, and
+         # all nine tested fields here are computed from WHICH BRANCH ELEMENT EXISTS rather than
+         # read from a key, so none can ever carry TEMPLATE provenance - the model's own comment
+         # says they "can never carry a `FieldProvenance` row". Built with the default it was
+         # blank on 11 of 11 rows, and a column blank on every row of a report reads as a gap in
+         # the collection rather than as a column that does not apply. `content-streams`,
+         # `licenses`, `log-alarms`, `ace` and the four SaaS tabs drop it on exactly this
+         # argument. If a template-scoped schedule is ever normalised, the thing to restore is
+         # the normaliser's provenance list first and this column second.
+         source_columns=(),
+         # EVERY HEADING HERE IS A PROPOSAL (P399) and the words in them are the vendor's own.
+         # `Recurrence` and `Action` are the two field names on the screen that configures this
+         # object - Help 11.2 p.950, "the Recurrence and time - and whether to Download Only or to
+         # Download and Install scheduled updates" - and the content-type names are that page's
+         # own: "new and modified applications, threat protection, device dictionary files for IoT
+         # Security, and GlobalProtect data files". A field with no entry here would head a
+         # customer-facing column with its raw Django name, which is what this map exists to
+         # prevent, so all nine are named and none is left to the fallback.
+         setting_labels={
+             "av_recurrence": "Antivirus recurrence",
+             "av_action": "Antivirus action",
+             # THE VENDOR'S OWN NAME FOR THE CONTENT TYPE, "Applications and Threats" on p.950 and
+             # not "App and Threat" - that shorter spelling is the PANORAMA schedule dialog's
+             # `Type` dropdown (p.1224) and names a Panorama object, not this column.
+             "threats_recurrence": "Applications and Threats recurrence",
+             "threats_action": "Applications and Threats action",
+             # NO ACTION COLUMN BESIDE IT, and the absence is PAN-UPD-004's rather than an
+             # oversight: that control clauses on the recurrence alone, so `tested_fields` derives
+             # no column for `wildfire_action` and nothing here could label one. The explorer page
+             # shows it as an unqueryable reference column; this tab does not show it at all.
+             "wildfire_recurrence": "WildFire recurrence",
+             "gp_datafile_recurrence": "GlobalProtect data file recurrence",
+             "gp_datafile_action": "GlobalProtect data file action",
+             # "Clientless VPN" IS OURS AND THE VENDOR HAS NO WORD FOR IT ON THIS SCREEN, which is
+             # said rather than implied. Stage 4 measured Device > Dynamic Updates as carrying a
+             # group of its own for this content type while the Help's section for that screen
+             # never names it - documentation and device disagreeing in that direction, which is
+             # the opposite way round from the GlobalProtect data file, whose group the screen does
+             # NOT carry and whose name the Help's opening sentence does. The configuration token
+             # is `global-protect-clientless-vpn`.
+             "gp_clientless_vpn_recurrence": "Clientless VPN recurrence",
+             "gp_clientless_vpn_action": "Clientless VPN action",
+         },
+         # ONE ANSWER FOR THE WHOLE ROW, because every tested field on it is computed from WHICH
+         # BRANCH ELEMENT EXISTS and none has a payload key of its own - the model's own comment
+         # says they "have no payload key and can never carry a `FieldProvenance` row". The default
+         # per-field cell printed "Not recorded" once per tested field, which states that nothing
+         # TRACKS the field and is the opposite of what is true: the value is derived, deliberately
+         # and by a documented rule. See the paragraph above for why the declaration in
+         # `DERIVED_FIELDS` does not reach the cell on its own.
+         #
+         # WRITTEN INLINE RATHER THAN REUSING `platform_lifecycle.DERIVED_CELL`, which is the same
+         # expression: that constant belongs to another pipeline domain's presentation module and
+         # this sheet should not acquire a dependency on it for one lambda. If a third sheet wants
+         # it, the shared home is `findings.py` and not either domain's module.
+         provenance_cell=(
+             lambda _subject, _provenance_of, _fields:
+             findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label)),
     # Device > Dynamic Updates, 2026-11-02, for PAN-PLT-002. Category DERIVED from the rail
     # (`category=''`), whose item is `content-streams` - right for a subject that IS a thing an
     # assessor opens a vendor screen to read, and deriving it means the workbook cannot disagree

@@ -48,6 +48,7 @@ from optivedge_integrations.integrations.models import (
     CertificateProfile,
     CustomUrlCategory,
     CloudAppEngineSetting,
+    ContentUpdateSchedule,
     DataFilteringPosture,
     DecryptionSettings,
     DeviceIdentificationState,
@@ -229,6 +230,46 @@ def _where(obj):
 
 def _yes_no(value):
     return "yes" if value else "no"
+
+
+def _update_token(value) -> str:
+    """A content schedule's recurrence or action cell: the DEVICE'S OWN TOKEN, untranslated.
+
+    THE DECISION NOT TO TRANSLATE IS DELIBERATE AND THE REASON IS ON THE RECORD, because the
+    opposite choice was available and looks friendlier. The nine columns this serves hold tokens
+    like `download-and-install`, `every-30-mins`, `real-time` and `none`, and the vendor's own UI
+    words were checked for rather than assumed:
+
+      * THE VENDOR HAS WORDS FOR THE TWO ACTIONS. Help 11.2 p.950 (`probe.corpus --id c84560`):
+        "whether to Download Only or to Download and Install scheduled updates", and p.1225
+        repeats the pair on the Panorama schedule dialog.
+      * THE VENDOR HAS NO WORD FOR ANY RECURRENCE VALUE, and that is a complete count rather than
+        a failed search. `probe.corpus --all 'every-30-mins'` matches the CLI command hierarchy
+        ALONE - which is the configuration grammar, not a label - and is silent in all ten other
+        indexes; `probe.corpus --all 'Every 30 Minutes'` matches NOTHING in any of the eleven. The
+        Panorama screen's own Recurrence row says only "The recurrence options vary by update
+        type" (p.1224). So a prettier spelling would be ours presented as the vendor's.
+      * TRANSLATING THE ACTIONS ALONE WOULD NAME ONE VALUE TWO WAYS ON ONE ROW. `render_node`,
+        which writes the findings tab's `Fires when (failing condition)` cell, consults no label
+        map at all, so the condition above the cell prints `av_action not equals
+        download-and-install` whatever this function returns. `url-filtering` measured that
+        mismatch on 65 rows in 2026-11-02 and it is the defect a partial map reintroduces.
+      * AND THE MAP WOULD BE PARTIAL WHERE IT MATTERS MOST. The vendor's action list is Download
+        Only / Download and Install / Download and SCP; `none` and the empty string are not on it,
+        and those two are exactly the states these controls exist to tell apart. Stage 8's second
+        `needs_human` records that the action leaf passes an unrecognised token through verbatim,
+        so a map would also silently rename a state a later PAN-OS really holds.
+
+    The English goes in the HEADINGS instead, where `setting_labels` and `query_fields` do reach -
+    "Antivirus action" takes the vendor's own two field names from p.950.
+
+    THE EMPTY STRING IS THE ONE VALUE THAT IS NOT A TOKEN, and it is not `none`. `none` is an
+    absence that WAS read; "" is an absence NOBODY read - the appliance's `deviceconfig/system`
+    node came back empty - and the Schedule read column beside it carries the same fact. Printing
+    both as the same word would tell a customer their firewall is misconfigured on the strength of
+    a reply nobody received.
+    """
+    return value if value else "not read"
 
 
 def _enforced_by(point) -> str:
@@ -1899,6 +1940,65 @@ RESULTS = {
             _stream_cell(s.device_dictionary_version, s.device_dictionary_release_date),
         ),
     ),
+    # Device > Dynamic Updates, 2026-11-03, for PAN-UPD-001, -002, -004 and -005. The SCHEDULE,
+    # as against `content-streams` above, which is what the appliance has already loaded.
+    # `integrations.ContentUpdateSchedule` was minted by stage 7 for the `updates` domain and had
+    # never been queried from this repository, so none of the domain's twenty-three shipped queries
+    # had anywhere to go until this entry existed: `AWAITING_PRESENTATION` held `PAN-UPD` and this
+    # run cleared it.
+    #
+    # EVERY `query_fields` ENTRY NAMES A FIELD THE COMPILER ACTUALLY REGISTERS, read off
+    # `assessments/search/content_update_schedule/compiler.py::FIELD_OPERATOR_REGISTRY` rather than
+    # assumed - stored, searchable and registered are three different things and the repo's rule is
+    # that only a column a control asks for is registered. That registry holds exactly twelve:
+    # `hostname`, `serial_number`, `update_schedule_collected`, and the nine content columns below.
+    #
+    # `wildfire_action` IS A COLUMN HERE AND IS DELIBERATELY NOT IN `query_fields`. It is the one
+    # content action the compiler does NOT register, because PAN-UPD-004 clauses on the WildFire
+    # recurrence alone - its own module docstring says the absence is deliberate rather than
+    # forgotten. Shown because a reader comparing the five content types down one row would
+    # otherwise meet a hole, and left unmapped because a heading pointed at an unregistered field
+    # would aim the "build a query from these rows" button at a lookup that refuses itself.
+    # `scope` and the two threshold columns are absent for the same reason: not registered.
+    "content-update-schedule": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            # THE COLUMN THAT SAYS WHETHER ANYBODY LOOKED, and the reason every cell below can be
+            # read literally. The compiler's own comment records that four of this domain's stage 5
+            # records name it as the answer to "is this unknown".
+            "Schedule read": "update_schedule_collected",
+            "Antivirus recurrence": "av_recurrence",
+            "Antivirus action": "av_action",
+            "Applications and Threats recurrence": "threats_recurrence",
+            "Applications and Threats action": "threats_action",
+            "WildFire recurrence": "wildfire_recurrence",
+            "GlobalProtect data file recurrence": "gp_datafile_recurrence",
+            "GlobalProtect data file action": "gp_datafile_action",
+            "Clientless VPN recurrence": "gp_clientless_vpn_recurrence",
+            "Clientless VPN action": "gp_clientless_vpn_action"},
+        columns=("Appliance", "Serial", "Schedule read",
+                 "Antivirus recurrence", "Antivirus action",
+                 "Applications and Threats recurrence", "Applications and Threats action",
+                 "WildFire recurrence", "WildFire action",
+                 "GlobalProtect data file recurrence", "GlobalProtect data file action",
+                 "Clientless VPN recurrence", "Clientless VPN action"),
+        base_queryset=_ordered(ContentUpdateSchedule, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            _yes_no(s.update_schedule_collected),
+            _update_token(s.av_recurrence),
+            _update_token(s.av_action),
+            _update_token(s.threats_recurrence),
+            _update_token(s.threats_action),
+            _update_token(s.wildfire_recurrence),
+            _update_token(s.wildfire_action),
+            _update_token(s.gp_datafile_recurrence),
+            _update_token(s.gp_datafile_action),
+            _update_token(s.gp_clientless_vpn_recurrence),
+            _update_token(s.gp_clientless_vpn_action),
+        ),
+    ),
     "licenses": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Serial": "serial_number",
@@ -3348,14 +3448,24 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # THE ENTRY HAD NO TRAILING DASH, unlike its neighbours, and that made no difference to what it
     # exempted: every PAN-PLT control id begins `PAN-PLT-`, so the prefix matched all of them
     # either way. Noted because the asymmetry invites a reader to think one was deliberate.
-    # `updates` reached stage 8 on 2026-11-01. `integrations.ContentUpdateSchedule` was created
-    # by stage 7 for this domain and had never been queried from this repository, so it has no
-    # rail item; stage 9 for this domain is what gives it a page and stage 8's contract forbids
-    # building one. THIS DEBT IS FOR FOUR OF THE DOMAIN'S SIX CONTROLS, not six: PAN-UPD-003 is
-    # discharged `engineer_answers` and PAN-UPD-006 `not_in_configuration` plus
-    # `engineer_answers`, so neither owes a query, neither has a catalog entry, and neither has a
-    # link to go nowhere.
-    "PAN-UPD": "stage9-updates.json",
+    # `PAN-UPD` WAS HERE AND IS GONE, cleared 2026-11-03 by stage 9 of `updates`, which is the work
+    # the entry was waiting for. Its own words were: "`updates` reached stage 8 on 2026-11-01.
+    # `integrations.ContentUpdateSchedule` was created by stage 7 for this domain and had never been
+    # queried from this repository, so it has no rail item; stage 9 for this domain is what gives it
+    # a page and stage 8's contract forbids building one. THIS DEBT IS FOR FOUR OF THE DOMAIN'S SIX
+    # CONTROLS, not six: PAN-UPD-003 is discharged `engineer_answers` and PAN-UPD-006
+    # `not_in_configuration` plus `engineer_answers`, so neither owes a query, neither has a catalog
+    # entry, and neither has a link to go nowhere."
+    #
+    # WHAT REPLACED IT: the rail item `content-update-schedule` at Device > Dynamic Updates, with
+    # `search_model="integrations.ContentUpdateSchedule"`, and the `ResultsSpec` of the same slug
+    # above. So every shipped PAN-UPD query now resolves through `CONFIG_OBJECTS` on its own and
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` passes WITHOUT the exemption -
+    # which is a different claim from the suite being green, because it was green before: that test
+    # never consults `is_active` and was exempted for all of this domain's queries by the line
+    # above. The four controls' findings tab is `Dynamic Update Schedule`, registered in
+    # `artifacts/domains.py` as `content-update-schedule`; the results destination and the findings
+    # tab are two different surfaces and this entry was only ever a debt against the first.
     # `PAN-URL` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `url-filtering`, which is
     # the work the entry was waiting for. Its own words were: "ONE PREFIX COVERS BOTH OF THIS
     # DOMAIN'S MODELS, and that is not a shortcut: `integrations.CustomUrlCategory` was created by
