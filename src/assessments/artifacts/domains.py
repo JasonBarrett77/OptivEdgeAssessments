@@ -82,6 +82,30 @@ DOMAINS = (
     # match - the REVERSE of their category rank - and that tuple's order governs only WITHIN a
     # category, so nothing here contradicts it.
     _object_domain("rulebase-device-match", T.RULEBASE_DEVICE_MATCH),
+    # REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)`, and that is
+    # not a style choice: `probe.oea_registry.domain_slug` in OptivEdgeProbe parses THIS FILE as
+    # text, and its second form is the regex `FindingsDomain\(\s*["\']([a-z0-9-]+)["\']\s*,\s*
+    # (\w+)\.SPEC`, which requires the attribute to be literally `SPEC` and so admits exactly ONE
+    # spec per sheet module. This domain has FOUR specs over four models, which that form cannot
+    # express - and naming them `SPEC_*` would be worse than failing, because the unanchored regex
+    # would match the prefix and return the FIRST slug for all four control types. Measured
+    # 2026-11-02: registered the other way, `tests/test_oea_registry.py::
+    # test_every_built_control_reaches_a_findings_domain_today` failed for this domain the moment
+    # its stage 9 artifact existed. `_object_domain` names the control type in this file, so the
+    # lookup resolves per type and cannot be ambiguous.
+    #
+    # Policies, 2026-11-02, for PAN-SAS-003 - the THIRD verdict over a virtual system's whole
+    # rule set, so it sits beside the two above and after them, which is the order a reader
+    # needs by those entries' own argument: `vsys-rule-posture` says whether the policy refuses
+    # anything at all, and these two ask narrower questions of the same rules.
+    #
+    # NOT IN `finding_run.GENERATORS` ORDER RELATIVE TO THIS CATEGORY, and that is stated rather
+    # than quiet. Measured 2026-11-02: the Policies block's generator indices already run 72,
+    # 50, 73, 73, 73, 73, 69, 70, 59 - so the convention is not held here today, and placing
+    # this domain (index 33) in index order would mean putting it first and rearranging nothing
+    # usefully. `check_tabs_follow_the_summary` enforces CATEGORY order only. Placed by the
+    # reader's need and by the three tabs' shared subject instead.
+    _object_domain("saas-application-policy", T.SAAS_APPLICATION_POLICY_POSTURE),
     #
     # The generic rules sheet comes first and stays first: `_build_model_index` takes the FIRST
     # domain claiming a model, so SecurityRule links keep landing here rather than on one of
@@ -179,6 +203,17 @@ DOMAINS = (
     # claiming a MODEL, and this domain claims `integrations.DataFilteringPosture`, which no other
     # domain claims. `SecurityProfile` links still land on `security-profiles`.
     _object_domain("data-filtering-posture", T.DATA_FILTERING_POSTURE),
+    # Objects, 2026-11-02, the two SaaS tabs whose subjects are Objects-category nodes - an
+    # application's approval tag and a URL Filtering profile's SaaS controls. In
+    # `finding_run.GENERATORS` order between themselves (indices 31 then 32), which is also the
+    # order a reader needs: whether the partition records what the business approved at all,
+    # before what its web controls do about the rest.
+    #
+    # BEFORE `coverage` AND `normalization-coverage`, which are deliberately last in this
+    # category - they report what the run could NOT establish, so they read as the footnote to
+    # everything above rather than as another finding family.
+    _object_domain("sanctioned-application-marking", T.SANCTIONED_APPLICATION_MARKING),
+    _object_domain("saas-url-filtering-posture", T.SAAS_URL_FILTERING_POSTURE),
     # Objects, not last. It reads as a footnote to the whole run and was placed at the end for
     # that reason - but the workbook requires tabs to follow the Summary's category order, and
     # coverage categorises as Objects because its subject is an address object. The product's
@@ -352,6 +387,19 @@ DOMAINS = (
     # Device > Certificate Management > Certificates - right for a subject that IS a configuration
     # object, and the second item at that one vendor address.
     _object_domain("forward-proxy-signing", T.DECRYPTION_SETTINGS),
+    # Device, 2026-11-02, for PAN-SAS-005 - the App-ID Cloud Engine, at Device > Setup > ACE.
+    #
+    # THIS POSITION IS `finding_run.GENERATORS` ORDER AND WAS CHOSEN FOR THAT. Its generator
+    # index is 30 and the entry above it is 25, the one below 67, so 25 < 30 < 67 holds - which
+    # is the convention this list follows within a category (Jason, 2026-09-21). The 67-then-36
+    # break immediately below is older and is not this entry's to rearrange.
+    #
+    # FIRST OF THE DOMAIN'S FOUR TABS IN GENERATOR ORDER AND LAST IN THE SUMMARY, which is worth
+    # naming because the tab's own description leans on the first half: the engine's state is the
+    # PREMISE the other three rest on, so the findings are GENERATED first. The Summary groups by
+    # PAN-OS category and this subject is a Device setting, so it reads last. Nothing can satisfy
+    # both orders at once and the category order is the gated one.
+    _object_domain("cloud-app-engine", T.CLOUD_APP_ENGINE_SETTING),
     # Device, 2026-11-02, for PAN-DEC-004's first record. HERE, immediately after
     # `forward-proxy-signing`, because within a category this list takes
     # `finding_run.GENERATORS`' order and both of these subjects are under the same rail group -

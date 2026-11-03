@@ -1288,6 +1288,304 @@ DATA_FILTERING_POSTURE_LABELS = {
 
 
 # --------------------------------------------------------------------------------------------
+# THE FOUR SaaS TABS, 2026-11-02, for PAN-SAS-001 to -005. Four models, four grains and THREE
+# PAN-OS categories - an application's approval tag (Objects), a URL Filtering profile's SaaS
+# controls (Objects), a virtual system's whole rulebase (Policies) and a device-wide service
+# switch (Device) - so they are four tabs in three different places in the Summary rather than
+# one domain's block. The whole domain is new to presentation: nothing in this repository drew a
+# row for any of these four control types before today, and not one of their ten clause fields
+# had a heading.
+#
+# WHY FOUR AND NOT ONE. An engineer fixes one of four different things at four different vendor
+# addresses, and that is the same split `vsys_rule_posture` and `security_rules` already make
+# over the security rulebase. The rail items follow it.
+#
+# EVERY HEADING AND EVERY TAB TITLE BELOW IS A PROPOSAL. Report content is Jason's and he takes
+# the heading pass once across many domains (P399). What is typed here is only the WORDS - the
+# column SET is derived from the controls' own clauses. Where the vendor has a word this uses it
+# and cites the page; where the vendor has NONE the comment says so rather than implying one.
+# All four titles are 31 characters or fewer, which is Excel's silent cap on a sheet name:
+# "Sanctioned Applications" (23), "SaaS URL Filtering Posture" (26), "SaaS Application Policy"
+# (23) and "App-ID Cloud Engine" (19).
+#
+# THREE SUBJECTS ARE VSYS-SCOPED AND NONE OF THE THREE MODELS HAS AN `appliance`. They hang off
+# an `EnforcementPoint`, so all three specs override the three appliance-scoped defaults -
+# `subject_columns`, `appliance_of` and `subject_select_related` - on `vsys_rule_posture`'s
+# precedent, and reuse `VSYS_SCOPED` above. `appliance_of` returns None deliberately: an
+# enforcement point is unique per `(appliance_group, vsys_name)`, so on an HA pair ONE POINT
+# SPANS BOTH MEMBERS and linking a row to one peer would assert something false.
+#
+# AND THAT IS WHY STAGE 5'S HA CLAIM IS NOT IMPLEMENTED HERE. Stage 5 says of all four subjects
+# that an HA pair yields TWO rows for one real configuration "and nothing downstream
+# deduplicates them". Measured 2026-11-02 off `_meta.constraints` and then on a deliberately
+# built HA pair (two appliances in one `ha_pair` group, 7 points, 14 nodes, identical payloads):
+# `SanctionedApplicationMarking`, `SaasUrlFilteringPosture` and `SaasApplicationPolicyPosture`
+# each declare `unique(enforcement_point)`, so the pair SHARES one point and all three drew 7
+# rows for 7 configurations in BOTH arms of `flows.get_in_scope_appliances`. They deduplicate one
+# layer BELOW presentation and there is nothing for a sheet to collapse. Only
+# `CloudAppEngineSetting` declares `unique(appliance)` and so draws a row per member - 1 row with
+# `EnforcementPoint.appliance` set and 2 with it null, because `get_in_scope_appliances` takes
+# that field and never consults the point's nodes. Its tab keeps both, on Data Filtering
+# Posture's ruling that two peers' configurations are not known to be identical.
+#
+# NO PROVENANCE ROW EXISTS FOR ANY TESTED COLUMN OF ANY OF THE FOUR, so all four specs answer the
+# Provenance cell themselves and none carries a Template column. Measured with the default cell:
+# "Not recorded" on every tested field of every row of all four tabs. The three postures are
+# documented - `normalization/saas_security.py:1036` says "NO PROVENANCE ROW ON ANY OF THE THREE,
+# not even `__entry__`" - and the FOURTH was settled by building the row and reading the cell
+# rather than by reasoning: `CloudAppEngineSetting` goes through `write_node_row`, which writes a
+# row per NAMED field and no `__entry__` at all, and its provenance tuple names only
+# `ace_disabled` and `cloudapp_server_address`, neither of which PAN-SAS-005 tests. So the one
+# real `FieldProvenance` row in the whole domain belongs to a field no control tests, and the
+# Provenance cell never reads it.
+#
+# NO VALUE READER ON ANY COLUMN, and that is a decision rather than an omission. NOT ONE FIELD of
+# any of the four models declares `choices` - checked field by field through `_meta` - so no
+# labelling reader is owed, and `get_<field>_display()` DOES NOT EXIST on any of them: the call
+# would raise `AttributeError` at TEMPLATE RENDER, past `django check` and past all three
+# cross-domain gates. Every tested column reads honestly through `display_value`.
+#
+# `hidden_fields` IS EMPTY ON ALL FOUR AND STAYS EMPTY. The gate counts a field as presented if a
+# subject column, a settings column OR `hidden_fields` carries it, so a non-empty tuple is a
+# CLAIM accepted as proof, and it is the only known cause in this repository of a findings row
+# that marks nothing as the thing to fix (P409). Every tested field of all five controls has a
+# real column.
+#
+# `tested_columns=ALL_TESTED_COLUMNS` ON ALL FOUR IS A CHOICE: the default `("Provenance",)`
+# silently drops `Fires when` from the WORKBOOK while the live page keeps it, so the two surfaces
+# would disagree about which cell a reader meets (P427). It is taken knowing that `fires_when`
+# renders the BASELINE's condition alone - so on the one PAN-SAS-001 row whose finding comes from
+# the calibration query alone, the stated condition is one that row does not meet. The
+# alternative is a contradicting value with no stated condition beside it at all.
+
+#: The word every Provenance cell on the four SaaS tabs reads. One answer for the whole row, on
+#: `vsys_rule_posture`'s precedent: the default cell answers per tested field through the
+#: remediation walk, which on all four of these models resolves to "Not recorded".
+def _saas_derived_cell(subject, provenance_of, fields) -> str:
+    return findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label
+
+
+_SAAS_VSYS_SELECT_RELATED = ("enforcement_point__appliance_group", "enforcement_point__appliance")
+_SAAS_VSYS_PREFETCH = ("enforcement_point__appliance_group__appliances",)
+
+#: Sanctioned Applications. The address, then the inventory the verdict is computed over.
+#:
+#: `marked_application_names` IS HERE BECAUSE STAGE 5 DECLARED IT PRESENTED AND NOTHING DERIVES
+#: IT. A settings column is derived only for a field an active query has a CLAUSE on, and no
+#: query of this control touches this one - so the flag and the machinery disagree, and
+#: hand-declaring is the documented way to settle it. It earns the space: the commonest failing
+#: state is that the partition marks NOTHING, and this is the column that tells an engineer
+#: whether the remediation is to start the inventory or to extend it. It DECLARES its `field`
+#: even though no control tests it, on the Device-ID tabs' ruling.
+SANCTIONED_APPLICATION_MARKING_SUBJECT = VSYS_SCOPED + (
+    ("Applications marked approved", 30, True,
+     lambda m, _p: "\n".join(m.marked_application_names) if m.marked_application_names
+     else "Nothing marked",
+     "marked_application_names"),
+)
+
+#: PROPOSED HEADINGS for Sanctioned Applications.
+#:
+#: THE VENDOR HAS A VERB FOR THE MECHANISM AND NO WORD FOR TWO OF THESE STATES. Help 11.2 p.231,
+#: under `Objects > Applications`: "A predefined tag named sanctioned is available for you to tag
+#: SaaS applications ... Tag applications as sanctioned to help differentiate sanctioned SaaS
+#: application traffic from unsanctioned SaaS application traffic", and p.242 names the screen:
+#: "A predefined tag named Sanctioned is available for tagging applications (Objects >
+#: Applications)." So "approved" is OURS and "marked" tracks the vendor's verb.
+SANCTIONED_APPLICATION_MARKING_LABELS = {
+    # Record 0, and the whole control in one clause: the failure is the ABSENCE of the mechanism
+    # rather than a value in it. Phrased as a count because that is what the clause names -
+    # `equals 0` is the finding - and printed as a NUMBER, on `rule-posture`'s ruling for a count
+    # column: "Nothing" on a column named for a count reads as "not counted" exactly where it
+    # means "counted, and the answer was none".
+    "sanctioned_application_count": "Applications marked approved (count)",
+    # Record 1's APPLICABILITY clause, which draws a column because `tested_fields` registers
+    # applicability clauses too. It is not the fault and is never marked; it is the condition
+    # under which the column below means anything at all.
+    "appliance_is_multi_vsys": "Appliance has several virtual systems",
+    # THE ONE HEADING HERE IN THE VENDOR'S OWN WORDS: Help 11.2 p.57, on the ACC's application
+    # view, "yellow indicates applications that have different sanctioned state across different
+    # virtual systems or device groups". Phrased in the FIRING polarity deliberately - the column
+    # defaults false and TRUE is the finding - so the firing cell reads "Yes" under a heading
+    # that says the bad thing. The failure this stage exists to catch is a row whose most
+    # reassuring cell is the finding.
+    "marking_is_inconsistent_across_vsys": "Approval differs between virtual systems",
+}
+
+#: SaaS URL Filtering Posture. The address, then the four stage-5-presented columns no clause
+#: derives.
+#:
+#: `url_filtering_profiles_read` IS THE MOST IMPORTANT COLUMN ON THAT TAB. Both verdicts are
+#: booleans in the direction that PASSES, so FALSE is the finding - and FALSE is also what a
+#: partition holds when NOBODY LOOKED. Measured on a seeded estate: two of nine rows carry
+#: `url_filtering_profiles_read = False` with `tenant_restriction_in_force = False` beside it, so
+#: the finding fires on a partition whose profiles were never read. `rules.md` puts it exactly: a
+#: reading that cannot tell ZERO from UNKNOWN is an unknown, per FIELD and not per device - and an
+#: unknown firing is the correct direction. What is NOT correct is a row that does not say which
+#: it was, and this column is the only thing on the tab that can.
+#:
+#: THE THREE COUNTS ARE THE EVIDENCE FOR THE VERDICTS and stage 5 declared all three presented.
+#: Each answers a different "why" an engineer would otherwise open the device for: how much
+#: header-insertion coverage exists at all, how much of it names a header and carries no value
+#: (configured and restricting nothing), and how many rules take the native route the control
+#: prefers.
+SAAS_URL_FILTERING_POSTURE_SUBJECT = VSYS_SCOPED + (
+    ("Profiles read", 14, False,
+     lambda p, _p: findings_sheet.display_value(p.url_filtering_profiles_read),
+     "url_filtering_profiles_read"),
+    ("Header insertion entries", 24, False,
+     lambda p, _p: str(p.header_insertion_type_entry_count),
+     "header_insertion_type_entry_count"),
+    ("Headers naming no tenant", 24, False,
+     lambda p, _p: str(p.tenant_header_without_value_count),
+     "tenant_header_without_value_count"),
+    ("Rules using a SaaS Tenant List", 30, False,
+     lambda p, _p: str(p.rule_bound_tenant_list_count),
+     "rule_bound_tenant_list_count"),
+)
+
+#: PROPOSED HEADINGS for SaaS URL Filtering Posture. TWO CONTROLS SHARE IT - PAN-SAS-002 and
+#: PAN-SAS-004 - because `finding_registry.KIND_BY_MODEL` is keyed by model, so one model lives
+#: under exactly one control type.
+#:
+#: THE VENDOR'S OWN WORDS, established in the corpus. Help 11.2 p.302 names the screen verbatim -
+#: "select Objects > Security Profiles > URL Filtering > HTTP Header Insertion" - and p.303 gives
+#: the field labels "Type", "Domains", "Header" and "Value". p.297, under URL Filtering
+#: Categories, gives "Site Access": "For each URL category, select the action to take when a user
+#: attempts to access a URL in that category", listing alert, allow, block, continue and
+#: override. So the treatment column's heading is the vendor's and the two verdicts' are ours.
+SAAS_URL_FILTERING_POSTURE_LABELS = {
+    # PAN-SAS-002's whole assertion in one verdict, in the direction that PASSES, so "No" is the
+    # finding. "In force" rather than "configured": the verdict requires both that a profile
+    # inserts a tenant-restriction header AND that a security rule of this partition carries that
+    # profile - a profile nothing references restricts nothing.
+    "tenant_restriction_in_force": "Tenant restriction in force",
+    # PAN-SAS-004's baseline assertion, also in the passing direction.
+    "consumer_storage_categories_are_restricted": "Consumer storage categories restricted",
+    # PAN-SAS-004's CALIBRATION query adds this one. "Site Access" is the vendor's own heading,
+    # p.297. The value is the LEAST restrictive treatment any consumer-storage category gets, and
+    # `in-no-restricting-list` means the category reaches no restricting surface at all - which is
+    # why the raw token is printed rather than prettied: a word like "none" would not distinguish
+    # "allowed by a list" from "in no list".
+    "consumer_storage_category_treatment": "Site Access (least restrictive)",
+}
+
+#: SaaS Application Policy. The address, the graded column, and the three attribute-selection
+#: columns no query can reach.
+#:
+#: `effective_action_for_function_apps` IS A SUBJECT COLUMN AND THAT WAS A FORCED CHOICE WORTH
+#: STATING. Stage 8's diff disagrees with stage 6 on three of PAN-SAS-003's rows for exactly this
+#: reason: the verdict and the severity agree and the COLUMN does not - stage 6 writes `fires_on`
+#: as this GRADED column and the shipped query asserts on the verdict boolean beside it. A
+#: settings column is derived only for a field an active query clauses on, and no query has one
+#: here, so a derived column is not available; `hidden_fields` would forfeit the mark AND show
+#: nothing. A subject column is the only state in which the value reaches a customer at all.
+#:
+#: THE PRICE, STATED RATHER THAN HIDDEN: it can never carry the value-at-fault fill. `implicated`
+#: marks a subject column only when its field is in the matched query's `asserted_fields`, which
+#: for PAN-SAS-003's baseline is `function_apps_are_refused` alone. So the row marks the boolean
+#: and the column that tells a customer what the rulebase ACTUALLY DOES sits beside it unmarked.
+#: Writing a query that would change that is stage 8's work.
+#:
+#: AND THE THREE `cloud_app_*` COLUMNS ARE HERE BECAUSE A CONTROL CANNOT REACH THEM. PAN-SAS-004
+#: record 1 asserts `cloud_app_selection_is_refused equals false`, a column of THIS model, while
+#: that control targets `SaasUrlFilteringPosture`; `Control.save()` derives one `target_model`
+#: from `control_type` and `ControlQuery.clean()` refuses a query naming any other, so the catalog
+#: row cannot be created. That is a live decision awaiting Jason (P390) and minting a control id
+#: is not this stage's to do. Stage 8 measured the consequence: on one partition record 0 passes
+#: and record 1 cannot fire, so a customer with that configuration is told their posture is sound.
+#: Presenting the three columns is the most this stage can do - the values reach a reader even
+#: though no control grades them - and each declares its `field` so that the control which
+#: eventually can will mark the existing cell rather than draw a second one.
+SAAS_APPLICATION_POLICY_POSTURE_SUBJECT = VSYS_SCOPED + (
+    ("Action on function apps", 24, False,
+     lambda p, _p: findings_sheet.display_value(p.effective_action_for_function_apps),
+     "effective_action_for_function_apps"),
+    ("Rules naming a function app", 28, False,
+     lambda p, _p: str(p.function_app_rule_count), "function_app_rule_count"),
+    ("Attribute-driven cloud filters", 30, False,
+     lambda p, _p: str(p.cloud_app_filter_count), "cloud_app_filter_count"),
+    ("Cloud-app selection refused", 28, False,
+     lambda p, _p: findings_sheet.display_value(p.cloud_app_selection_is_refused),
+     "cloud_app_selection_is_refused"),
+    ("Selection carves out the approved", 32, False,
+     lambda p, _p: findings_sheet.display_value(p.cloud_app_selection_excludes_approved),
+     "cloud_app_selection_excludes_approved"),
+)
+
+#: PROPOSED HEADINGS for SaaS Application Policy.
+#:
+#: THE VENDOR NAMES THE SCREEN AND NOT THE STATE. `Policies > Security` is the address and
+#: `Objects > Application Filters` is where the attribute-driven selection is built - Help 11.2
+#: p.213 lists both in the Objects tree, and p.147 says an Application Filter "works the same way
+#: as Objects > Application Filters ... You can filter cloud-based (with a SaaS Inline Security
+#: subscription) and content-based applications". "Action" is the vendor's own column heading on
+#: the security rulebase. The verdict's own wording is ours.
+SAAS_APPLICATION_POLICY_POSTURE_LABELS = {
+    # PAN-SAS-003's one shipped clause, in the direction that PASSES, so "No" is the finding - and
+    # "No" is also what a rulebase naming none of these applications holds, which is the commonest
+    # failing state. The verdict asserts a RELATION BETWEEN TWO RULES (a refusal of a function
+    # child evaluated before a permission on its parent) reduced over a first-match walk across
+    # three rulebases, so no leaf on the device holds it and the companion columns above are what
+    # a reader has instead.
+    "function_apps_are_refused": "Upload and sharing functions refused",
+}
+
+#: App-ID Cloud Engine. The appliance and its HA role, then the configuration key and the
+#: did-we-look column.
+#:
+#: `ace_disabled` IS THE VENDOR'S OWN KEY AND THE THING AN ENGINEER FIXES, and no clause names it,
+#: so nothing derives a column for it. Stage 5 declared it presented. It keeps the VENDOR'S
+#: polarity - TRUE means the engine has been deliberately switched off, which is the vendor's own
+#: checkbox and not a verdict - because inverting it would put our word over the vendor's screen.
+#: It is also the ONE COLUMN IN THIS WHOLE DOMAIN WITH A REAL PROVENANCE ROW
+#: (`assumed_default`, where the key is absent) and no control tests it, so the Provenance cell
+#: never reads that row. Worth knowing and not something a sheet can fix.
+#:
+#: `cloudapp_node_read` IS THE PAIR THAT MAKES `ace_disabled` HONEST. `ace_disabled` is nullable
+#: and NULL means the `deviceconfig/setting` subtree was never read - neither present nor absent
+#: but UNREAD. One boolean cannot carry "off" and "never asked" at once, so this is the second
+#: column rather than a label. `cloudapp_server_address` is NOT shown: stage 5 declares it
+#: `presented: false`, it is not searchable, and an endpoint override is not what any finding here
+#: is about.
+CLOUD_APP_ENGINE_SETTING_SUBJECT = APPLIANCE + (
+    # THREE-WAY, AND `display_value` CANNOT DO IT: it has only a value, `(none)` for NULL and
+    # `(empty)`. Measured on a built row before this branch existed, the cell read `(none)` -
+    # which on a column headed "Engine disabled in configuration" reads as "nothing is configured
+    # there", and nothing configured is the engine being ON. This is a SUBJECT column, so the
+    # branch costs nothing: no provenance row is discarded and no `value_readers` entry is
+    # involved.
+    ("Engine disabled in configuration", 32, False,
+     lambda s, _p: ("Not read" if s.ace_disabled is None
+                    else findings_sheet.display_value(s.ace_disabled)), "ace_disabled"),
+    ("Configuration node read", 24, False,
+     lambda s, _p: findings_sheet.display_value(s.cloudapp_node_read), "cloudapp_node_read"),
+)
+
+#: PROPOSED HEADINGS for App-ID Cloud Engine.
+#:
+#: THE VENDOR'S OWN SCREEN AND ITS OWN WORDS, established in the corpus. The section path
+#: `Device > Setup > ACE` appears verbatim in all three indexed Help versions - 11.2 p.796, 11.1
+#: p.783 and 12.2 p.824 - so the address is stable across releases. 11.2 p.796: "Enable or disable
+#: App-ID Cloud Engine (ACE) settings and settings related to SaaS Security Inline policy
+#: recommendations", the checkbox is labelled "Disable the App-ID Cloud Engine", and "You must
+#: have a valid SaaS Security Inline license on the firewall to use ACE" - which is what the
+#: applicability clause is about. The vendor has NO word for "the engine is not working": that is
+#: a reading this assessment computes from an operational command, and the heading is ours.
+CLOUD_APP_ENGINE_SETTING_LABELS = {
+    # The APPLICABILITY clause, which draws a column because `tested_fields` registers them. It is
+    # not the fault and is never marked. It reads `license_check_failed` on an unlicensed
+    # appliance - which the clause EXCLUDES, because an appliance with no SaaS Security Inline
+    # subscription is not misconfigured - and `unread` where no operational read came back at all.
+    "ace_failure_reason": "Why the engine is not working",
+    # The assertion, in the direction that FIRES, so "Yes" is the finding. Deliberately in that
+    # polarity: the column defaults true and a heading like "Engine operational" would put "No" in
+    # the firing cell and "Yes" in the healthy one.
+    "ace_not_operational": "Engine not working",
+}
+
+
+# --------------------------------------------------------------------------------------------
 # THE THREE DECRYPTION-POLICY TABS, 2026-11-02, for PAN-DEC-001 to -010. Three models, three
 # grains, and the whole domain is new to presentation: nothing in this repository drew a row for
 # any of these three control types before today, and not one of their seventeen clause fields had
@@ -3032,6 +3330,123 @@ SPECS = (
              findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
          appliance_of=lambda posture: posture.appliance,
          subject_select_related=("appliance__appliance_group", "enforcement_point")),
+    # Objects > Applications, 2026-11-02, for PAN-SAS-001. Category DERIVED from the rail, whose
+    # item is `sanctioned-applications`. See the SaaS block above for the reasoning shared by all
+    # four of these tabs.
+    spec(T.SANCTIONED_APPLICATION_MARKING,
+         "Whether each virtual system records which applications the business has approved, in "
+         "the one mechanism the firewall itself reads - the predefined `sanctioned` tag on an "
+         "application object. A finding names the VIRTUAL SYSTEM and not an application, because "
+         "the commonest failing state is that no approval marking exists in the partition at "
+         "all, and a row that is one application cannot report an inventory with nothing in it. "
+         "WHAT A ROW HERE CANNOT SAY: whether the marked set is the RIGHT set. The firewall holds "
+         "no record of what the business approved - the marking IS that record - so no column "
+         "compares one against the other, and a partition that marks one wrong application reads "
+         "the same as one that marks the right ten. THE SCREEN ALSO LIES IN THIS DOMAIN'S "
+         "DIRECTION: the Objects > Applications grid renders the vendor's predefined "
+         "CHARACTERISTIC tags and an operator's approval markings in the same chips, so a "
+         "reviewer reading 'the Tags column is populated' as 'applications are tagged' reports a "
+         "marked inventory on an estate that has marked nothing.",
+         title="Sanctioned Applications",
+         subject=SANCTIONED_APPLICATION_MARKING_SUBJECT,
+         setting_labels=SANCTIONED_APPLICATION_MARKING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=_saas_derived_cell,
+         appliance_of=lambda marking: None,
+         subject_select_related=_SAAS_VSYS_SELECT_RELATED,
+         subject_prefetch=_SAAS_VSYS_PREFETCH),
+    # Objects > Security Profiles > URL Filtering, 2026-11-02, for PAN-SAS-002 AND PAN-SAS-004 -
+    # two controls on one tab, because the finding registry is keyed by model. Category DERIVED
+    # from the rail, whose item is `saas-url-filtering`.
+    spec(T.SAAS_URL_FILTERING_POSTURE,
+         "What each virtual system's URL Filtering does for SaaS: whether anything inserts a "
+         "tenant-restriction header into the traffic a rule of that partition actually carries, "
+         "and how that partition treats the web categories that carry consumer file storage and "
+         "personal publishing. A finding names the VIRTUAL SYSTEM because the commonest failing "
+         "state is that NO profile reachable from the partition carries either, and because the "
+         "profile object itself is another domain's subject. READ THE `Profiles read` COLUMN "
+         "FIRST: both verdicts are false when the answer is no AND when nobody looked, and that "
+         "column is the only thing on the row that tells those apart. WHAT A ROW HERE CANNOT "
+         "SAY: whether the organisation's own approved applications are CARVED OUT of a "
+         "restricted category. No object on the firewall expresses that exception, so the "
+         "restriction half is all this tab reports and a partition that blocks a category "
+         "wholesale reads the same as one that blocks it with the right exemptions.",
+         title="SaaS URL Filtering Posture",
+         subject=SAAS_URL_FILTERING_POSTURE_SUBJECT,
+         setting_labels=SAAS_URL_FILTERING_POSTURE_LABELS,
+         hidden_fields=(),
+         # THE FULL SET, AND THIS IS THE TAB WHERE IT COSTS SOMETHING. `fires_when` renders the
+         # BASELINE's clause alone and this tab carries two controls, so a PAN-SAS-002 row states
+         # `tenant_restriction_in_force = No` and a PAN-SAS-004 row states
+         # `consumer_storage_categories_are_restricted = No`, each correct for its own control.
+         # What it CANNOT state is the calibration that moved a severity: the one row the
+         # "Permitted and recorded rather than restricted" query lowered to `low` prints the
+         # baseline's condition beside a `Site Access` cell reading `alert`, and Matched queries
+         # and Severity basis are what resolve it between them.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=_saas_derived_cell,
+         appliance_of=lambda posture: None,
+         subject_select_related=_SAAS_VSYS_SELECT_RELATED,
+         subject_prefetch=_SAAS_VSYS_PREFETCH),
+    # Policies > Security, 2026-11-02, for PAN-SAS-003. Category DERIVED from the rail, whose item
+    # is `saas-application-policy` - the FOURTH item at that one vendor address, after `security`,
+    # `rule-posture` and `rulebase-device-match`.
+    spec(T.SAAS_APPLICATION_POLICY_POSTURE,
+         "Whether each virtual system's security policy refuses the UPLOAD and SHARING functions "
+         "of the applications it permits - the function child App-IDs, which a rule permitting "
+         "the parent application allows by default - and whether it carries an attribute-driven "
+         "selection of unapproved cloud applications that policy refuses. A finding names the "
+         "VIRTUAL SYSTEM because both assertions turn on the ABSENCE of a rule: the remediation "
+         "is a rule that does not exist yet. ONLY THE FIRST HALF IS GRADED. The three "
+         "cloud-application columns are shown and no control asserts on them - the control that "
+         "should cannot be created, because its assertion is over this model while the control "
+         "targets another, so a customer whose cloud-application selection is unrefused is told "
+         "nothing about it. WHAT A ROW HERE CANNOT SAY: which of the three rulebases an absence "
+         "spans. The verdict is a first-match walk across pushed pre-rules, the firewall's own "
+         "rules and pushed post-rules, and the model stores no scope column.",
+         title="SaaS Application Policy",
+         subject=SAAS_APPLICATION_POLICY_POSTURE_SUBJECT,
+         setting_labels=SAAS_APPLICATION_POLICY_POSTURE_LABELS,
+         hidden_fields=(),
+         # Safe here in a way it is not on the URL filtering tab: PAN-SAS-003 ships ONE query, the
+         # baseline, so the rendered condition is the clause that actually fired.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=_saas_derived_cell,
+         appliance_of=lambda posture: None,
+         subject_select_related=_SAAS_VSYS_SELECT_RELATED,
+         subject_prefetch=_SAAS_VSYS_PREFETCH),
+    # Device > Setup > ACE, 2026-11-02, for PAN-SAS-005. Category DERIVED from the rail, whose
+    # item is `ace`. THE APPLIANCE-SCOPED DEFAULTS ARE RIGHT HERE and the three tabs above
+    # override them: this model declares `unique(appliance)`, so the row IS one firewall and
+    # `s.appliance` resolves.
+    spec(T.CLOUD_APP_ENGINE_SETTING,
+         "Whether each firewall's App-ID Cloud Engine is switched off in configuration, and "
+         "whether the engine is actually running. These are TWO DIFFERENT FINDINGS FROM ONE "
+         "NODE and on the lab estate they point opposite ways: the configuration says the engine "
+         "is not disabled and the engine reports that it is not working. A finding names the "
+         "APPLIANCE because `deviceconfig/setting/cloudapp` is a device-wide singleton with no "
+         "entry name and no vsys. WHY THIS TAB COMES FIRST AMONG THE SaaS FINDINGS IN GENERATOR "
+         "ORDER: the engine's state is the PREMISE the other three rest on. Rules and filters "
+         "naming cloud-delivered App-IDs stay visible in the policy while they stop enforcing, "
+         "so a reader meets 'the engine is not working' before any finding that assumes it is. "
+         "WHAT A ROW HERE CANNOT SAY: an appliance with no SaaS Security Inline subscription is "
+         "EXCLUDED rather than reported, because it is not misconfigured - so an EMPTY TAB can "
+         "mean an unlicensed estate and not a healthy one, which is the state of the measured "
+         "lab.",
+         title="App-ID Cloud Engine",
+         subject=CLOUD_APP_ENGINE_SETTING_SUBJECT,
+         setting_labels=CLOUD_APP_ENGINE_SETTING_LABELS,
+         hidden_fields=(),
+         # PAN-SAS-005 ships ONE query, so the rendered condition is the clause that fired.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         # Settled by building the row and reading the cell - see the SaaS block above. The
+         # default printed "Not recorded" for both tested columns on every row.
+         provenance_cell=_saas_derived_cell),
     # Network > Network Profiles > Zone Protection, 2026-11-02, for PAN-ZON-002 to -006.
     #
     # CATEGORY DERIVED FROM THE RAIL (`category=''`), which is right for a subject that IS a

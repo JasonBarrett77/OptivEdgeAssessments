@@ -131,7 +131,22 @@ class WorkbookBuildTests(TestCase):
         # beside it: no GlobalProtect gateway exists anywhere in the measured estate, so the rows
         # these three tabs were designed against were RECONSTRUCTED. The tabs are real; the
         # measurement behind six of the seven controls is not.
-        self.assertIn("Summary: 59 tabs linked, 0 findings in total", reports[0])
+        # 63 on 2026-11-02 by stage 9 of `saas-security`. FOUR tabs for a FIVE-control domain,
+        # and the first build to put one domain's tabs in THREE PAN-OS categories: SaaS
+        # Application Policy in Policies, Sanctioned Applications and SaaS URL Filtering Posture
+        # in Objects, and App-ID Cloud Engine in Device. That is required rather than untidy -
+        # an application's approval tag, a URL Filtering profile, a security rulebase and a
+        # device-wide service switch live in four different places in the product, and an
+        # assessor sent to the wrong one would not find the object. `probe.surface_for` answered
+        # per control that all five reached NO tab beforehand.
+        #
+        # ONE OF THE FOUR DRAWS ROWS ONLY ON A RECONSTRUCTED ESTATE, which this count cannot
+        # show and is worth knowing beside it: PAN-SAS-005's applicability clause excludes every
+        # appliance in the measured lab, because all three report `license_check_failed` - no
+        # SaaS Security Inline subscription - so App-ID Cloud Engine is an EMPTY tab on the real
+        # estate. The rows it was designed against came from a seeded estate in which the
+        # engine's operational read is absent rather than unlicensed.
+        self.assertIn("Summary: 63 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -183,7 +198,21 @@ class WorkbookBuildTests(TestCase):
         # Authentication" is 42 - and "Client Authentication" is the vendor's own sub-heading for
         # exactly that table (help 11.2 p.1046), so what was dropped is the product name and not
         # the thing's own word.
-        self.assertEqual(len(names), 60)
+        #
+        # 64 on 2026-11-02 by stage 9 of `saas-security`: "Sanctioned Applications" (23), "SaaS
+        # URL Filtering Posture" (26), "SaaS Application Policy" (23) and "App-ID Cloud Engine"
+        # (19), all four counted against the 31-character cap before they were chosen and none
+        # truncated. They are NOT adjacent in this list and cannot be: the four subjects
+        # categorise as Policies, Objects, Objects and Device, so the Summary's category order
+        # puts them in three separate blocks. That is required rather than untidy - the four
+        # live at four different addresses in the product.
+        #
+        # THE NOTE ABOVE ABOUT THE TWO LITERALS IS STILL TRUE AND THIS RUN PAID IT. Both were
+        # bumped, but not together: the first was bumped from the workbook build's own reported
+        # count and this one was missed, so the suite came back with exactly one new failure and
+        # it read like an unrelated regression. The cheap check is to grep this file for the old
+        # number before re-running, not after.
+        self.assertEqual(len(names), 64)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

@@ -134,6 +134,33 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("rulebase-device-match", "Device-ID Policy Match", "Policies", "", "shield",
                  where="Policies > Security",
                  search_model="integrations.RulebaseDeviceMatchVerdict"),
+    # Policies > Security, FOURTH rail item, 2026-11-02, for PAN-SAS-003 - the virtual system's
+    # whole rule set read for a third dimension: whether the UPLOAD and SHARING functions of the
+    # applications it permits are refused, and whether an attribute-driven selection of
+    # unapproved cloud applications is refused.
+    #
+    # FOLLOWING `rule-posture` AND `rulebase-device-match` ABOVE RATHER THAN INVENTING A PATTERN,
+    # and their reasoning blocks apply here unchanged. The subject is a PAN-OS node - one virtual
+    # system's `rulebase/security/rules`, plus the `application-filter` container beside it -
+    # which an assessor opens at this address and reads; the model holds OUR READING of that
+    # node; the rail item promises the node and not the reading. By `rule-posture`'s own test:
+    # does the subject HAVE a vendor path? It does, and Help 11.2 p.147 confirms the filter half
+    # is reached from the rule - an Application Filter "works the same way as Objects >
+    # Application Filters ... You can filter cloud-based (with a SaaS Inline Security
+    # subscription) and content-based applications".
+    #
+    # AND IT IS REQUIRED RATHER THAN OPTIONAL. PAN-SAS-003's baseline is a shipped query over
+    # this model, and clearing `PAN-SAS-` from `AWAITING_PRESENTATION` leaves no off-rail route:
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` walks the SEED PAYLOAD
+    # without consulting `is_active`, and `LEGACY_SURFACE` is asserted `== {}` by a test of its
+    # own.
+    #
+    # NO `scope`: this model has exactly ONE page, so `object_for_canonical_query`
+    # short-circuits on the single candidate and a scope would be dead weight. Same call as
+    # `data-filtering-posture`.
+    ConfigObject("saas-application-policy", "SaaS Application Policy", "Policies", "", "shield",
+                 where="Policies > Security",
+                 search_model="integrations.SaasApplicationPolicyPosture"),
     # Policies > Decryption, 2026-11-02, for PAN-DEC-001 to -003 and -005 to -010 - TWO items
     # at one vendor address, over the two models that carry the decryption policy.
     #
@@ -212,6 +239,39 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("addresses", "Addresses", "Objects", "", "list-checks",
                  where="Objects > Addresses",
                  search_model="integrations.AddressObject"),
+    # Objects > Applications, 2026-11-02, for PAN-SAS-001 - the first rail item at that vendor
+    # address, over `integrations.SanctionedApplicationMarking`, which stage 7 minted for this
+    # domain and which had never been queried from this repository at all.
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test: does the subject HAVE a vendor path?
+    # It does. Established in the corpus rather than from memory: PAN-OS Web Interface Help 11.2
+    # p.231, under the section `Objects > Applications`, says verbatim "A predefined tag named
+    # sanctioned is available for you to tag SaaS applications ... Tag applications as
+    # sanctioned to help differentiate sanctioned SaaS application traffic from unsanctioned
+    # SaaS application traffic", and p.242 names the screen from the other side: "A predefined
+    # tag named Sanctioned is available for tagging applications (Objects > Applications)." So
+    # the item promises a node an assessor can open. The model holds one VERDICT per enforcement
+    # point over the entries at that address, and the rail item promises the node rather than
+    # the reading - the same call `data-filtering-posture` and `rule-posture` both make.
+    #
+    # ITS POSITION IS THE PRODUCT'S. Help 11.2 p.213 lists the Objects tree in order -
+    # "Objects>Addresses, Objects>Address Groups, Objects>Regions, Objects>Applications,
+    # Objects>Application Groups, Objects>Application Filters, Objects>Services ...
+    # Objects>Custom Objects, Objects>Security Profiles" - so Applications follows Addresses and
+    # precedes both Custom Objects and Security Profiles, which is where this sits. It
+    # REARRANGES NO EXISTING ITEM relative to any other.
+    #
+    # THE LABEL NAMES WHAT WE SHOW AND NOT THE WHOLE SCREEN, on `data-filtering-posture`'s
+    # precedent: that item sits at `Objects > Security Profiles > Data Filtering` and is labelled
+    # "Data Filtering Posture" because the page presents a posture verdict rather than the
+    # profile grid. This page presents the approval marking and not the application inventory,
+    # and labelling it "Applications" would promise a grid it does not draw.
+    #
+    # NO `scope`: one page over this model, so `object_for_canonical_query` short-circuits.
+    ConfigObject("sanctioned-applications", "Sanctioned Applications", "Objects", "",
+                 "list-checks",
+                 where="Objects > Applications",
+                 search_model="integrations.SanctionedApplicationMarking"),
     # Objects > Custom Objects > URL Category, 2026-11-02, for PAN-URL-006 - a NEW GROUP, and the
     # first rail item over `integrations.CustomUrlCategory`, which stage 7 minted for this domain
     # and which had never been queried from this repository at all.
@@ -271,6 +331,37 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("url-filtering", "URL Filtering", "Objects", "Security Profiles", "shield",
                  where="Objects > Security Profiles > URL Filtering",
                  search_model="integrations.SecurityProfile"),
+    # Objects > Security Profiles > URL Filtering, 2026-11-02, for PAN-SAS-002 and PAN-SAS-004 -
+    # a SECOND item at that one vendor address, over a DIFFERENT model. Exactly the shape
+    # `data-filtering` and `data-filtering-posture` already make below, and that pair's
+    # reasoning applies here unchanged.
+    #
+    # WHY IT IS ON THE RAIL AT ALL, by `rule-posture`'s own test: does the subject HAVE a vendor
+    # path? `integrations.SaasUrlFilteringPosture` holds one verdict per enforcement point over
+    # the URL Filtering profiles reachable from that partition, and the node an assessor opens
+    # and reads is this address. Established in the corpus: Help 11.2 p.302 names the screen
+    # verbatim - "select Objects > Security Profiles > URL Filtering > HTTP Header Insertion" -
+    # and p.297 gives the category action under the heading "Site Access". Every column of the
+    # model is a reading this assessment computed, and the rail item promises the NODE rather
+    # than the reading.
+    #
+    # A SECOND ITEM RATHER THAN A SECOND MODEL ON `url-filtering`, by `rule-posture`'s argument
+    # that an engineer fixes one or the other: a profile's categories and its header-insertion
+    # entries are edited in the profile, and what THIS model reports is fixed by making a rule of
+    # the partition carry such a profile at all - which is the commonest failing state of the
+    # domain and the reason the model is keyed on the point rather than on a profile.
+    #
+    # AND IT IS REQUIRED RATHER THAN OPTIONAL, for the reason spelled out on
+    # `saas-application-policy` above: clearing `PAN-SAS-` from `AWAITING_PRESENTATION` leaves no
+    # off-rail route for the two controls' shipped queries.
+    #
+    # NO `scope`: one page over this model, so `object_for_canonical_query` short-circuits. The
+    # `kind eq` scopes the siblings above carry are a `SecurityProfile` problem and this is a
+    # different model.
+    ConfigObject("saas-url-filtering", "SaaS URL Filtering Posture", "Objects",
+                 "Security Profiles", "shield",
+                 where="Objects > Security Profiles > URL Filtering > HTTP Header Insertion",
+                 search_model="integrations.SaasUrlFilteringPosture"),
     # Objects > Security Profiles > File Blocking, 2026-11-02, for PAN-FIL-001, -002 and -004 -
     # the SIXTH rail item over `SecurityProfile`, with `data-filtering` below the seventh.
     #
@@ -447,6 +538,37 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  "settings",
                  where="Device > Setup > Management > Policy Rulebase Settings",
                  search_model="integrations.PolicyRuleSettings"),
+    # Device > Setup > ACE, 2026-11-02, for PAN-SAS-005 - the App-ID Cloud Engine, a device-wide
+    # service switch with no entry name and no vsys.
+    #
+    # THE ADDRESS AND THE LABEL ARE BOTH THE VENDOR'S OWN, established in the corpus and stable
+    # across releases. The section path `Device > Setup > ACE` appears verbatim in all three
+    # indexed Help versions - 11.2 p.796, 11.1 p.783 and 12.2 p.824 - so an assessor sent here
+    # finds the screen on any of them. Help 11.2 p.796: "Device > Setup > ACE Enable or disable
+    # App-ID Cloud Engine (ACE) settings and settings related to SaaS Security Inline policy
+    # recommendations", with the checkbox labelled "Disable the App-ID Cloud Engine" and the
+    # note "You must have a valid SaaS Security Inline license on the firewall to use ACE". The
+    # label is `ACE` because that is what the vendor's own tab is called, and `where` spells the
+    # whole path for a reader who does not know the acronym.
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test: the subject is a PAN-OS configuration
+    # node, `deviceconfig/setting/cloudapp`, which an assessor opens at this address and reads.
+    # Two of the model's columns are computed from an OPERATIONAL command rather than from that
+    # node - whether the engine is working, and why not - but the node is real and the item
+    # promises the node.
+    #
+    # APPENDED TO THE `Setup` GROUP RATHER THAN PLACED IN THE VENDOR'S TAB ORDER, stated because
+    # the alternative was available and was declined. PAN-OS's Setup tab strip runs Management,
+    # Operations, Services, Content-ID, WildFire, Session, HSM, ACE, DLP, so ACE would follow
+    # WildFire and Session; this group is NOT in that order today and putting one item right
+    # would mean rearranging the twelve that are not. `dos-protection` and `file-blocking` both
+    # drew that line - they declined to reorder older items among themselves - and appending
+    # rearranges nothing.
+    #
+    # NO `scope`: one page over this model, so `object_for_canonical_query` short-circuits.
+    ConfigObject("ace", "ACE", "Device", "Setup", "settings",
+                 where="Device > Setup > ACE",
+                 search_model="integrations.CloudAppEngineSetting"),
     # Device, top-level rail items - no heading in the product either.
     ConfigObject("password-profiles", "Password Profiles", "Device", "", "book-marked",
                  where="Device > Password Profiles",

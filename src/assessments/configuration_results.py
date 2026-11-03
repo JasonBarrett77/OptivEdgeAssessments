@@ -47,6 +47,7 @@ from optivedge_integrations.integrations.models import (
     Certificate,
     CertificateProfile,
     CustomUrlCategory,
+    CloudAppEngineSetting,
     DataFilteringPosture,
     DecryptionSettings,
     DeviceIdentificationState,
@@ -61,6 +62,9 @@ from optivedge_integrations.integrations.models import (
     GlobalProtectGatewayClientAuth,
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
+    SaasApplicationPolicyPosture,
+    SaasUrlFilteringPosture,
+    SanctionedApplicationMarking,
     SslDecryptionExclusion,
     InterfaceManagementProfile,
     IpsecCryptoProfile,
@@ -1632,6 +1636,182 @@ RESULTS = {
             if p.profiles_in_force else "Nothing reaches this traffic",
         ),
     ),
+    # ------------------------------------------------------------------------------------
+    # THE FOUR SaaS PAGES, 2026-11-02, for PAN-SAS-001 to -005. Four models, none of which had
+    # ever been queried from this repository: `PAN-SAS-` left `AWAITING_PRESENTATION` with this
+    # work, so every shipped query of the domain now resolves through `CONFIG_OBJECTS` on its
+    # own.
+    #
+    # EVERY `query_fields` ENTRY WAS CHECKED AGAINST THE SEARCH REGISTRY rather than assumed -
+    # `assessments/search/<model>/compiler.py::FIELD_OPERATOR_REGISTRY` - because stored,
+    # searchable and registered are three different things and the repo's rule is that only a
+    # column a control asks for is registered. Two columns are deliberately UNMAPPED and are
+    # noted where they appear: `marked_application_names` is a JSONField and
+    # `cloudapp_server_address` is declared not searchable, so neither is in the registry and
+    # neither can carry a clause.
+    #
+    # THE THREE VSYS-SCOPED MODELS HAVE NO `appliance`: they hang off an `EnforcementPoint`, so
+    # `_enforced_by` lists the firewalls that run the partition - which on an HA pair is both of
+    # them - on `rule-posture`'s precedent. The fourth keys on the appliance.
+    # ------------------------------------------------------------------------------------
+    "sanctioned-applications": ResultsSpec(
+        query_fields={
+            "Firewalls": "hostname", "Vsys": "vsys_name",
+            # Help 11.2 p.231 gives the vendor's verb ("Tag applications as sanctioned") and no
+            # word for any of these states, so the headings below are ours except where noted.
+            "Applications marked approved (count)": "sanctioned_application_count",
+            "Appliance has several virtual systems": "appliance_is_multi_vsys",
+            # THE VENDOR'S OWN WORDS, Help 11.2 p.57 on the ACC's application view: "yellow
+            # indicates applications that have different sanctioned state across different
+            # virtual systems or device groups".
+            "Approval differs between virtual systems":
+                "marking_is_inconsistent_across_vsys"},
+        columns=("Firewalls", "Vsys", "Applications marked approved (count)",
+                 "Applications marked approved", "Appliance has several virtual systems",
+                 "Approval differs between virtual systems"),
+        base_queryset=lambda: (
+            SanctionedApplicationMarking.objects
+            .select_related("enforcement_point__appliance",
+                            "enforcement_point__appliance_group")
+            .prefetch_related("enforcement_point__appliance_group__appliances")
+            .order_by("enforcement_point__appliance_group__name",
+                      "enforcement_point__appliance__hostname",
+                      "enforcement_point__vsys_name")),
+        row=lambda m: (
+            _enforced_by(m.enforcement_point),
+            m.enforcement_point.vsys_name or "-",
+            # The number, not `_nothing`: zero is the REPORTABLE end here - it is the whole of
+            # PAN-SAS-001's baseline clause - and "Nothing" on a column named for a count reads
+            # as "not counted" exactly where it means "counted, and the answer was none".
+            str(m.sanctioned_application_count),
+            # `marked_application_names` IS A JSONField AND MUST NOT BE REGISTERED, so this
+            # column has no `query_fields` entry. "Nothing marked" rather than a blank: an empty
+            # list beside a firing count is the honest pair, and a blank cell would not say
+            # whether anyone looked.
+            _lines(m.marked_application_names) if m.marked_application_names
+            else "Nothing marked",
+            _yes_no(m.appliance_is_multi_vsys),
+            _yes_no(m.marking_is_inconsistent_across_vsys),
+        ),
+    ),
+    "saas-url-filtering": ResultsSpec(
+        query_fields={
+            "Firewalls": "hostname", "Vsys": "vsys_name",
+            "Profiles read": "url_filtering_profiles_read",
+            "Tenant restriction in force": "tenant_restriction_in_force",
+            "Consumer storage categories restricted":
+                "consumer_storage_categories_are_restricted",
+            # "Site Access" is the vendor's own heading, Help 11.2 p.297.
+            "Site Access (least restrictive)": "consumer_storage_category_treatment",
+            # "Type" and "Value" are the vendor's own field labels on the HTTP Header Insertion
+            # tab, Help 11.2 p.303; the counts are ours.
+            "Header insertion entries": "header_insertion_type_entry_count",
+            "Headers naming no tenant": "tenant_header_without_value_count",
+            "Rules using a SaaS Tenant List": "rule_bound_tenant_list_count"},
+        columns=("Firewalls", "Vsys", "Profiles read", "Tenant restriction in force",
+                 "Consumer storage categories restricted", "Site Access (least restrictive)",
+                 "Header insertion entries", "Headers naming no tenant",
+                 "Rules using a SaaS Tenant List"),
+        base_queryset=lambda: (
+            SaasUrlFilteringPosture.objects
+            .select_related("enforcement_point__appliance",
+                            "enforcement_point__appliance_group")
+            .prefetch_related("enforcement_point__appliance_group__appliances")
+            .order_by("enforcement_point__appliance_group__name",
+                      "enforcement_point__appliance__hostname",
+                      "enforcement_point__vsys_name")),
+        row=lambda p: (
+            _enforced_by(p.enforcement_point),
+            p.enforcement_point.vsys_name or "-",
+            # FIRST AFTER THE ADDRESS, DELIBERATELY. Both verdicts beside it are false when the
+            # answer is no AND when nobody looked, and this is the only cell that tells those
+            # apart - so a reader meets it before the verdict it qualifies.
+            _yes_no(p.url_filtering_profiles_read),
+            _yes_no(p.tenant_restriction_in_force),
+            _yes_no(p.consumer_storage_categories_are_restricted),
+            # THE RAW TOKEN, NOT A PRETTIED WORD. `in-no-restricting-list` means the category
+            # reaches no restricting surface at all, which is a different thing from being
+            # allowed by one - and a word like "none" would collapse them.
+            p.consumer_storage_category_treatment or "-",
+            _nothing(p.header_insertion_type_entry_count, "entries"),
+            _nothing(p.tenant_header_without_value_count, "headers"),
+            _nothing(p.rule_bound_tenant_list_count, "rules"),
+        ),
+    ),
+    "saas-application-policy": ResultsSpec(
+        query_fields={
+            "Firewalls": "hostname", "Vsys": "vsys_name",
+            "Upload and sharing functions refused": "function_apps_are_refused",
+            # "Action" is the vendor's own column heading on the security rulebase.
+            "Action on function apps": "effective_action_for_function_apps",
+            "Rules naming a function app": "function_app_rule_count",
+            # ALL THREE OF THESE ARE REGISTERED AND NO CONTROL CAN CLAUSE ON THEM. PAN-SAS-004
+            # record 1 asserts over this model while that control targets another, so its
+            # catalog row cannot be created (P390, awaiting Jason). Offering them here is how an
+            # assessor can ask the question the control cannot.
+            "Attribute-driven cloud filters": "cloud_app_filter_count",
+            "Cloud-app selection refused": "cloud_app_selection_is_refused",
+            "Selection carves out the approved": "cloud_app_selection_excludes_approved"},
+        columns=("Firewalls", "Vsys", "Upload and sharing functions refused",
+                 "Action on function apps", "Rules naming a function app",
+                 "Attribute-driven cloud filters", "Cloud-app selection refused",
+                 "Selection carves out the approved"),
+        base_queryset=lambda: (
+            SaasApplicationPolicyPosture.objects
+            .select_related("enforcement_point__appliance",
+                            "enforcement_point__appliance_group")
+            .prefetch_related("enforcement_point__appliance_group__appliances")
+            .order_by("enforcement_point__appliance_group__name",
+                      "enforcement_point__appliance__hostname",
+                      "enforcement_point__vsys_name")),
+        row=lambda p: (
+            _enforced_by(p.enforcement_point),
+            p.enforcement_point.vsys_name or "-",
+            _yes_no(p.function_apps_are_refused),
+            # `no-rule` IS A REAL VALUE AND NOT A BLANK: it means no rule in the merged rulebase
+            # names any function child application, so there is no action to read at all. Printed
+            # as stored for that reason.
+            p.effective_action_for_function_apps or "-",
+            _nothing(p.function_app_rule_count, "rules"),
+            _nothing(p.cloud_app_filter_count, "filters"),
+            _yes_no(p.cloud_app_selection_is_refused),
+            _yes_no(p.cloud_app_selection_excludes_approved),
+        ),
+    ),
+    "ace": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            # "Disable the App-ID Cloud Engine" is the vendor's own checkbox label, Help 11.2
+            # p.796. The column keeps the vendor's polarity rather than inverting it into a
+            # verdict.
+            "Engine disabled in configuration": "ace_disabled",
+            "Configuration node read": "cloudapp_node_read",
+            "Engine not working": "ace_not_operational",
+            "Why the engine is not working": "ace_failure_reason"},
+        columns=("Appliance", "Serial", "Engine disabled in configuration",
+                 "Configuration node read", "Engine not working",
+                 "Why the engine is not working", "Cloud endpoint override"),
+        base_queryset=_ordered(CloudAppEngineSetting, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            # THREE-WAY, BECAUSE THE COLUMN IS NULLABLE AND NULL IS NOT "off". NULL means the
+            # `deviceconfig/setting` subtree was never read - neither present nor absent but
+            # unread - and `_yes_no` would report it as "no", which is the engine being ON. The
+            # companion cell beside it says which.
+            "-" if s.ace_disabled is None else _yes_no(s.ace_disabled),
+            _yes_no(s.cloudapp_node_read),
+            _yes_no(s.ace_not_operational),
+            # `unread` and `license_check_failed` are both real values here and mean opposite
+            # things to a reader: the first is "nobody asked the engine" and the second is "this
+            # appliance has no subscription, so it is not misconfigured". Printed as stored.
+            s.ace_failure_reason or "-",
+            # `cloudapp_server_address` IS DECLARED NOT SEARCHABLE and is not in the registry, so
+            # this column has no `query_fields` entry. Empty means the vendor's own endpoint,
+            # which is the normal state and not a gap.
+            s.cloudapp_server_address or "the vendor's own endpoint",
+        ),
+    ),
     "password-profiles": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
@@ -2918,11 +3098,28 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # controls and not seven.
     "PAN-HAP": "stage9-ha-panorama.json",
     "PAN-NET": "stage9-network-hardening.json",
-    # `saas-security` reached stage 8 on 2026-10-30. FOUR of its models had never been queried
-    # from this repository at all, so none of them has a rail item: the three enforcement-point
-    # verdicts and the device-wide App-ID Cloud Engine. Stage 9 for this domain is what gives
-    # them a page, and stage 8's contract forbids building one.
-    "PAN-SAS-": "stage9-saas-security.json",
+    # `PAN-SAS-` CAME OUT ON 2026-11-02, which is stage 9 of `saas-security` doing the thing the
+    # entry was waiting for. Its own words were: "`saas-security` reached stage 8 on 2026-10-30.
+    # FOUR of its models had never been queried from this repository at all, so none of them has
+    # a rail item: the three enforcement-point verdicts and the device-wide App-ID Cloud Engine.
+    # Stage 9 for this domain is what gives them a page, and stage 8's contract forbids building
+    # one."
+    #
+    # ALL FOUR NOW HAVE ONE: `sanctioned-applications` (Objects > Applications),
+    # `saas-url-filtering` (Objects > Security Profiles > URL Filtering, a second item at that
+    # address over a different model, on `data-filtering-posture`'s precedent),
+    # `saas-application-policy` (Policies > Security, the fourth item at that address) and `ace`
+    # (Device > Setup > ACE). So all seven of the domain's shipped queries resolve on their own
+    # and `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that
+    # stage's job rather than a side effect of it: an exemption that survives the work it was
+    # waiting for is a permanent hole.
+    #
+    # TWO OF THE DOMAIN'S NINE QUERIES ARE NOT IN THE CATALOG AND THIS ENTRY WAS NEVER WHAT KEPT
+    # THEM OUT. PAN-SAS-004's record 1 and its second firing group assert over
+    # `SaasApplicationPolicyPosture` while that control targets `SaasUrlFilteringPosture`, so
+    # `ControlQuery.clean()` refuses the rows at creation - a live decision awaiting Jason
+    # (P390), not a presentation debt. The columns they would have read are presented on the
+    # `saas-application-policy` page and tab regardless.
     # `PAN-IOT` WAS HERE AND IS GONE, 2026-11-02, cleared by stage 9 of `device-id-iot`. Its
     # three models - `integrations.DeviceIdentificationState`, `integrations.Zone` and
     # `integrations.RulebaseDeviceMatchVerdict` - now have rail items and results specs above, so
