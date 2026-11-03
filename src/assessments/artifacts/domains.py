@@ -278,8 +278,41 @@ DOMAINS = (
     # claiming a MODEL, and these three claim `integrations.GlobalProtectPortal`,
     # `integrations.GlobalProtectPortalClientAuthRow` and
     # `integrations.GlobalProtectEnforcementPoint`, which no other domain claims.
+    # Network > GlobalProtect > Gateways, 2026-11-02, for PAN-GPG-001 to -004, -006 and -007 -
+    # THREE more tabs in the same block, added by `globalprotect-gateway`.
+    #
+    # BETWEEN THE PORTAL TABS AND THE COVERAGE TAB, which keeps BOTH of the orders the block above
+    # was built on. The vendor's screen enumeration at help 11.2 p.997 runs Portals then Gateways,
+    # so the gateway follows the portal; and the comment above states why the vsys-wide verdict
+    # comes last - it is a conclusion over an OPTIONAL feature on top of the exposed service, so
+    # the services lead. Inserting here satisfies both, and `check_tabs_follow_the_summary`
+    # constrains only that category RANKS do not decrease, so within `Network` this is a choice.
+    #
+    # THE ORDER WITHIN THE THREE IS THE VENDOR'S OWN DIALOG ORDER: the gateway itself, then its
+    # Authentication tab, then its Agent tab - which is the order help 11.2 p.1044 answers its own
+    # "What are you looking for?" index in ("What general settings can I configure for the
+    # GlobalProtect gateway? ... How do I configure the gateway client authentication? ... How do I
+    # configure the tunnel and network settings that enable an app to establish a VPN tunnel with
+    # the gateway?").
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`) on all three, which is right for a subject
+    # whose address is a PAN-OS node: deriving it means the workbook cannot disagree with the app
+    # about where the subject lives. All three rail items are `Network`, under the vendor's own
+    # `GlobalProtect` group.
+    #
+    # THE `_build_model_index` NOTE ABOVE IS UNDISTURBED: that index takes the FIRST domain
+    # claiming a MODEL, and these three claim `integrations.GlobalProtectGateway`,
+    # `integrations.GlobalProtectGatewayClientAuth` and
+    # `integrations.GlobalProtectGatewayAgentConfig`, which no other domain claims. The FOURTH
+    # model this domain's controls report on - `integrations.GlobalProtectEnforcementPoint`, for
+    # PAN-GPG-005 - adds NO entry here: it is already claimed by `globalprotect-coverage` below,
+    # which the domain before this one deliberately left un-narrowed so that exactly this would
+    # happen. PAN-GPG-005's clause field adds a derived COLUMN to that tab instead of a tab.
     _object_domain("globalprotect-portals", T.GLOBALPROTECT_PORTAL),
     _object_domain("globalprotect-portal-authentication", T.GLOBALPROTECT_PORTAL_CLIENT_AUTH),
+    _object_domain("globalprotect-gateways", T.GLOBALPROTECT_GATEWAY),
+    _object_domain("globalprotect-gateway-authentication", T.GLOBALPROTECT_GATEWAY_CLIENT_AUTH),
+    _object_domain("globalprotect-gateway-agent", T.GLOBALPROTECT_GATEWAY_AGENT_CONFIG),
     _object_domain("globalprotect-coverage", T.GLOBALPROTECT_ENFORCEMENT_POINT),
     # Device
     FindingsDomain("password-complexity", password_complexity.SPEC),

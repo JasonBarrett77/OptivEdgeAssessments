@@ -786,6 +786,65 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     # verdict over everything at one enforcement point, and it is deliberately NOT "Clientless
     # VPN": the next domain adds host-posture columns to the same model for PAN-GPG-005, and a
     # feature-specific label would become a lie the day it lands.
+    # Network > GlobalProtect > Gateways, 2026-11-02, for PAN-GPG-001, -006 and -007 - THREE items
+    # added to the group the domain before this one created, not a new group.
+    #
+    # BEFORE `globalprotect-coverage` AND AFTER THE TWO PORTAL ITEMS, which is the vendor's own
+    # screen order and not a preference: Help 11.2 p.997 enumerates the GlobalProtect pages as
+    # "Network > GlobalProtect > Portals • Network > GlobalProtect > Gateways • Network >
+    # GlobalProtect > MDM • ...", so the gateway follows the portal. The vsys-wide roll-up stays
+    # LAST for the reason its own comment gives - it is a verdict over the whole subtree rather than
+    # one screen - so the three items go in between.
+    #
+    # THE PATH IS VERBATIM AND WAS COUNTED IN THE CORPUS, not written from memory: `probe.corpus`
+    # reports "Network > GlobalProtect > Gateways" across the gp (23 sections), help (15) and guide
+    # (7) documents, and Help 11.2 p.1044 opens the screen with "GlobalProtect Network >
+    # GlobalProtect > Gateways Select Network > GlobalProtect > Gateways to configure a GlobalProtect
+    # gateway."
+    ConfigObject("globalprotect-gateways", "Gateways", "Network", "GlobalProtect", "server",
+                 where="Network > GlobalProtect > Gateways",
+                 search_model="integrations.GlobalProtectGateway"),
+    # Network > GlobalProtect > Gateways > <gateway-config> > Authentication, 2026-11-02, for
+    # PAN-GPG-002. The FIRST page over `integrations.GlobalProtectGatewayClientAuth`.
+    #
+    # ITS OWN ITEM AND NOT THE GATEWAY'S, for the reason the sibling portal item records: the row is
+    # a CHILD of the gateway with a grain of its own, and one gateway's rows can sit at different
+    # severities. Sending a reader to `Network > GlobalProtect > Gateways` would hand them a grid of
+    # gateways with no indication which row of which gateway's table the finding is about.
+    #
+    # THE PLACEHOLDER IS THE VENDOR'S OWN, verbatim from Help 11.2 p.1046: "GlobalProtect Gateway
+    # Authentication Tab • Network > GlobalProtect > Gateways > <gateway-config> > Authentication".
+    # `probe.corpus` finds that string once in each of Help 11.1, 11.2 and 12.2.
+    ConfigObject("globalprotect-gateway-authentication", "Gateway Client Authentication",
+                 "Network", "GlobalProtect", "shield",
+                 where="Network > GlobalProtect > Gateways > <gateway-config> > Authentication",
+                 search_model="integrations.GlobalProtectGatewayClientAuth"),
+    # Network > GlobalProtect > Gateways > <gateway-config> > Agent, 2026-11-02, for PAN-GPG-003
+    # and -004. The FIRST page over `integrations.GlobalProtectGatewayAgentConfig`.
+    #
+    # ITS `where` NAMES THE PARENT TAB AND NOT A LEAF, and this one is a real choice rather than a
+    # shortcut. THE AGENT CONFIGURATION IS NOT ONE SCREEN: Help 11.2 p.1048 enumerates six child
+    # tabs beneath `Agent > <agent-config>` - "Tunnel Settings Tab • Client Settings Tab • Client IP
+    # Pool Tab • Network Services Tab • Connection Settings Tab • Video Traffic Tab • HIP
+    # Notification Tab" - and this subject's clause fields are spread across them: the cookie pair
+    # is on Client Settings (p.1051), the local-network switch and the split-tunnel lists are on
+    # Client Settings too (p.1053-1055), and the eighth exclusion axis is on Video Traffic (p.1060).
+    # Naming any one leaf would send a reader to the wrong screen for most of the columns, so the
+    # parent is the address that is true for all of them. `globalprotect-coverage` faced the same
+    # question one item below and named the group for the same reason.
+    #
+    # AND THE VENDOR CONTRADICTS ITSELF ON THIS PATH, which is why it is quoted from the children.
+    # The Help's own breadcrumb directly under the heading "GlobalProtect Gateways Agent Tab" reads
+    # "Network > GlobalProtect > Portals > <portal-config> > Agent" - the PORTAL object, on the
+    # gateway's screen - while every one of the six child tabs beneath it reads "Network >
+    # GlobalProtect > Gateways > <gateway-config> > Agent > <agent-config> > ...". The children are
+    # followed here. Already recorded in `reference/known-vendor-contradictions.md` under "The
+    # `GlobalProtect Gateways Agent Tab` breadcrumb names the PORTAL object", so this run appended
+    # nothing and confirmed the sighting.
+    ConfigObject("globalprotect-gateway-agent", "Gateway Agent Configuration",
+                 "Network", "GlobalProtect", "monitor",
+                 where="Network > GlobalProtect > Gateways > <gateway-config> > Agent",
+                 search_model="integrations.GlobalProtectGatewayAgentConfig"),
     ConfigObject("globalprotect-coverage", "GlobalProtect Coverage", "Network", "GlobalProtect",
                  "clipboard-check",
                  where="Network > GlobalProtect",

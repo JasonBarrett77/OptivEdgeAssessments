@@ -119,7 +119,19 @@ class WorkbookBuildTests(TestCase):
         # beforehand, so every one of them needed both surfaces rather than only a results
         # destination. The third tab is SHARED FORWARD: `globalprotect-gateway`'s PAN-GPG-005
         # reports on the same model, so that domain inherits GlobalProtect Coverage.
-        self.assertIn("Summary: 56 tabs linked, 0 findings in total", reports[0])
+        # 59 on 2026-11-02 by stage 9 of `globalprotect-gateway`. THREE tabs for a SEVEN-control
+        # domain, ADDED TO the rail group the entry above created rather than making a new one:
+        # GlobalProtect Gateways, Gateway Client Authentication and Gateway Agent Configuration,
+        # all three in Network under `Network > GlobalProtect`. `probe.surface_for` answered per
+        # control that SIX of the seven reached no tab beforehand and that PAN-GPG-005 already
+        # reached GlobalProtect Coverage - the tab the entry above shared forward - so this domain
+        # adds three tabs for six controls and inherits the seventh's.
+        #
+        # AND THE SIX ARE STILL UNEXERCISED, which this count cannot show and is worth knowing
+        # beside it: no GlobalProtect gateway exists anywhere in the measured estate, so the rows
+        # these three tabs were designed against were RECONSTRUCTED. The tabs are real; the
+        # measurement behind six of the seven controls is not.
+        self.assertIn("Summary: 59 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -163,7 +175,15 @@ class WorkbookBuildTests(TestCase):
         # capped at 31 characters, and the longer title truncated to "GlobalProtect Portal
         # Authentica" in the book while the live page kept all of it. `probe.surface_for` prints
         # that truncation, which is how it was caught before it shipped.
-        self.assertEqual(len(names), 57)
+        #
+        # 60 on 2026-11-02 by stage 9 of `globalprotect-gateway`, and all three of its titles were
+        # counted against the same cap before they were chosen: "GlobalProtect Gateways" (22),
+        # "Gateway Client Authentication" (29) and "Gateway Agent Configuration" (27). The middle
+        # one made the same trade the portal tab above made - "GlobalProtect Gateway Client
+        # Authentication" is 42 - and "Client Authentication" is the vendor's own sub-heading for
+        # exactly that table (help 11.2 p.1046), so what was dropped is the product name and not
+        # the thing's own word.
+        self.assertEqual(len(names), 60)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

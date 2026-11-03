@@ -56,6 +56,9 @@ from optivedge_integrations.integrations.models import (
     DecryptionPolicyRule,
     DecryptionRulebaseVerdict,
     GlobalProtectEnforcementPoint,
+    GlobalProtectGateway,
+    GlobalProtectGatewayAgentConfig,
+    GlobalProtectGatewayClientAuth,
     GlobalProtectPortal,
     GlobalProtectPortalClientAuthRow,
     SslDecryptionExclusion,
@@ -127,6 +130,54 @@ def _nothing(count, unit):
     column reads as "not counted" exactly where it means "counted, and the answer was none".
     """
     return f"{count} {unit}" if count else "Nothing"
+
+
+#: The six split-tunnel axes of a gateway agent configuration, as (column, the vendor's own word).
+#: Help 11.2 p.1053-1055 names them on the Client Settings tab's two sub-tabs: the Access Route tab
+#: carries "Include" and "Exclude", and the Domain and Application tab carries "Include Domain",
+#: "Exclude Domain", "Include Client Application Process Name" and "Exclude Client Application
+#: Process Name". Shortened here because six full labels in one cell is not a cell.
+_SPLIT_TUNNEL_AXES = (
+    ("split_tunnel_include_access_routes", "include routes"),
+    ("split_tunnel_exclude_access_routes", "exclude routes"),
+    ("split_tunnel_include_domains", "include domains"),
+    ("split_tunnel_exclude_domains", "exclude domains"),
+    ("split_tunnel_include_applications", "include apps"),
+    ("split_tunnel_exclude_applications", "exclude apps"),
+)
+
+
+def _split_tunnel_lists(config) -> str:
+    """Which split-tunnel lists this agent configuration carries, and how long each is.
+
+    THE SIX COLUMNS ARE `JSONField`s AND NOTHING MAY CLAUSE ON THEM - the model's own docstring
+    says so and a consumer test asserts no JSON column is reachable from a query - so none of the
+    six is in the search registry and none can be a `query_fields` entry. This is the one surface
+    in the report where their CONTENT is readable, which is what stage 5 marking all six
+    `presented: true` is satisfied by.
+
+    A COUNT PER AXIS AND NOT THE MEMBERS. The vendor's own limits are 100 or 200 entries per list
+    and up to 1,000 access routes, so the members do not fit a table cell; the count plus the axis
+    name is what tells a reader which list to open. "Nothing" rather than an empty cell for a
+    configuration that carries none, for `_nothing`'s reason: a blank would read as uncollected.
+
+    AN EMPTY LIST AND AN ABSENT ONE ARE BOTH OMITTED, which is a real loss and is stated rather
+    than papered over: the column cannot distinguish a committed empty list from a key the payload
+    never carried. Neither excludes any traffic, so the count beside this cell is right either way
+    - but an assessor asking "did anyone configure this?" gets no answer here.
+
+    ONE AXIS PER LINE AND NOT COMMA-JOINED, which is Jason's rule of 2026-09-27 - "In fields where
+    multiple values may exist, the values should be [one per line]" - and which
+    `test_table_presentation.MultiValueCellTests.test_no_presentation_module_comma_joins_a_list`
+    enforces by GREPPING every presentation module for a comma join. The first version of this
+    function joined on ", " and that test caught it in the full suite, after `django check` and all
+    three cross-domain gates had passed. It is a real rule and not a style preference: up to six
+    axes can be present at once, and six counts on one line is a cell nobody reads.
+    """
+    parts = [f"{len(members)} {label}"
+             for field, label in _SPLIT_TUNNEL_AXES
+             for members in (getattr(config, field, None) or [],) if members]
+    return "\n".join(parts) or "Nothing"
 
 
 def _where(obj):
@@ -2135,6 +2186,246 @@ RESULTS = {
             str(v.hip_objects_testing_client_version),
         ),
     ),
+    # Network > GlobalProtect > Gateways, 2026-11-02, for PAN-GPG-001, -006 and -007. The FIRST
+    # page over `integrations.GlobalProtectGateway`.
+    #
+    # NO `scope` ON ANY OF THE THREE PAGES THIS DOMAIN ADDS: each names a model of its own, so
+    # `object_for_canonical_query` short-circuits on the single candidate and a scope would be dead
+    # weight. The same call the portal three and the decryption pages made.
+    #
+    # EVERY HEADING EXCEPT ONE HAS A `query_fields` ENTRY, and the exception is measured rather
+    # than assumed: `video_traffic_excluded` is a real column of this model (and PAN-GPG-004's
+    # eighth exclusion axis) and it is NOT in `search/globalprotect_gateway/compiler.py`'s
+    # `FIELD_OPERATOR_REGISTRY` - the repo's rule is that only a column a control asks for is
+    # registered, and the control that needs this one asserts over a count on a CHILD row. A
+    # heading mapped to an unregistered field would point the "build a query from these rows"
+    # button at a lookup that refuses itself, so it is a column and not a query field.
+    #
+    # THE TWO LIFETIME COLUMNS ARE BOTH HERE, entered and normalised, which the findings tab also
+    # does and for the same reason: the whole hazard on this field is a bound set in one unit and
+    # read through another unit's leaf, so a page that prints only hours sends an assessor to a
+    # screen where that number does not appear.
+    "globalprotect-gateways": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Gateway": "entry_name",
+                      "SSL/TLS Service Profile": "ssl_tls_service_profile",
+                      "TLS floor on that profile": "bound_tls_min_version",
+                      "Bound profile states a floor":
+                          "tls_profile_resolves_to_an_explicit_floor",
+                      "Tunnel Mode": "tunnel_mode",
+                      "Enable IPSec": "ipsec_enabled",
+                      "Transport half read": "ipsec_enabled_known",
+                      "GlobalProtect IPSec Crypto": "ipsec_crypto_profile_name",
+                      "First proposal": "bound_app_crypto_first_encryption",
+                      "First proposal is AES-256-GCM": "app_crypto_offers_gcm_first",
+                      "Certificate Profile": "certificate_profile_name",
+                      "Certificate is a second factor":
+                          "client_certificate_is_a_second_factor",
+                      "Login Lifetime as entered": "login_lifetime_as_entered",
+                      "Login Lifetime (hours)": "login_lifetime_hours",
+                      "Login bound read": "login_lifetime_known",
+                      "Inactivity Logout (minutes)": "inactivity_logout_minutes",
+                      "Idle bound read": "inactivity_logout_known",
+                      "Block login for quarantined devices": "block_quarantined_devices",
+                      "GlobalProtect licence": "globalprotect_gateway_licensed",
+                      "Licence state read": "licence_state_known"},
+        columns=("Appliance", "Vsys", "Gateway", "SSL/TLS Service Profile",
+                 "TLS floor on that profile", "Bound profile states a floor", "Tunnel Mode",
+                 "Enable IPSec", "Transport half read", "GlobalProtect IPSec Crypto",
+                 "First proposal", "First proposal is AES-256-GCM", "Certificate Profile",
+                 "Certificate is a second factor", "Login Lifetime as entered",
+                 "Login Lifetime (hours)", "Login bound read", "Inactivity Logout (minutes)",
+                 "Idle bound read", "Block login for quarantined devices",
+                 "Exclude video applications", "GlobalProtect licence", "Licence state read"),
+        base_queryset=_ordered(
+            GlobalProtectGateway, "appliance__hostname", "vsys_name", "name"),
+        row=lambda g: (
+            str(g.appliance),
+            g.vsys_name or "-",
+            g.name,
+            # `(empty)` and not an em dash: `ssl-tls-service-profile` is MANDATORY AT COMMIT on
+            # this object - stage 4 measured `validate full` job 259 refusing a gateway without
+            # one - so an empty string here is a reading nobody took rather than a branch that
+            # does not exist, and stage 5 reads it as firing for that reason.
+            g.ssl_tls_service_profile or "(empty)",
+            # An em dash HERE, by contrast, because this one is resolved THROUGH the binding above:
+            # it is legitimately unknown where the named profile is not in the collection, which
+            # stage 5 records as the commonest state for a correctly hardened gateway (a name
+            # resolving into `/config/predefined`, which no merged view carries).
+            g.bound_tls_min_version or "—",
+            _yes_no(g.tls_profile_resolves_to_an_explicit_floor),
+            # "not read" AND NOT `_yes_no` ON THESE THREE. All three are `BooleanField(null=True)`
+            # and the NULL is a real third state - the networking half of the gateway is a separate
+            # read at a different scope and is the half most likely to be missing - so `_yes_no`
+            # would print "no" about a value nobody collected. That is the exact direction of error
+            # `rules.md` forbids, and the column beside each says which it was.
+            _yes_no(g.tunnel_mode) if g.tunnel_mode is not None else "not read",
+            _yes_no(g.ipsec_enabled) if g.ipsec_enabled is not None else "not read",
+            _yes_no(g.ipsec_enabled_known),
+            g.ipsec_crypto_profile_name or "—",
+            # An em dash where IPSec is not enabled: a gateway with no IPSec has no proposal list,
+            # so there is no first proposal to name. The same branch the findings tab's reader uses.
+            (g.bound_app_crypto_first_encryption or "(empty)") if g.ipsec_enabled is True else "—",
+            _yes_no(g.app_crypto_offers_gcm_first),
+            g.certificate_profile_name or "—",
+            _yes_no(g.client_certificate_is_a_second_factor),
+            (f"{g.login_lifetime_as_entered} {g.login_lifetime_unit}".strip()
+             if g.login_lifetime_as_entered is not None else "—"),
+            str(g.login_lifetime_hours) if g.login_lifetime_hours is not None else "—",
+            _yes_no(g.login_lifetime_known),
+            str(g.inactivity_logout_minutes) if g.inactivity_logout_minutes is not None else "—",
+            _yes_no(g.inactivity_logout_known),
+            (_yes_no(g.block_quarantined_devices)
+             if g.block_quarantined_devices is not None else "not read"),
+            # THE ONE COLUMN WITH NO QUERY FIELD, per the note above.
+            (_yes_no(g.video_traffic_excluded)
+             if g.video_traffic_excluded is not None else "not read"),
+            # A PLAIN BOOLEAN AND NOT A CHOICE LABEL, which is the opposite of the licence columns
+            # on `globalprotect-coverage` two pages up and was measured rather than assumed:
+            # `GlobalProtectEnforcementPoint.globalprotect_portal_licensed` is a `CharField` with
+            # `yes`/`no`/`unknown` choices, and this model's `globalprotect_gateway_licensed` is a
+            # `BooleanField(default=False)`. Django generates `get_<field>_display()` only for a
+            # field WITH choices, so calling it here raises `AttributeError` at template render -
+            # caught before it shipped by reading the field rather than copying the sibling page.
+            #
+            # SO THE TWO STATES NEED TWO COLUMNS. The model's own comment records that two of the
+            # four measured appliances answer `{'licenses': None}` - "the instrument saying nothing
+            # rather than saying unlicensed" - and a single boolean collapses "not licensed" into
+            # "never asked". `licence_state_known` beside it is the only place they are told apart,
+            # which is the same shape the coverage page uses for its own licence reply.
+            _yes_no(g.globalprotect_gateway_licensed),
+            _yes_no(g.licence_state_known),
+        ),
+    ),
+    # Network > GlobalProtect > Gateways > <gateway-config> > Authentication, 2026-11-02, for
+    # PAN-GPG-002. The FIRST page over `integrations.GlobalProtectGatewayClientAuth`.
+    #
+    # ALL TEN HEADINGS HAVE A `query_fields` ENTRY, which is a property of the model rather than of
+    # this page: every column of it except the nullable FK is registered in
+    # `search/globalprotect_gateway_client_auth/compiler.py`, because every one is either part of
+    # the row's identity or one of the leaves PAN-GPG-002's two verdicts are computed from.
+    #
+    # THE LAST HEADING IS THE CROSS-MODEL ONE and it is registered with a lookup PATH rather than a
+    # field: `gateway_client_certificate_is_a_second_factor` compiles to
+    # `gateway__client_certificate_is_a_second_factor`. It is the same name the findings sheet needs
+    # a `value_readers` entry for, and for the same reason - there is no attribute of that name on
+    # this model. The FK it walks is `null=True`, so a row whose parent gateway did not resolve is
+    # unreachable by a positive clause on it; the page prints an em dash for exactly those rows so
+    # the two states are not confused on the surface where the query is built.
+    "globalprotect-gateway-authentication": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Gateway": "gateway_name",
+                      "Row": "row_name", "Endpoint class (OS)": "client_os",
+                      "Authentication Profile": "authentication_profile_name",
+                      "Authentication back end": "authentication_backend_method",
+                      "Back end can deliver a second factor":
+                          "backend_can_deliver_a_second_factor",
+                      "Credentials OR certificate accepted":
+                          "user_credential_or_client_cert_required",
+                      "Certificate is a second factor on the gateway":
+                          "gateway_client_certificate_is_a_second_factor"},
+        columns=("Appliance", "Vsys", "Gateway", "Row", "Endpoint class (OS)",
+                 "Authentication Profile", "Authentication back end",
+                 "Back end can deliver a second factor", "Credentials OR certificate accepted",
+                 "Certificate is a second factor on the gateway"),
+        base_queryset=_ordered(
+            GlobalProtectGatewayClientAuth, "appliance__hostname", "vsys_name", "gateway_name",
+            "name"),
+        row=lambda r: (
+            str(r.appliance),
+            r.vsys_name or "-",
+            r.gateway_name,
+            r.name,
+            # `(empty)` on both: the device refuses to commit a row without either key, so an empty
+            # one is a reading nobody took rather than a branch that does not exist.
+            r.client_os or "(empty)",
+            r.authentication_profile_name or "(empty)",
+            # An em dash, and this is the one cell on the page that needs its reason stated. The
+            # back end is resolved THROUGH the profile name above, and the leaf accepts a profile
+            # OR A SEQUENCE without saying which - so a row naming a sequence resolves to nothing
+            # here. That is a real device configuration, not a gap: a sequence can fall back to the
+            # firewall's own local database, which is the state PAN-GPG-002 exists to find. An
+            # empty string would read as "no back end", which is not what it means.
+            r.authentication_backend_method or "—",
+            _yes_no(r.backend_can_deliver_a_second_factor),
+            # "not read" AND NOT `_yes_no`: this leaf is `BooleanField(null=True)` and the NULL is
+            # the key absent on a committed row or a row the collector did not carry - stage 5 says
+            # neither is safe to report as a value. AND THE POLARITY IS THE VENDOR'S, inverted
+            # relative to hardening: "yes" means either factor ALONE admits the endpoint (Help 11.2
+            # p.1047), which is why the heading says "accepted".
+            (_yes_no(r.user_credential_or_client_cert_required)
+             if r.user_credential_or_client_cert_required is not None else "not read"),
+            # READ OFF THE PARENT, through a nullable FK - see the note above.
+            (_yes_no(r.gateway.client_certificate_is_a_second_factor)
+             if r.gateway is not None else "—"),
+        ),
+    ),
+    # Network > GlobalProtect > Gateways > <gateway-config> > Agent, 2026-11-02, for PAN-GPG-003
+    # and -004. The FIRST page over `integrations.GlobalProtectGatewayAgentConfig`.
+    #
+    # THE SIX SPLIT-TUNNEL LISTS ARE ONE COLUMN HERE AND NO COLUMN ON THE FINDINGS TAB, which is a
+    # deliberate difference between the two surfaces rather than a drift. They are `JSONField`s;
+    # the model's own docstring says "NOTHING MAY CLAUSE ON THEM" and a consumer test compiles
+    # every registered field to assert no JSON column is reachable from a query, so none of the six
+    # is registered and none can be a `query_fields` entry. But stage 5 marks all six
+    # `presented: true`, and this is the surface that satisfies it: a reader who needs to know WHICH
+    # paths are excluded has nowhere else in this report to look. ONE COLUMN AND NOT SIX because
+    # they are never read apart - they are the breakdown behind one count - and because a cell
+    # holding two hundred domains is not a cell.
+    #
+    # THE COUNT IS THE COLUMN A CONTROL ASKS FOR and it is registered; the breakdown beside it is
+    # what makes the number actionable, since a count of 3 says nothing about which three.
+    "globalprotect-gateway-agent": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Vsys": "vsys_name", "Gateway": "gateway_name",
+                      "Row": "row_name",
+                      "Authentication Override": "authentication_override_configured",
+                      "Generate cookie": "generate_cookie",
+                      "Accept cookie": "accept_cookie_configured",
+                      "Cookie Lifetime as entered": "cookie_lifetime_as_entered",
+                      "Cookie Lifetime (hours)": "cookie_lifetime_hours",
+                      "Cookie lifetime read": "cookie_lifetime_known",
+                      "Certificate to Encrypt/Decrypt Cookie": "cookie_encrypt_decrypt_cert",
+                      "No direct access to local network":
+                          "no_direct_access_to_local_network",
+                      "Egress paths excluded": "uninspected_egress_path_count",
+                      "Inventory computed": "egress_inventory_computed"},
+        columns=("Appliance", "Vsys", "Gateway", "Row", "Authentication Override",
+                 "Generate cookie", "Accept cookie", "Cookie Lifetime as entered",
+                 "Cookie Lifetime (hours)", "Cookie lifetime read",
+                 "Certificate to Encrypt/Decrypt Cookie", "No direct access to local network",
+                 "Egress paths excluded", "Inventory computed", "Split-tunnel lists"),
+        base_queryset=_ordered(
+            GlobalProtectGatewayAgentConfig, "appliance__hostname", "vsys_name", "gateway_name",
+            "name"),
+        row=lambda c: (
+            str(c.appliance),
+            c.vsys_name or "-",
+            c.gateway_name,
+            c.name,
+            # Both gates are `BooleanField(default=False)` and never null - the normaliser writes
+            # them from the PRESENCE of a container, not its truthiness - so `_yes_no` is right and
+            # there is no third state to print.
+            _yes_no(c.authentication_override_configured),
+            # This one IS nullable: it is a measured `yes`/`no` leaf rather than a container test.
+            _yes_no(c.generate_cookie) if c.generate_cookie is not None else "not read",
+            _yes_no(c.accept_cookie_configured),
+            (f"{c.cookie_lifetime_as_entered} {c.cookie_lifetime_unit}".strip()
+             if c.cookie_lifetime_as_entered is not None else "—"),
+            # THE SAME TWO-NULL BRANCH THE FINDINGS TAB'S READER USES, and it matters as much here:
+            # a row accepting no cookie has no lifetime branch (em dash), while a row that accepts
+            # one and bounds nothing is the FIRING state and must not read as "not applicable".
+            (str(c.cookie_lifetime_hours) if c.cookie_lifetime_hours is not None
+             else ("(none)" if c.accept_cookie_configured else "—")),
+            _yes_no(c.cookie_lifetime_known),
+            c.cookie_encrypt_decrypt_cert or "—",
+            (_yes_no(c.no_direct_access_to_local_network)
+             if c.no_direct_access_to_local_network is not None else "not read"),
+            # `_nothing` rather than a bare 0: zero here means "counted, and nothing is excluded",
+            # which is the PASSING state, and a bare zero in a reference column reads as
+            # "not counted" - which is what the column beside it exists to say.
+            _nothing(c.uninspected_egress_path_count, "paths"),
+            _yes_no(c.egress_inventory_computed),
+            _split_tunnel_lists(c),
+        ),
+    ),
     # Policies > DoS Protection, 2026-11-02, for PAN-ZON-007.
     #
     # THE POSITION IS PART OF THE ROW'S IDENTITY and is printed first among the rule's own
@@ -2739,19 +3030,35 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # destination, while PAN-DCP-006 reached NO SHEET AT ALL and needed both. The results
     # destination and the findings tab are two different surfaces and this entry was only ever a
     # debt against the first.
-    # `globalprotect-gateway` reached stage 8 on 2026-11-01. FOUR models carry its seven controls
-    # and none of the four has a rail item: the three this domain's stage 7 created - the gateway
-    # entry, its client-authentication row and its agent client-settings row - plus
+    # `PAN-GPG` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `globalprotect-gateway`,
+    # which is the work the entry was waiting for. Its own words were: "FOUR models carry its seven
+    # controls and none of the four has a rail item: the three this domain's stage 7 created - the
+    # gateway entry, its client-authentication row and its agent client-settings row - plus
     # `integrations.GlobalProtectEnforcementPoint`, whose own debt the `PAN-GPP` entry above
     # already names. So this entry is load-bearing for six of the seven controls and harmless for
-    # PAN-GPG-005, whose model is already declared: `_awaiting` is consulted only where
-    # `query_results_url` returns nothing.
+    # PAN-GPG-005, whose model is already declared."
     #
-    # ONE LINE CLEARS TWENTY-FIVE FAILURES, because `test_configuration_links` fails ONCE PER
-    # CATALOG QUERY of a new type rather than once per type, and this domain seeds 25 queries.
-    # Stage 9 for this domain is what gives the three new models a page, and stage 8's contract
-    # forbids building one.
-    "PAN-GPG": "stage9-globalprotect-gateway.json",
+    # ALL THREE NOW HAVE ONE: `globalprotect-gateways` over `integrations.GlobalProtectGateway`,
+    # `globalprotect-gateway-authentication` over `integrations.GlobalProtectGatewayClientAuth` and
+    # `globalprotect-gateway-agent` over `integrations.GlobalProtectGatewayAgentConfig`, all three
+    # in the existing `Network > GlobalProtect` rail group. So all TWENTY-FIVE shipped PAN-GPG
+    # queries resolve on their own and `test_no_prefix_outlives_its_stage_9_artifact` passes.
+    # Removing it is part of that stage's job rather than a side effect: an exemption that survives
+    # the work it was waiting for is a permanent hole.
+    #
+    # THE ENTRY WAS RIGHT THAT THE DEBT COVERED SIX OF THE SEVEN CONTROLS, and it is worth
+    # recording that the same six needed a findings TAB as well - which is not the usual split.
+    # `probe.surface_for` reported PAN-GPG-005 already reaching `GlobalProtect Coverage` and the
+    # other six reaching NO SHEET AT ALL, so on this domain the results destination and the findings
+    # tab were owed to exactly the same controls. On `url-filtering` and `decryption-profiles` they
+    # were not, which is why the two surfaces are worth checking separately.
+    #
+    # AND WHAT THE CLEARED LINE DOES NOT MEAN: six of these seven controls have still never matched
+    # a row. There is no GlobalProtect gateway anywhere in the measured estate - stage 8 says so in
+    # a blocking `needs_human` and stage 6 spent eleven lease windows failing to commit one - so
+    # every row these three pages and tabs were designed against was RECONSTRUCTED. The debt this
+    # map tracks is a presentation debt and it is discharged; the measurement debt is stage 6's and
+    # is not.
     # `PAN-ZON` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `zone-dos-protection`,
     # which is the artifact the entry named. Its comment was checked against the code before the
     # line was deleted and it read true: `integrations.Zone` already had the shared `zones` rail

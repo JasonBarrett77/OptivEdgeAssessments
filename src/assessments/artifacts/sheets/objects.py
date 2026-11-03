@@ -29,6 +29,7 @@ from optivedge_integrations.integrations.models import AddressObject, SecurityPr
 
 from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
+from assessments import globalprotect_gateway_presentation as globalprotect_gateway
 from assessments import globalprotect_portal_presentation as globalprotect_portal
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
@@ -1429,6 +1430,30 @@ ENFORCEMENT_POINT_SUBJECT = APPLIANCE + SCOPE + (
     ("GlobalProtect licence", 26, True, globalprotect_portal.point_licence),
 )
 
+# THE THREE GLOBALPROTECT-GATEWAY TABS, 2026-11-02, for PAN-GPG-001 to -004, -006 and -007. Three
+# models, three grains, and twenty clause fields none of which had a heading before today.
+# PAN-GPG-005, the seventh control, adds no tab: it reports on
+# `integrations.GlobalProtectEnforcementPoint` and reaches `GlobalProtect Coverage` above, which the
+# domain before this one left deliberately un-narrowed so that it would.
+#
+# ALL THREE ARE APPLIANCE-ANCHORED, like the portal three and for the same measured reason: none of
+# the models has an `enforcement_point` at all, they carry `appliance`, `scope` and `vsys_name`
+# directly, and their shipped constraints key on `appliance`. So an HA pair draws TWO rows for one
+# configuration and the Appliance and HA role columns are what tell them apart. Measured on a seeded
+# pair, not inferred: see the stage 9 artifact's HA entry.
+#
+# `hidden_fields` IS EMPTY ON ALL THREE AND IS NOT DECLARED. The gate counts a field as presented if
+# a subject column, a settings column OR the sheet's own `hidden_fields` carries it, so a non-empty
+# tuple is a CLAIM accepted as proof, and it is the only known cause in this repository of a findings
+# row that marks nothing as the thing to fix. Every clause field here gets a real column.
+GATEWAY_SUBJECT = APPLIANCE + SCOPE + NAME + globalprotect_gateway.GATEWAY_EVIDENCE
+GATEWAY_CLIENT_AUTH_SUBJECT = (
+    APPLIANCE + SCOPE + globalprotect_gateway.GATEWAY_OF_ROW + NAME
+    + globalprotect_gateway.CLIENT_AUTH_EVIDENCE)
+GATEWAY_AGENT_CONFIG_SUBJECT = (
+    APPLIANCE + SCOPE + globalprotect_gateway.GATEWAY_OF_ROW + NAME
+    + globalprotect_gateway.AGENT_CONFIG_EVIDENCE)
+
 
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
     return findings_sheet.DeviceSettingSheet(
@@ -1931,7 +1956,19 @@ SPECS = (
          "COLUMN COVERS TWO STATES, licensed and never asked, and the GlobalProtect licence cell "
          "beside it is the only place they are told apart.",
          title="GlobalProtect Coverage", subject=ENFORCEMENT_POINT_SUBJECT,
-         setting_labels=globalprotect_portal.ENFORCEMENT_POINT_SETTING_LABELS,
+         # TWO DOMAINS' LABELS ON ONE TAB, which is what a shared sheet costs and is why the merge
+         # is here rather than either domain's map being extended. `globalprotect-portal` owns the
+         # clientless and licence columns; `globalprotect-gateway`'s PAN-GPG-005 ADDS a column to
+         # this tab the moment it ships, because `setting_columns` derives one per clause field of
+         # the controls present in the build. That run predicted the arrival and could not name the
+         # column, because it does not exist until the other domain ships.
+         #
+         # MEASURED BEFORE IT WAS WRITTEN, with the committed seeder against the real artifacts:
+         # this tab drew 17 headings over 3 rows and reported "RAW HEADINGS: 1 of 17" -
+         # `posture_referenced_in_policy`, heading a customer-facing cell on a tab that was
+         # otherwise fully labelled.
+         setting_labels={**globalprotect_portal.ENFORCEMENT_POINT_SETTING_LABELS,
+                         **globalprotect_gateway.POSTURE_SETTING_LABELS},
          value_readers=globalprotect_portal.ENFORCEMENT_POINT_VALUE_READERS,
          hidden_fields=(),
          # EVERY COLUMN OF THIS MODEL IS IN ITS `DERIVED_FIELDS` and nothing writes a provenance
@@ -1958,6 +1995,127 @@ SPECS = (
          # THE FULL SET. Two setting columns, one of which is an applicability gate reading the
          # same value on every row, and four queries splitting the other's values - so the stated
          # condition is what says why a `live` vsys is medium and a `latent` one is low.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.GLOBALPROTECT_GATEWAY,
+         "Each GlobalProtect gateway a virtual system publishes, and what it offers the endpoints "
+         "that build a tunnel to it. A gateway is the service that actually carries remote-user "
+         "traffic, so the controls here are about the transport: whether the profile it presents "
+         "states a protocol floor at all, whether it builds an inspected tunnel, whether that "
+         "tunnel runs over the transport and the algorithm the organisation chose, and how long a "
+         "session and an idle session are allowed to last. THE ROW IS ONE GATEWAY ON ONE APPLIANCE, "
+         "so an HA pair draws two rows for one configuration and the Appliance and HA role columns "
+         "are what tell them apart. EVERY ROW ON THIS TAB IS DRAWN FROM A GATEWAY THAT EXISTS - and "
+         "at the time this tab was built, no GlobalProtect gateway existed anywhere in the measured "
+         "estate, so none of these controls has ever reported on real configuration. THE GATEWAY IS "
+         "READ IN TWO HALVES AT TWO SCOPES and the transport half is the one that goes missing: a "
+         "collection that retrieves the gateway entry gets the authentication half and can silently "
+         "miss the networking half, which is why 'Transport half of the gateway was read' is a "
+         "column rather than an assumption. WHAT THIS TAB CANNOT SAY is whether the certificate the "
+         "gateway presents chains to an authority the connecting endpoint already trusts - that is "
+         "the other half of PAN-GPG-001 and stage 5 discharged it onto the engineer, because the "
+         "firewall holds the certificate and no endpoint's trust store. Nor can it say what "
+         "protocol version is actually negotiated: the binding is a NAME, and the commonest state "
+         "for a correctly hardened gateway is a name resolving into the predefined configuration, "
+         "which no merged view carries. THE QUARANTINE PAIR IS ON THE ROW AND NO CONTROL REPORTS "
+         "IT: stage 5 wrote a gateway-grain record for PAN-GPG-005 and stage 8 compiled no query "
+         "for it, so 'Block login for quarantined devices' is evidence here and nothing grades it.",
+         title="GlobalProtect Gateways", subject=GATEWAY_SUBJECT,
+         setting_labels=globalprotect_gateway.GATEWAY_SETTING_LABELS,
+         # THREE READERS AND ALL THREE ARE FREE - every one is in `GlobalProtectGateway.DERIVED_FIELDS`
+         # and appears in no provenance list in `normalization/globalprotect.py`. Each says
+         # "this branch does not exist on this subject", which `display_value` has no way to express:
+         # without them an unbounded login reads `(none)` and a gateway with IPSec switched off reads
+         # `(empty)` for a proposal list it does not have. TWO READERS WERE REFUSED on this tab -
+         # `ipsec_enabled` and the cookie certificate on the sibling - because both are measured
+         # payload keys whose own `FieldProvenance` row a reader would discard. See the module.
+         value_readers=globalprotect_gateway.GATEWAY_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET, so `Fires when` reaches the workbook as well as the live page; the default
+         # is `("Provenance",)` and taking it makes the two surfaces disagree about which cell a
+         # reader meets (P427). It earns the space here: three controls report on one row over ten
+         # derived columns, PAN-GPG-006 and -007 ship five and six calibration queries splitting
+         # single columns' values across three severities, so two gateways identical in every other
+         # cell report differently and the stated condition is the only cell that says on what.
+         #
+         # AND IT RENDERS IN DJANGO FIELD NAMES, measured on the built table rather than assumed:
+         # `render_node` consults `setting_labels` nowhere, so the condition reads
+         # `tunnel_mode = No` above a column headed "Tunnel Mode". The same value named two ways on
+         # one row. The alternative is the contradicting value with no stated condition beside it,
+         # which is worse, so the column stays and the defect is recorded.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.GLOBALPROTECT_GATEWAY_CLIENT_AUTH,
+         "Each row of each gateway's client-authentication table, and what it demands before it "
+         "admits an endpoint. THE ROW AND NOT THE GATEWAY IS THE GRAIN, which is the thing to read "
+         "before acting on this tab: the table is keyed by the endpoint CLASS it serves, so one "
+         "gateway can require a second factor of a managed Windows endpoint and accept a password "
+         "alone from a third-party IPSec client. A gateway-grain row would have had to print one of "
+         "those and would have reported the compliant sibling as the fault. THE VENDOR'S POLARITY "
+         "IS INVERTED on the credentials switch: 'No' is the HARDENED answer - both factors "
+         "required - and 'Yes' means either one alone admits the endpoint, which is why that column "
+         "is headed as what is ACCEPTED rather than what is required. WHAT THIS TAB CANNOT SAY is "
+         "whether the object named in Authentication Profile is a profile or a SEQUENCE: the leaf "
+         "accepts either, the stored string does not say which, and a row naming a sequence resolves "
+         "to nothing - so an empty 'Authentication back end' beside a named profile is that state "
+         "and not a collection failure. A sequence can fall back to the firewall's own local "
+         "database, which is the configuration this control exists to find. THE CERTIFICATE COLUMN "
+         "IS READ OFF THE PARENT GATEWAY and not off this row; an em dash in it means the row's "
+         "parent gateway did not resolve, which is not the same as 'no'.",
+         # 29 characters. "GlobalProtect Gateway Client Authentication" is what this tab wanted to
+         # be called and Excel caps a worksheet name at 31, so the longer title would truncate in
+         # the workbook while the live page kept the whole of it - the two surfaces disagreeing
+         # about the tab's own name, which `probe.surface_for` does not show because it prints the
+         # untruncated title. "Client Authentication" is the vendor's own sub-heading for exactly
+         # this table (Help 11.2 p.1046, "Client Authentication Area / Name / Enter a unique name to
+         # identify this configuration"), so what was dropped is the product name and not the
+         # thing's own word. The sibling tab in `globalprotect-portal` made the same trade.
+         title="Gateway Client Authentication", subject=GATEWAY_CLIENT_AUTH_SUBJECT,
+         setting_labels=globalprotect_gateway.CLIENT_AUTH_SETTING_LABELS,
+         # ONE READER AND IT IS MANDATORY, not a nicety: `gateway_client_certificate_is_a_second_factor`
+         # is a search-registry key with no attribute of that name on this model, so `tested_fields`
+         # RAISES `ValueError` without it and takes down `store_run_tables` for the whole domain
+         # rather than one cell. Stage 8 filed it as owed to this stage. It costs nothing - the
+         # value it walks to is in the gateway's `DERIVED_FIELDS` and this row has no provenance key
+         # by that name to lose.
+         value_readers=globalprotect_gateway.CLIENT_AUTH_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET. One control, two setting columns and two shipped queries at two severities
+         # - critical from the control default and high from the calibration - so the stated
+         # condition is what distinguishes them on cells that are otherwise identical.
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.GLOBALPROTECT_GATEWAY_AGENT_CONFIG,
+         "Each agent configuration a gateway pushes to the endpoints that match it, and the two "
+         "things about it that outlive a login: the reconnection cookie, and which traffic is sent "
+         "outside the tunnel. THE ROW IS ONE AGENT CONFIGURATION, matched to users by source user, "
+         "operating system and source address, so one gateway can hold several and they are not "
+         "interchangeable. THE COOKIE IS A BEARER CREDENTIAL: whoever can present a valid one "
+         "reconnects as that user without authenticating, so the lifetime is how long a stolen "
+         "cookie stays useful and the certificate is what stops one being forged. A row that "
+         "accepts no cookie is suppressed rather than passed - there is nothing to steal - which is "
+         "why 'Accept cookie for authentication override' reads as a plain setting and not as a "
+         "fault. THE EXCLUSION COUNT IS A NUMBER OVER EIGHT AXES, six inside the split-tunnel "
+         "container and two siblings of it, and no PAN-OS screen presents them together; the two "
+         "that are single switches are beside it and the six that are lists are on the "
+         "configuration page, because a findings row is not where anyone reads two hundred domains. "
+         "ZERO IS THE PASSING VALUE AND ALSO THE DEFAULT, so 'The exclusion inventory was computed' "
+         "is what separates a full tunnel from a row nobody has counted - without it the most "
+         "compliant cell on the tab and the least measured one are the same cell. WHAT THIS TAB "
+         "CANNOT SAY is whether the excluded paths were ones somebody chose: an exclusion is a "
+         "decision, and this reports only that it exists.",
+         # 27 characters, and "Agent" is the vendor's own name for this half of the gateway dialog
+         # (Help 11.2 p.1048, "GlobalProtect Gateways Agent Tab").
+         title="Gateway Agent Configuration", subject=GATEWAY_AGENT_CONFIG_SUBJECT,
+         setting_labels=globalprotect_gateway.AGENT_CONFIG_SETTING_LABELS,
+         # ONE READER, FREE, AND ITS BRANCH IS NOT "IS IT NULL": two nulls with opposite meanings
+         # share the cookie-lifetime column, and the control's own applicability clause is what
+         # tells them apart, so the cell does too. A row accepting no cookie has no lifetime branch
+         # and reads an em dash; a row that accepts one and bounds nothing is the FIRING state and
+         # reads `(none)` beside a marked companion. An em dash on the second would read "not
+         # applicable" over exactly the row the control exists to raise.
+         value_readers=globalprotect_gateway.AGENT_CONFIG_VALUE_READERS,
+         hidden_fields=(),
+         # THE FULL SET. Two controls, seven derived columns, and PAN-GPG-003 ships five calibration
+         # queries banding one column's values at two severities - so the stated condition is what
+         # says why one cookie lifetime is high and another medium.
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
