@@ -653,6 +653,36 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  "Certificate Management", "settings",
                  where="Device > Certificate Management > SSL/TLS Service Profile",
                  search_model="integrations.SslTlsServiceProfile"),
+    # Device > Log Settings, 2026-11-02, for PAN-PLT-006 - the log-database alarm mechanism, a
+    # device-wide singleton at `deviceconfig/setting/management/common-criteria-alarm-generation`.
+    #
+    # BETWEEN Certificate Management AND Server Profiles, which is PAN-OS's own rail order rather
+    # than an append: the product's Device rail runs Certificate Management, Response Pages, Log
+    # Settings, Server Profiles, and this group's two neighbours are already in that order, so one
+    # item lands in the right place without rearranging anything. `ace` above declined to reorder
+    # twelve items to place itself correctly; nothing needs reordering here.
+    #
+    # THE ADDRESS AND THE LABEL ARE BOTH ESTABLISHED IN THE CORPUS, not written from memory. The
+    # section is `Define Alarm Settings`, whose own breadcrumb line reads "Define Alarm Settings -
+    # Device > Log Settings", and it is present verbatim in all three indexed Help editions: 11.2
+    # p.912-914, 11.1 p.898, 12.2 p.949. Help 11.2 p.912: "Use the Alarm Settings to configure
+    # Alarms for the CLI and the web interface", listing "The Log database for each log type is
+    # nearing full" among the three events, and "Alarms are visible only if you Enable Alarms. If
+    # you disable alarms, the firewall does not alert you to critical events that require action."
+    # The label is `Alarm Settings` because that is the vendor's own name for the panel in that
+    # sentence; `where` spells the screen it sits on.
+    #
+    # WHY IT IS ON THE RAIL, by `rule-posture`'s own test: the subject is a PAN-OS configuration
+    # node that an assessor opens at this address and reads, and every column of the model is
+    # either a leaf of that node or a reading of it. Contrast Normalization Coverage, which is off
+    # the rail because there is no address on a firewall where an assessor could go and look.
+    #
+    # ONE NOTE A READER OF THE MODEL WILL WANT: the alarm LOG is not reachable - `show log alarm`
+    # answers "invalid client cli" through the API on all four lab appliances - so this page shows
+    # the configured mechanism and never an alarm that fired.
+    ConfigObject("log-alarms", "Alarm Settings", "Device", "", "triangle-alert",
+                 where="Device > Log Settings",
+                 search_model="integrations.LogAlarmSettings"),
     # Device > Server Profiles. PAN-OS lists one rail child per protocol; we hold all the
     # authentication kinds on one object today, so it is one child until that splits.
     ConfigObject("aaa-server-profiles", "AAA Server Profiles", "Device", "Server Profiles",
@@ -720,6 +750,65 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
                  where="Device > User Identification > User Mapping > "
                        "Include or Exclude Subnetworks for User Mapping",
                  search_model="integrations.UserIdDiscoveryBound"),
+    # Device > Dynamic Updates, 2026-11-02, for PAN-PLT-002 - the content streams the appliance is
+    # actually running, as its own runtime reports them.
+    #
+    # HERE, IMMEDIATELY ABOVE Master Key, BECAUSE THAT IS THE PRODUCT'S OWN ORDER. The Help lists
+    # these sections in sequence - `Device > Software` p.950, `Device > Dynamic Updates` p.950-953,
+    # `Device > Licenses` p.954, `Device > Master Key and Diagnostics` p.959 - and the
+    # `iot-security` entry above already cites the same run from the other end. Both paths are
+    # present verbatim in all three indexed Help editions: 11.2 p.950/954, 11.1 p.940, 12.2 p.992.
+    #
+    # Help 11.2 p.950: "Palo Alto Networks regularly posts updates that include new and modified
+    # applications, threat protection, device dictionary files for IoT Security, and GlobalProtect
+    # data files through dynamic updates", with "Currently Installed" as the screen's own column
+    # for what is on the box and "Release Date" as its own column for the date this row ages
+    # against.
+    #
+    # THE LABEL IS OURS AND IS A PROPOSAL, deliberately NOT `Dynamic Updates`. That screen carries
+    # two different questions and two pipeline domains: what the appliance has LOADED, which is
+    # this item, and the SCHEDULE on which it retrieves more, which is `updates`/PAN-UPD and whose
+    # own `integrations.ContentUpdateSchedule` has no rail item yet - its `AWAITING_PRESENTATION`
+    # entry is still open and its stage 9 run is what clears it. Taking the vendor's screen name
+    # for one of the two would leave the other with no name to take, and `security` /
+    # `rule-posture` set the precedent for two differently-named items at one vendor address.
+    #
+    # WHY IT IS ON THE RAIL, and this one is the harder call of the three in this block: every
+    # reading on the model comes from an OPERATIONAL command, `show system info`, and not from a
+    # configuration node - there is no xpath behind any column. It passes the rail's own test
+    # anyway, which `configuration_navigation`'s header states as a promise about what can be
+    # ASKED: Device > Dynamic Updates is a screen an assessor opens and reads the installed
+    # versions off, which is exactly what this page shows. `iot-security` above made the same
+    # call on the same grounds - "two of the three are screens an assessor opens".
+    ConfigObject("content-streams", "Installed Content", "Device", "", "download",
+                 where="Device > Dynamic Updates",
+                 search_model="integrations.FirewallContentStreams"),
+    # Device > Licenses, 2026-11-02, for PAN-PLT-004 - a verdict over the appliance's whole
+    # entitlement set. Immediately below Dynamic Updates and above Master Key, per the citation on
+    # the entry above.
+    #
+    # Help 11.2 p.954: "Select Device > Licenses to activate licenses on all firewall models", and
+    # the same section names the thing this control's second half is about in the vendor's own
+    # words - "it allows you to free up all active licenses - subscription licenses, VM-Capacity
+    # licenses, and support entitlements". The label is the vendor's own screen name, including its
+    # American spelling, while the model is `LicenceInventory`: the vendor's word heads the rail
+    # and ours names the code, and neither is corrected to the other.
+    #
+    # WHAT THIS PAGE SHOWS THAT THE VENDOR'S SCREEN DOES NOT DOCUMENT, which is recorded in
+    # `reference/known-vendor-contradictions.md` and matters to an assessor following this path:
+    # the Threat Prevention guide p.35 sends a reader here to "verify that the Threat Prevention
+    # expiration date is in the future", and the Help's own section for this screen documents no
+    # expiry, no status and no per-subscription field at all, checked across all three editions.
+    # So every expiry reading behind this page comes from `request license info` rather than from
+    # a field the vendor documents on the screen. The item is still right - this is where licences
+    # live and where a renewal is applied - and that is why the two can differ.
+    #
+    # SECOND ITEM AT THIS ADDRESS. `iot-security` above already claims `where="Device > Licenses"`
+    # for the device-identification licence, over a different model; `objects_for_model` allows two
+    # items at one vendor address and `security` / `rule-posture` set that precedent.
+    ConfigObject("licenses", "Licenses", "Device", "", "clipboard-check",
+                 where="Device > Licenses",
+                 search_model="integrations.LicenceInventory"),
     # Device > Master Key and Diagnostics.
     ConfigObject("master-key", "Master Key", "Device", "", "refresh-cw",
                  where="Device > Master Key and Diagnostics",

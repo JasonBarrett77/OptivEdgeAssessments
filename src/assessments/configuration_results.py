@@ -52,6 +52,9 @@ from optivedge_integrations.integrations.models import (
     DecryptionSettings,
     DeviceIdentificationState,
     DosPolicyRule,
+    FirewallContentStreams,
+    LicenceInventory,
+    LogAlarmSettings,
     IkeCryptoProfile,
     IkeGateway,
     DecryptionPolicyRule,
@@ -134,6 +137,41 @@ def _nothing(count, unit):
     column reads as "not counted" exactly where it means "counted, and the answer was none".
     """
     return f"{count} {unit}" if count else "Nothing"
+
+
+def _stream_cell(version, release_date) -> str:
+    """One content stream's version and publication date in one cell, honestly.
+
+    `0` IS THE APPLIANCE'S OWN SPELLING OF "NEVER INSTALLED" and the URL filtering stream spells
+    the same state `0000.00.00.000`; both literals are in
+    `FirewallContentStreams.NEVER_INSTALLED_VERSIONS`, which is read here rather than retyped. `0`
+    is TRUTHY as a string, so a truthiness test reports an uninstalled stream as installed, and
+    printing it bare tells a customer a version number.
+
+    A BLANK DATE ASSERTS THAT THIS REPLY CARRIED NO DATE FOR THE STREAM and never that the stream
+    is absent: on both PA-5220s "no date reported" is true while "content installed" is also true.
+    `release_date=None` is passed where the model HAS no date column for that stream, which is a
+    third thing again and says nothing at all.
+    """
+    version = (version or "").strip()
+    if not version:
+        return "not read"
+    if version in FirewallContentStreams.NEVER_INSTALLED_VERSIONS:
+        return "never installed"
+    if release_date is None:
+        return version
+    date = (release_date or "").strip()
+    return f"{version} ({date})" if date else f"{version} (no release date reported)"
+
+
+def _alarm_switch(value) -> str:
+    """A nullable alarm switch's three states, where NULL is not "no".
+
+    NO `get_<field>_display()` ON THESE: they are `BooleanField`s with `choices=None`, so the
+    method does not exist and the call would raise `AttributeError` at template render - past
+    `django check` and past every test that does not render this page.
+    """
+    return "not in the configuration" if value is None else _yes_no(value)
 
 
 #: The six split-tunnel axes of a gateway agent configuration, as (column, the vendor's own word).
@@ -1812,6 +1850,124 @@ RESULTS = {
             s.cloudapp_server_address or "the vendor's own endpoint",
         ),
     ),
+    # THE THREE PLATFORM-LIFECYCLE PAGES, 2026-11-02, for PAN-PLT-002, -004 and -006. Keyed on the
+    # rail SLUG like every entry here, and all three models are new to this repository's query
+    # surface: stage 8 created their compiler packages and `AWAITING_PRESENTATION` held `PAN-PLT`
+    # until this run cleared it, so before today none of the twenty-one shipped PAN-PLT queries had
+    # anywhere to go.
+    #
+    # EVERY `query_fields` ENTRY NAMES A FIELD THE COMPILER ACTUALLY REGISTERS, read off
+    # `assessments/search/<model>/compiler.py::FIELD_OPERATOR_REGISTRY` rather than assumed - stored,
+    # searchable and registered are three different things and the repo's rule is that only a column
+    # a control asks for is registered. The registries hold, in order: content streams - `hostname`,
+    # `serial_number`, `content_currency_state`, `content_streams_collected`; licence inventory -
+    # `hostname`, `serial_number`, `entitlement_state`, `support_entitlement_state`,
+    # `licence_inventory_read`, `licence_row_count`; log alarms - `hostname`, `serial_number`,
+    # `alarm_mechanism_state`, `alarm_generation_enabled_known`, `log_db_alarm_threshold_count`. So
+    # the version columns, the release dates, the per-entitlement counts, the threshold map and all
+    # three nullable alarm switches are SHOWN and not queryable, and each has no entry here.
+    "content-streams": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Content currency": "content_currency_state",
+            "Content read answered": "content_streams_collected"},
+        columns=("Appliance", "Serial", "Content read answered", "Content currency",
+                 "Applications", "Antivirus", "Threat", "WildFire", "URL filtering",
+                 "Device dictionary"),
+        base_queryset=_ordered(FirewallContentStreams, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            _yes_no(s.content_streams_collected),
+            # THE STORED KEY WOULD BE `stream_never_installed`. The explorer pages call the display
+            # method per column, which is where the sheets layer's habit of not doing so comes from
+            # - and this column is the one place the two surfaces must agree, because an assessor
+            # reads the verdict here and on the findings tab.
+            s.get_content_currency_state_display() or "-",
+            # ONE CELL PER STREAM, VERSION AND DATE TOGETHER, because the two are meaningless apart:
+            # `0` is the appliance's own spelling of NEVER INSTALLED and a blank date asserts that
+            # the reply carried no date for the stream, which must never be read as the stream being
+            # absent. Ten separate columns would put those two facts four columns apart.
+            _stream_cell(s.app_version, s.app_release_date),
+            _stream_cell(s.av_version, s.av_release_date),
+            _stream_cell(s.threat_version, s.threat_release_date),
+            # NO `wildfire_release_date` COLUMN ON THE MODEL: stage 5 declared none and the key is
+            # absent from the reply wherever the version is `0`, so this stream can report "never
+            # installed" and never "behind".
+            _stream_cell(s.wildfire_version, None),
+            _stream_cell(s.url_filtering_version, None),
+            _stream_cell(s.device_dictionary_version, s.device_dictionary_release_date),
+        ),
+    ),
+    "licenses": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Licence table read": "licence_inventory_read",
+            "Rows returned": "licence_row_count",
+            "Subscription entitlements": "entitlement_state",
+            "Support entitlement": "support_entitlement_state"},
+        columns=("Appliance", "Serial", "Licence table read", "Rows returned",
+                 "Subscription entitlements", "Support entitlement", "Expired", "Within 30 days",
+                 "Features held"),
+        base_queryset=_ordered(LicenceInventory, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            # NAMED FOR THE SHAPE OF THE REPLY AND NEVER FOR A CONCLUSION:
+            # `null_licenses_element` is the only shape an unlicensed appliance produces AND the
+            # shape a licensed one would produce with every row stripped, so it means unknown.
+            s.get_licence_inventory_read_display() or "-",
+            # ZERO IS TWO DIFFERENT DEVICE STATES - a present-and-empty element and a read that
+            # never ran - told apart by the cell before this one and never by this one.
+            _nothing(s.licence_row_count, "rows"),
+            s.get_entitlement_state_display() or "-",
+            s.get_support_entitlement_state_display() or "-",
+            _nothing(s.expired_entitlement_count, "entitlements"),
+            _nothing(s.expiring_within_30_days_count, "entitlements"),
+            # AN EMPTY LIST MUST BE READ AS "NOBODY LOOKED" and not as "no entitlements held",
+            # which is the model's own instruction for this column. ONE PER LINE and not
+            # comma-joined: Jason, 2026-09-27, "In fields where multiple values may exist, the
+            # values should be separated by new lines", and a data cell does not wrap, so ten
+            # feature names on one line is a very wide paragraph.
+            "\n".join(s.entitlement_features_held or []) or "none recorded",
+        ),
+    ),
+    "log-alarms": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Alarm mechanism": "alarm_mechanism_state",
+            "Switches read": "alarm_generation_enabled_known",
+            "Log types thresholded": "log_db_alarm_threshold_count"},
+        columns=("Appliance", "Serial", "Node in configuration", "Alarms enabled",
+                 "Switches read", "Alarm mechanism", "Log types thresholded", "Thresholds",
+                 "CLI notification", "Web notification"),
+        base_queryset=_ordered(LogAlarmSettings, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            # NOT THE SAME CLAIM AS THE ALARM BEING OFF, which is the distinction the whole control
+            # rests on: stage 3's second rank is "nothing recorded at all, which cannot be told
+            # apart from a device sitting at the vendor's documented default".
+            _yes_no(s.alarm_settings_node_present),
+            # THREE-WAY. NULL means the key is not in the committed configuration and what the
+            # device does in that state is UNMEASURED - `_yes_no` would report it as "no", which
+            # means an administrator switched alarms off and is a different sentence.
+            _alarm_switch(s.alarm_generation_enabled),
+            _yes_no(s.alarm_generation_enabled_known),
+            s.get_alarm_mechanism_state_display() or "-",
+            _nothing(s.log_db_alarm_threshold_count, "log types"),
+            # THE DENOMINATOR OF THESE PERCENTAGES IS CONTRADICTED BY THE VENDOR - "available disk
+            # space" on help 11.2 p.912 and "the maximum size" in that page's own field table on
+            # p.913, a factor of thirty apart on one lab appliance - so the number is printed with
+            # its log type and no unit is claimed. See
+            # `reference/known-vendor-contradictions.md` in OptivEdgeProbe.
+            # One per line, per the multi-value cell rule above.
+            "\n".join(f"{name} {value}" for name, value
+                       in sorted((s.log_db_alarm_thresholds or {}).items())) or "none recorded",
+            _alarm_switch(s.cli_alarm_notification_enabled),
+            _alarm_switch(s.web_alarm_notification_enabled),
+        ),
+    ),
     "password-profiles": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Profile": "name", "Expires": "expiration_period",
@@ -3171,13 +3327,27 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # one this run gave a page to, so that entry's remaining debt is the three models
     # `globalprotect-gateway`'s own stage 7 created. Its text is left exactly as it stands,
     # because an entry is the debt its own stage 9 clears.
-    # `platform-lifecycle` reached stage 8 on 2026-11-01. THREE models and none of them has a
-    # rail item: all three were created by stage 7 for this domain and had never been queried from
-    # this repository at all. Stage 9 for this domain is what gives them a page, and stage 8's
-    # contract forbids building one. THIS DEBT IS FOR THREE OF THE DOMAIN'S SIX CONTROLS, not six:
-    # PAN-PLT-001, -003 and -005 are discharged `engineer_answers` by stage 5, owe no query and
-    # have no catalog entry at all, so they have no link to go nowhere.
-    "PAN-PLT": "stage9-platform-lifecycle.json",
+    # `PAN-PLT` WAS HERE AND IS GONE, cleared 2026-11-02 by stage 9 of `platform-lifecycle`, which
+    # is the work the entry was waiting for. Its own words were: "`platform-lifecycle` reached stage
+    # 8 on 2026-11-01. THREE models and none of them has a rail item: all three were created by
+    # stage 7 for this domain and had never been queried from this repository at all. Stage 9 for
+    # this domain is what gives them a page, and stage 8's contract forbids building one. THIS DEBT
+    # IS FOR THREE OF THE DOMAIN'S SIX CONTROLS, not six: PAN-PLT-001, -003 and -005 are discharged
+    # `engineer_answers` by stage 5, owe no query and have no catalog entry at all, so they have no
+    # link to go nowhere."
+    #
+    # ALL THREE NOW HAVE ONE: `content-streams` over `integrations.FirewallContentStreams` at
+    # Device > Dynamic Updates, `licenses` over `integrations.LicenceInventory` at Device >
+    # Licenses, and `log-alarms` over `integrations.LogAlarmSettings` at Device > Log Settings. So
+    # all TWENTY-ONE shipped PAN-PLT queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. The entry was right that the debt
+    # covered three of six controls and right that all three models were homeless -
+    # `probe.surface_for` confirmed the harder half independently, that all three reached NO SHEET
+    # AT ALL, so each needed a findings tab as well as a results destination.
+    #
+    # THE ENTRY HAD NO TRAILING DASH, unlike its neighbours, and that made no difference to what it
+    # exempted: every PAN-PLT control id begins `PAN-PLT-`, so the prefix matched all of them
+    # either way. Noted because the asymmetry invites a reader to think one was deliberate.
     # `updates` reached stage 8 on 2026-11-01. `integrations.ContentUpdateSchedule` was created
     # by stage 7 for this domain and had never been queried from this repository, so it has no
     # rail item; stage 9 for this domain is what gives it a page and stage 8's contract forbids

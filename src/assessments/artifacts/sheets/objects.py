@@ -33,6 +33,7 @@ from assessments import globalprotect_gateway_presentation as globalprotect_gate
 from assessments import globalprotect_portal_presentation as globalprotect_portal
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import platform_lifecycle_presentation as platform_lifecycle
 from assessments import user_id_presentation as user_id
 
 from . import findings as findings_sheet
@@ -1751,6 +1752,58 @@ GATEWAY_CLIENT_AUTH_SUBJECT = (
 GATEWAY_AGENT_CONFIG_SUBJECT = (
     APPLIANCE + SCOPE + globalprotect_gateway.GATEWAY_OF_ROW + NAME
     + globalprotect_gateway.AGENT_CONFIG_EVIDENCE)
+
+
+# THE THREE PLATFORM-LIFECYCLE TABS, 2026-11-02, for PAN-PLT-002, PAN-PLT-004 and PAN-PLT-006.
+# Three models, three device-wide singletons, and the whole domain is new to presentation: nothing
+# in this repository drew a row for any of these three control types before today, `probe.surface_for`
+# reported NO SHEET AT ALL for all three, and not one of their four clause fields had a heading.
+#
+# THE DOMAIN'S OTHER THREE CONTROLS ADD NO TAB and that is the correct state: PAN-PLT-001, -003 and
+# -005 are discharged `engineer_answers` by stage 5, so they compile no query, have no catalog entry
+# at all and can write no finding. Two of the three are CRITICAL severity and reach no customer
+# through this report; stage 8's `needs_human` and `unexercised_assertions` are where that is on the
+# record, and a tab here would have been a tab that can never hold a row.
+#
+# WHY THREE AND NOT ONE. An engineer fixes one of three different things, at three different vendor
+# addresses: content that is behind is fixed on Device > Dynamic Updates, an entitlement that has
+# lapsed on Device > Licenses, and an alarm nobody receives on Device > Log Settings. That is the
+# same split the GlobalProtect and decryption blocks above make, and the rail items follow it.
+#
+# ALL THREE ARE APPLIANCE-ANCHORED and the appliance-scoped defaults are right: each model declares
+# `unique(appliance)` in its own `Meta.constraints`, so a row IS one firewall and `s.appliance`
+# resolves. SO AN HA PAIR DRAWS TWO ROWS FOR ONE REAL CONFIGURATION and nothing deduplicates them -
+# stage 5 says so for all three subjects, and the Appliance and HA role columns are the only thing
+# telling the two rows apart. Measured on the seeded estate rather than inferred; see the stage 9
+# artifact's HA entry for which arm of `flows.get_in_scope_appliances` that measurement sits in.
+#
+# `hidden_fields` IS EMPTY ON ALL THREE AND IS DECLARED EMPTY. The gate counts a field as presented
+# if a subject column, a settings column OR the sheet's own `hidden_fields` carries it, so a
+# non-empty tuple is a CLAIM accepted as proof and it is the only known cause in this repository of
+# a findings row that marks nothing as the thing to fix (P409). All four clause fields here get a
+# real derived column.
+#
+# `tested_columns=ALL_TESTED_COLUMNS` ON ALL THREE IS A CHOICE AND IT IS NOT FREE HERE. The default
+# `("Provenance",)` silently drops `Fires when` from the WORKBOOK while the live page keeps it, so
+# the two surfaces would disagree about which cell a reader meets (P427). It is taken knowing that
+# `fires_when` renders the BASELINE's condition alone: on the two Licenses rows whose finding comes
+# from the support calibration alone - the two PA-VMs, whose subscription entitlements all read
+# `Never` and are not expired - the stated condition is `entitlement_state ≠ active_beyond_90_days`
+# beside a cell reading "All active, beyond 90 days", which that row does not meet. Measured on the
+# built rows, recorded in the artifact, and the alternative is a contradicting value with no stated
+# condition beside it at all.
+#
+# `source_columns=()` ON ALL THREE. The default names the TEMPLATE per tested field, and all four
+# clause fields here are in their model's `DERIVED_FIELDS` - computations over an operational reply
+# or over a configuration node, never a pushed value - so the column would be empty on every row of
+# every tab. `ace` and the four SaaS tabs above drop it for the same reason.
+#
+# EVERY HEADING IS A PROPOSAL (P399) and every one of them is sourced in
+# `platform_lifecycle_presentation`, beside the vendor sentence it came from or the note saying the
+# vendor has no word for it.
+CONTENT_STREAMS_SUBJECT = APPLIANCE + platform_lifecycle.CONTENT_STREAMS_EVIDENCE
+LICENCE_INVENTORY_SUBJECT = APPLIANCE + platform_lifecycle.LICENCE_INVENTORY_EVIDENCE
+LOG_ALARM_SUBJECT = APPLIANCE + platform_lifecycle.LOG_ALARM_EVIDENCE
 
 
 def spec(control_type, description, *, title="", subject=APPLIANCE, **options):
@@ -3517,6 +3570,95 @@ SPECS = (
          "The identity services the firewall authenticates against - LDAP, RADIUS, TACACS+, "
          "Kerberos and SAML - and how it connects to each.",
          subject=APPLIANCE + SCOPE + KIND + NAME),
+    # Device > Dynamic Updates, 2026-11-02, for PAN-PLT-002. Category DERIVED from the rail
+    # (`category=''`), whose item is `content-streams` - right for a subject that IS a thing an
+    # assessor opens a vendor screen to read, and deriving it means the workbook cannot disagree
+    # with the app about where the subject lives.
+    spec(T.FIREWALL_CONTENT_STREAMS,
+         "Whether each firewall is running current threat content, stream by stream. A finding "
+         "names the APPLIANCE and not a content stream, because `show system info` returns every "
+         "stream\'s version in one reply and the device offers no stream entity to key a row on - "
+         "so each stream is a COLUMN here and the verdict is over the set. THE VERDICT NAMES THE "
+         "WORST STATE IT FINDS AND A NEVER-INSTALLED STREAM IS CLASSIFIED FIRST, which is worth "
+         "knowing when a row reads \"A stream was never installed\" and another stream on the same "
+         "row is also behind its window: the reason given is the strongest one, not the only one. "
+         "WHAT A ROW HERE CANNOT SAY: whether the organisation ever bought the subscription that "
+         "delivers a stream. A never-installed WildFire stream on an appliance that holds no "
+         "WildFire entitlement reports at the same severity as one on an appliance that does, "
+         "because no column of this subject can hold a fact about the licence table - and the "
+         "vendor keeps part of a stream flowing at a slower cadence after an entitlement expires, "
+         "so a lapsed subscription is deliberately NOT an exemption. Stage 8 raised that as a "
+         "question for a person rather than settling it. AND A STREAM WITH NO PUBLICATION DATE "
+         "CANNOT BE AGED AT ALL: both PA-5220s in the measured estate report no release date for "
+         "any stream, so the staleness arithmetic is not performed on them and the row says so "
+         "rather than passing.",
+         title="Installed Content",
+         subject=CONTENT_STREAMS_SUBJECT,
+         setting_labels=platform_lifecycle.CONTENT_STREAMS_LABELS,
+         value_readers=platform_lifecycle.CONTENT_STREAMS_READERS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=platform_lifecycle.DERIVED_CELL),
+    # Device > Licenses, 2026-11-02, for PAN-PLT-004. Category DERIVED from the rail, whose item is
+    # `licenses`.
+    spec(T.LICENCE_INVENTORY,
+         "Whether each firewall\'s subscriptions and its support entitlement are current. TWO "
+         "VERDICTS ON ONE ROW because this is one control stated as two assertion records over two "
+         "columns of one model, and they are different consequences rather than two tiers of one: a "
+         "lapsed SUBSCRIPTION stops the protection it delivers, and a lapsed SUPPORT entitlement "
+         "stops the firewall obtaining software at all, which blocks the remedy for anything else "
+         "found here. A finding names the APPLIANCE and not a licence, because the commonest "
+         "failing state is an entitlement that is MISSING and a missing entitlement has no licence "
+         "row to live on. WHAT A ROW HERE CANNOT SAY: whether the appliance was MEANT to carry its "
+         "own support entitlement. Nothing on a firewall says whether it is a production device or "
+         "a spare, a lab or an RMA unit that deliberately has none, so an absent support row is "
+         "reported at high severity on every appliance - and on the measured estate that is every "
+         "appliance, with nobody able to say whether `request license info` lists support "
+         "entitlements on these platforms at all. Stage 8 raised that as a question for a person. "
+         "AND AN UNREADABLE LICENCE TABLE IS NOT AN EMPTY ONE: `request license info` answers a "
+         "present-and-empty element on both PA-5220s, which is the same shape an unlicensed "
+         "appliance returns and the same shape a read that never ran would leave, so it is reported "
+         "rather than passed.",
+         title="Licenses",
+         subject=LICENCE_INVENTORY_SUBJECT,
+         setting_labels=platform_lifecycle.LICENCE_INVENTORY_LABELS,
+         value_readers=platform_lifecycle.LICENCE_INVENTORY_READERS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=platform_lifecycle.DERIVED_CELL),
+    # Device > Log Settings, 2026-11-02, for PAN-PLT-006. Category DERIVED from the rail, whose item
+    # is `log-alarms` - the second item at that one vendor address is not in play here, because no
+    # other rail item claims Device > Log Settings today.
+    spec(T.LOG_ALARM_SETTINGS,
+         "Whether each firewall would raise an alarm as a log database fills, and whether that "
+         "alarm would reach anybody. A finding names the APPLIANCE because the alarm node is a "
+         "device-wide singleton with no entry name and no vsys. THE MECHANISM IS GRADED AS ONE "
+         "ORDERED VERDICT rather than as a list of switches, because the order matters and is not a "
+         "conjunction: an alarm armed with no threshold to fire on is WORSE than one that fires and "
+         "reaches nobody, and no combination of the leaf columns beside it expresses that. AN "
+         "ABSENT ALARM NODE IS REPORTED AND NOT PASSED, which is the state of three of the four "
+         "measured appliances: the configuration read materialises no defaults, the vendor "
+         "documents a 90% default on one page and none in that page\'s own field table, and there is "
+         "no oracle on the device to settle it - so \"nothing recorded\" means nobody knows, and a "
+         "pass would be a customer told they are safe on the strength of nothing. WHAT A CLEAN ROW "
+         "HERE DOES NOT COVER: this control\'s other half, sustained dataplane load, is reported "
+         "NOWHERE in this report. No configuration node on the firewall holds a dataplane CPU or "
+         "session-utilisation threshold and the vendor\'s own monitoring procedure puts the "
+         "comparison on an off-box SNMP manager, so stage 5 discharged that half to an engineer\'s "
+         "question. AND THE THRESHOLD\'S DENOMINATOR IS NOT SETTLED: the vendor describes the same "
+         "percentage as a share of available disk space on one page of this screen\'s section and of "
+         "the log database\'s maximum size on the next, which differ by a factor of thirty on one "
+         "lab appliance - so a threshold is shown with its log type and no unit claim.",
+         title="Alarm Settings",
+         subject=LOG_ALARM_SUBJECT,
+         setting_labels=platform_lifecycle.LOG_ALARM_LABELS,
+         value_readers=platform_lifecycle.LOG_ALARM_READERS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         source_columns=(),
+         provenance_cell=platform_lifecycle.DERIVED_CELL),
 )
 
 

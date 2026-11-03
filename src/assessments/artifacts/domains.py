@@ -452,6 +452,44 @@ DOMAINS = (
     # other domains - which is also why neither appears twice: `_build_model_index` takes the
     # FIRST domain claiming a model, and neither of these two claims `Zone` or
     # `ManagementInterface`.
+    # Device, 2026-11-02, for PAN-PLT-004, -002 and -006 in that order. THREE ENTRIES HERE AND
+    # THEY ARE IN `finding_run.GENERATORS`' ORDER, which within a category is this list's order
+    # (Jason, 2026-09-21). Their generator indices are 60, 62 and 63; the entry above this one is
+    # 48 and the one below is 65, so 48 < 60 < 62 < 63 < 65 holds and nothing existing moves. The
+    # 67-then-36 break further up this block is older and is not these entries' to rearrange.
+    #
+    # INDEX 61 IS NOT OURS AND ITS ABSENCE IS NOT A GAP: `content update schedule` sits between
+    # the licence inventory and the content streams in GENERATORS, belongs to the `updates` domain,
+    # and has no `FindingsDomain` yet - its own stage 9 run writes one and its
+    # `AWAITING_PRESENTATION` entry is still open. GENERATORS' own comment says why it is placed
+    # there: the schedule is the CONFIGURED CAUSE of stale content and PAN-PLT-002's streams are
+    # the RUNTIME SYMPTOM, so a reader meets the cause first. When that entry lands it goes between
+    # the two below, not beside them.
+    #
+    # THE ORDER IS ENTITLEMENT, THEN CONTENT, THEN ALARM, and GENERATORS states the reason this
+    # list inherits: what the appliance is ENTITLED to, then what it has actually LOADED, then the
+    # mechanism that would say a log database filled. A reader meets "this appliance's licence
+    # table could not be read" before "its antivirus stream was never installed", because the
+    # first is a candidate explanation for the second.
+    #
+    # REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)`, which is not a
+    # style choice: `probe.oea_registry.domain_slug` in OptivEdgeProbe parses THIS FILE as text and
+    # its second form requires the attribute to be literally `SPEC`, so it admits exactly one spec
+    # per sheet module. These three live in `sheets/objects.py` beside fifty others, which that
+    # form cannot express - see the `rulebase-device-match` entry above, which paid for the lesson.
+    #
+    # CATEGORY DERIVED FROM THE RAIL (`category=''`) ON ALL THREE, which is right for a subject an
+    # assessor opens a vendor screen to read: deriving it means the workbook cannot disagree with
+    # the app about where the subject lives. The rail items are `licenses`, `content-streams` and
+    # `log-alarms`.
+    #
+    # THE DOMAIN'S OTHER THREE CONTROLS ADD NO ENTRY HERE. PAN-PLT-001, -003 and -005 are
+    # discharged `engineer_answers` by stage 5 and have no catalog entry at all, so there is no
+    # control type to register and nothing that could write a finding. Two of them are CRITICAL
+    # severity; stage 8's `needs_human` is where that is on the record.
+    _object_domain("licenses", T.LICENCE_INVENTORY),
+    _object_domain("content-streams", T.FIREWALL_CONTENT_STREAMS),
+    _object_domain("log-alarms", T.LOG_ALARM_SETTINGS),
     _object_domain("user-id-collector", T.USER_ID_COLLECTOR),
     _object_domain("user-id-discovery", T.USER_ID_DISCOVERY_BOUND),
     # Device, LAST, 2026-11-01: `finding_run.GENERATORS` runs "policy rule settings" after every

@@ -146,7 +146,19 @@ class WorkbookBuildTests(TestCase):
         # SaaS Security Inline subscription - so App-ID Cloud Engine is an EMPTY tab on the real
         # estate. The rows it was designed against came from a seeded estate in which the
         # engine's operational read is absent rather than unlicensed.
-        self.assertIn("Summary: 63 tabs linked, 0 findings in total", reports[0])
+        # 66 on 2026-11-02 by stage 9 of `platform-lifecycle`. THREE tabs for a SIX-control
+        # domain, and the other three controls can never have one: PAN-PLT-001, -003 and -005
+        # are discharged `engineer_answers` by stage 5, compile no query and have no catalog
+        # entry at all, so there is no control type to draw a tab for. `probe.surface_for`
+        # answered per control that all three of the remaining ones reached NO tab beforehand.
+        #
+        # ALL THREE DRAW ROWS ON THE MEASURED ESTATE, which is unusual in this list and is
+        # because every subject of the domain is a device-wide singleton: four appliances give
+        # four rows of each model, and eleven of the twelve carry a finding. TWO OF THE THREE
+        # REQUIRED AN ESTATE THE COMMITTED SEEDER DOES NOT BUILD, which this count cannot show:
+        # PAN-PLT-002 and PAN-PLT-004 read `show system info` and `request license info`, and
+        # `print_findings_table` builds configuration snapshots only - see the stage 9 artifact.
+        self.assertIn("Summary: 66 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -212,7 +224,16 @@ class WorkbookBuildTests(TestCase):
         # count and this one was missed, so the suite came back with exactly one new failure and
         # it read like an unrelated regression. The cheap check is to grep this file for the old
         # number before re-running, not after.
-        self.assertEqual(len(names), 64)
+        # 67 on 2026-11-02 by stage 9 of `platform-lifecycle`: "Installed Content" (17),
+        # "Licenses" (8) and "Alarm Settings" (14), all three counted against the
+        # 31-character cap before they were chosen and none truncated. All three subjects are
+        # Device settings, so unlike the four above they DO land in one block - between
+        # "IoT Security" and "User-ID Collector", which is `finding_run.GENERATORS` order.
+        #
+        # AND THE NOTE ABOVE WAS READ BEFORE RE-RUNNING RATHER THAN AFTER: both literals were
+        # grepped out of this file and bumped in one edit, which is what that paragraph asks
+        # the next run to do.
+        self.assertEqual(len(names), 67)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
