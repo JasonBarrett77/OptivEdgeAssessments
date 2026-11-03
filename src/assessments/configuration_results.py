@@ -78,6 +78,8 @@ from optivedge_integrations.integrations.models import (
     IpsecCryptoProfile,
     IpsecTunnel,
     ManagementInterface,
+    ManagementPlaneAddressing,
+    ApplianceOperationalMode,
     PanOsDhcpInterfaceConfig,
     PanOsRoutingAdjacency,
     PanOsSessionSettings,
@@ -869,6 +871,67 @@ RESULTS = {
              or (f"DNS proxy: {d.dns_proxy_object_name}" if d.dns_proxy_object_name
                  else "no resolver chosen")),
             d.get_management_resolver_posture_display(),
+        ),
+    ),
+    # TWO NEW PAGES, 2026-11-03, stage 9 of `management-services`, for PAN-MGT-004 and PAN-MGT-012 -
+    # the two models this domain's stage 7/8 minted and nothing had ever queried.
+    #
+    # EVERY `query_fields` HEADING NAMES A FIELD THE MODEL'S OWN SEARCH REGISTRY REGISTERS, checked
+    # against `assessments/search/<model>/compiler.py::FIELD_OPERATOR_REGISTRY` rather than against
+    # the model, because stored, searchable and registered are three different things and this
+    # repository's rule is that only a column a control asks for is registered.
+    #
+    # `management-addressing` REGISTERS EXACTLY THREE - `hostname`, `serial_number` and
+    # `exposure_posture` - and the compiler says in its own words why the other four are not:
+    # "A field earns its place by a control needing it ... registering the other four would ship a
+    # search surface no control asks for." So the address, the gateway and the allocation mode are
+    # PRESENTED here and are deliberately UNMAPPED: they have no `query_fields` entry, exactly as a
+    # composite column has none.
+    #
+    # THE ADDRESS AND GATEWAY CELLS NAME THE ALLOCATION RATHER THAN PRINTING A BLANK, for the reason
+    # the findings tab's own columns do: both are `CharField(null=True)` and a DHCP-addressed
+    # appliance stores NEITHER even when the read succeeded, so a bare blank would read as a gap in
+    # the report where it is a measured state. The compiler records the same trap from the search
+    # side.
+    #
+    # NOTHING ON THIS PAGE IS A CHANGE TO PROPOSE. Jason's standing restriction is that a management
+    # IP address and the route to it are never to be changed or implied to need changing; the
+    # columns exist so an assessor can go and look at the value, which is also what the compiler's
+    # closing paragraph says.
+    "management-addressing": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Exposure": "exposure_posture"},
+        columns=("Appliance", "IP Type", "IP Address", "Default Gateway", "Exposure"),
+        base_queryset=_ordered(ManagementPlaneAddressing, "appliance__hostname"),
+        row=lambda m: (
+            str(m.appliance),
+            m.get_allocation_mode_display(),
+            (m.management_ip_address
+             or ("assigned by DHCP" if m.allocation_mode == m.AllocationMode.DHCP_CLIENT
+                 else "none in the configuration")),
+            (m.static_default_gateway
+             or ("assigned by DHCP" if m.allocation_mode == m.AllocationMode.DHCP_CLIENT
+                 else "none configured")),
+            m.get_exposure_posture_display(),
+        ),
+    ),
+    # `operational-mode`. BOTH of this model's registered columns are mapped, because both are what
+    # PAN-MGT-012 asks of it: `approved_cryptography_mode` is its assertion and `operational_mode`
+    # its grading axis.
+    #
+    # THE MODE CELL SAYS WHEN NO READ WAS TAKEN. `operational_mode` is `CharField(blank=True)` whose
+    # empty value means the operational read never happened - not that the appliance answered with
+    # nothing - and the normaliser says so in terms. A blank cell would conflate the two, and
+    # `normal` is itself the NON-approved value, so the unread state must not read as the compliant
+    # one.
+    "operational-mode": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Mode": "operational_mode",
+                      "Approved": "approved_cryptography_mode"},
+        columns=("Appliance", "Mode", "Approved"),
+        base_queryset=_ordered(ApplianceOperationalMode, "appliance__hostname"),
+        row=lambda m: (
+            str(m.appliance),
+            m.operational_mode or "no operational read was taken",
+            "Yes" if m.approved_cryptography_mode else "No",
         ),
     ),
     "service-routes": ResultsSpec(
@@ -3863,7 +3926,34 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # models `ManagementPlaneAddressing` and `ApplianceOperationalMode` were minted by this
     # stage and have no rail item. It is harmless for the other eleven. Stage 9 for this domain
     # is what gives the two models a page, and stage 8's contract forbids building one.
-    "PAN-MGT": "stage9-management-services.json",
+    # `PAN-MGT` CAME OUT ON 2026-11-03, which is stage 9 of `management-services` doing the thing
+    # the entry was waiting for - and it was the LAST entry in this map, so with it gone
+    # `AWAITING_PRESENTATION` IS EMPTY for the first time since it was created. Its own words were:
+    # "SIX OF THE EIGHT MODELS CARRYING THESE CONTROLS ALREADY RESOLVE and were never homeless ...
+    # This entry is load-bearing for exactly TWO of the thirteen controls, PAN-MGT-004 and
+    # PAN-MGT-012, whose models `ManagementPlaneAddressing` and `ApplianceOperationalMode` were
+    # minted by this stage and have no rail item."
+    #
+    # BOTH MODELS NOW HAVE ONE: `management-addressing` at Device > Setup > Interfaces, beside the
+    # `interfaces` item that already claimed `ManagementInterface` at the same vendor screen, and
+    # `operational-mode`, whose `where` names the web interface STATUS BAR because the vendor names
+    # no screen that displays the value - see that item's comment in `configuration_navigation.py`
+    # for the saturated search and for why an operationally-sourced subject belongs on this rail
+    # anyway. Each has a `ResultsSpec` above and a `FindingsDomain` in `artifacts/domains.py`, so
+    # all 26 of the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes.
+    #
+    # The count of two load-bearing controls was right and is kept. The other eleven resolved
+    # through `interfaces`, `login-banner`, `services`, `logging-and-reporting`, `management-tls`
+    # and `interface-mgmt` throughout - which is also why six of this domain's eight tabs existed
+    # before this stage ran, and why most of what this stage owed them was fourteen column headings
+    # rather than a surface.
+    #
+    # REMOVING IT IS PART OF THAT STAGE'S JOB rather than a side effect of it: an exemption that
+    # survives the work it was waiting for is a permanent hole, and clearing it is also what FORCED
+    # the two rail entries - `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates
+    # the seed payload and never consults `is_active`, so with the exemption gone there was no
+    # off-rail route left for either model.
     # `PAN-LOG` CAME OUT ON 2026-11-03, which is stage 9 of `logging` doing the thing the entry
     # was waiting for. Its own words were: "`logging` reached stage 8 on 2026-11-01. TWO of its
     # three models have no rail item: `LogServerTarget` and `VsysLogForwarding` were both created

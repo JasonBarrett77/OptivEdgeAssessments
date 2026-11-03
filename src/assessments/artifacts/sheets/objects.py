@@ -36,6 +36,7 @@ from assessments import ha_panorama_presentation as ha_panorama
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
 from assessments import logging_presentation as logging
+from assessments import management_services_presentation as management_services
 from assessments import network_hardening_presentation as network_hardening
 from assessments import platform_lifecycle_presentation as platform_lifecycle
 from assessments import user_id_presentation as user_id
@@ -1867,14 +1868,41 @@ SPECS = (
          subject_select_related=("enforcement_point__appliance_group",
                                  "enforcement_point__appliance", "appliance_group",
                                  "appliance")),
+    # `management-services`, stage 9, 2026-11-03. BOTH HEADINGS WERE RAW DJANGO FIELD NAMES - `text`
+    # and `acknowledgement_required` - and both are this domain's own columns (PAN-MGT-007 and
+    # -008). Both labels are the VENDOR'S OWN WORDS from the one screen that carries both, Help
+    # 11.2 p.701; `management_services_presentation` has the quotes.
+    #
+    # NO `provenance_cell` AND THAT IS MEASURED. This is the one tab in the pipeline where the
+    # DEFAULT cell is already honest: `LoginBanner` declares `DERIVED_FIELDS` EMPTY, both clause
+    # fields are stored, and both carry a real `FieldProvenance` row - so the default reads the
+    # recorded answer rather than walking anywhere. A cell reproducing the default is noise.
+    #
+    # `tested_columns` IS THE FULL SET (P427) so the workbook keeps `Fires when` rather than
+    # silently dropping it while the live page shows it.
     spec(T.LOGIN_BANNER,
-         "The banner shown before an administrator logs in, and whether they must acknowledge it."),
+         "The banner shown before an administrator logs in, and whether they must acknowledge it.",
+         setting_labels=management_services.LOGIN_BANNER_SETTING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.MASTER_KEY,
          "The key that encrypts the firewall's own stored secrets, and whether it is still the "
          "factory default."),
+    # `management-services`, stage 9, 2026-11-03. `verify_identity` was a raw Django field name and
+    # is this domain's own column (PAN-MGT-009). The label is the vendor's, Help 11.2 p.749 -
+    # "Verify Update Server Identity" - and note that it is NOT on the screen the config node
+    # suggests: the leaf is `deviceconfig/system/server-verification` and the setting is on
+    # Device > Setup > Services, under Global Services Settings.
+    #
+    # NO `provenance_cell`: `verify_identity` is stored, is not in `DERIVED_FIELDS`, and carries its
+    # own `FieldProvenance` row, so the default cell reads the recorded answer. Measured on a built
+    # row rather than inferred.
     spec(T.UPDATE_SERVER,
          "How the firewall talks to Palo Alto's update servers, and whether it verifies their "
-         "identity."),
+         "identity.",
+         setting_labels=management_services.UPDATE_SERVER_SETTING_LABELS,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     # NINE CONTROLS ON ONE TAB, 2026-11-03: PAN-MGT-011, which has been here since
     # `management-services` minted the type, and the EIGHT `logging` controls PAN-LOG-001, -003,
     # -004, -006, -007, -008, -009 and -010. This spec was a bare two-liner until stage 9 of
@@ -2024,6 +2052,51 @@ SPECS = (
          setting_labels=device_services.SERVICE_ROUTE_SETTING_LABELS,
          value_readers=device_services.SERVICE_ROUTE_READERS,
          provenance_cell=device_services.service_route_provenance_cell,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # THE TWO NEW TABS OF `management-services`, stage 9, 2026-11-03, for PAN-MGT-004 and
+    # PAN-MGT-012. Both models were minted by this domain's own stage 7/8 and had never been
+    # queried from this repository, so neither had a rail item, a results page or a tab - and
+    # clearing `PAN-MGT` from `AWAITING_PRESENTATION` is what FORCES both rail items, because
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` walks the seed payload without
+    # consulting `is_active` and there is no off-rail route left.
+    #
+    # TWO TABS AND NOT ONE. Two models, two rail items, two different questions and nothing shared
+    # but the appliance: one is where the management plane is addressed, the other is what
+    # cryptographic mode the appliance reports running in. One tab would also print `layout.NONE`
+    # in every column belonging to the other model on every row, because `setting_columns` reads a
+    # field off the model its own control targets.
+    #
+    # BOTH CATEGORIES ARE DERIVED FROM THE RAIL (`category=''`), so the workbook cannot disagree
+    # with the app about where a subject lives. Both rail items are in `Device`.
+    #
+    # `hidden_fields=()` ON BOTH AND DECLARED: the gate counts a field as presented if a subject
+    # column, a settings column OR `hidden_fields` carries it, so a non-empty tuple is a CLAIM
+    # accepted as proof and is the only known cause of a findings row that marks nothing as the
+    # thing to fix (P409). Every clause field on both tabs gets a real column.
+    #
+    # `tested_columns=ALL_TESTED_COLUMNS` on both (P427), so the workbook keeps `Fires when` rather
+    # than dropping it while the live page shows it. The price is known and was measured: the
+    # condition `fires_when` prints is the BASELINE's alone, which on these two tabs is the right
+    # condition on every row - neither control has a row that fired through a calibration the
+    # baseline does not also match. The condition does read in Django field names, which
+    # `render_node` cannot help since it consults `setting_labels` nowhere; that is recorded as a
+    # defect in this run's stage 9 artifact rather than worked around here.
+    spec(T.MANAGEMENT_PLANE_ADDRESSING,
+         management_services.MANAGEMENT_ADDRESSING_DESCRIPTION,
+         title=management_services.MANAGEMENT_ADDRESSING_TITLE,
+         subject=management_services.MANAGEMENT_ADDRESSING_SUBJECT,
+         setting_labels=management_services.MANAGEMENT_ADDRESSING_SETTING_LABELS,
+         value_readers=management_services.MANAGEMENT_ADDRESSING_READERS,
+         provenance_cell=management_services.addressing_provenance_cell,
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    spec(T.APPLIANCE_OPERATIONAL_MODE,
+         management_services.OPERATIONAL_MODE_DESCRIPTION,
+         title=management_services.OPERATIONAL_MODE_TITLE,
+         setting_labels=management_services.OPERATIONAL_MODE_SETTING_LABELS,
+         value_readers=management_services.OPERATIONAL_MODE_READERS,
+         provenance_cell=management_services.operational_mode_provenance_cell,
+         hidden_fields=(),
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.MANAGEMENT_INTERFACE,
          "Every surface an administrator can reach the firewall on - the management port, the aux "
@@ -2602,14 +2675,39 @@ SPECS = (
          # queries banding one column's values at two severities - so the stated condition is what
          # says why one cookie lifetime is high and another medium.
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # `management-services`, stage 9, 2026-11-03, for PAN-MGT-013 - this domain's own tab and its
+    # own only control.
+    #
+    # `unbound_exposure_class` WAS RAW AND WAS PRINTING ITS STORED KEY, which is the two halves of
+    # the `choices` rule meeting on one column: it carries `choices`, so the cell went `read_value`
+    # -> `getattr` -> `display_value` -> `str(value)` and a customer read
+    # `unencrypted_administrative_login` under the heading `unbound_exposure_class`. The reader is
+    # MANDATORY for that reason and FREE because the field is declared in `DERIVED_FIELDS`.
+    # The heading is OURS - the vendor has no word for a profile bound to nothing, established by a
+    # saturated search recorded in `management_services_presentation`.
+    #
+    # NO `provenance_cell`, AND THIS IS THE CASE WHERE BRANCHING WOULD BE WORSE THAN DOING NOTHING.
+    # `binding_count` exists ONLY through `BINDING_COUNT`, and a sheet-level cell is handed
+    # `(subject, provenance_of, fields)` and cannot see the sheet's readers - so `provenance_of`
+    # would find no stored row and no `DERIVED_FIELDS` entry for it and answer nothing, while the
+    # DEFAULT path sends it to `remediation_accessor`, which reaches this model's `__entry__` row.
+    # `interface_management_profiles.py` declares `ENTRY_FIELD = "__entry__"` and writes one per
+    # entry, so this is the one tab in the domain where that walk actually has somewhere to go.
+    # Measured both ways on built rows.
     spec(T.INTERFACE_MANAGEMENT_PROFILE,
          "The profiles that decide which services a data-plane interface offers, and which "
-         "interfaces carry them.",
+         "interfaces carry them. A profile bound to NO interface permits nothing today - what it "
+         "reports is what attaching it would permit in one action, which is why the class is "
+         "stated as a counterfactual rather than as a present exposure.",
          subject=APPLIANCE + NAME + (
              ("Bound interfaces", 18, True,
               lambda s, _p: "\n".join(s.bound_interface_names or []) or "(none)", "binding_count"),
          ),
-         value_readers={"binding_count": BINDING_COUNT}),
+         setting_labels=management_services.INTERFACE_MGMT_PROFILE_SETTING_LABELS,
+         value_readers={"binding_count": BINDING_COUNT,
+                        **management_services.INTERFACE_MGMT_PROFILE_READERS},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.SSL_TLS_SERVICE_PROFILE,
          "The TLS profiles the firewall presents to browsers and clients: their protocol floor "
          "and the certificate each uses.",

@@ -194,7 +194,20 @@ class WorkbookBuildTests(TestCase):
         # takes that order. `domains.py` records both placements and the gap. The domain's other
         # THREE tabs - `NTP`, `SNMP` and `System Identity` - already existed, so nine controls add
         # two tabs and not five; what this stage owed those three was sixteen column headings.
-        self.assertIn("Summary: 78 tabs linked, 0 findings in total", reports[0])
+        # 79 -> 81 on 2026-11-03, BOTH literals bumped in one edit: stage 9 of
+        # `management-services` added TWO tabs over the two models that domain's own stage 7/8
+        # minted and nothing had ever queried - `Management Plane Addressing` over
+        # `integrations.ManagementPlaneAddressing` (Device > Setup > Interfaces) and
+        # `Cryptographic Operational Mode` over `integrations.ApplianceOperationalMode`, whose
+        # rail `where` names the web interface STATUS BAR because the vendor names no screen that
+        # displays the value. Both sit between `DNS Settings` and `Service Routes`, which is
+        # `finding_run.GENERATORS` order: management plane addressing is 15 and appliance
+        # operational mode 16, between management resolvers at 12 and management service paths at
+        # 17. THIRTEEN controls add two tabs because SIX of this domain's eight tabs already
+        # existed - more than any other domain has inherited - and what this stage owed those six
+        # was fourteen column headings, four `choices` readers and three provenance cells.
+        # THIS WAS THE LAST DOMAIN OF THE 28, so `AWAITING_PRESENTATION` is now empty.
+        self.assertIn("Summary: 80 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -308,7 +321,20 @@ class WorkbookBuildTests(TestCase):
         # takes that order. `domains.py` records both placements and the gap. The domain's other
         # THREE tabs - `NTP`, `SNMP` and `System Identity` - already existed, so nine controls add
         # two tabs and not five; what this stage owed those three was sixteen column headings.
-        self.assertEqual(len(names), 79)
+        # 79 -> 81 on 2026-11-03, BOTH literals bumped in one edit: stage 9 of
+        # `management-services` added TWO tabs over the two models that domain's own stage 7/8
+        # minted and nothing had ever queried - `Management Plane Addressing` over
+        # `integrations.ManagementPlaneAddressing` (Device > Setup > Interfaces) and
+        # `Cryptographic Operational Mode` over `integrations.ApplianceOperationalMode`, whose
+        # rail `where` names the web interface STATUS BAR because the vendor names no screen that
+        # displays the value. Both sit between `DNS Settings` and `Service Routes`, which is
+        # `finding_run.GENERATORS` order: management plane addressing is 15 and appliance
+        # operational mode 16, between management resolvers at 12 and management service paths at
+        # 17. THIRTEEN controls add two tabs because SIX of this domain's eight tabs already
+        # existed - more than any other domain has inherited - and what this stage owed those six
+        # was fourteen column headings, four `choices` readers and three provenance cells.
+        # THIS WAS THE LAST DOMAIN OF THE 28, so `AWAITING_PRESENTATION` is now empty.
+        self.assertEqual(len(names), 81)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

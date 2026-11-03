@@ -469,6 +469,35 @@ DOMAINS = (
     # these two entries on the page; the gap is the generator order rather than a preference, and
     # it is recorded because the two tabs being adjacent would look tidier and would be wrong.
     #
+    # THE TWO NEW DEVICE TABS OF `management-services`, stage 9, 2026-11-03 - run 28 of 28, for
+    # PAN-MGT-004 and PAN-MGT-012. HERE, between `dns-settings` and `service-routes`, because
+    # within a category this list takes `finding_run.GENERATORS`' order and that tuple runs
+    # management resolvers (12), log server targets (13), vsys log forwarding (14), MANAGEMENT
+    # PLANE ADDRESSING (15), APPLIANCE OPERATIONAL MODE (16), management service paths (17). Read
+    # off the generator tuple by iterating it rather than taken from the comment below, which
+    # already named both slots correctly.
+    #
+    # BOTH REGISTERED WITH `_object_domain` AND NOT `FindingsDomain(slug, module.SPEC)` (P465), and
+    # that is not a style choice: `probe.oea_registry.domain_slug` in OptivEdgeProbe parses THIS
+    # FILE as text and its second form requires the attribute to be literally `SPEC`, so it admits
+    # exactly ONE spec per sheet module. Both of these specs live in `sheets/objects.py`, which
+    # holds dozens, so that form cannot express either. The failure it avoids is invisible to every
+    # OEA check: `tests/test_oea_registry.py::test_every_built_control_reaches_a_findings_domain_
+    # today` lives in OptivEdgeProbe and only fires once this domain's stage 9 artifact exists.
+    #
+    # TWO TABS AND NOT ONE. Two models, two rail items, and two questions sharing nothing but the
+    # appliance - where the management plane is addressed, and which cryptographic mode the
+    # appliance reports running in. One tab would also print `layout.NONE` in every column
+    # belonging to the other model on every row, because `setting_columns` reads a field off the
+    # model its own control targets.
+    #
+    # Categories DERIVED from the rail (`category=''`) on both, which is right for a subject whose
+    # address is a PAN-OS node: the rail items are `management-addressing` at Device > Setup >
+    # Interfaces and `operational-mode`, whose `where` names the web interface status bar because
+    # the vendor names no screen that displays the mode. Deriving means the workbook cannot
+    # disagree with the app about where the subject lives.
+    _object_domain("management-addressing", T.MANAGEMENT_PLANE_ADDRESSING),
+    _object_domain("operational-mode", T.APPLIANCE_OPERATIONAL_MODE),
     # Category DERIVED from the rail (`category=''`): the rail item is `service-routes`, at
     # Device > Setup > Services.
     _object_domain("service-routes", T.SERVICE_ROUTE),

@@ -85,6 +85,7 @@ would settle it is in `pipeline/artifacts/stage9-mgmt-crypto.json`, under `devic
 """
 from __future__ import annotations
 
+from assessments import management_services_presentation as management_services
 from assessments.models import Control
 
 from . import findings as findings_sheet
@@ -92,12 +93,42 @@ from ..layout import SheetInfo
 
 T = Control.ControlType
 
+#: TWO OF THE THREE THINGS THIS FILE PROPOSED ARE NOW WRITTEN, by stage 9 of
+#: `management-services`, 2026-11-03. The paragraphs above proposed `setting_labels` and a
+#: `provenance_cell` and said why neither could be written: "NOT WRITTEN, because this spec also
+#: serves PAN-MGT-010, whose domain has not had its stage 9 - `PAN-MGT` is still in
+#: `AWAITING_PRESENTATION` - and a Provenance cell is shared by both halves of the tab." That run
+#: has now happened and `PAN-MGT` is out of the map, so it wrote both.
+#:
+#: ALL TEN HEADINGS AND THE CELL ARE PROPOSALS (P399) and THREE of the ten columns are
+#: `management-services`' own; the other seven belong to the five `PAN-MCR` controls and to
+#: PAN-CRT-006, whose domains inherit the words and may replace them. The argument is run 26's:
+#: labelling a column changes nothing about its control, and a 23-column tab with ten bare Django
+#: field names is worse than one with 23 labelled. Measured on built rows with the whole catalogue
+#: seeded: 10 of 23 headings raw before, 0 of 23 after.
+#:
+#: THE THIRD PROPOSAL - an SSH-side subject column naming the bound profile - IS STILL NOT WRITTEN.
+#: It is a column rather than a heading, it changes what identifies a row on a tab this run does
+#: not own, and the em dash it would replace is not false in the way a raw heading is: see that
+#: run's stage 9 artifact, which records it as left undone and why.
+#:
+#: WHAT THE CELL CHANGES, measured on built rows: the three `*_below_preferred` verdicts are
+#: declared derived and `remediation_accessor` discards DERIVED and walks to an `__entry__` row
+#: NEITHER of this tab's two models carries, so the Provenance cell read "Not recorded" over fields
+#: whose own inputs - `ciphers`, `kex`, `macs` - each carry a real row. That is the distinction
+#: this file's paragraph 2 says the tab most needs, because it is what separates "bind a profile"
+#: from "edit the one you bound".
 SPEC = findings_sheet.DeviceSettingSheet(
     title="Management SSH and TLS",
     control_types=(T.MANAGEMENT_SSH, T.MANAGEMENT_TLS),
     description=("What protects an administrator's connection to the firewall: the SSH server's "
                  "ciphers, key exchange, MACs and host key, and the certificate and TLS protocol "
                  "floor the web interface presents."),
+    setting_labels=management_services.MANAGEMENT_CRYPTO_SETTING_LABELS,
+    value_readers=management_services.MANAGEMENT_CRYPTO_READERS,
+    provenance_cell=management_services.crypto_provenance_cell,
+    hidden_fields=(),
+    tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
 )
 
 

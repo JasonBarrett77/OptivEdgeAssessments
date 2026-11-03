@@ -593,6 +593,54 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("service-routes", "Service Routes", "Device", "Setup", "list-checks",
                  where="Device > Setup > Services > Service Route Configuration",
                  search_model="integrations.ServiceRoute"),
+    # TWO NEW ITEMS, 2026-11-03, stage 9 of `management-services` - run 28 of 28, the run that
+    # EMPTIES `AWAITING_PRESENTATION`. Both models were minted by that domain's own stage 7/8 and
+    # had never been queried from this repository, so neither had a rail item of any kind, and
+    # clearing `PAN-MGT` from the map is what FORCES them:
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the SEED PAYLOAD and
+    # never consults `is_active`, so with the exemption gone there is no off-rail route left.
+    #
+    # BOTH `where` PATHS ARE READ OUT OF THE CORPUS AND NEITHER IS WHAT THE DISPATCH BRIEF GUESSED.
+    #
+    # `management-addressing` IS ON THE SAME SCREEN AS `interfaces` ABOVE, which is why it sits
+    # here in `Setup` rather than somewhere of its own: PAN-OS Web Interface Help 11.2 p.757,
+    # `Device > Setup > Interfaces` - "Use this page to configure connection settings, allowed
+    # services, and administrative access for the management (MGT) interface on all firewall models
+    # and for the auxiliary interfaces (AUX-1 and AUX-2) on PA-5200 Series firewalls. Palo Alto
+    # Networks recommends that you always specify the IP address and netmask (for IPv4) or prefix
+    # length (for IPv6) and the default gateway for every interface." There is NO
+    # `Interfaces > Management` child node and no `Device > Setup > Management` address for these
+    # leaves; both were checked and neither exists. `interfaces` already claims
+    # `integrations.ManagementInterface` at the same path, and two items at one address is normal
+    # here - `ntp`, `dns-settings` and `service-routes` all share Device > Setup > Services.
+    ConfigObject("management-addressing", "Management Addressing", "Device", "Setup", "monitor",
+                 where="Device > Setup > Interfaces",
+                 search_model="integrations.ManagementPlaneAddressing"),
+    # `operational-mode` IS THE HARD ONE AND THE JUDGEMENT IS RECORDED RATHER THAN HIDDEN. THE
+    # VENDOR NAMES NO SCREEN THAT DISPLAYS THIS VALUE. Established by a saturated search, not
+    # assumed: `operational-mode` returns "nothing in: help, help-11-1, help-12-2, guide,
+    # networking, threat, dns, gp <- a complete count, so this is silence", matching only the CLI
+    # hierarchies and the API guide; `normal mode`, `mode of operation` and `current operational
+    # mode` each return "0 page(s) match, which is all of them" across all three Web Interface Help
+    # editions; and the Dashboard's General Information widget field inventory (Help 11.2 p.52) does
+    # not list it. The ONE web-interface placement the vendor gives is the status bar - PAN-OS
+    # Administrator's Guide 11.2 p.1307, "Change the Operational Mode to FIPS-CC Mode": "FIPS-CC
+    # displays at all times in the status bar at the bottom of the web interface."
+    #
+    # SO WHY IT IS ON THE RAIL AT ALL. The rail is "the promise about what can be asked" of a
+    # firewall, and this IS something an assessor can ask of one - it is not CONFIGURATION, which is
+    # a different thing, and the precedent for an operationally-sourced subject on this rail is
+    # already here twice: `content-streams` over `FirewallContentStreams` at Device > Dynamic
+    # Updates and `licenses` over `LicenceInventory` at Device > Licenses are both operational reads
+    # with rail items in this category. The alternative the contract offers - leaving the subject
+    # off the rail and `PAN-MGT` in `AWAITING_PRESENTATION` - would leave the pipeline's last
+    # exemption standing permanently over a subject that an assessor can in fact go and look at.
+    # `where` therefore names the vendor's own placement and says plainly that it is not a
+    # configuration screen, rather than inventing a `Device > ...` path that does not exist.
+    ConfigObject("operational-mode", "Operational Mode", "Device", "", "shield",
+                 where="Shown in the web interface status bar; set from maintenance mode, not from "
+                       "a configuration screen",
+                 search_model="integrations.ApplianceOperationalMode"),
     ConfigObject("authentication-settings", "Authentication Settings", "Device", "Setup",
                  "clipboard-check", where="Device > Setup > Management > Authentication Settings",
                  search_model="integrations.AuthenticationSettings"),
