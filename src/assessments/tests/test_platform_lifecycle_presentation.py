@@ -566,8 +566,23 @@ class PlatformLifecycleTabTests(PlatformLifecycleEstateMixin, TestCase):
     def test_the_readers_alone_already_fix_the_provenance_cell(self):
         """Which of the two fixes does the work, pinned, because the standing remedy is the other
         one. Removing the sheet's own `provenance_cell` and keeping the readers still reads
-        "Derived"; removing BOTH reads "Not recorded"."""
+        "Derived"; removing BOTH reads "Not recorded".
+
+        `regenerate_findings()` IS THE TEST. `build_findings_table` LOADS findings rather than
+        computing them, and its only row-count guard compares what it built against what the
+        database holds - so with no findings generated both sides are zero, nothing raises, the
+        headings still come out right because they derive from the controls, and the two loops
+        below iterate nothing and assert nothing. Measured 2026-11-03: without this call the three
+        tabs build 0 rows each, and this test had been passing vacuously since it was written. The
+        `assertTrue(table.rows)` lines are what stop it going hollow again. It is called here
+        rather than in `setUp` because the other nine tests in this class read `headers` only, and
+        a full finding run in `setUp` would be paid ten times on every gate run.
+        """
         import dataclasses
+
+        from assessments.finding_run import regenerate_findings
+
+        regenerate_findings()
 
         for _rail, domain_slug, _control_type, _model in TABS:
             spec = DOMAIN_BY_SLUG[domain_slug].spec
@@ -575,6 +590,7 @@ class PlatformLifecycleTabTests(PlatformLifecycleEstateMixin, TestCase):
                 without_cell = dataclasses.replace(spec, provenance_cell=None)
                 table = build_findings_table(without_cell, tested=ALL_TESTED_COLUMNS)
                 index = list(table.headers).index("Provenance")
+                self.assertTrue(table.rows, "no rows: this test would assert nothing")
                 for row in table.rows:
                     self.assertEqual({"Derived"}, set(str(row[index]).split("\n")))
 
@@ -582,6 +598,7 @@ class PlatformLifecycleTabTests(PlatformLifecycleEstateMixin, TestCase):
                     spec, provenance_cell=None, value_readers={})
                 table = build_findings_table(without_either, tested=ALL_TESTED_COLUMNS)
                 index = list(table.headers).index("Provenance")
+                self.assertTrue(table.rows, "no rows: this test would assert nothing")
                 for row in table.rows:
                     self.assertEqual({"Not recorded"}, set(str(row[index]).split("\n")))
 
