@@ -165,6 +165,21 @@ DOMAINS = (
     # Category DERIVED from the rail (`category=''`), whose item is `dos-protection-rules` at
     # Policies > DoS Protection - right for a subject that IS a configuration object.
     _object_domain("dos-protection-rules", T.DOS_POLICY_RULE),
+    # Policies > Tunnel Inspection, 2026-11-03, for PAN-NET-006 - the one tab of the
+    # `network-hardening` domain on the Policies tab rather than Network, and the reason that
+    # domain is the first to span three PAN-OS categories. AFTER the DoS rulebase and last in
+    # this category, which is `finding_run.GENERATORS`' own order for it (tunnel inspection runs
+    # after every Policies subject above) rather than the vendor's rail, where Tunnel Inspection
+    # sits between Decryption and DoS Protection. The rail item itself IS in the vendor's
+    # position; the two surfaces disagree by one row here, and the gate constrains only that
+    # category ranks do not decrease.
+    #
+    # Category DERIVED from the rail (`category=''`), whose item is `tunnel-inspection` at
+    # Policies > Tunnel Inspection - right for a subject that IS a configuration object, which
+    # this one is: the row is a verdict over one vsys's `rulebase/tunnel-inspect` subtree, and
+    # the rail item promises the NODE rather than our reading of it. That is the same test
+    # `rule-posture`, `decryption-coverage` and `globalprotect-coverage` each passed.
+    _object_domain("tunnel-inspection", T.TUNNEL_INSPECTION),
     # Objects, 2026-11-02, for PAN-URL-006, and BEFORE `security-profiles` on purpose.
     #
     # The `url-filtering` domain reports to two tabs: its other five controls land on the shared
@@ -224,6 +239,18 @@ DOMAINS = (
     _object_domain("normalization-coverage", T.NORMALIZATION),
     # Network
     #
+    # Network > Interfaces, 2026-11-03, for PAN-NET-001 and PAN-NET-003 - and now FIRST in this
+    # category, which displaces the zones tab from a position its own comment below only held
+    # because no interface tab existed. That comment quotes the vendor's enumeration as
+    # "Interfaces, Traffic Objects, ZONES, ..." and capitalised the zone because the node above
+    # it had no tab; it does now, so the enumeration reads straight through. Category DERIVED
+    # from the rail, whose item is `firewall-interfaces` at Network > Interfaces.
+    #
+    # THE ONE TAB IN THIS REPORT OVER A MODEL THAT CARRIES NO PROVENANCE AT ALL. See the sheet
+    # spec: `integrations.Interface` is a `SyncTrackedModel` rather than a `ProvenancedMixin`,
+    # which used to be the shape that made a tab unbuildable, and is not any more.
+    _object_domain("firewall-interfaces", T.FIREWALL_INTERFACE),
+    #
     # Network, 2026-11-02, for PAN-IOT-002, and FIRST in this category because that is where the
     # vendor puts the object: help p.359 enumerates the Network rail as Interfaces, Traffic
     # Objects, ZONES, VLANs, Virtual Wires, Virtual Routers, Routing, IPSec Tunnels, ... Network
@@ -237,6 +264,23 @@ DOMAINS = (
     # findings link lands HERE until somebody decides otherwise; that is worth knowing when those
     # domains run, because their rows will be on their own tabs while the model's links are not.
     _object_domain("security-zones", T.ZONE),
+    # Network > Virtual Routers and Network > DHCP, 2026-11-03, for PAN-NET-007 and PAN-NET-004 -
+    # both AFTER the zones tab and BEFORE the Network Profiles tabs below, which is the vendor's
+    # own rail order in the enumeration quoted above: Interfaces, Traffic Objects, Zones, VLANs,
+    # Virtual Wires, VIRTUAL ROUTERS, Routing, IPSec Tunnels, GRE Tunnels, DHCP, ... Network
+    # Profiles LAST. Categories DERIVED from the rail, whose items are `virtual-routers` and
+    # `dhcp-interfaces`.
+    #
+    # THIS IS THE VENDOR'S ORDER AND NOT `finding_run.GENERATORS`', which is the convention the
+    # Network Profiles comment below follows, and the two disagree here: that tuple runs session
+    # settings, global LLDP, interface, DHCP, tunnel inspection, routing adjacency, so it would
+    # put DHCP before the routers. `check_tabs_follow_the_summary` constrains only that category
+    # RANKS do not decrease, so within a category this is a choice - and the vendor's rail is the
+    # one a reader navigating the product follows, which is the same argument the zones tab and
+    # the IPSec tabs each made for their own placement. Recorded because the next domain in this
+    # category will find two conventions here and should know which was applied and why.
+    _object_domain("virtual-routers", T.ROUTING_ADJACENCY),
+    _object_domain("dhcp-interfaces", T.DHCP_INTERFACE_CONFIG),
     _object_domain("interface-management-profiles", T.INTERFACE_MANAGEMENT_PROFILE),
     # Network > Network Profiles, 2026-10-28. Both after the interface-management profiles,
     # which is this category's order in `finding_run.GENERATORS` - and the proposal set before
@@ -350,6 +394,19 @@ DOMAINS = (
     _object_domain("globalprotect-gateway-agent", T.GLOBALPROTECT_GATEWAY_AGENT_CONFIG),
     _object_domain("globalprotect-coverage", T.GLOBALPROTECT_ENFORCEMENT_POINT),
     # Device
+    #
+    # Device > Setup > Session, 2026-11-03, for PAN-NET-002 and PAN-NET-005 - FIRST in this
+    # category, which is `finding_run.GENERATORS`' own order for it: that tuple runs session
+    # settings before every other `network-hardening` subject, on its own stated rule of
+    # device-wide settings before per-surface objects. Category DERIVED from the rail, whose item
+    # is `session-settings` at Device > Setup > Session.
+    #
+    # THE DOMAIN'S FIVE TABS LAND IN THREE CATEGORIES - Policies, Network and Device - which no
+    # earlier stage 9 domain has done. It is required rather than untidy, and the precedent is
+    # already here: the `certificates` domain's three items sit in two categories on exactly this
+    # argument, that tabs and rail items follow the product's own organisation and an assessor
+    # sent to the wrong tab would not find the object.
+    _object_domain("session-settings", T.SESSION_SETTINGS),
     FindingsDomain("password-complexity", password_complexity.SPEC),
     FindingsDomain("authentication-settings", authentication_settings.SPEC),
     _object_domain("login-banner", T.LOGIN_BANNER),

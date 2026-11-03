@@ -70,10 +70,15 @@ from optivedge_integrations.integrations.models import (
     SaasUrlFilteringPosture,
     SanctionedApplicationMarking,
     SslDecryptionExclusion,
+    Interface,
     InterfaceManagementProfile,
     IpsecCryptoProfile,
     IpsecTunnel,
     ManagementInterface,
+    PanOsDhcpInterfaceConfig,
+    PanOsRoutingAdjacency,
+    PanOsSessionSettings,
+    PanOsTunnelInspectionCoverage,
     UserIdCollectorSettings,
     UserIdDiscoveryBound,
     AuthenticationSettings,
@@ -3406,6 +3411,188 @@ RESULTS = {
             _yes_no(d.untrust_distinct_from_trust),
         ),
     ),
+    # ----------------------------------------------------- network-hardening, 2026-11-03
+    # SIX PAGES FOR SIX MODELS, which is what clearing `PAN-NET` from `AWAITING_PRESENTATION`
+    # forces: `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the SEED
+    # payload and never consults `is_active`, `query_results_url` resolves only through
+    # `CONFIG_OBJECTS.search_model`, and `LEGACY_SURFACE` is asserted `== {}` by a test of its
+    # own. There is no off-rail route left.
+    #
+    # EVERY `query_fields` ENTRY BELOW IS A KEY OF ITS COMPILER'S OWN `FIELD_COMPILERS`, read off
+    # `search/<model>/compiler.py` rather than assumed: stored, searchable and REGISTERED are
+    # three different things, and a heading mapped to an unregistered field points the "build a
+    # query from these rows" button at a lookup that refuses itself.
+    "firewall-interfaces": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number", "Interface": "name",
+            "Addressing": "addressing", "Zone": "security_zone_name",
+            "Link state": "link_state", "Mgmt profile": "management_profile_name",
+            "Restricts sources": "management_profile_restricts_sources",
+            "Out-of-service residue": "out_of_service_residue",
+            "LLDP node": "lldp_node_present", "LLDP enabled": "lldp_enabled",
+            "LLDP profile": "lldp_profile_name",
+            "LLDP announced content": "lldp_announced_content"},
+        columns=("Appliance", "Serial", "Interface", "Addressing", "Zone", "Link state",
+                 "Mgmt profile", "Restricts sources", "Out-of-service residue", "LLDP node",
+                 "LLDP enabled", "LLDP profile", "LLDP announced content"),
+        base_queryset=_ordered(Interface, "appliance__hostname", "name"),
+        row=lambda i: (
+            str(i.appliance),
+            i.appliance.serial_number or "-",
+            i.name,
+            i.get_addressing_display(),
+            i.security_zone_name or "Unzoned",
+            # NULLABLE, and null is not "up": `link-state` absent means the key was never
+            # written, and PAN-OS's own default for an absent key is `auto`. "not read" rather
+            # than a guess, which is `_tri`'s whole argument one column type across.
+            i.get_link_state_display() if i.link_state else "not read",
+            # "Unbound" and not a blank. A port with NO management profile is the SAFE state for
+            # PAN-NET-001 and a blank cell would read as missing data - which is the opposite of
+            # what it means.
+            i.management_profile_name or "Unbound",
+            _yes_no(i.management_profile_restricts_sources),
+            i.get_out_of_service_residue_display(),
+            _yes_no(i.lldp_node_present),
+            _yes_no(i.lldp_enabled),
+            i.lldp_profile_name or "None",
+            i.get_lldp_announced_content_display(),
+        ),
+    ),
+    "session-settings": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Rematch Sessions": "session_rematch",
+            "Rematch setting established": "rematch_known",
+            "IPv6 Firewalling": "ipv6_firewalling"},
+        columns=("Appliance", "Serial", "Rematch Sessions", "Rematch setting established",
+                 "IPv6 Firewalling", "TCP reject non-SYN"),
+        base_queryset=_ordered(PanOsSessionSettings, "appliance__hostname"),
+        row=lambda s: (
+            str(s.appliance),
+            s.appliance.serial_number or "-",
+            # THREE STATES AND NULL IS THE FIRING SIDE. `session_rematch` is nullable with no
+            # default, and a NULL means nobody ever wrote `deviceconfig/setting/config/rematch`.
+            # `_tri` exists for exactly this and its docstring says why: printing it "no" would
+            # put the reassuring answer in the cell the control fired on.
+            _tri(s.session_rematch),
+            # THE SAME NULLNESS, STATED AS THE QUESTION THE CONTROL ASKS, and it is the shipped
+            # search compiler's own virtual field rather than an invention here -
+            # `build_boolean_compiler("rematch_known", "session_rematch__isnull", invert=True)`.
+            # Both columns are kept because they answer different questions: one is what the
+            # setting IS, the other is whether it was ever established.
+            _yes_no(s.session_rematch is not None),
+            # NON-nullable with a MEASURED vendor default of true, so there is no third state to
+            # print and no `*_known` companion is possible. The consequence stands and is
+            # reported rather than papered over: PAN-NET-005 cannot separate "we asked and the
+            # device says it is on" from "we never asked".
+            _yes_no(s.ipv6_firewalling),
+            _yes_no(s.tcp_reject_non_syn),
+        ),
+    ),
+    # NO `lldp-global` ENTRY, AND THAT IS RECORDED RATHER THAN FORGOTTEN. A spec was written
+    # here for `integrations.PanOsLldpGlobalSettings` and removed the same day: `RESULTS` is
+    # reached only through a rail item, nothing can fire over that model, and a rail item with a
+    # `search_model` is a promise of a findings page that this model cannot keep - it failed
+    # `test_every_rail_item_offers_the_link` and
+    # `test_every_object_crosses_to_the_page_that_reports_on_it`. The whole argument, including
+    # the three alternatives and why each is worse than the gap, is at the position the rail item
+    # would have occupied in `configuration_navigation.py`, under "Network > LLDP IS DELIBERATELY
+    # ABSENT FROM THIS RAIL".
+    "dhcp-interfaces": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Interface": "interface_name",
+            "Server branch present": "dhcp_server_configured",
+            "Server mode": "dhcp_server_mode",
+            "Relay IPv4 switch": "dhcp_relay_ipv4_enabled",
+            "Relay switch established": "dhcp_relay_ipv4_enabled_known",
+            "Relay state": "dhcp_relay_state"},
+        columns=("Appliance", "Serial", "Interface", "Server branch present", "Server mode",
+                 "Relay IPv4 switch", "Relay switch established", "Relay state"),
+        base_queryset=_ordered(PanOsDhcpInterfaceConfig, "appliance__hostname",
+                               "interface_name"),
+        row=lambda d: (
+            str(d.appliance),
+            d.appliance.serial_number or "-",
+            d.interface_name,
+            _yes_no(d.dhcp_server_configured),
+            # NULLABLE and a real reading: a server branch that exists with no `mode` key under
+            # it. "No mode key" rather than a blank, for the same reason the trust-certificate
+            # page says "Nothing designated".
+            d.get_dhcp_server_mode_display() if d.dhcp_server_mode else "No mode key",
+            _tri(d.dhcp_relay_ipv4_enabled),
+            _yes_no(d.dhcp_relay_ipv4_enabled is not None),
+            d.get_dhcp_relay_state_display(),
+        ),
+    ),
+    "tunnel-inspection": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number", "Scope": "scope",
+            "Virtual system": "vsys_name",
+            "Rules": "tunnel_inspect_rule_count",
+            "Rulebase collected": "tunnel_inspect_rules_collected",
+            "Tunnel acceleration": "tunnel_acceleration",
+            "Coverage": "tunnel_inspection_coverage_state"},
+        columns=("Appliance", "Serial", "Scope", "Virtual system", "Rules",
+                 "Rulebase collected", "Tunnel acceleration", "Coverage"),
+        base_queryset=_ordered(PanOsTunnelInspectionCoverage, "appliance__hostname",
+                               "vsys_name"),
+        row=lambda t: (
+            str(t.appliance),
+            t.appliance.serial_number or "-",
+            t.get_scope_display(),
+            t.vsys_name,
+            # "Nothing" and not 0, which is `_nothing`'s own argument: a bare zero in a reference
+            # column reads as "not counted" exactly where it means "counted, and the answer was
+            # none" - and NO RULE EXISTING is the commonest failing state of this subject.
+            _nothing(t.tunnel_inspect_rule_count, "rule(s)"),
+            # THE COLUMN THAT TELLS A VERDICT APART FROM A GAP. A zero rule count means nothing
+            # unless the rulebase was read at all, and the coverage state beside it rests on
+            # both.
+            _yes_no(t.tunnel_inspect_rules_collected),
+            _yes_no(t.tunnel_acceleration),
+            t.get_tunnel_inspection_coverage_state_display(),
+        ),
+    ),
+    "virtual-routers": ResultsSpec(
+        query_fields={
+            "Appliance": "hostname", "Serial": "serial_number",
+            "Virtual router": "router_name", "Protocol": "protocol",
+            "Adjacency": "adjacency_name", "Routing engine": "routing_engine",
+            "BGP auth profile": "bgp_authentication_profile",
+            "OSPF auth profile": "ospf_authentication_profile",
+            "Resolved auth profile": "authentication_profile",
+            "Max prefixes": "max_prefixes",
+            "Authentication": "authentication_strength",
+            "Prefix ceiling": "prefix_limit_state"},
+        columns=("Appliance", "Serial", "Virtual router", "Protocol", "Adjacency",
+                 "Routing engine", "BGP auth profile", "OSPF auth profile",
+                 "Resolved auth profile", "Max prefixes", "Authentication", "Prefix ceiling"),
+        base_queryset=_ordered(PanOsRoutingAdjacency, "appliance__hostname", "router_name",
+                               "protocol", "adjacency_name"),
+        row=lambda a: (
+            str(a.appliance),
+            a.appliance.serial_number or "-",
+            a.router_name,
+            a.get_protocol_display(),
+            a.adjacency_name,
+            a.get_routing_engine_display(),
+            # BLANK IS A REAL READING on all three profile columns - the adjacency names no
+            # profile - and "None" says that rather than leaving a cell that reads as a gap. The
+            # two protocol-specific columns and the RESOLVED one are all kept because an
+            # authentication reference resolves WITHIN one virtual router, measured, so which of
+            # the two was consulted is part of the answer.
+            a.bgp_authentication_profile or "None",
+            a.ospf_authentication_profile or "None",
+            a.authentication_profile or "None",
+            # NULLABLE, and null means no `max-prefixes` key: the intake is unbounded, which is
+            # the finding PAN-NET-007's BGP calibration makes. Stored as text because PAN-OS
+            # accepts the literal `unlimited` here as well as a number.
+            a.max_prefixes or "No ceiling key",
+            a.get_authentication_strength_display(),
+            a.get_prefix_limit_state_display(),
+        ),
+    ),
 }
 
 
@@ -3519,7 +3706,31 @@ AWAITING_PRESENTATION: dict[str, str] = {
     # The count of five controls was right and is kept: PAN-HAP-006 and 007 remain absent from
     # the catalog, `probe.surface_for` answers "is not an ACTIVE control in the seed catalogue"
     # for both, and nothing was built for either.
-    "PAN-NET": "stage9-network-hardening.json",
+    # `PAN-NET` CAME OUT ON 2026-11-03, which is stage 9 of `network-hardening` doing the thing
+    # the entry was waiting for. Its own words were: "`network-hardening` reached stage 8 on
+    # 2026-11-02. SEVEN controls over SIX models and not one of the six has a rail item -
+    # `integrations.Interface` has been stored since long before this pipeline and had never been
+    # queried from this repository, and the other five were minted by this domain's stage 7."
+    #
+    # FIVE OF THE SIX NOW HAVE ONE, in three PAN-OS categories, which is what this domain's shape
+    # forced: `firewall-interfaces` (Network > Interfaces), `virtual-routers` (Network > Virtual
+    # Routers), `dhcp-interfaces` (Network > DHCP), `session-settings` (Device > Setup > Session)
+    # and `tunnel-inspection` (Policies > Tunnel Inspection). So all
+    # 20 of the domain's shipped queries resolve on their own and
+    # `test_no_prefix_outlives_its_stage_9_artifact` passes. Removing it is part of that stage's
+    # job rather than a side effect of it: an exemption that survives the work it was waiting for
+    # is a permanent hole, and clearing it is also what FORCES the six entries -
+    # `test_every_query_in_the_shipped_catalog_has_somewhere_to_go` iterates the seed payload and
+    # never consults `is_active`, so with the exemption gone there is no off-rail route left.
+    #
+    # THE SIXTH MODEL IS NAMED BY NO SHIPPED QUERY AND HAS NO PAGE, which is this domain's
+    # recorded gap. `PanOsLldpGlobalSettings` carries stage 5's second assertion record for
+    # PAN-NET-003 and stage 8 compiled a query for it that the catalogue does not ship, so this
+    # entry was never load-bearing for it and no gate owes it a page. A page was written and
+    # removed the same day: nothing can fire over the model, and a rail item is a promise of a
+    # findings page. The argument is in `configuration_navigation.py` under "Network > LLDP IS
+    # DELIBERATELY ABSENT FROM THIS RAIL", and the consequence is in the stage 9 artifact's
+    # `unrenderable`.
     # `PAN-SAS-` CAME OUT ON 2026-11-02, which is stage 9 of `saas-security` doing the thing the
     # entry was waiting for. Its own words were: "`saas-security` reached stage 8 on 2026-10-30.
     # FOUR of its models had never been queried from this repository at all, so none of them has

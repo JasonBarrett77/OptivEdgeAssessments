@@ -34,6 +34,7 @@ from assessments import globalprotect_portal_presentation as globalprotect_porta
 from assessments import ha_panorama_presentation as ha_panorama
 from assessments import ike_presentation as ike
 from assessments import ipsec_presentation as ipsec
+from assessments import network_hardening_presentation as network_hardening
 from assessments import platform_lifecycle_presentation as platform_lifecycle
 from assessments import user_id_presentation as user_id
 
@@ -3920,6 +3921,247 @@ SPECS = (
          # asserts on, so a constant "Derived" would be a falsehood about the very value this
          # control reports. Measured on a built row.
          provenance_cell=ha_panorama.provenance_cell),
+    # ------------------------------------------------------- network-hardening, 2026-11-03
+    # FIVE TABS FOR SEVEN CONTROLS, and the count is `_object_domain(slug, T.TYPE)` keying per
+    # control type rather than a choice. THREE PAN-OS CATEGORIES, all DERIVED from the rail
+    # (`category=""` on all five), which is right for a subject that IS a configuration object
+    # and means the workbook cannot disagree with the app about where an object lives.
+    #
+    # EVERY TAB TITLE AND EVERY HEADING IS A PROPOSAL (P399), all five under Excel's 31-character
+    # sheet-name cap, counted: Interfaces 10, Session Settings 16, DHCP Interfaces 15,
+    # Tunnel Inspection 17, Routing Adjacencies 19. See `network_hardening_presentation` for
+    # which words are the vendor's and which three columns the vendor has no word for.
+    #
+    # `hidden_fields=()` ON ALL FIVE. `check_every_tested_field_is_presented` accepts a non-empty
+    # one as PROOF that a field is presented, so it is a claim rather than a column, and it
+    # forfeits the value-at-fault mark - the two `implicated` loops walk `subject_columns` and
+    # the settings columns and never consult it. All thirteen clause fields across these five
+    # tabs get a real derived column.
+    #
+    # `tested_columns=ALL_TESTED_COLUMNS` ON ALL FIVE, knowing what it costs (P427): the default
+    # `("Provenance",)` drops `Fires when` from the WORKBOOK while the live page keeps it, so the
+    # two surfaces would disagree about which cell a reader meets. Taken knowing `fires_when`
+    # renders the BASELINE's condition alone (`findings.py:452`, no per-spec hook), which on this
+    # domain costs exactly one tab - see the session-settings spec.
+    #
+    # Network > Interfaces, for PAN-NET-001 and PAN-NET-003. Category DERIVED from the rail,
+    # whose item is `firewall-interfaces`.
+    #
+    # THE ONE TAB IN THE PIPELINE OVER AN UNPROVENANCED MODEL, and it builds. `Interface` is a
+    # `SyncTrackedModel` and not a `ProvenancedMixin`: it has no `DERIVED_FIELDS` ATTRIBUTE AT
+    # ALL - which is not the empty tuple - and nothing writes a `FieldProvenance` row for an
+    # interface, per field or `__entry__`. That is the shape that took out the whole Security
+    # Zones tab in run 147, and `findings.py:731` was made defensive the same day
+    # (`field in getattr(_model, "DERIVED_FIELDS", ())`), so the trap is FIXED. Measured here on
+    # built rows rather than reasoned about.
+    #
+    # SO IT OWES NOTHING FOR P451 ON CORRECTNESS, which no tab before it has. Measured both ways
+    # over all 24 built rows: the default and a branching cell BOTH answer "Not recorded" for
+    # every clause field, because there is no row to find and nothing to synthesise. That is not
+    # the P451 defect - "Not recorded" is the vocabulary's own words for "nothing tracks that
+    # field" and it is TRUE of an interface, where the other tabs' "Not recorded" was false about
+    # a column declared derived.
+    #
+    # IT TAKES THE BRANCHING CELL ANYWAY, AND ONLY TO DE-DUPLICATE. Measured: on the five
+    # PAN-NET-003 rows - the control with TWO clause fields - the default prints "Not recorded"
+    # TWICE in one cell, once per field, while the branching cell collapses it to one line. No
+    # truth value changes either way; the repeated word is noise. De-duplication is that cell's
+    # own stated purpose - `ha_panorama_presentation` puts it as "a tab whose seven clause fields
+    # are six DERIVED and one Local prints two lines, not seven" - so this is the established use
+    # and not a new one. The 19 single-field PAN-NET-001 rows read identically under both.
+    spec(T.FIREWALL_INTERFACE,
+         "What is left reachable on a firewall port that is out of service, and what each port "
+         "announces about itself to its neighbours. A finding names ONE INTERFACE of ONE "
+         "APPLIANCE, so a port synchronised across an HA pair draws TWO rows and the `HA role` "
+         "column is what tells them apart - that is correct and not a duplicate, because "
+         "interfaces have no appliance-group bridge and 'this peer holds no interfaces' would "
+         "otherwise be indistinguishable from 'this peer was never normalized'. WHAT A ROW HERE "
+         "CANNOT SAY: whether the protocol is on firewall-wide. LLDP has a device-wide switch at "
+         "`network/lldp/enable` which stage 5 assessed as a SECOND record of PAN-NET-003, and "
+         "the shipped catalogue carries no query for it - so an interface row reporting what a "
+         "port announces cannot tell a reader whether anything is announced at all. THAT SWITCH "
+         "IS READABLE FROM NO SURFACE IN THIS APPLICATION: nothing can fire over its model, so it "
+         "has no findings tab, and a rail item is a promise of a findings page - see "
+         "`configuration_navigation.py`, 'Network > LLDP IS DELIBERATELY ABSENT FROM THIS RAIL'. "
+         "Closing it is one catalogue entry, which stage 8 already compiled. "
+         "AND THE PROVENANCE COLUMN READS 'Not recorded' ON EVERY "
+         "ROW, which is a true statement and not a gap: `integrations.Interface` is the one "
+         "subject model in this report that carries no provenance records at all, so nothing "
+         "tracks whether a value was written locally or pushed by a template.",
+         title="Interfaces",
+         subject=network_hardening.INTERFACE_SUBJECT,
+         setting_labels=network_hardening.INTERFACE_LABELS,
+         # TWO READERS AND ONE DELIBERATE REFUSAL, all three on clause fields of ONE control,
+         # ONE query and ONE row - which is a first. `out_of_service_residue` and
+         # `lldp_announced_content` are `CharField`s with choices, so without a reader their
+         # cells print the stored key under a vendor heading (P457). `lldp_enabled` is a
+         # `BooleanField` with `choices=None`, so `get_lldp_enabled_display()` DOES NOT EXIST and
+         # a reader calling it raises `AttributeError` at template render, past `django check`
+         # and past all three cross-domain gates (P462) - the defect that shipped a 500 on
+         # `globalprotect-gateway`. `display_value` already answers a boolean "Yes"/"No"
+         # correctly, so the refusal costs nothing. Pinned by name in
+         # `test_one_reader_and_one_refusal_on_pan_net_003`.
+         value_readers={
+             "out_of_service_residue": network_hardening.OUT_OF_SERVICE_RESIDUE,
+             "lldp_announced_content": network_hardening.LLDP_ANNOUNCED_CONTENT},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         provenance_cell=network_hardening.provenance_cell),
+    # Device > Setup > Session, for PAN-NET-002 and PAN-NET-005. Category DERIVED from the rail,
+    # whose item is `session-settings`. The one tab of this domain that is not Network or
+    # Policies.
+    #
+    # THE DEFAULT PROVENANCE CELL, AND IT IS HONEST PER FIELD HERE. Both model fields are stored
+    # payload keys outside `DERIVED_FIELDS` carrying real `FieldProvenance` rows, so
+    # `remediation_accessor` KEEPS the row and the cell prints what was recorded;
+    # `rematch_known` takes the reader arm and prints the reader's own prose. Three cells, three
+    # honest answers, and a sheet-level cell would collapse them into one line for no gain.
+    #
+    # THE ONE TAB WHERE `Fires when` IS WRONG ON A ROW, and it is kept anyway. PAN-NET-002's
+    # calibration clauses on `rematch_known` while `fires_when` renders the BASELINE alone, so a
+    # row that fired on "never established" prints the baseline's `session_rematch is not True`
+    # as its stated condition. That condition IS met by a NULL row - `compile_search_clause`
+    # negates at the pk-SET level, so the calibration's population is a strict SUBSET of the
+    # baseline's, measured by stage 8 - so the sentence is true here rather than contradicting
+    # the row, which is the better case of P436 and not an escape from it. `Matched queries`
+    # names which group fired.
+    spec(T.SESSION_SETTINGS,
+         "Two device-wide session behaviours that decide whether a policy change actually "
+         "reaches traffic already in flight, and whether IPv6 traffic is inspected at all. A "
+         "finding names the APPLIANCE because both nodes are under `deviceconfig/setting`, which "
+         "is device-wide rather than vsys-scoped, so an HA pair draws TWO rows for one real "
+         "configuration - the values ARE expected to agree here, stage 4 read the same answer on "
+         "both PA-5220s, and both peers are still collected because their configurations are not "
+         "identical in general. WHAT A ROW HERE CANNOT SAY: whether IPv6 firewalling was ever "
+         "CONSIDERED. `ipv6_firewalling` is non-nullable with a measured vendor default of true, "
+         "so an absent key and a deliberate 'on' store the same value and no `*_known` companion "
+         "is possible - PAN-NET-005 therefore cannot separate 'we asked and the device says it "
+         "is on' from 'we never asked', and stage 8 recorded its declared second query as one "
+         "that could not be compiled. The rematch half DOES have that distinction, because its "
+         "key is nullable: `Rematch setting established` is the column that carries it.",
+         title="Session Settings",
+         setting_labels=network_hardening.SESSION_LABELS,
+         # ONE READER, AND IT IS THE ONLY STATE IN WHICH THIS TAB EXISTS. PAN-NET-002's shipped
+         # calibration clauses on `rematch_known`, which `PanOsSessionSettings` does not have, so
+         # `tested_fields` RAISES `ValueError` without this entry. The contract's finding 4,
+         # third case - the price is paid whether anyone wants it or not - except that here the
+         # price is nil, because the field has no provenance row of its own to lose.
+         #
+         # NO READER ON `session_rematch`, REFUSED ON PURPOSE. It is a nullable boolean whose
+         # NULL is the finding, and `display_value` renders that NULL `(none)` - contract finding
+         # 4's shape exactly. A reader would print "Never established" AND would make
+         # `remediation_accessor` skip the field's own `FieldProvenance` row, which is the only
+         # thing separating an ABSENT key from one explicitly written. On the control whose
+         # second query is ABOUT the absence, that is the wrong trade, so the companion column
+         # says it instead. Recorded as a cell this stage chose not to improve.
+         value_readers={"rematch_known": network_hardening.REMATCH_KNOWN},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # Network > DHCP, for PAN-NET-004. Category DERIVED from the rail, whose item is
+    # `dhcp-interfaces`.
+    #
+    # THE TAB WHOSE THREE CLAUSE FIELDS SIT IN THREE DIFFERENT COMBINATIONS of the two greps, so
+    # its provenance cell MUST branch. Measured by introspection: `dhcp_server_configured` is a
+    # Boolean declared DERIVED (no reader, and a constant "Derived" would be true of it);
+    # `dhcp_relay_state` is a CharField with choices AND declared DERIVED (reader mandatory,
+    # "Derived" true); `dhcp_server_mode` is a CharField with choices and NOT derived - a
+    # measured payload key carrying a real `FieldProvenance` row. A constant "Derived" would
+    # state a falsehood about that third one.
+    #
+    # AND THE BRANCHING CELL IS WHAT MAKES THE READER ON `dhcp_server_mode` FREE. `build_rows`
+    # computes the per-field provenance `cells` list and then DISCARDS it when a spec sets
+    # `provenance_cell`, so the P451 price a reader normally pays on a measured payload key - the
+    # walk past the field's own row to an `__entry__` that is never written - is not paid here.
+    # That column gets both its English label and its recorded provenance, which neither remedy
+    # could have delivered alone.
+    spec(T.DHCP_INTERFACE_CONFIG,
+         "Where a firewall is handing out addresses or relaying somebody else's DHCP, and "
+         "whether such a configuration has been left switched off rather than removed. A finding "
+         "names ONE INTERFACE of ONE APPLIANCE, so an HA pair draws TWO rows for one real "
+         "configuration. A ROW EXISTS ONLY WHERE THE CONFIGURATION DOES: "
+         "`network/dhcp/interface` carries an entry per port that has DHCP configured at all, so "
+         "the passing state needs no row and this tab is short by design - the finding names the "
+         "configuration that should not be there, not the port. WHAT A ROW HERE CANNOT SAY: "
+         "whether a relay was ever switched on. `dhcp_relay_ipv4_enabled` is nullable and its "
+         "NULL means no `enabled` key under a relay branch that exists, which the `Relay switch "
+         "established` column on the explorer page reports; the graded relay column folds that "
+         "into its own verdict rather than leaving it to be inferred.",
+         title="DHCP Interfaces",
+         subject=network_hardening.DHCP_SUBJECT,
+         setting_labels=network_hardening.DHCP_LABELS,
+         value_readers={
+             "dhcp_relay_state": network_hardening.DHCP_RELAY_STATE,
+             "dhcp_server_mode": network_hardening.DHCP_SERVER_MODE},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         provenance_cell=network_hardening.provenance_cell),
+    # Policies > Tunnel Inspection, for PAN-NET-006 - the one item of this domain on the Policies
+    # tab. Category DERIVED from the rail, whose item is `tunnel-inspection`.
+    #
+    # THE DEFAULT PROVENANCE CELL. One clause field, declared in `DERIVED_FIELDS`, with a reader
+    # for its eight choices - so the reader arm prints the reader's own prose "Derived", which is
+    # what the model declares and is true. Nothing branches because there is nothing to branch
+    # between.
+    spec(T.TUNNEL_INSPECTION,
+         "Whether encapsulated traffic crossing a virtual system is inspected inside the tunnel "
+         "or carried through unexamined. A finding names ONE VIRTUAL SYSTEM of ONE APPLIANCE - "
+         "this is the only vsys-scoped subject in the domain, because tunnel-inspect rules are "
+         "vsys-scoped content - so an HA pair draws TWO rows for one real rulebase. IT IS A "
+         "VERDICT OVER A RULEBASE AND NOT A ROW PER RULE, which is the whole reason the model "
+         "exists: the commonest failing state is that NO RULE EXISTS, measured as the state of "
+         "every vsys in the lab bar three, and a per-rule row cannot report it because there is "
+         "no row. WHAT A ROW HERE CANNOT SAY: whether traffic is actually encapsulated. The "
+         "verdict is about the rulebase's coverage of the encapsulations PAN-OS can inspect, not "
+         "about what is crossing the firewall today, so a vsys carrying no tunnelled traffic "
+         "reports the same gap as one carrying a great deal of it. A vsys named `vsys1` exists on "
+         "single-vsys platforms too, so its presence proves nothing about the mode.",
+         title="Tunnel Inspection",
+         subject=network_hardening.TUNNEL_SUBJECT,
+         setting_labels=network_hardening.TUNNEL_LABELS,
+         value_readers={
+             "tunnel_inspection_coverage_state": network_hardening.TUNNEL_COVERAGE_STATE},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # Network > Virtual Routers, for PAN-NET-007. Category DERIVED from the rail, whose item is
+    # `virtual-routers`.
+    #
+    # BRANCHING, AND FOR A THIRD REASON AGAIN. `authentication_strength` and `prefix_limit_state`
+    # are declared DERIVED; `protocol` is NEITHER derived NOR a payload key - it is part of the
+    # row's identity, so it has no `FieldProvenance` row and no declaration either, and the
+    # default cell reads "Not recorded" for it beside two that are genuinely derived. A constant
+    # would be a falsehood and the default is three answers where two are wrong, so the cell
+    # reads `provenance_of` per field and prints what was recorded.
+    #
+    # `protocol` IS A SCOPE CLAUSE THAT BECAME A PRESENTED COLUMN. Stage 5 gives it
+    # `role: "scope"` and it is a clause of the shipped "BGP peer with no enforced prefix
+    # ceiling" query, so `tested_fields` derives a column for it among the verdict columns -
+    # contract finding 1 in its original shape. It is NOT in that query's `asserted_fields`, so
+    # it is not MARKED, confirmed on a built row.
+    spec(T.ROUTING_ADJACENCY,
+         "Whether each routing adjacency a firewall maintains is authenticated with a strong "
+         "digest, and whether a BGP peer's prefix intake is bounded. A finding names ONE "
+         "ADJACENCY within ONE VIRTUAL ROUTER of ONE APPLIANCE, so an HA pair draws TWO rows for "
+         "one real adjacency. THE PROTOCOL IS PART OF THE IDENTITY and not decoration: a BGP peer "
+         "and an OSPF area interface can carry the same name within one router and are different "
+         "things, and an authentication reference resolves WITHIN the same virtual router - "
+         "measured - so the same profile name on another router is a different object. WHAT A ROW "
+         "HERE CANNOT SAY: whether the adjacency is UP. Every column is configuration; whether a "
+         "peer is answering, whether a session is established and whether the digest is in force "
+         "on the wire are runtime properties that only `show routing protocol <p> summary` "
+         "reports, and no collector issues it. So a row reporting an unauthenticated adjacency is "
+         "reporting the configured state of a relationship that may not be carrying a single "
+         "route. AND THE PREFIX CEILING APPLIES TO BGP ALONE - the `Protocol` column is what "
+         "tells a reader whether that half of the row was in scope for the adjacency at all.",
+         title="Routing Adjacencies",
+         subject=network_hardening.ROUTING_SUBJECT,
+         setting_labels=network_hardening.ROUTING_LABELS,
+         value_readers={
+             "authentication_strength": network_hardening.AUTHENTICATION_STRENGTH,
+             "prefix_limit_state": network_hardening.PREFIX_LIMIT_STATE,
+             "protocol": network_hardening.PROTOCOL},
+         hidden_fields=(),
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS,
+         provenance_cell=network_hardening.provenance_cell),
 )
 
 

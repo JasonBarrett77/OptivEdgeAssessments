@@ -230,6 +230,23 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     # keyed on the slug ALONE, while `CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug). So
     # the DoS PROFILE item below could not also be `dos-protection` without one of the two
     # results specs shadowing the other. The label is the vendor's own rail word for both.
+    # Policies > Tunnel Inspection, 2026-11-03, for PAN-NET-006 - and the one item of this domain
+    # that is NOT on the Network tab. Quoted from the corpus: the section path
+    # `Policies > Tunnel Inspection` carries "Building Blocks in a Tunnel Inspection Policy" at
+    # help 11.2 p.182-184. ABOVE `dos-protection-rules` and below the decryption items, which is
+    # the vendor's own Policies order - Security, NAT, QoS, Policy Based Forwarding, Decryption,
+    # Network Packet Broker, Tunnel Inspection, Application Override, Authentication, DoS
+    # Protection.
+    #
+    # A VERDICT OVER A RULEBASE, NOT A ROW PER RULE, which is why the model is named Coverage.
+    # The commonest failing state is that NO RULE EXISTS - measured as the state of every vsys in
+    # the lab bar three - and a per-rule row cannot report it, because there is no row. The same
+    # test `rule-posture`, `decryption-coverage` and `globalprotect-coverage` pass applies: the
+    # subject is a PAN-OS node, one vsys's `rulebase/tunnel-inspect` subtree, which an assessor
+    # opens at this address and reads, and the rail item promises the NODE and not our reading.
+    ConfigObject("tunnel-inspection", "Tunnel Inspection", "Policies", "", "shield",
+                 where="Policies > Tunnel Inspection",
+                 search_model="integrations.PanOsTunnelInspectionCoverage"),
     ConfigObject("dos-protection-rules", "DoS Protection", "Policies", "", "shield",
                  where="Policies > DoS Protection",
                  search_model="integrations.DosPolicyRule"),
@@ -483,6 +500,21 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("interfaces", "Interfaces", "Device", "Setup", "shield",
                  where="Device > Setup > Interfaces",
                  search_model="integrations.ManagementInterface"),
+    # Device > Setup > Session, 2026-11-03, for PAN-NET-002 and PAN-NET-005 - this domain's one
+    # Device item. Quoted from the corpus, help 11.2 p.779: "Select Device > Setup > Session to
+    # configure session age-out times, decryption certificate settings, and global
+    # session-related settings such as firewalling IPv6 traffic and rematching Security policy to
+    # existing sessions when the policy changes." Both of this model's graded columns are named
+    # on that screen in the vendor's own words - "Rematch Sessions" (p.779) and "Enable IPv6
+    # Firewalling" (p.780) - which is why both headings on the findings tab are the vendor's and
+    # not proposals of mine.
+    #
+    # TWO CONFIG NODES BEHIND ONE SCREEN: `deviceconfig/setting/config/rematch` and
+    # `deviceconfig/setting/session/ipv6-firewalling`. Both device-wide, so there is no vsys axis
+    # and no scope column, and on an HA pair this is TWO rows for one real configuration.
+    ConfigObject("session-settings", "Session", "Device", "Setup", "settings",
+                 where="Device > Setup > Session",
+                 search_model="integrations.PanOsSessionSettings"),
     ConfigObject("login-banner", "Login Banner", "Device", "Setup", "book-marked",
                  where="Device > Setup > Management > General Settings",
                  search_model="integrations.LoginBanner"),
@@ -905,9 +937,47 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     # carried `enable_device_identification` and both Device-ID ACLs since `integrations`
     # migration 0018; PAN-IOT-002 is the first control ever written over a zone, which is why
     # the item appears now rather than when the model did.
+    # Network > Interfaces, 2026-11-03, for PAN-NET-001 and PAN-NET-003 - the FIRST node of the
+    # Network tab, which is why it goes above `zones` rather than at the end of the group.
+    # Measured in the vendor's own enumeration rather than chosen: help p.359 lists the Network
+    # nodes as Interfaces, Traffic Objects, Zones, VLANs, Virtual Wires, Virtual Routers,
+    # Routing > Logical Routers, Routing > Routing Profiles, IPSec Tunnels, GRE Tunnels, DHCP,
+    # DNS Proxy, Proxy, QoS, LLDP, Network Profiles - and the section path `Network > Interfaces`
+    # is in the corpus verbatim at help 11.2 p.360.
+    #
+    # THE SLUG IS `firewall-interfaces` AND NOT `interfaces`, which is taken: `Device > Setup >
+    # Interfaces` has carried the slug `interfaces` since PAN-MGT, over
+    # `integrations.ManagementInterface`. `CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug) so
+    # the two could coexist, but `configuration_results.RESULTS` is keyed on the SLUG ALONE and
+    # one results spec would shadow the other - the same mechanical reason
+    # `dos-protection-rules` carries its suffix. THE LABEL IS THE VENDOR'S OWN for both, because
+    # PAN-OS genuinely has two screens called Interfaces and an assessor reads the category.
+    #
+    # `Interface` HAS BEEN STORED SINCE LONG BEFORE THIS DOMAIN and had no rail item: PAN-NET-001
+    # is the first control to query a firewall data-plane interface, which is why the item appears
+    # now rather than when the model did. It is also the one subject model in this domain that is
+    # NOT a `ProvenancedMixin` - see `network_hardening_presentation` for what that costs the tab.
+    ConfigObject("firewall-interfaces", "Interfaces", "Network", "", "server",
+                 where="Network > Interfaces",
+                 search_model="integrations.Interface"),
     ConfigObject("zones", "Zones", "Network", "", "shield",
                  where="Network > Zones",
                  search_model="integrations.Zone"),
+    # Network > Virtual Routers, 2026-11-03, for PAN-NET-007. AFTER `zones` and ABOVE
+    # `ipsec-tunnels`, which is the vendor's own order in the p.359 enumeration quoted above.
+    # The section path is in the corpus, with BGP's own pages under it at help 11.2 p.517.
+    #
+    # ONE ITEM AND NOT TWO, THOUGH THE SUBJECT SPANS TWO ROUTING ENGINES. `PanOsRoutingAdjacency`
+    # holds a BGP peer, an OSPF area interface and an OSPF virtual link, on the legacy virtual
+    # router AND on 11.2's logical router (`Network > Routing > Logical Routers`). The vendor
+    # keeps those on two screens and the model keeps them in one table because the QUESTION is
+    # the same - is this adjacency authenticated, and is its prefix intake bounded - and
+    # `routing_engine` is a column. `where` names the legacy screen because that is where every
+    # adjacency this estate holds lives; a logical-router row sends a reader one screen across,
+    # which is recorded rather than hidden.
+    ConfigObject("virtual-routers", "Virtual Routers", "Network", "", "server",
+                 where="Network > Virtual Routers",
+                 search_model="integrations.PanOsRoutingAdjacency"),
     # Network, TOP-LEVEL rail item - no heading in the product either, and it sits ABOVE the
     # Network Profiles group because that is where PAN-OS puts it. Measured in the vendor's own
     # two enumerations of this tab rather than chosen: help p.359 lists the Network nodes as
@@ -927,6 +997,54 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("ipsec-tunnels", "IPSec Tunnels", "Network", "", "server",
                  where="Network > IPSec Tunnels",
                  search_model="integrations.IpsecTunnel"),
+    # Network > DHCP, 2026-11-03, for PAN-NET-004. After IPSec Tunnels and GRE Tunnels in the
+    # p.359 enumeration quoted above; GRE has no item here, so this follows `ipsec-tunnels`.
+    # The section path `Network > DHCP` is in the corpus, with DHCP Server, DHCP Relay and DHCP
+    # Client as its children.
+    #
+    # ONE ROW PER INTERFACE, AND A ROW EXISTS ONLY WHERE THE CONFIGURATION DOES.
+    # `network/dhcp/interface` carries an entry per port that has DHCP configured at all, so the
+    # PASSING state for PAN-NET-004 needs no row: the finding names the configuration that should
+    # not be there, not the port. That is why the page lists far fewer rows than the appliance
+    # has interfaces, and it is not a collection gap.
+    ConfigObject("dhcp-interfaces", "DHCP", "Network", "", "server",
+                 where="Network > DHCP",
+                 search_model="integrations.PanOsDhcpInterfaceConfig"),
+    # Network > LLDP IS DELIBERATELY ABSENT FROM THIS RAIL, 2026-11-03, and that is this
+    # domain's recorded gap rather than an omission. `integrations.PanOsLldpGlobalSettings` holds
+    # the firewall-wide LLDP switch at `network/lldp/enable`, which the corpus addresses verbatim
+    # at help 11.2 p.641: "Network > LLDP ... To enable LLDP on the firewall, click Edit, click
+    # Enable". Stage 5 assessed it as the SECOND assertion record of PAN-NET-003 and stage 8
+    # compiled a query for it - "The protocol is off for the whole firewall (stage 5 record 1)",
+    # in that artifact - and the shipped catalogue does not carry that query.
+    #
+    # SO NOTHING CAN FIRE OVER THE MODEL, AND THE RAIL HAS NO STATE FOR THAT. An item was written
+    # here with a `search_model` and a `ResultsSpec`, and it failed two committed tests -
+    # `test_every_rail_item_offers_the_link` and
+    # `test_every_object_crosses_to_the_page_that_reports_on_it` - because `views.findings_href_for`
+    # returns "" when `domain_for_model` finds no findings domain, and both templates then omit the
+    # link the tests require. Measured after the removal: ALL 73 rail items carry a `search_model`,
+    # ALL 73 have a findings domain over that model, and ALL 73 have a `ResultsSpec` under their
+    # slug - no exceptions in either direction. So the invariant is "a rail item promises a
+    # findings page", and this model cannot keep that promise.
+    #
+    # THE THREE WAYS ROUND, AND WHY EACH IS WORSE THAN THE GAP:
+    #   - a sixth `FindingsDomain` over `T.LLDP_GLOBAL`, which has a registered finding kind and no
+    #     control: forbidden by this domain's dispatch brief in terms, and the contract's own
+    #     reason is that a tab with no rows is indistinguishable from a tab that is broken - this
+    #     one would be empty permanently.
+    #   - a rail item with `search_model=""`, the placeholder state: no object is in that state
+    #     today (0 of 74), and `ConfigObject.search_model`'s own docstring says it "renders a table
+    #     with no columns, which reads as 'nothing matched' rather than as 'not built'". Here it
+    #     would read as "not built yet" about something that cannot be built.
+    #   - putting the switch on the Interfaces tab: one control cannot assert across two models,
+    #     which is why stage 8 compiled two queries and the catalogue ships one.
+    #
+    # So the switch is readable from NO surface in this application. It is recorded in
+    # `stage9-network-hardening.json` under `unrenderable`, and the Interfaces sheet's own
+    # description tells a reader that an interface row cannot say whether the protocol is on
+    # firewall-wide. CLOSING IT IS A CATALOGUE CHANGE - one query entry, which stage 8 already
+    # compiled - and is not this stage's to write.
     # Network > Network Profiles. The rail order inside this group is the PRODUCT's, taken
     # from the vendor's own help, whose Network Profiles sections run GlobalProtect IPSec
     # Crypto, IKE Gateways, IPSec Crypto, IKE Crypto, Monitor, Interface Mgmt, Zone Protection

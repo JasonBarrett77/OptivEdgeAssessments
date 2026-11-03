@@ -174,7 +174,13 @@ class WorkbookBuildTests(TestCase):
         # `Panorama Settings` - two tabs over two models, two specs in `sheets/objects.py` each
         # registered with `_object_domain` (P465). Both literals in this file were bumped in one
         # edit and both numbers were read off the failure rather than off a brief.
-        self.assertIn("Summary: 69 tabs linked, 0 findings in total", reports[0])
+        # 69 -> 74 on 2026-11-03: stage 9 of `network-hardening` added FIVE tabs over five
+        # control types - `Interfaces`, `Session Settings`, `DHCP Interfaces`,
+        # `Tunnel Inspection` and `Routing Adjacencies` - which is the largest single addition
+        # this literal has taken. They land in THREE PAN-OS categories rather than one, which no
+        # earlier stage 9 domain has done. Both literals in this file were bumped in one edit and
+        # both numbers were read off the failure rather than off a brief.
+        self.assertIn("Summary: 74 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -265,7 +271,14 @@ class WorkbookBuildTests(TestCase):
         # `finding_run.GENERATORS` order - that tuple runs management service paths, high
         # availability, panorama registration, management interface - read off the finding run's
         # own `by_kind` ordering rather than assumed.
-        self.assertEqual(len(names), 70)
+        # 70 -> 75 on 2026-11-03, the second of the two literals, same edit: `network-hardening`'s
+        # five tabs. They do NOT sit in one block, because the domain spans three categories -
+        # `Tunnel Inspection` last in Policies, `Interfaces` FIRST in Network with
+        # `Routing Adjacencies` and `DHCP Interfaces` after the zones tab, and `Session Settings`
+        # first in Device. Two of those placements follow the vendor's rail and two follow
+        # `finding_run.GENERATORS`, which disagree here; `domains.py` records which and why at
+        # each site.
+        self.assertEqual(len(names), 75)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and
