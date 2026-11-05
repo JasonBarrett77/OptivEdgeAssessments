@@ -89,9 +89,27 @@ class RemediationGroup:
     #: `Edit on` already reads `PAN-OS (predefined)`.
     hide_columns: tuple = ()
     #: Build this page's rows in ONE PASS over its findings - `fold_group_rows` - rather than
-    #: per control and merged. Off by default while the two paths are compared page by page:
-    #: the fast one is measurably identical on the group that declares it, and declaring that
-    #: is how the claim gets made deliberately rather than by a refactor nobody checked.
+    #: per control and merged. It was off by default while the two paths were compared page by
+    #: page: the fast one is measurably identical on the group that declares it, and declaring
+    #: that is how the claim got made deliberately rather than by a refactor nobody checked.
+    #:
+    #: EVERY GROUP DECLARES IT AS OF 2026-11-05. The last nine were compared together - both
+    #: paths run, every row's stored form compared - and all nine agree exactly:
+    #:
+    #:     url-filtering-profile             0.40s -> 0.11s    30 rows
+    #:     anti-spyware-profile              5.54s -> 1.41s    37 rows
+    #:     vulnerability-protection-profile  1.76s -> 1.04s    19 rows
+    #:     decryption-profile                0.21s -> 0.05s    22 rows
+    #:     file-blocking-profile             0.04s -> 0.03s    27 rows
+    #:     dos-protection-profile            0.01s -> 0.01s     2 rows
+    #:     decryption-rule                   0.10s -> 0.02s    15 rows
+    #:     security-rule                     5.09s -> 3.23s  1083 rows
+    #:     custom-url-category               0.05s -> 0.03s    25 rows
+    #:
+    #: 13.2s to 5.9s over the nine, which is what Run Findings pays to prime them.
+    #:
+    #: THE DEFAULT STAYS FALSE. A group added tomorrow has not been compared, and inheriting
+    #: the claim would be exactly the refactor-nobody-checked this flag exists to prevent.
     one_pass: bool = False
 
 
@@ -127,6 +145,7 @@ REMEDIATION_GROUPS = (
         label="URL filtering profile",
         control_ids=("PAN-URL-001", "PAN-URL-002", "PAN-URL-003", "PAN-URL-004",
                      "PAN-URL-005"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary=("Every finding against a URL filtering profile - categories not blocked, "
                  "categories reachable without logging, credential submission, HTTP header "
@@ -137,6 +156,7 @@ REMEDIATION_GROUPS = (
         label="Anti-spyware profile",
         control_ids=("PAN-SPY-001", "PAN-SPY-002", "PAN-SPY-003", "PAN-SPY-004",
                      "PAN-SPY-005"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary=("Every finding against an anti-spyware profile - none attached, severities "
                  "not blocked, DNS sinkhole, DNS security categories, inline cloud analysis "
@@ -146,6 +166,7 @@ REMEDIATION_GROUPS = (
         slug="vulnerability-protection-profile",
         label="Vulnerability protection profile",
         control_ids=("PAN-VLN-001", "PAN-VLN-002", "PAN-VLN-003", "PAN-VLN-004"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary=("Every finding against a vulnerability protection profile - none attached, "
                  "severities not blocked, brute-force signatures, inline cloud analysis and "
@@ -156,6 +177,7 @@ REMEDIATION_GROUPS = (
         label="Decryption profile",
         control_ids=("PAN-DCP-001", "PAN-DCP-002", "PAN-DCP-003", "PAN-DCP-004",
                      "PAN-DCP-005", "PAN-DCP-007"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary=("Every finding against a decryption profile - protocol versions, negotiable "
                  "primitives, what it does with an expired or untrusted certificate, what it "
@@ -166,6 +188,7 @@ REMEDIATION_GROUPS = (
         slug="file-blocking-profile",
         label="File blocking profile",
         control_ids=("PAN-FIL-001", "PAN-FIL-002", "PAN-FIL-004"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary=("Every finding against a file-blocking or data-filtering profile - dangerous "
                  "file types logged rather than blocked, nested encodings and unopenable "
@@ -176,6 +199,7 @@ REMEDIATION_GROUPS = (
         slug="dos-protection-profile",
         label="DoS protection profile",
         control_ids=("PAN-ZON-008",),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_PROFILE,
         summary="DoS protection profiles nothing references, on one row per profile.",
     ),
@@ -184,6 +208,7 @@ REMEDIATION_GROUPS = (
         label="Decryption rule",
         control_ids=("PAN-DEC-002", "PAN-DEC-003", "PAN-DEC-005", "PAN-DEC-006",
                      "PAN-DEC-007", "PAN-DEC-008", "PAN-DEC-010"),
+        one_pass=True,
         subject_type=Control.ControlType.DECRYPTION_POLICY_RULE,
         summary=("Every finding against a decryption rule - how the rulebase is structured, "
                  "what each exception exempts, what a no-decrypt rule still enforces and "
@@ -196,6 +221,7 @@ REMEDIATION_GROUPS = (
                      "PAN-POL-005", "PAN-POL-006", "PAN-POL-008", "PAN-POL-009",
                      "PAN-POL-012", "PAN-POL-013", "PAN-POL-014", "PAN-POL-015",
                      "PAN-POL-020", "PAN-POL-021", "PAN-POL-022", "PAN-POL-024"),
+        one_pass=True,
         subject_type=Control.ControlType.SECURITY_RULE,
         summary=("Every finding against a security rule - what it matches, what it allows, "
                  "what inspects it and whether it is logged - on one row per rule "
@@ -708,6 +734,7 @@ REMEDIATION_GROUPS = (
         slug="custom-url-category",
         label="Custom URL category",
         control_ids=("PAN-URL-006",),
+        one_pass=True,
         subject_type=Control.ControlType.CUSTOM_URL_CATEGORY,
         summary="Custom URL categories nothing references, on one row per category.",
     ),
