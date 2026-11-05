@@ -19,6 +19,7 @@ from assessments.artifacts import ALL_TESTED_COLUMNS, build_findings_table
 from assessments.artifacts import stored
 from assessments.artifacts.domains import DOMAINS
 from assessments.artifacts.sheets import rules_by_device_group
+from assessments import remediation
 from assessments.finding_run import open_findings_run, regenerate_findings
 from assessments.models import AssessmentRun, Control, PresentedTable
 #: Through the module, never by name: a TestCase in this module's namespace would run here too.
@@ -49,6 +50,39 @@ class StoredTablesTests(TestCase):
         for domain in self.rule_domains():
             self.assertIn(domain.spec.table_name, keys)
         self.assertIn("RulesByDeviceGroup", keys)
+
+    def test_run_findings_stores_the_remediation_pages_too(self):
+        """Not stored until 2026-11-05, and nothing said so: the keeping worked, the run simply
+        never primed it, so a remediation page's FIRST reader paid its whole fold - several
+        minutes on a real estate's security-rule page, and immediate on every load after."""
+        keys = set(PresentedTable.objects.values_list("key", flat=True))
+
+        self.assertIn("Remediation:security-rule", keys)
+
+    def test_a_stored_remediation_page_is_the_rows_a_fold_draws(self):
+        """The same question `test_a_stored_table_is_the_table_a_build_draws` asks of a tab. A
+        stored page is only worth having if it is the page a fresh fold would draw."""
+        stored_keys = [key for key in PresentedTable.objects.values_list("key", flat=True)
+                       if key.startswith("Remediation:")]
+        self.assertTrue(stored_keys)
+
+        for key in sorted(stored_keys):
+            group = remediation.GROUP_BY_SLUG[key.split(":", 1)[1]]
+            with self.subTest(group.slug):
+                self.assertEqual(
+                    remediation.stored_group_rows(group),
+                    [remediation._stored_row(row)
+                     for row in remediation.remediation_group_rows(group)])
+
+    def test_a_reader_mid_run_does_not_keep_a_remediation_page(self):
+        """`allow_running` is the RUN's to pass, not a reader's - the same rule the findings
+        tabs keep, for the same reason: half a run's findings must not be kept as a page."""
+        PresentedTable.objects.all().delete()
+        AssessmentRun.objects.update(status=AssessmentRun.Status.RUNNING)
+
+        remediation.stored_group_rows(remediation.GROUP_BY_SLUG["security-rule"])
+
+        self.assertFalse(PresentedTable.objects.exists())
 
     def test_a_stored_table_is_the_table_a_build_draws(self):
         for domain in DOMAINS:

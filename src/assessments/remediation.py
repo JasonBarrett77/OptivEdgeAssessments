@@ -2573,7 +2573,7 @@ def _stored_row(row: dict) -> dict:
     return {key: row[key] for key in _STORED_ROW_KEYS}
 
 
-def stored_group_rows(group: RemediationGroup) -> list[dict]:
+def stored_group_rows(group: RemediationGroup, *, allow_running: bool = False) -> list[dict]:
     """The group's rows, kept for the run they describe rather than folded on every read.
 
     THE SAME THREE THINGS A FINDINGS TAB'S TABLE IS A FUNCTION OF - the run, the catalog and
@@ -2581,6 +2581,11 @@ def stored_group_rows(group: RemediationGroup) -> list[dict]:
     fingerprint rules: an edited control, an edited column or an edited layout misses and is
     rebuilt, and nothing is kept for a run still filling. Measured on the antivirus page: 700ms
     to fold, 20ms to decode.
+
+    `allow_running` is how the RUN ITSELF stores these - see `artifacts.stored.store_run_tables`.
+    The rule it waives exists for readers: a page opened mid-run would otherwise keep a table of
+    half the findings. The run's own last step is past every generator, so its findings are
+    complete even though the row still says RUNNING.
 
     Falls back to folding where there is no single run to keep a table for.
     """
@@ -2602,7 +2607,8 @@ def stored_group_rows(group: RemediationGroup) -> list[dict]:
         return {"count": sum(row["findings"] for row in rows),
                 "rows": [_stored_row(row) for row in rows]}
 
-    payload = stored_table(f"Remediation:{group.slug}", controls, run_id, count, compute)
+    payload = stored_table(f"Remediation:{group.slug}", controls, run_id, count, compute,
+                           allow_running=allow_running)
     if payload is None:
         return [_stored_row(row) for row in remediation_group_rows(group)]
     return payload["rows"]

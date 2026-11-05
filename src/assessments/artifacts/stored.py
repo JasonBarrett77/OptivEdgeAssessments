@@ -13,8 +13,9 @@ finding?" A table is a function of three things and nothing else:
 
 So `PresentedTable` holds the table under a fingerprint of the last two, and a read that finds a
 matching one decodes it instead of loading findings, subjects and member sets. Run Findings
-stores every table as its last step (`store_run_tables`), so nobody waits for the first build;
-a table missing or stale for any other reason is built and stored by whoever reads it first.
+stores every table as its last step (`store_run_tables`) - the findings tabs and the remediation
+pages both - so nobody waits for the first build; a table missing or stale for any other reason is
+built and stored by whoever reads it first.
 
 **One table per domain, the pages' version.** The pages carry every tested column and the
 workbook's tabs carry what their spec says; those are the only difference, so the workbook's
@@ -240,7 +241,15 @@ def store_run_tables(assessment_run) -> None:
 
     A table that cannot be built - a guard refusing - is logged and left for the page to report,
     which is where it always surfaced: it does not fail the run, whose findings are complete.
+
+    THE REMEDIATION PAGES TOO, since 2026-11-05. They were not here, and a remediation page is a
+    far more expensive first build than a findings tab: it folds every finding of every control
+    in its group onto one row per object, and on a real estate the security-rule page took
+    several minutes off whoever opened it first (Jason, on another environment). Nothing was
+    wrong with the keeping - the second load was immediate - the run simply never primed it.
     """
+    from assessments.remediation import REMEDIATION_GROUPS, stored_group_rows
+
     from .domains import DOMAINS
     from .sheets import rules_by_device_group
 
@@ -256,3 +265,11 @@ def store_run_tables(assessment_run) -> None:
     except Exception:
         logger.exception("Could not store the rules-by-device-group table for run %s",
                          assessment_run.pk)
+    for group in REMEDIATION_GROUPS:
+        try:
+            stored_group_rows(group, allow_running=True)
+        except Exception:
+            # ONE GROUP AT A TIME, for the reason the domains above are: a group whose fold
+            # raises costs its own page a slow first read, and nothing else.
+            logger.exception("Could not store the %s remediation table for run %s",
+                             group.slug, assessment_run.pk)
