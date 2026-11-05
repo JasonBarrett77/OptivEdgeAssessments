@@ -215,7 +215,12 @@ class ImplicatedValueTests(TestCase):
     comparing values would get one of the three wrong.
     """
 
+    #: The FIELD the control asserts, and the HEADING its column now carries. The test read
+    #: the heading as a slug of the field name, which held only while the column was headed
+    #: with the raw Django name; `identity_presentation` gave it the vendor's words on
+    #: 2026-11-04. What is pinned is which cell is marked, not what it is called.
     FIELD = "expiration_period"
+    HEADING = "Required Password Change Period (days)"
 
     def setUp(self):
         from assessments.models import AssessmentRun, Control, ControlQuery
@@ -268,7 +273,7 @@ class ImplicatedValueTests(TestCase):
         self.assertEqual(len(response.context["rows"]), 1)
         marked = {headers[i] for i, cell in enumerate(response.context["rows"][0])
                   if cell["implicated"]}
-        self.assertIn(self.FIELD, {h.lower().replace(" ", "_") for h in marked})
+        self.assertIn(self.HEADING, marked)
 
 
 class WorkbookFilenameTests(TestCase):

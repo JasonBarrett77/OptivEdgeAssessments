@@ -119,6 +119,9 @@ from assessments.ipsec_crypto_profile_findings import (
     generate_ipsec_crypto_profile_findings,
 )
 from assessments.ipsec_tunnel_findings import generate_ipsec_tunnel_findings
+from assessments.ipsec_tunnel_path_findings import (
+    generate_ipsec_tunnel_path_findings,
+)
 from assessments.ike_gateway_findings import generate_ike_gateway_findings
 from assessments.high_availability_findings import generate_high_availability_findings
 from assessments.panorama_registration_findings import (
@@ -232,6 +235,9 @@ GENERATORS = (
     ("ipsec crypto profile", T.IPSEC_CRYPTO_PROFILE,
      generate_ipsec_crypto_profile_findings),
     ("ipsec tunnel", T.IPSEC_TUNNEL, generate_ipsec_tunnel_findings),
+    # AFTER the four collections above: the path is the composite over them and the
+    # subject of the nine strength controls.
+    ("ipsec tunnel path", T.IPSEC_TUNNEL_PATH, generate_ipsec_tunnel_path_findings),
     ("ike gateway", T.IKE_GATEWAY, generate_ike_gateway_findings),
     # App-ID Cloud Engine before the three SaaS verdicts, because its state is the PREMISE they
     # rest on: rules and filters naming cloud-delivered App-IDs stay visible in the policy while

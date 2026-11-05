@@ -61,6 +61,11 @@ def _subject_columns(verdict_fields):
 #: Fields a kind's controls assert on that are NOT one of the satellite's assertion names, with
 #: the column that already says each one. `hidden_fields` is a statement that something else on
 #: the sheet carries the fact, so each entry here has to name what.
+#: NAMING THE COLUMN FROM 2026-11-03: each entry is {field: the heading that carries it}, and on
+#: these four sheets the answer is always `Profiles`, because that is the cell
+#: `security_rules.threat_profile_lines` writes every threat verdict into. Before this, every
+#: PAN-SPY, PAN-VLN and PAN-AVW control on these tabs marked NOTHING on any row - their asserted
+#: fields are all hidden here - which was 12,398 rows of the lab estate.
 _EXTRA_HIDDEN = {
     "vulnerability-protection": (
         # PAN-VLN-004's grading axis, which its two calibration queries clause on. The Profiles
@@ -105,10 +110,12 @@ def _spec(slug, title, control_ids, verdict_fields):
         source_columns=security_rules.SOURCE_COLUMNS,
         value_readers=security_rules.SPEC.value_readers,
         tested_columns=(),
-        # The rules sheet's own list, plus this kind's verdict fields. The Profiles column
-        # carries them, which is what `hidden_fields` is a statement about.
-        hidden_fields=(security_rules.SPEC.hidden_fields + tuple(verdict_fields)
-                       + _EXTRA_HIDDEN.get(slug, ())),
+        # The rules sheet's own map, plus this kind's verdict fields and its grading axes. Every
+        # one of them is carried by the Profiles column, which is what `hidden_fields` states -
+        # and naming that column is what puts the value-at-fault mark on the cell that holds it.
+        hidden_fields={**security_rules.SPEC.hidden_fields,
+                       **{field: "Profiles" for field in verdict_fields},
+                       **{field: "Profiles" for field in _EXTRA_HIDDEN.get(slug, ())}},
         subject_select_related=security_rules.SPEC.subject_select_related,
         subject_prefetch=security_rules.SPEC.subject_prefetch,
         appliance_of=security_rules.SPEC.appliance_of,

@@ -1,0 +1,41 @@
+{% comment %}
+The product's four categories across the top, the shape `configuration_nav.html` uses and the
+shape PAN-OS itself uses - Jason, 2026-11-04: *"Page /assessments/configuration/ has the tabs at
+the top. Can we adopt that same layout?"* An engineer who knows which tab an object lives under
+in the firewall finds its remediation page under the same word.
+
+NOT THAT PARTIAL REUSED: it leads with a Dashboard chip and reverses the configuration URLs, and
+its chips count objects on the rail. These count PAGES, and the leading chip opens a DASHBOARD
+- the four categories counted and graded against each other, which is what the unfiltered list
+of every page was there to answer and did badly.
+
+A category with no page yet is drawn greyed rather than dropped, for the reason the
+configuration bar gives: what has not been built yet is as much a fact as what has.
+{% endcomment %}
+<div class="flex shrink-0 items-center gap-1 border-b border-slate-200 px-1 pt-0.5 pb-1.5">
+    <a
+        href="{% url 'assessment_remediation_index' %}"
+        class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[12px] font-semibold whitespace-nowrap transition-colors {% if not active_category %}bg-slate-800 text-white{% else %}text-slate-500 hover:bg-slate-100 hover:text-slate-700{% endif %}"
+    >
+        Dashboard
+    </a>
+    <span class="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
+    {% for category in categories %}
+    {% if category.count %}
+    <a
+        href="{{ category.href }}"
+        class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[12px] font-semibold whitespace-nowrap transition-colors {% if category.is_active %}bg-slate-800 text-white{% else %}text-slate-500 hover:bg-slate-100 hover:text-slate-700{% endif %}"
+    >
+        {{ category.name }}
+        <span class="text-[10px] font-normal {% if category.is_active %}text-slate-300{% else %}text-slate-400{% endif %}">{{ category.count }}</span>
+    </a>
+    {% else %}
+    <span
+        class="inline-flex h-7 cursor-default items-center gap-1.5 px-2.5 text-[12px] font-semibold whitespace-nowrap text-slate-300"
+        title="No page here yet"
+    >
+        {{ category.name }}
+    </span>
+    {% endif %}
+    {% endfor %}
+</div>

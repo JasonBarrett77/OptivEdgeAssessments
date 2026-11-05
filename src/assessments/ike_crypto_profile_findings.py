@@ -23,6 +23,14 @@ THREE THINGS THE SENTENCE IS NOT ALLOWED TO SAY, each from a measurement:
   on a profile offering an authenticated-encryption cipher the member carries no severity at all
   and `hash_floor_met` is true. The same literal means opposite things on the two profiles.
 
+FOUR OF THE FIVE CONTROLS THIS MODULE ONCE SERVED HAVE MOVED, as of 2026-11-04: PAN-IKE-002 to
+-005 are keyed on the IPSec tunnel PATH, so a weak proposal is reported once per tunnel that uses
+it rather than once per profile. Their sentence builders stay here and the path generator IMPORTS
+them, because each carries a measurement and a second phrasing would be a second set of claims to
+keep true. What this module generates on its own is PAN-IKE-010, the profile nothing names - the
+one state the path controls cannot see, since a profile no path reaches has no path to be reported
+on.
+
 AND ONE IT MUST SAY: where the weakest key-agreement member is a post-quantum name, no severity
 rank exists for it. Stage 3 ranked ten classical members and placed the other eighteen
 `unranked` with the reason, so the finding reports at the control's baseline severity about a
@@ -156,6 +164,11 @@ PARTS_BY_CONTROL = {
     "PAN-IKE-003": (_encryption,),
     "PAN-IKE-004": (_hash,),
     "PAN-IKE-005": (_lifetime, _reauth),
+    # PAN-IKE-010, 2026-11-04: the hygiene half, which had no control id until the four above
+    # moved their subject to the IPSec tunnel PATH. `_unreferenced` was written before this
+    # control existed and is unchanged - it already carries the candidate-not-leftover
+    # qualification a firewall-side count owes.
+    "PAN-IKE-010": (_unreferenced,),
 }
 
 

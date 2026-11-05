@@ -84,6 +84,13 @@ from assessments.search.ipsec_tunnel.compiler import (
     IPSEC_TUNNEL_MODEL,
     compile_ipsec_tunnel_search_node,
 )
+from assessments.search.ipsec_tunnel_path.compiler import (
+    FIELD_OPERATOR_REGISTRY as IPSEC_TUNNEL_PATH_FIELD_OPERATOR_REGISTRY,
+)
+from assessments.search.ipsec_tunnel_path.compiler import (
+    IPSEC_TUNNEL_PATH_MODEL,
+    compile_ipsec_tunnel_path_search_node,
+)
 from assessments.search.certificate.compiler import (
     FIELD_OPERATOR_REGISTRY as CERTIFICATE_FIELD_OPERATOR_REGISTRY,
 )
@@ -501,6 +508,7 @@ from optivedge_integrations.integrations.models import (
     IkeGateway,
     IpsecCryptoProfile,
     IpsecTunnel,
+    IpsecTunnelPath,
     SslTlsServiceProfile,
     ManagementInterface,
     ManagementPlaneAddressing,
@@ -715,6 +723,15 @@ MODEL_REGISTRY = {
         "model_class": IpsecTunnel,
         "field_operators": IPSEC_TUNNEL_FIELD_OPERATOR_REGISTRY,
         "compiler": compile_ipsec_tunnel_search_node,
+    },
+    # The composite over the four collections above. A FIFTH entry rather than a widening of any
+    # of them: a clause compiled against the wrong one would read a column that exists on two
+    # models at two grains - `dh_group` and `weakest_dh_group` live here beside each other and on
+    # two different profile models there.
+    IPSEC_TUNNEL_PATH_MODEL: {
+        "model_class": IpsecTunnelPath,
+        "field_operators": IPSEC_TUNNEL_PATH_FIELD_OPERATOR_REGISTRY,
+        "compiler": compile_ipsec_tunnel_path_search_node,
     },
     # Device-wide management-plane settings: one row per appliance, no vsys axis and no entry
     # name. The HA row is NOT expected to agree with its pair member's; the registration row is.

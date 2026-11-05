@@ -25,7 +25,7 @@ from .sheets import policy_rule_settings
 from .sheets import profile_rules
 from .sheets import security_rules
 from .sheets import vsys_rule_posture
-from .sheets.findings import DeviceSettingSheet
+from .sheets.findings import DeviceSettingSheet, selected_controls
 
 T = Control.ControlType
 
@@ -323,6 +323,11 @@ DOMAINS = (
     # disagree with the app about where an object lives.
     _object_domain("ipsec-crypto-profiles", T.IPSEC_CRYPTO_PROFILE),
     _object_domain("ipsec-tunnels", T.IPSEC_TUNNEL),
+    # Network, 2026-11-04 - the PATH tab, immediately after the tunnel tab whose subject it
+    # joins and BEFORE the gateway tab, which is `finding_run.GENERATORS` order: the path
+    # generator runs after the four collections it reads. A reader meets the two proposal sets,
+    # then the tunnel, then the tunnel-and-profiles together.
+    _object_domain("ipsec-tunnel-paths", T.IPSEC_TUNNEL_PATH),
     _object_domain("ike-gateways", T.IKE_GATEWAY),
     # Network, LAST in this category, 2026-11-02, for PAN-ZON-002 to -006 - and here BOTH orders
     # agree for once, which is worth saying because the two neighbours above departed from each
@@ -764,9 +769,17 @@ def severity_counts() -> dict[str, dict[str, int]]:
         spec = domain.spec
         by_severity: dict[str, int] = defaultdict(int)
         for kind in {spec.kind_for(control_type) for control_type in spec.control_types}:
+            # `selected_controls`, NOT the control TYPE, which is what this counted until
+            # 2026-11-03 (Jason, from the page): a type is not a tab. Six tabs report on
+            # security rules and narrow themselves by `control_ids` / `exclude_control_ids`, so
+            # all five rule tabs on the Findings summary showed the SAME number - every
+            # security-rule finding there is - and the page's grand total counted that set five
+            # times. On the lab: 15,980 printed on each of the five where the right answers are
+            # 3,582 / 2,046 / 5,123 / 4,164 / 1,065, and a headline of 81,357 where it is
+            # 17,437. The table each row links to was right all along; `load` has always
+            # selected this way, and only the counting shortcut did not.
             rows = (kind.model.objects
-                    .filter(control__control_type__in=spec.control_types,
-                            control__is_active=True)
+                    .filter(control__in=selected_controls(spec))
                     .values_list("severity")
                     .annotate(total=Count("severity")))
             for severity, total in rows:

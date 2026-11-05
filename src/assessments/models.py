@@ -39,6 +39,7 @@ from optivedge_integrations.integrations.models import (
     IkeGateway,
     IpsecCryptoProfile,
     IpsecTunnel,
+    IpsecTunnelPath,
     HighAvailabilityConfig,
     PanoramaRegistration,
     ManagementInterface,
@@ -187,6 +188,13 @@ class Control(models.Model):
         #: artifact for `ipsec-crypto`, which records why that half was chosen.
         IPSEC_CRYPTO_PROFILE = "ipsec_crypto_profile", "IPSec Crypto Profile"
         IPSEC_TUNNEL = "ipsec_tunnel", "IPSec Tunnel"
+        #: THE WHOLE TUNNEL PATH - one tunnel, the IKE gateway it names and both crypto
+        #: profiles behind them - and the subject of the nine PROFILE STRENGTH controls as
+        #: of 2026-11-04. A profile is a named algorithm set rather than an enforcement
+        #: point, so a finding raised on the profile reads the same whether one tunnel uses
+        #: it or a thousand do; keyed on the path, the finding count IS the blast radius.
+        #: PAN-IPS-006 to -009 and PAN-IKE-001, -006 to -009 keep their own subjects.
+        IPSEC_TUNNEL_PATH = "ipsec_tunnel_path", "IPSec Tunnel Path"
         #: The two `ha-panorama` subjects, SEPARATE types for the same one-to-one reason.
         #: PAN-HAP-001 to 004 assert over the high-availability relationship; PAN-HAP-005 over
         #: the channel to the management estate. PAN-HAP-006 and 007 assert over PANORAMA'S OWN
@@ -800,6 +808,9 @@ class Control(models.Model):
         "ike_gateway": "integrations.IkeGateway",
         "ipsec_crypto_profile": "integrations.IpsecCryptoProfile",
         "ipsec_tunnel": "integrations.IpsecTunnel",
+        # The composite over the four above: one row per tunnel-and-gateway pair, plus one
+        # per IKE gateway no tunnel names.
+        "ipsec_tunnel_path": "integrations.IpsecTunnelPath",
         # Device-wide management-plane settings: one row per appliance, no entry name at all.
         # On an HA pair each yields two rows for one real configuration and nothing
         # deduplicates them - which is correct for the HA subject, whose two rows genuinely
@@ -1024,6 +1035,7 @@ class Control(models.Model):
         "integrations.IkeGateway": "IKE Gateway",
         "integrations.IpsecCryptoProfile": "IPSec Crypto Profile",
         "integrations.IpsecTunnel": "IPSec Tunnel",
+        "integrations.IpsecTunnelPath": "IPSec Tunnel Path",
         "integrations.HighAvailabilityConfig": "High Availability",
         "integrations.PanoramaRegistration": "Panorama Registration",
         "integrations.Interface": "Interface",
@@ -2260,6 +2272,79 @@ class IpsecTunnelFindingControlQuery(FindingControlQueryBase):
 
     def __str__(self) -> str:
         return f"{self.ipsec_tunnel_finding_id} <- {self.control_query_id}"
+
+
+class IpsecTunnelPathFinding(ObjectFindingBase):
+    """A finding against one IPSec tunnel path. PAN-IKE-002 to -005 and PAN-IPS-001 to -005.
+
+    ONE ROW PER TUNNEL-AND-GATEWAY PAIR per appliance, plus one per IKE gateway no tunnel on that
+    appliance names. Device-wide like the four collections the path joins, so no `subject_scope`.
+
+    WHY THE NINE STRENGTH CONTROLS LANDED HERE. Keyed on the crypto profile, as they shipped, one
+    weak profile earned one finding whether one tunnel ran on it or a thousand did - so the
+    finding count said nothing about reach. Jason, 2026-11-04: *"A weak profile use on one IPSec
+    tunnel should not receive the same treatment as a weak profile used on 1000 IPSec tunnels. The
+    best way to accomplish this is to raise a finding per effected tunnel."* Keyed on the path,
+    the number of findings for a control IS the number of tunnels affected, and the blast radius
+    is on the findings page without anything having to compute it.
+
+    THE SAME PROFILE THEREFORE EARNS SEVERAL FINDINGS FOR ONE CONTROL, which is the point rather
+    than a duplication to collapse: each is a different tunnel, each is a place traffic crosses,
+    and the remediation page folds them back to the one profile to edit.
+
+    NO APPLICABILITY CLAUSE SUPPRESSES A DISABLED TUNNEL OR AN INACTIVE GATEWAY. Jason,
+    2026-11-04: *"The 'disabled' value is ignored. So give a tunnel/gateway the same treatment
+    regardless of the disabled state."* All four of pan-fw-111's tunnels are `disabled=yes`, so a
+    suppression would silence the only appliance in this lab with tunnels at all.
+
+    AND THE ABSENCE OF A FINDING ON AN APPLIANCE IS NOT A STATEMENT ABOUT ITS VPN. An appliance
+    holding crypto profiles and neither a tunnel nor a gateway produces NO PATH ROW - both
+    PA-5220s are in exactly that state - so every query over this model returns nothing and all
+    nine controls read as satisfied. That is the same wrong-direction limit the tunnel and profile
+    models carry, and the same remedy answers it: a per-appliance coverage subject, which is
+    PAN-COV-001's shape and not a column of this one.
+    """
+
+    assessment_run = models.ForeignKey(
+        AssessmentRun, on_delete=models.CASCADE, related_name="ipsec_tunnel_path_findings")
+    control = models.ForeignKey(
+        Control, on_delete=models.PROTECT, related_name="ipsec_tunnel_path_findings")
+    ipsec_tunnel_path = models.ForeignKey(
+        IpsecTunnelPath, on_delete=models.CASCADE, related_name="findings")
+    control_queries = models.ManyToManyField(
+        ControlQuery, through="IpsecTunnelPathFindingControlQuery",
+        related_name="ipsec_tunnel_path_findings", blank=True)
+
+    class Meta(ObjectFindingBase.Meta):
+        indexes = ObjectFindingBase.Meta.indexes + [
+            models.Index(fields=["ipsec_tunnel_path"]),
+        ]
+        constraints = ObjectFindingBase.Meta.constraints + [
+            models.UniqueConstraint(
+                fields=["assessment_run", "control", "ipsec_tunnel_path"],
+                name="unique_ipsecpath_finding_per_run_control_object"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.control.control_id} on IPSec tunnel path {self.subject_name}"
+
+
+class IpsecTunnelPathFindingControlQuery(FindingControlQueryBase):
+    ipsec_tunnel_path_finding = models.ForeignKey(
+        IpsecTunnelPathFinding, on_delete=models.CASCADE, related_name="query_links")
+    control_query = models.ForeignKey(
+        ControlQuery, on_delete=models.CASCADE,
+        related_name="ipsec_tunnel_path_finding_links")
+
+    class Meta(FindingControlQueryBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ipsec_tunnel_path_finding", "control_query"],
+                name="unique_ipsecpath_finding_control_query_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ipsec_tunnel_path_finding_id} <- {self.control_query_id}"
 
 
 class HighAvailabilityFinding(ObjectFindingBase):

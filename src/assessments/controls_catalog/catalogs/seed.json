@@ -7083,7 +7083,7 @@
         {
           "control_id": "PAN-IKE-002",
           "name": "IKE Diffie-Hellman Group Strength",
-          "control_type": "ike_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every key-agreement group an IKE crypto profile OFFERS to be a 2048-bit finite field or an elliptic curve. The profile offers the whole list and takes the first group a peer accepts, so the weakest member on the list is the group an exchange can be driven down to - a weak group left in place is a live option, not a lower preference.\n\nTHE ASSERTION IS OVER THE WHOLE SET, which is why it rests on a derived verdict column rather than on a list test: a clause has one field slot and this is a universal quantifier. The verdict's finding side is also its stored default, so a profile nobody has recomputed is reported rather than passing.\n\nTHE VALUE SET IS MUCH LARGER THAN THE CONTROL'S OWN LIST AND IT GREW BETWEEN RELEASES. Nine members on one lab build, twenty-eight on another: the eighteen additions are post-quantum key-encapsulation names, which no severity band here ranks. A profile whose weakest member is one of those is reported at this control's own severity and the finding says the group is unranked, because reporting it at a graded severity would attribute a judgement nobody made.\n\nAND `none` IS NOT A WEAK GROUP. It is a member - present on the newer lab builds and absent from the older - that can take the key agreement OUT of the proposal entirely; the device's own help string for it is \"Make this round optional\". It ranks with the broken groups rather than below them.",
           "rationale": "Finite-field groups at 768, 1024 and 1536 bits fall to precomputation attacks of the Logjam family; 2048 bits is the current floor and the elliptic-curve groups give equivalent strength at far lower cost. A member that removes the key agreement altogether removes the forward secrecy the exchange exists to provide.",
@@ -7094,7 +7094,7 @@
               "name": "Baseline",
               "short_description": "The profile offers a key-agreement group below the 2048-bit floor, a non-elliptic-curve member, or a group no ordering places.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7116,7 +7116,7 @@
               "name": "Weakest group is the 1536-bit finite field",
               "short_description": "Group 5 is the weakest member still offered.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7144,12 +7144,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IkeCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IKE-003",
           "name": "IKE Encryption Algorithm Strength",
-          "control_type": "ike_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every cipher an IKE crypto profile OFFERS to be AES. As with the key-agreement list, the profile offers the whole set and a peer takes the first member that succeeds, so one weak cipher left in place is negotiable.\n\nTHE VENDOR'S ONLY ADVICE HERE IS ABOUT ORDER, AND FOLLOWING IT TO THE LETTER LEAVES THE WEAK CIPHER NEGOTIABLE. One page says to change the order of the list top to bottom; another says the list is tried top to bottom until an attempt succeeds. A profile ordered exactly as recommended still offers 3DES to a peer that offers nothing else, which is why this control is a floor over the whole set rather than a check on the first member.\n\n`des` IS NOT A MEMBER AT THIS POSITION ON ANY MEASURED APPLIANCE, though the control it came from ranks it bottom. The real floor of this field is 3DES; `des` lives on a manual-key tunnel's ESP leaf, which runs no key exchange at all. Nothing is lost by the control not reaching it, and a reader expecting `des` in a finding here will not see it.",
           "rationale": "3DES has a 64-bit block and is attackable by collision at feasible data volumes; AES at 128 bits or more is the floor for key-management traffic, and AES-256 is the target.",
@@ -7160,7 +7160,7 @@
               "name": "Baseline",
               "short_description": "The profile offers 3DES, or its cipher list was not read.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7181,12 +7181,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IkeCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IKE-004",
           "name": "IKE Integrity (Hash) Algorithm Strength",
-          "control_type": "ike_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every integrity algorithm an IKE crypto profile OFFERS to be from the SHA-2 family, with one exception the vendor itself mandates.\n\nTHE EXCEPTION IS WHY THIS CANNOT BE A TEST ON ONE LIST. Where a profile offers an AES-GCM cipher, the vendor's own instruction is to select the no-integrity member alongside it, because the integrity comes from the cipher's own construction. A one-list test would therefore fire on exactly the configuration a customer was told to make, and would spend their remediation budget on it. So the assertion is a predicate over TWO member lists and rests on a derived verdict column.\n\nTHE SAME LITERAL MEANS OPPOSITE THINGS ON TWO PROFILES. On a profile offering no authenticated-encryption cipher, the no-integrity member is not a weak hash - it is no integrity algorithm at all, and an exchange can be driven down to it. THE DEVICE DOES NOT ENFORCE THE PAIRING IN THAT DIRECTION: a profile offering {sha256, non-auth} with a CBC cipher and no AEAD cipher anywhere was accepted at the write and committed without complaint, so nothing on the firewall reports it and the constraint is entirely this assessment's to compute.\n\nAND THE MIXED CASE: a profile offering both an AEAD cipher and a non-AEAD one needs the no-integrity member for the first AND a SHA-2 member for the second. An AEAD-justified no-integrity member on its own is not enough there.",
           "rationale": "MD5 is collision-broken and unfit for key-management traffic; SHA-1 is deprecated with practical collisions demonstrated. A profile with no integrity algorithm and no authenticated-encryption cipher protects the exchange's integrity with nothing.",
@@ -7197,7 +7197,7 @@
               "name": "Baseline",
               "short_description": "The profile offers an integrity algorithm outside SHA-2, or the no-integrity member with no authenticated-encryption cipher to justify it.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7219,7 +7219,7 @@
               "name": "Weakest integrity algorithm is SHA-1",
               "short_description": "SHA-1 is the weakest integrity algorithm still offered.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7247,12 +7247,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IkeCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IKE-005",
           "name": "IKE SA Lifetime and Re-authentication Interval Bounded",
-          "control_type": "ike_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "medium",
           "description": "Bounds two quantities on one profile: how long a single IKE SA key stays in service, and the IKEv2 re-authentication interval that key lifetime feeds.\n\nTHE LIFETIME IS A CHOICE NODE WHOSE FOUR CHILDREN ARE THE UNITS, and the element that EXISTS is what says the unit. A comparison on the hours leaf alone misses a lifetime written in days, minutes or seconds entirely - and a comparison on the raw number without the unit reads a 1800-second lifetime as the worst in the estate. The normalized column coalesces all four branches into hours and rounds UP, so a sub-hour lifetime stores one hour and never zero. WRITING ONE BRANCH SILENTLY DESTROYS ANOTHER, measured: with an hours value stored, a write of seconds at the same container was accepted, the read-back carried only seconds, and the commit returned OK. Nothing reports the discard.\n\nA PROFILE WHOSE LIFETIME NOBODY COULD READ IS REPORTED, NOT PASSED. The lifetime container is this object's only optional choice container and a committed profile can carry none. A threshold over a null integer matches nothing, so such a profile would pass a bound it was never compared against; a separate query reports exactly those rows, and the finding says the lifetime was not established rather than that it is too long.\n\nZERO IS NOT A SMALL RE-AUTHENTICATION INTERVAL. The authentication multiple is a multiplier on the key lifetime, and the device's own words are that 0 means re-authentication disabled - the UNBOUNDED end of the axis while sorting as the smallest number, so every numeric comparison reads it as the strictest setting available. The device's stated range for the key EXCLUDES zero (writing 51 is refused with a 1-to-50 message) and zero is accepted and stored anyway. The verdict column special-cases it before comparing.",
           "rationale": "An excessive IKE SA lifetime extends the value of any single compromised key, and an unbounded re-authentication interval lets a tunnel stay up indefinitely on an identity that has not been re-proved.",
@@ -7263,7 +7263,7 @@
               "name": "Baseline",
               "short_description": "The profile's key lifetime is more than 24 hours.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7291,7 +7291,7 @@
               "name": "Key lifetime between one day and one week",
               "short_description": "More than 24 hours and up to 168 hours on one key.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7325,7 +7325,7 @@
               "name": "Key lifetime not established",
               "short_description": "No key lifetime was read on this profile, so no bound was applied to it.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7347,7 +7347,7 @@
               "name": "IKEv2 re-authentication interval not bounded",
               "short_description": "On a profile a version-2 gateway uses, the re-authentication interval exceeds 24 hours, is switched off by a zero multiplier, or could not be computed.",
               "canonical_query": {
-                "model": "integrations.IkeCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -7374,7 +7374,7 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IkeCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IKE-006",
@@ -7675,6 +7675,43 @@
           "target_model": "integrations.IkeGateway"
         },
         {
+          "control_id": "PAN-IKE-010",
+          "name": "Unreferenced IKE Crypto Profile",
+          "control_type": "ike_crypto_profile",
+          "default_severity": "low",
+          "description": "Reports every IKE crypto profile that no IKE gateway on this firewall names, so that proposals nothing uses are removed rather than left for somebody to pick up.\n\nTHE COUNT SPANS A GATEWAY'S TWO POINTERS, NOT ONE. An IKE gateway holds a separate crypto-profile reference per protocol version - the ikev1 branch and the ikev2 branch - and the two can name different profiles. A count over either alone would report a profile used by the other branch as unused.\n\nA FIREWALL-SIDE COUNT CANNOT SAY AN OBJECT IS UNUSED, and the qualification is not optional. A profile with nothing referencing it ON THIS DEVICE may still be referenced by configuration held on a management station and not yet pushed, and the two states look identical from the firewall. So every finding here is a CANDIDATE for removal and not a confirmed leftover: a deletion acted on without checking breaks the tunnel the next push creates.\n\nAND THIS CONTROL HAS A FALSE-POSITIVE DIRECTION ITS IPSEC COUNTERPART DOES NOT. Stage 4 of the `ike-crypto` domain measured that a gateway with NEITHER pointer set still consumes a proposal, with three device statements behind the lead that it lands on the entry named `default`. The count is taken over the two EXPLICIT pointers, because that is what the configuration states - so on an estate whose gateways leave both pointers unset, the `default` profile is reported here while being the profile every one of those gateways actually uses. Read the finding against the gateways before deleting anything called `default`.\n\nTHE NAME OF A PROFILE IS NOT EVIDENCE ABOUT IT, which is the same measurement PAN-IKE-009 rests on: the factory-shipped names are ordinary writable local configuration rather than predefined objects, so they are deletable, renameable and hardenable in place.\n\nTHIS IS THE COUNTERPART TO PAN-IPS-009 AND IT EXISTS BECAUSE THE PHASE 1 SIDE HAD NO SUCH CONTROL. Until 2026-11-04 the four strength controls over this object - PAN-IKE-002 to -005 - were the only ones reporting on it, and they moved onto the IPSec tunnel PATH so that a weak proposal is reported once per tunnel that uses it. A profile no path reaches is therefore graded by none of them, which left a weak proposal nothing uses reported by nothing at all. This control closes that.",
+          "rationale": "An unused weak proposal is a ready-made mistake waiting for the next person in a hurry to attach it, and because nothing references it today it survives every review that only examines what is currently carrying traffic. It is also the one state the strength controls cannot see: those are keyed on the tunnel path now, and a profile no tunnel reaches has no path to be reported on.",
+          "audit": "Network > Network Profiles > IKE Crypto for the list of profiles, then Network > Network Profiles > IKE Gateways and BOTH version tabs of each gateway - IKEv1 and IKEv2 name their crypto profiles separately. A gateway leaving both unset still negotiates, so note those before trusting a report about the profile named `default`. Check a management station's pushed configuration before deleting anything: a profile unreferenced on the firewall may be referenced from a template.",
+          "remediation": "Delete each IKE crypto profile no gateway names, AFTER confirming it is not referenced from a management station's configuration, is not the profile an unpointed gateway falls back to, and is not an approved standard being kept ready. Where one is kept deliberately, record that; nothing on the firewall distinguishes it from a leftover.",
+          "queries": [
+            {
+              "name": "Baseline",
+              "short_description": "No IKE gateway on this appliance names this crypto profile from either of its two version pointers, which makes it a candidate for removal.",
+              "canonical_query": {
+                "model": "integrations.IkeCryptoProfile",
+                "operator": "and",
+                "clauses": [
+                  {
+                    "field": "referenced_by_gateway_on_this_appliance",
+                    "op": "eq",
+                    "value": false,
+                    "negated": false
+                  }
+                ]
+              },
+              "asserted_fields": [
+                "referenced_by_gateway_on_this_appliance"
+              ],
+              "is_baseline": true,
+              "adjusted_severity": null,
+              "is_active": true
+            }
+          ],
+          "implementation_version": "v1",
+          "is_active": true,
+          "target_model": "integrations.IkeCryptoProfile"
+        },
+        {
           "control_id": "PAN-CRT-001",
           "name": "No Expired Certificates In Use (Hygiene)",
           "control_type": "certificate",
@@ -7787,7 +7824,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "no_live_redundant_peer"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -7825,7 +7865,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha1_control_link_not_encrypted"
+              ]
             },
             {
               "name": "Unencrypted control link on the management port",
@@ -7853,7 +7896,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "high",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha1_control_link_exposure"
+              ]
             },
             {
               "name": "Unencrypted control link on an in-band data interface",
@@ -7881,7 +7927,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "high",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha1_control_link_exposure"
+              ]
             },
             {
               "name": "High-availability configuration not collected",
@@ -7899,7 +7948,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha_config_collected"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -7937,7 +7989,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "no_independent_second_keepalive_path"
+              ]
             },
             {
               "name": "High-availability configuration not collected",
@@ -7955,7 +8010,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha_config_collected"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -7993,7 +8051,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha_monitors_nothing"
+              ]
             },
             {
               "name": "High-availability configuration not collected",
@@ -8011,7 +8072,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "ha_config_collected"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -8044,7 +8108,10 @@
               },
               "is_baseline": true,
               "adjusted_severity": null,
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "management_channel_not_hardened"
+              ]
             },
             {
               "name": "No secondary management appliance named",
@@ -8067,7 +8134,10 @@
               },
               "is_baseline": false,
               "adjusted_severity": "medium",
-              "is_active": true
+              "is_active": true,
+              "asserted_fields": [
+                "panorama_server_secondary"
+              ]
             }
           ],
           "implementation_version": "v1",
@@ -16268,7 +16338,7 @@
         {
           "control_id": "PAN-IPS-001",
           "name": "IPSec Payload Protection Branch",
-          "control_type": "ipsec_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every IPSec crypto profile to protect tunnel payloads with the ESP branch, which encrypts and authenticates, rather than with the integrity-only AH branch or with no branch at all.\n\nTHE TWO BRANCHES ARE MUTUALLY EXCLUSIVE ON A DEVICE AND THAT IS MEASURED, not assumed. Writing `ah` onto a profile already carrying `esp` is ACCEPTED and SILENTLY REMOVES `esp`; writing `esp` back removes `ah`. So \"both branches present\" is a configuration no firewall can hold, and a control written to look for it would look for nothing.\n\nTHE THIRD STATE IS NEITHER BRANCH, AND IT IS A COMMITTED ONE. `lifetime` is the only unconditionally mandatory key on this object, so a profile carrying nothing but a lifetime commits cleanly and offers no confidentiality and no integrity of any kind. That is not a profile with a weak proposal; it is a profile with no proposal, and it is reported at the same severity as the integrity-only branch.\n\nAn EMPTY branch - `esp` present with no algorithm list beneath it - is expressible in a candidate configuration and REFUSED at commit validation, so no running device holds it and this control does not grade it.",
           "rationale": "A profile that authenticates without encrypting lets every packet it carries cross the untrusted path readable, so the estate counts a tunnel and an interceptor reads the traffic the tunnel was built to hide. A profile carrying neither branch protects the payload with nothing at all.",
@@ -16279,7 +16349,7 @@
               "name": "Baseline",
               "short_description": "The profile does not carry the ESP branch - it is either integrity-only AH or carries no protocol branch at all.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16287,6 +16357,12 @@
                     "op": "eq",
                     "value": "esp",
                     "negated": true
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -16301,7 +16377,7 @@
               "name": "Carries no protocol branch at all",
               "short_description": "The profile carries neither the esp nor the ah branch, so it offers no confidentiality and no integrity algorithm of any kind.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16314,6 +16390,12 @@
                     "field": "protocol_branch",
                     "op": "eq",
                     "value": "none",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16329,7 +16411,7 @@
               "name": "Carries the integrity-only AH branch",
               "short_description": "The profile carries the AH branch, so the payload it protects is authenticated and travels in cleartext.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16342,6 +16424,12 @@
                     "field": "protocol_branch",
                     "op": "eq",
                     "value": "ah",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16356,12 +16444,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IpsecCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IPS-002",
           "name": "IPSec Payload Encryption Strength",
-          "control_type": "ipsec_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires the weakest cipher an IPSec crypto profile still OFFERS to be AES-256-GCM.\n\nTHE ASSERTION IS ON THE WEAKEST MEMBER AND NOT ON THE LIST'S ORDER, because a peer can negotiate down to any member however the list is written. A weak cipher left in place is a live option and not a lower preference, so a profile that reads as hardened carries traffic at the strength of its weakest line.\n\nAND THE OFFER SET IS CUMULATIVE, which decides the remediation. Writing one member with `set` ADDS to the stored list rather than replacing it - measured - so a fix cannot shrink an offer set by overwriting it and must delete the weak members explicitly.\n\nA PROFILE WITH NO CIPHER LIST AT ALL IS REPORTED HERE TOO, at this control's own severity: the column holding the weakest member is empty for an AH-branch profile and for a branchless one, and the assertion is a negated equality, which an empty value satisfies. That is deliberate - a profile offering no cipher has not been shown to encrypt anything.",
           "rationale": "A weak proposal left in the list is the one a peer can insist on, so the tunnel settles on the worst cipher offered and the strong ones above it never run.",
@@ -16372,7 +16460,7 @@
               "name": "Baseline",
               "short_description": "The weakest cipher the profile still offers is not AES-256-GCM, or the profile offers no cipher at all.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16380,6 +16468,12 @@
                     "op": "eq",
                     "value": "aes-256-gcm",
                     "negated": true
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -16394,7 +16488,7 @@
               "name": "Weakest cipher offered is null",
               "short_description": "The weakest cipher offered is the `null` cipher, which carries the payload in cleartext inside what the estate reports as an encrypted tunnel.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16407,6 +16501,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "null",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16422,7 +16522,7 @@
               "name": "Weakest cipher offered is 3des",
               "short_description": "The weakest cipher offered is 3DES - 112-bit and block-size limited, which the vendor's own screen calls a weak, vulnerable algorithm.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16435,6 +16535,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "3des",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16450,7 +16556,7 @@
               "name": "Weakest cipher offered is aes-128-cbc",
               "short_description": "The weakest cipher offered is AES-128-CBC: it meets the 128-bit strength floor and is not authenticated encryption.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16463,6 +16569,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "aes-128-cbc",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16478,7 +16590,7 @@
               "name": "Weakest cipher offered is aes-192-cbc",
               "short_description": "The weakest cipher offered is AES-192-CBC: above the strength floor, still not authenticated encryption.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16491,6 +16603,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "aes-192-cbc",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16506,7 +16624,7 @@
               "name": "Weakest cipher offered is aes-256-cbc",
               "short_description": "The weakest cipher offered is AES-256-CBC: strong confidentiality, still not authenticated encryption.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16519,6 +16637,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "aes-256-cbc",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16534,7 +16658,7 @@
               "name": "Weakest cipher offered is aes-128-ccm",
               "short_description": "The weakest cipher offered is AES-128-CCM: authenticated encryption at 128 bits, below the 256-bit target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16547,6 +16671,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "aes-128-ccm",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16562,7 +16692,7 @@
               "name": "Weakest cipher offered is aes-128-gcm",
               "short_description": "The weakest cipher offered is AES-128-GCM: authenticated encryption at 128 bits, below the 256-bit target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16575,6 +16705,12 @@
                     "field": "weakest_encryption_offered",
                     "op": "eq",
                     "value": "aes-128-gcm",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16589,12 +16725,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IpsecCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IPS-003",
           "name": "IPSec Payload Integrity Algorithm Strength",
-          "control_type": "ipsec_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every integrity algorithm an IPSec crypto profile OFFERS to be from the SHA-2 family, on any profile that also offers a cipher which only encrypts.\n\nTHE APPLICABILITY EXCLUSION IS THE WHOLE SHAPE OF THIS CONTROL, and it is not a softening. Where EVERY cipher a profile offers authenticates as it encrypts - the GCM and CCM families - the vendor states the separate hash is IGNORED (gp p.877: \"the SHA1 authentication algorithm is ignored for these ciphers even though it is required during configuration\"). So the profile is out of scope for this control rather than scored at a lower rank, and the cost of that shape is stated plainly: an AEAD-only profile is excluded from the whole control and not only from the `none` rank. Both shipped Suite-B profiles are in exactly that position.\n\nTHE SAME STORED LITERAL MEANS OPPOSITE THINGS ON TWO PROFILES. `none` in the integrity list is correct beside AES-GCM and is unauthenticated encryption beside AES-CBC, and the device does not enforce the pairing in that direction: a profile offering `none` with a CBC cipher and no AEAD cipher anywhere commits without complaint, so nothing on the firewall reports it. That case carries the one rank in this domain ABOVE its control's own default severity.\n\nA PROFILE OFFERING NO INTEGRITY LIST AT ALL IS REPORTED at this control's own severity, not excluded: an empty list is not vacuously compliant.",
           "rationale": "Without integrity a receiver cannot tell an altered packet from a genuine one, so anyone able to modify traffic in flight can corrupt or steer what is inside a tunnel that still reports itself as protected. A broken hash is the same exposure with an extra step.",
@@ -16605,7 +16741,7 @@
               "name": "Baseline",
               "short_description": "The profile offers an integrity algorithm outside the SHA-2 family, or none at all, while also offering a cipher that only encrypts.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16618,6 +16754,12 @@
                     "field": "integrity_meets_sha2_floor",
                     "op": "eq",
                     "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16633,7 +16775,7 @@
               "name": "Weakest integrity offered is none",
               "short_description": "The weakest integrity choice offered is the literal `none` beside a cipher that only encrypts - unauthenticated encryption, so the payload is confidential and forgeable.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16653,6 +16795,12 @@
                     "op": "eq",
                     "value": "none",
                     "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -16668,7 +16816,7 @@
               "name": "Weakest integrity offered is md5",
               "short_description": "The weakest integrity algorithm offered is MD5, which is collision-broken; the vendor's own screen says md5 and sha1 are not secure.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16688,6 +16836,12 @@
                     "op": "eq",
                     "value": "md5",
                     "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -16703,7 +16857,7 @@
               "name": "Weakest integrity offered is sha1",
               "short_description": "The weakest integrity algorithm offered is SHA-1, deprecated for new work and named with md5 in the same vendor sentence.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16723,6 +16877,12 @@
                     "op": "eq",
                     "value": "sha1",
                     "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -16737,12 +16897,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IpsecCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IPS-004",
           "name": "IPSec Payload Key Agreement Group",
-          "control_type": "ipsec_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "high",
           "description": "Requires every IPSec crypto profile to agree fresh key material for each security association using one of the elliptic-curve groups - 19, 20 or 21.\n\n`no-pfs` IS NOT THE SAME FACT AS AN ABSENT KEY, and both fail. `no-pfs` is a real writable value meaning the key already agreed in phase 1 is reused for the payload; an ABSENT `dh-group` materialises as Group 2, which is a profile re-keying on a 1024-bit group rather than one reusing a key. The finding says which it found, because the remediations differ.\n\nNINETEEN OF THE TWENTY-NINE VALUES THIS FIELD CAN HOLD CARRY NO SEVERITY BAND, and that is a recorded decision rather than a gap. Eighteen are post-quantum key encapsulations - the Kyber, BIKE, FrodoKEM, HQC, Classic McEliece and NTRU Prime families - and the nineteenth is a literal `none` whose device help-string belongs to a different field. A post-quantum group is a POLICY CHOICE rather than a weaker one, so ranking it would imply a judgement nobody has made. They are not silent in the report: the baseline fires on them because the group is not one of the three the control targets, and the finding says in terms that it carries the control's own severity rather than a graded one.\n\nTHE STORED SHAPE AT THIS PATH IS A BARE STRING. The phase 1 profile's `dh-group` at the sibling path stores a member list; this one does not, measured both ways, and writing the member shape here is refused. A reader who reuses the phase 1 shape reads nothing and reads it silently.",
           "rationale": "Where one key is reused across associations, whoever recovers it once - or records the traffic now and breaks a weak group later - reads everything that tunnel has carried and everything it will carry, instead of one association's worth.",
@@ -16753,13 +16913,19 @@
               "name": "Baseline",
               "short_description": "The profile's key-agreement group is not one of the three elliptic-curve groups this control targets.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
                     "field": "dh_group_meets_target",
                     "op": "eq",
                     "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16775,7 +16941,7 @@
               "name": "Key agreement group is no-pfs",
               "short_description": "Per-association key agreement is turned OFF - `no-pfs` reuses the key already agreed in phase 1 rather than deriving a fresh one for the payload.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16788,6 +16954,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "no-pfs",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16804,7 +16976,7 @@
               "name": "Key agreement group is group1",
               "short_description": "The key-agreement group is Group 1 - 768-bit, within reach of commodity computation.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16817,6 +16989,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group1",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16833,7 +17011,7 @@
               "name": "Key agreement group is group2",
               "short_description": "The key-agreement group is Group 2 - 1024-bit, rated at 80-bit strength by the device's own help-string, and the value the absent key materialises as.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16846,6 +17024,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group2",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16862,7 +17046,7 @@
               "name": "Key agreement group is group5",
               "short_description": "The key-agreement group is Group 5 - 1536-bit, below the 2048-bit floor but above the groups that have fallen.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16875,6 +17059,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group5",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16891,7 +17081,7 @@
               "name": "Key agreement group is group14",
               "short_description": "The key-agreement group is Group 14: it meets the 2048-bit floor and misses the elliptic-curve target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16904,6 +17094,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group14",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16920,7 +17116,7 @@
               "name": "Key agreement group is group15",
               "short_description": "The key-agreement group is Group 15: above the floor and below the elliptic-curve target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16933,6 +17129,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group15",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16949,7 +17151,7 @@
               "name": "Key agreement group is group16",
               "short_description": "The key-agreement group is Group 16: above the floor and below the elliptic-curve target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -16962,6 +17164,12 @@
                     "field": "dh_group",
                     "op": "eq",
                     "value": "group16",
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -16977,12 +17185,12 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IpsecCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IPS-005",
           "name": "IPSec Payload Key Lifetime",
-          "control_type": "ipsec_crypto_profile",
+          "control_type": "ipsec_tunnel_path",
           "default_severity": "medium",
           "description": "Requires every IPSec crypto profile's payload key lifetime to be one hour or less.\n\nTHE SAME REAL LIFETIME IS WRITTEN FOUR WAYS and the control grades the conversion. Seconds, minutes, hours and days are four separate keys on the object, and the stored `lifetime_hours` is the converted figure - ROUNDED UP, which is the direction a 90-minute lifetime needs settled: it is two hours here and not one. A reader sent to the screen sees the unit the engineer typed, so the finding carries both.\n\nTHE BANDS ARE THRESHOLDS ON AN INTEGER AND NOT A VALUE SET, which is the one grading in this domain where that is true. They are written as CLOSED RANGES - 25 and above, 9 to 24, 2 to 8 - rather than as open `greater than` thresholds, so that no row matches two bands. Open thresholds would also report correctly, because the worst matched band wins and the worst band here is the narrowest, but that correctness depends on an ordering property rather than on the queries themselves; closed ranges are disjoint over the integers and stay disjoint if a band is ever re-ranked.\n\nA LIFETIME THE COLUMN DOES NOT HOLD IS STILL REPORTED, at this control's own severity rather than silently: no band reaches a row whose lifetime was never recomputed, and the baseline rests on a verdict column that defaults to the reporting side. The finding then says the lifetime was not established rather than that it is too long - `lifetime` is the one unconditionally mandatory key of this object at commit validation, so an absent value is a row nobody recomputed and not a configuration without a bound.",
           "rationale": "The longer one key stays in service the more traffic a single compromise of it decrypts, and a profile where nobody wrote a bound at all cannot be shown to have one - so the exposure is both larger than intended and unmeasured.",
@@ -16993,13 +17201,19 @@
               "name": "Baseline",
               "short_description": "The profile's payload key lifetime is longer than the one hour this control targets, or was never established.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
                     "field": "lifetime_within_target",
                     "op": "eq",
                     "value": false,
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -17015,7 +17229,7 @@
               "name": "Key lifetime is more than 24 hours",
               "short_description": "The payload key lifetime works out at 25 hours or more - more than a day on one key.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -17028,6 +17242,12 @@
                     "field": "lifetime_hours",
                     "op": "gte",
                     "value": 25,
+                    "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
                     "negated": false
                   }
                 ]
@@ -17044,7 +17264,7 @@
               "name": "Key lifetime is 9 to 24 hours",
               "short_description": "The payload key lifetime works out at 9 to 24 hours inclusive - past the eight-hour baseline this control's own floor sets.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -17064,6 +17284,12 @@
                     "op": "lte",
                     "value": 24,
                     "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -17079,7 +17305,7 @@
               "name": "Key lifetime is more than 1 and up to 8 hours",
               "short_description": "The payload key lifetime works out at 2 to 8 hours inclusive - it meets the eight-hour baseline and misses the one-hour target.",
               "canonical_query": {
-                "model": "integrations.IpsecCryptoProfile",
+                "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
                 "clauses": [
                   {
@@ -17099,6 +17325,12 @@
                     "op": "lte",
                     "value": 8,
                     "negated": false
+                  },
+                  {
+                    "field": "path_origin",
+                    "op": "eq",
+                    "value": "tunnel",
+                    "negated": false
                   }
                 ]
               },
@@ -17113,7 +17345,7 @@
           ],
           "implementation_version": "v1",
           "is_active": true,
-          "target_model": "integrations.IpsecCryptoProfile"
+          "target_model": "integrations.IpsecTunnelPath"
         },
         {
           "control_id": "PAN-IPS-006",

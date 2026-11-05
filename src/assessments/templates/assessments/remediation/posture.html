@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Remediation · {{ title }}{% endblock %}
+
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
+{% comment %}
+A POSTURE PAGE. The subject is a VIRTUAL SYSTEM's rulebase and the finding is that no rule
+exists - no logged catch-all deny, no EDL block, no tunnel inspection - so there is nothing to
+open and nothing to edit, and the object column the other pages carry has nothing honest to put
+in it. See `remediation-policies-objects-build-guide-2026-11-04.md`.
+
+  Edit on          the firewall the virtual system runs on
+  Virtual system   the row's identity; the rulebase is the page's own title
+  one column per control   the findings it has on this virtual system, and their severity -
+                   so "which virtual system is missing which rule" reads across a row and down
+                   a column
+  value columns    the measured posture behind those verdicts, the failing one marked
+
+NO `Authority` AND NO `Location`: a posture is computed, not authored, and the container would
+repeat the virtual system named two columns to its left.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            <div class="flex shrink-0 items-center gap-3 bg-white px-4 py-2">
+                <a href="{% url 'assessment_remediation_index' %}"
+                   class="inline-flex h-7 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+                    {% lucide "clipboard-check" class="h-3.5 w-3.5 shrink-0" %}
+                    Remediation
+                </a>
+                {% comment %}
+                ONE HEADER FOR BOTH PAGES. A control's page titles itself with the control id and
+                its name; a group's page with the object kind and the controls folded into it.
+                {% endcomment %}
+                <h1 class="truncate text-sm font-semibold text-slate-900">
+                    {{ title }}
+                    {% comment %}
+                    THE CONTROLS NAMED, NOT LINKED. They had their own pages until 2026-11-03
+                    and no longer do, so the ids here say which questions this page answers.
+                    {% endcomment %}
+                    <span class="font-normal text-slate-600">· {{ subtitle }}</span>
+                </h1>
+                <div class="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+                    {% for severity in severities %}
+                    <span class="inline-flex items-center border px-2 py-0.5 text-[11px] font-medium {{ severity.classes }}">
+                        {{ severity.count }} {{ severity.label }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% comment %}
+            The fold, stated rather than implied: it is what decides whether this view earns its
+            place on a given estate, and it is a property of the estate rather than of the report.
+            {% endcomment %}
+            <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-600">
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
+                    <span>
+                        <span class="uppercase tracking-wide text-slate-500">Findings</span>
+                        <span class="ml-1.5 font-medium text-slate-800">{{ findings }}</span>
+                    </span>
+                    {% if authority_unrecorded %}
+                    <span>
+                        {% lucide "circle-question-mark" class="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" %}
+                        No provenance was collected for these objects, so <span class="font-medium text-slate-700">Location</span> cannot say whether one was pushed from a template.
+                    </span>
+                    {% endif %}
+                    {% if not fold_is_complete %}
+                    <span class="font-semibold text-red-700">
+                        {% lucide "triangle-alert" class="mr-1 inline h-3.5 w-3.5 align-text-bottom" %}
+                        These rows do not account for every finding of this control.
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% include "assessments/partials/no_findings_run.html" %}
+
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="analytical-table oea-table min-w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Edit on</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Virtual system</th>
+                            {% for control in control_headers %}
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600"><span title="{{ control.name }}">{{ control.control_id }}</span></th>
+                            {% endfor %}
+                            {% for heading in headings %}
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">{{ heading }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
+                                {% for name in row.managed_from %}
+                                <span class="block">{{ name }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] font-semibold leading-4 text-slate-900">
+                                {{ row.name|default:"&mdash;" }}
+                            </td>
+                            {% comment %}
+                            ONE CELL PER CONTROL, in the order the page's header names them:
+                            the count and the severity this virtual system carries for that
+                            control, and a dash where it carries none. The row reads as the
+                            posture of one virtual system; the column reads as the estate's
+                            posture for one control.
+                            {% endcomment %}
+                            {% for cell in row.control_cells %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4">
+                                {% if cell.count %}
+                                <span class="flex h-5 items-center gap-1.5">
+                                    <span class="font-semibold text-slate-900">{{ cell.count }}</span>
+                                    <span class="inline-flex items-center border px-1.5 text-[10px] font-medium leading-4 {{ cell.classes }}">{{ cell.severity }}</span>
+                                </span>
+                                {% else %}
+                                <span class="flex h-5 items-center text-slate-300">&mdash;</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            {% comment %}
+                            The object's own cells. A cell holding the value at fault carries the
+                            value-at-fault fill, the same amber the findings tabs use - on a
+                            profile row that is the axis the verdict read, which the control's
+                            own asserted fields cannot place because they are columns on the RULE.
+
+                            THE FILL CARRIES IT, NOT THE WEIGHT. The findings tabs bold their
+                            at-fault cell as well as filling it; here the marked cells hold a
+                            LIST - eight inline ML model names on one row - and bold over eight
+                            lines reads as a block of emphasis rather than as one marked value
+                            (Jason, 2026-11-03, on `Inline ML not blocking`). The amber already
+                            says which cell it is.
+
+                            ONE VALUE PER LINE, which is the house rule for a multi-value cell
+                            and is why these arrive as lines rather than as a string: the member
+                            sets come line-separated from the sheet and the antivirus axes are
+                            split off their commas, at paren depth zero so that `ftp (no action
+                            set, which allows)` stays one value.
+                            {% endcomment %}
+                            {% for cell in row.cells %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 {% if cell.at_fault %}bg-amber-50 text-slate-900{% else %}text-slate-800{% endif %}">
+                                {% for line in cell.lines %}
+                                <span class="block">{{ line }}</span>
+                                {% endfor %}
+                                {% comment %}
+                                WHICH CONTROL ASKED. A group row can hold five marked cells from
+                                three controls; without this the amber says "something here is
+                                wrong" rather than naming the question. One control per page has
+                                nothing to add, so it is left off there.
+                                {% endcomment %}
+                                {% if shows_controls and cell.at_fault %}
+                                <span class="mt-0.5 block text-[10px] text-amber-700">{% for id in cell.controls %}{% if not forloop.first %} · {% endif %}{{ id }}{% endfor %}</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ column_count }}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                No findings for these controls.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if page_obj.paginator.num_pages > 1 %}
+            {% comment %}
+            The findings pages' pager, same shape and same page size - a reader moving between
+            the two surfaces should not have to learn a second one.
+            {% endcomment %}
+            <div data-findings-pager class="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-2 text-[12px] text-slate-600">
+                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · rows {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ definitions }}</span>
+                <div class="flex items-center gap-1">
+                    <form method="get" data-findings-page-jump class="mr-2 flex items-center gap-1">
+                        <label for="remediation-page" class="text-slate-500">Go to page</label>
+                        <input id="remediation-page" type="number" name="page" min="1"
+                               max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}"
+                               class="h-8 w-16 border border-slate-300 bg-white px-2 text-[12px] text-slate-800 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        <button type="submit"
+                                class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">Go</button>
+                    </form>
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Prev</a>
+                    {% endif %}
+                    {% for page_number in page_range %}
+                    {% if page_number == page_obj.number %}
+                    <span class="inline-flex h-8 items-center border border-slate-400 bg-slate-100 px-2 text-[12px] font-medium text-slate-900">{{ page_number }}</span>
+                    {% else %}
+                    <a href="?page={{ page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}

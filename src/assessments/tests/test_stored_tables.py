@@ -138,5 +138,10 @@ class FindingsPagePagingTests(TestCase):
         self.assertContains(first, "data-findings-pager")
         self.assertContains(first, f"{self.total} finding")
         self.assertEqual(len(last.context["rows"]), self.total - 2 * ((self.total - 1) // 2))
+        pages = (self.total + 1) // 2
+        self.assertContains(first, f"Page 1 of {pages}")
+        self.assertContains(first, "data-findings-page-jump")
+        self.assertContains(first, f'max="{pages}"')
+        self.assertContains(last, f"Page {pages} of {pages}")
         references = [cells[0]["value"] for cells in first.context["rows"]]
         self.assertEqual(references, sorted(references))

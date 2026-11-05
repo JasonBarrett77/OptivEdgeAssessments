@@ -440,33 +440,51 @@ SPEC = findings_sheet.DeviceSettingSheet(
     #: column is on the page either way, and `test_a_surface_can_ask_for_provenance_the_workbook_
     #: tab_omits` holds that distinction as a claim about this very spec.
     tested_columns=("Fires when (failing condition)",),
-    hidden_fields=("config_source", "action", "service", "source_address", "destination_address",
-                   "application",
+    #: NAMING THE COLUMN, NOT JUST THE FIELD, FROM 2026-11-03 (Jason's call). Each entry says
+    #: which cell on this sheet carries the fact, which is what lets `build_rows` mark the value
+    #: at fault on a row whose every asserted field is hidden. PAN-POL-002 and PAN-POL-014 marked
+    #: NOTHING on any of their 267 rows until this was written - every field they assert on is
+    #: here - and the four by-rule sheets inherit this map, which is twelve more controls over
+    #: 12,398 rows. The headings are the ones in `SUBJECT_COLUMNS` above and have to match
+    #: exactly; `Device group` is not one of them, because the column that reads `config_source`
+    #: is `Rulebase`.
+    hidden_fields={"config_source": "Rulebase", "action": "Action", "service": "Service",
+                   "source_address": "Sources", "destination_address": "Destinations",
+                   "application": "Application",
                    # PAN-POL-002. The Sources and Destinations columns carry both the members and
                    # the side's host count, so a column per breadth field would repeat them -
-                   # and `*_breadth_known` is the same fact as the count being Unknown.
-                   "source_num_hosts", "destination_num_hosts",
-                   "source_breadth_known", "destination_breadth_known",
+                   # and `*_breadth_known` is the same fact as the count being Unknown. Each is
+                   # mapped to the side it belongs to, so a breadth finding marks the side at
+                   # fault rather than both.
+                   "source_num_hosts": "Sources", "destination_num_hosts": "Destinations",
+                   "source_breadth_known": "Sources",
+                   "destination_breadth_known": "Destinations",
                    # PAN-AVW-003. The Profiles column already carries what the rule names and
                    # what is in force; the WildFire verdict and its reason are two more lines
                    # in that cell, because they are the same kind of fact - what the named
                    # profiles actually resolve to. A column of its own would also break this
                    # sheet's agreement with the rules page's column set.
-                   "wildfire_analysis_submits_all", "wildfire_analysis_detail",
+                   "wildfire_analysis_submits_all": "Profiles",
+                   "wildfire_analysis_detail": "Profiles",
                    # PAN-SPY-001..005 and PAN-VLN-001..004, converted from profile-based to
                    # rule-based 2026-10-12. Same reasoning as the WildFire pair above: each is
                    # a fact about what the named profiles resolve to, so the Profiles column
                    # carries them as further lines in that cell rather than nine columns the
                    # rules page would then have to match. `threat_profile_lines` renders them.
-                   "spyware_blocks_critical_high", "spyware_dns_sinkholes",
-                   "spyware_dns_categories_enforced", "spyware_inline_analysis_blocks",
-                   "spyware_exceptions_minimal", "vulnerability_blocks_critical_high",
-                   "vulnerability_blocks_brute_force", "vulnerability_inline_analysis_blocks",
-                   "vulnerability_exceptions_minimal",
+                   "spyware_blocks_critical_high": "Profiles",
+                   "spyware_dns_sinkholes": "Profiles",
+                   "spyware_dns_categories_enforced": "Profiles",
+                   "spyware_inline_analysis_blocks": "Profiles",
+                   "spyware_exceptions_minimal": "Profiles",
+                   "vulnerability_blocks_critical_high": "Profiles",
+                   "vulnerability_blocks_brute_force": "Profiles",
+                   "vulnerability_inline_analysis_blocks": "Profiles",
+                   "vulnerability_exceptions_minimal": "Profiles",
                    # PAN-AVW-001 and PAN-AVW-002, converted the same day and for the same
                    # reason. The antivirus profile's four ways of letting malware through, and
                    # its inline ML models, are facts about what the named profile resolves to.
-                   "antivirus_blocks_malware", "antivirus_inline_ml_blocks",
+                   "antivirus_blocks_malware": "Profiles",
+                   "antivirus_inline_ml_blocks": "Profiles",
                    # A SCOPE condition rather than an observation, and the Fires when cell is
                    # what states it - which is why `tested_columns` is no longer ().
                    #
@@ -483,10 +501,18 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    # one, which says it indirectly. A column of its own would say it directly,
                    # and that is a PROPOSAL in this run's handback rather than a change made
                    # here - a cell a customer reads is Jason's to decide.
-                   "disabled",
+                   #
+                   # MAPPED TO "" DELIBERATELY: no subject or settings column on this sheet reads
+                   # `disabled`, so there is no cell for a mark to land on, and `Fires when` is a
+                   # tested column rather than one of the two blocks the fill walks. PAN-POL-014
+                   # marks its other asserted field - `source_num_hosts`, on Sources - so the row
+                   # does name a value at fault; this entry says the applicability clause is not
+                   # one, rather than leaving the reader to wonder which cell was meant.
+                   "disabled": "",
                    # The Profiles column declares has_antivirus_profile and renders all three
                    # on its "in force" line, so a column each would repeat it.
-                   "has_spyware_profile", "has_vulnerability_profile",
+                   "has_spyware_profile": "Profiles",
+                   "has_vulnerability_profile": "Profiles",
                    # NOTHING WAS ADDED TO THIS LIST ON 2026-11-01, AND TWO FIELDS WERE TAKEN
                    # OUT OF IT AGAIN BEFORE THIS WAS SHIPPED. `threat_profile_kinds_in_force`
                    # and `permitted_port_count_known` were here for a day: the first because the
@@ -504,7 +530,13 @@ SPEC = findings_sheet.DeviceSettingSheet(
                    # query is "The open-port count could not be established" rendered with NO
                    # marked cell at all - a finished-looking row with nothing indicated as the
                    # thing to fix. Each now has a column, and each is marked.
-                   ),
+                   #
+                   # THAT IS NO LONGER THE ONLY WAY OUT, from 2026-11-03: a hidden field that
+                   # names its carrying column is marked on that column, so the choice between a
+                   # column of its own and a cell a reader cannot find is gone. The two fields
+                   # above keep their own columns, because what was argued about them was whether
+                   # a customer should read the value and not just where the mark lands.
+                   },
     #: A rule belongs to a vsys, not to one appliance: nothing to link to on the Appliances tab.
     appliance_of=lambda rule: None,
     subject_select_related=("enforcement_point__appliance_group", "enforcement_point__appliance"),

@@ -12,6 +12,7 @@ key absent from the config, a severity adjusted by a query, and an HA pair whose
 """
 from __future__ import annotations
 
+from assessments import identity_presentation as identity
 from assessments.models import Control
 
 from . import findings as findings_sheet
@@ -26,6 +27,8 @@ SPEC = findings_sheet.DeviceSettingSheet(
     description=("The firewall-wide rules for local administrator passwords - length, character "
                  "mix, reuse, expiry and access after expiry - and whether the firewall enforces "
                  "them."),
+    #: Without these every settings column headed this tab with a raw Django field name.
+    setting_labels=identity.PASSWORD_COMPLEXITY_SETTING_LABELS,
 )
 
 

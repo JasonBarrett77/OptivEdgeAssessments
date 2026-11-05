@@ -267,16 +267,17 @@ class Command(BaseCommand):
             for failure in getattr(result, attribute) or []:
                 failures.append((attribute, getattr(failure, "kind", ""),
                                  getattr(failure, "error_text", "")))
-        # THE TWO NORMALISERS THE FLOW LEAVES OUT, after it rather than inside it - see
-        # `_estate.SUPPLEMENTAL_NORMALIZERS` for the measurement and the ordering reason. Both
-        # belong to zone-dos-protection, which built zero of its two subject models until this
-        # ran.
+        # ANY NORMALISER THE FLOW LEAVES OUT, after it rather than inside it - see
+        # `_estate.SUPPLEMENTAL_NORMALIZERS`, which is EMPTY since 2026-11-04: the seven passes it
+        # held, the zone-protection and IKE/IPSec ones, are called from the flow now. The call
+        # stays because the list is the place the next omission gets recorded.
         for name, error in run_supplemental_normalizers(station):
             failures.append(("supplemental", name, error))
         self.stdout.write("### NORMALISED through the committed pipeline (no device contacted)")
-        self.stdout.write(
-            f"    plus {len(SUPPLEMENTAL_NORMALIZERS)} normaliser(s) the flow omits: "
-            f"{', '.join(name for _grain, name in SUPPLEMENTAL_NORMALIZERS)}")
+        if SUPPLEMENTAL_NORMALIZERS:
+            self.stdout.write(
+                f"    plus {len(SUPPLEMENTAL_NORMALIZERS)} normaliser(s) the flow omits: "
+                f"{', '.join(name for _grain, name in SUPPLEMENTAL_NORMALIZERS)}")
         if failures:
             # Each normaliser has its own try/except upstream, so one failing does not stop the
             # rest - which means a failure here is silent unless it is printed. A domain whose

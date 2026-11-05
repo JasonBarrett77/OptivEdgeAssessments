@@ -12,6 +12,28 @@ carries two records, a subject the first record fires on and the second excludes
 finding, and the second record's `no_finding` is not reachable at the grain a finding has.
 PAN-IKE-005 and PAN-IKE-008 are both in that shape, and the comments say which rows.
 
+THE FOUR PROFILE CONTROLS CHANGED SUBJECT ON 2026-11-04 AND THESE TABLES DID NOT. PAN-IKE-002 to
+-005 are keyed on the IPSEC TUNNEL PATH now, not on the crypto profile - Jason: *"A weak profile
+use on one IPSec tunnel should not receive the same treatment as a weak profile used on 1000 IPSec
+tunnels. The best way to accomplish this is to raise a finding per effected tunnel."* The stage 6
+expectation for each of the fourteen readback profiles is unchanged, because what those four
+controls grade is unchanged; what changed is that a profile is now graded ONCE PER PATH THAT
+REACHES IT, and a profile no path reaches is not graded at all.
+
+SO `whole_lab` BUILDS A SYNTHETIC PATH PER PROFILE, and that is scaffolding rather than a reading:
+the lab's nine real gateways name only p05, p12 and p13, so eleven of the fourteen readbacks would
+otherwise have no path and no verdict to assert. One tunnel and one gateway per profile puts each
+one back on exactly one path, which is what keeps these tables a test of the queries.
+
+AND EACH SYNTHETIC GATEWAY TAKES THE LAB'S OWN ANSWER FOR ITS IKE VERSION. `used_by_ikev2_gateway`
+is PAN-IKE-005's applicability condition: on the profile model the IKE normalizer computed it from
+the lab's real gateway references, and eleven of the fourteen profiles are named by no IKEv2
+gateway and are OUT of the re-authentication population. On a path the same condition is MEASURED
+off the path's own gateway, so the synthetic gateway negotiates IKEv2 only where the lab says an
+IKEv2 gateway names that profile. A blanket IKEv2 would put all fourteen in the population and
+report a defect eleven of them were never assessed for - which is what the first version of this
+scaffolding did.
+
 THE SECOND APPLIANCE IS NOT DECORATION. pan-fw-201 carries crypto profiles and NO gateway
 container at all, which is this lab's commonest state and the one that makes every gateway
 control silent by construction - an absent object SUPPRESSES five controls where an assertion
@@ -26,16 +48,24 @@ from django.utils import timezone
 
 from assessments.ike_crypto_profile_findings import generate_ike_crypto_profile_findings
 from assessments.ike_gateway_findings import generate_ike_gateway_findings
+from assessments.ipsec_tunnel_path_findings import generate_ipsec_tunnel_path_findings
 from assessments.models import (
-    AssessmentRun, Control, IkeCryptoProfileFinding, IkeGatewayFinding)
+    AssessmentRun, Control, IkeCryptoProfileFinding, IkeGatewayFinding, IpsecTunnelPathFinding)
 from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, IkeCryptoProfile, IkeGateway, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, IkeCryptoProfile, IkeGateway, IpsecTunnel, ManagementStation,
+    Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization.ike import (
     normalize_ike_crypto_profiles, normalize_ike_gateways)
+from optivedge_integrations.integrations.platforms.pan_os.normalization.ipsec_path import (
+    normalize_ipsec_tunnel_paths)
 
 PROFILE_CONTROLS = ["PAN-IKE-002", "PAN-IKE-003", "PAN-IKE-004", "PAN-IKE-005"]
 GATEWAY_CONTROLS = ["PAN-IKE-001", "PAN-IKE-006", "PAN-IKE-007", "PAN-IKE-008", "PAN-IKE-009"]
+#: PAN-IKE-010, 2026-11-04. The only control left keyed on the crypto profile itself, and the
+#: reason it exists: the four above moved onto the tunnel path, so a profile no path reaches was
+#: graded by nothing at all.
+HYGIENE_CONTROLS = ["PAN-IKE-010"]
 
 #: The pre-shared key as the device stores it. A 31-character plaintext reads back as this
 #: 77-character ciphertext, and the SAME ciphertext came back from all eight gateways that were
@@ -194,8 +224,10 @@ class IkeControlTestCase(TestCase):
             serial_number=self.serial, hostname=self.hostname)
         self.run = AssessmentRun.objects.create(
             name="IKE", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
-        seed_controls(PROFILE_CONTROLS, control_type=Control.ControlType.IKE_CRYPTO_PROFILE)
+        # THE PATH, not the profile, since 2026-11-04. See the module docstring.
+        seed_controls(PROFILE_CONTROLS, control_type=Control.ControlType.IPSEC_TUNNEL_PATH)
         seed_controls(GATEWAY_CONTROLS, control_type=Control.ControlType.IKE_GATEWAY)
+        seed_controls(HYGIENE_CONTROLS, control_type=Control.ControlType.IKE_CRYPTO_PROFILE)
 
     def normalize(self, profiles=(), gateways=()):
         Snapshot.objects.create(
@@ -205,26 +237,79 @@ class IkeControlTestCase(TestCase):
         normalize_ike_crypto_profiles(self.appliance)
         normalize_ike_gateways(self.appliance)
 
+    #: THE SYNTHETIC PATHS ARE READ APART FROM THE REAL ONES, and they have to be. `whole_lab`
+    #: also normalizes the lab's nine real gateways, which no tunnel names - so each of those is an
+    #: ORPHAN path in its own right and p05, p12 and p13 are reached twice over. Keyed by profile
+    #: name alone, one of the two would quietly overwrite the other.
+    SYNTHETIC_PREFIX = "probe-"
+
+    def paths_over_every_profile(self):
+        """One tunnel and one gateway per stored crypto profile, then the paths over them.
+
+        SCAFFOLDING AND NOT A READING. The names are prefixed `probe-` so no assertion can mistake
+        one for a stage 6 subject, and nothing here is normalized from a payload: the path
+        normalizer joins stored rows, so stored rows are what it is given.
+        """
+        snapshot = Snapshot.objects.filter(appliance=self.appliance).latest("collected_at")
+        anchors = {"management_station": self.station, "appliance": self.appliance,
+                   "appliance_group": self.group, "source_snapshot": snapshot}
+        for profile in IkeCryptoProfile.objects.filter(appliance=self.appliance):
+            name = f"{self.SYNTHETIC_PREFIX}{profile.entry_name}"
+            # THE SYNTHETIC GATEWAY'S VERSION IS THE LAB'S OWN ANSWER ABOUT THIS PROFILE, and
+            # that is what keeps PAN-IKE-005's population unchanged. `used_by_ikev2_gateway` is
+            # its applicability condition, and on the profile model the IKE normalizer computed
+            # it from the lab's real gateway references - eleven of the fourteen profiles are
+            # named by no IKEv2 gateway and are OUT of the re-authentication population. On a
+            # path the same condition is MEASURED off the path's own gateway, so a blanket IKEv2
+            # here would put all fourteen in and report a defect eleven of them were never
+            # assessed for.
+            version = (IkeGateway.IkeVersion.IKEV2 if profile.used_by_ikev2_gateway
+                       else IkeGateway.IkeVersion.IKEV1)
+            IkeGateway.objects.create(
+                **anchors, entry_name=name, ike_version=version,
+                ikev1_crypto_profile_name=profile.entry_name,
+                ikev2_crypto_profile_name=profile.entry_name)
+            IpsecTunnel.objects.create(
+                **anchors, tunnel_name=name, ike_gateway_names=[name], crypto_profile_name="")
+        normalize_ipsec_tunnel_paths(self.appliance)
+        generate_ipsec_tunnel_path_findings(self.run)
+
     def whole_lab(self):
         self.normalize(PROFILES.values(), GATEWAYS.values())
         generate_ike_crypto_profile_findings(self.run)
         generate_ike_gateway_findings(self.run)
+        self.paths_over_every_profile()
 
     def profile_findings(self):
-        """{(control_id, entry_name): finding} over the crypto profiles."""
-        return {(f.control.control_id, f.subject_name): f
-                for f in IkeCryptoProfileFinding.objects.select_related("control")}
+        """{(control_id, profile_name): finding} for the four controls over the PATH.
+
+        KEYED BY THE PROFILE THE PATH RUNS ON rather than by the finding's own subject name,
+        which is `tunnel / gateway`: every expectation in this module is a statement about one
+        profile's content, and the synthetic estate puts each profile on exactly one path.
+        """
+        return {(f.control.control_id, f.ipsec_tunnel_path.ike_crypto_profile_name): f
+                for f in IpsecTunnelPathFinding.objects.select_related(
+                    "control", "ipsec_tunnel_path")
+                .filter(ipsec_tunnel_path__tunnel_name__startswith=self.SYNTHETIC_PREFIX)}
 
     def gateway_findings(self):
         return {(f.control.control_id, f.subject_name): f
                 for f in IkeGatewayFinding.objects.select_related("control")}
 
     def verdicts(self, control_id):
-        """{entry_name: (severity, [matched query names])} for one control over the whole lab."""
-        model = (IkeCryptoProfileFinding if control_id in PROFILE_CONTROLS
-                 else IkeGatewayFinding)
+        """{entry_name: (severity, [matched query names])} for one control over the whole lab.
+
+        For the four path controls the key is the PROFILE the path runs on, for the reason
+        `profile_findings` gives.
+        """
+        if control_id in PROFILE_CONTROLS:
+            return {f.ipsec_tunnel_path.ike_crypto_profile_name:
+                    (f.severity, sorted(f.matched_query_names))
+                    for f in IpsecTunnelPathFinding.objects.select_related("ipsec_tunnel_path")
+                    .filter(control__control_id=control_id,
+                            ipsec_tunnel_path__tunnel_name__startswith=self.SYNTHETIC_PREFIX)}
         return {f.subject_name: (f.severity, sorted(f.matched_query_names))
-                for f in model.objects.filter(control__control_id=control_id)}
+                for f in IkeGatewayFinding.objects.filter(control__control_id=control_id)}
 
 
 class IkeGatewayVersionTests(IkeControlTestCase):
@@ -619,21 +704,98 @@ class AbsentIkeCollectionTests(IkeControlTestCase):
         an appliance that terminates no key exchange has no tunnel to be weak - and it is a
         suppression and not a pass."""
         self.normalize(PROFILES.values(), None)
-        generate_ike_crypto_profile_findings(self.run)
         generate_ike_gateway_findings(self.run)
         self.assertEqual(IkeGateway.objects.count(), 0)
         self.assertEqual(IkeGatewayFinding.objects.count(), 0)
-        # The profiles still report, and every one of them now reads as unreferenced - which on
-        # an appliance with no gateway container is what the absence MEANS and not a failed read.
-        self.assertTrue(IkeCryptoProfileFinding.objects.exists())
+
+    def test_a_profile_no_path_reaches_is_no_longer_GRADED_AT_ALL(self):
+        """THE PRICE OF KEYING THE FOUR STRENGTH CONTROLS ON THE PATH, and it is a silence worth
+        a test of its own rather than a line in a docstring.
+
+        Fourteen weak profiles, no gateway and no tunnel: NO PATH EXISTS, so PAN-IKE-002 to -005
+        report NOTHING - where keyed on the profile they reported fourteen findings each. The
+        reading is defensible, because a proposal nothing references protects no traffic, and it
+        is the direction this repository is otherwise careful about: the configuration is
+        unchanged and the report went quiet.
+
+        NOTHING COVERS THAT GAP TODAY on the IKE side. `referenced_by_gateway_on_this_appliance`
+        is stored and carries no control - Jason, 2026-11-04: *"Take no action for the
+        unreferenced IKE Crypto Profile for now"* - so the IPSec side's PAN-IPS-009 has no IKE
+        counterpart. This test holds the silence visible until one exists.
+        """
+        self.normalize(PROFILES.values(), None)
+        normalize_ipsec_tunnel_paths(self.appliance)
+        generate_ipsec_tunnel_path_findings(self.run)
+        self.assertEqual(IkeCryptoProfile.objects.count(), len(PROFILES))
+        self.assertEqual(IpsecTunnelPathFinding.objects.count(), 0)
         self.assertEqual(IkeCryptoProfile.objects.filter(
             referenced_by_gateway_on_this_appliance=True).count(), 0)
 
+    def test_an_appliance_with_gateways_and_no_profiles_reports_every_path_as_unresolved(self):
+        """The reverse shape, and the four controls DO fire on it: each gateway names a profile
+        this appliance does not hold, so each orphan-gateway path carries no phase 1 proposal at
+        all. Jason, 2026-11-04: *"IKE Crypto is a required field on IPSec Tunnel. If the value is
+        missing, that is an invalid configuration."*"""
+        self.normalize((), GATEWAYS.values())
+        normalize_ipsec_tunnel_paths(self.appliance)
+        generate_ipsec_tunnel_path_findings(self.run)
+        self.assertEqual(IkeCryptoProfile.objects.count(), 0)
+        self.assertEqual(
+            IpsecTunnelPathFinding.objects.filter(
+                control__control_id="PAN-IKE-002").count(), len(GATEWAYS))
+        summary = IpsecTunnelPathFinding.objects.filter(
+            control__control_id="PAN-IKE-002").first().summary
+        self.assertIn("NO IPSEC TUNNEL ON THIS APPLIANCE NAMES", summary)
+
     def test_an_appliance_with_no_profiles_produces_no_profile_finding(self):
+        """PAN-IKE-002 to -005 no longer key on this model, so what is left here is the model's
+        own emptiness: nothing generates a crypto profile finding at all."""
         self.normalize((), GATEWAYS.values())
         generate_ike_crypto_profile_findings(self.run)
         self.assertEqual(IkeCryptoProfile.objects.count(), 0)
         self.assertEqual(IkeCryptoProfileFinding.objects.count(), 0)
+
+
+class UnreferencedProfileTests(IkeControlTestCase):
+    """PAN-IKE-010: the profile no gateway names, and the two things it must not claim.
+
+    IT IS THE ONE CONTROL STILL KEYED ON THIS MODEL, added 2026-11-04 when the four strength
+    controls moved onto the IPSec tunnel path. Without it a weak proposal nothing references is
+    reported by nothing: the path controls only see profiles a tunnel reaches.
+    """
+
+    def hygiene(self):
+        """{entry_name: finding} for PAN-IKE-010 over the whole lab."""
+        return {f.subject_name: f for f in IkeCryptoProfileFinding.objects.filter(
+            control__control_id="PAN-IKE-010")}
+
+    def test_the_profiles_the_lab_s_gateways_name_are_not_reported(self):
+        """Three of the fourteen are named - p05 by seven gateways, p12 and p13 by one each -
+        and the count is over BOTH of a gateway's version pointers, which can differ."""
+        self.whole_lab()
+        reported = set(self.hygiene())
+        for named in ("oep-ike6-p05", "oep-ike6-p12", "oep-ike6-p13"):
+            self.assertNotIn(named, reported, named)
+
+    def test_every_other_profile_is_reported_once(self):
+        self.whole_lab()
+        self.assertEqual(len(self.hygiene()), len(PROFILES) - 3)
+
+    def test_the_finding_says_candidate_rather_than_leftover(self):
+        """A firewall-side count cannot see a reference held on a management station, so a
+        deletion acted on without checking breaks the tunnel the next push creates."""
+        self.whole_lab()
+        summary = self.hygiene()["oep-ike6-p01"].summary
+        self.assertIn("candidate for removal rather than a", summary)
+        self.assertIn("not visible here", summary)
+
+    def test_a_profile_no_gateway_names_still_reports_when_no_gateway_exists_at_all(self):
+        """pan-fw-201's state - crypto profiles and no gateway container - which is this lab's
+        commonest. Every profile reads as unreferenced, and on an appliance with no gateways that
+        is what the absence MEANS rather than a failed read."""
+        self.normalize(PROFILES.values(), None)
+        generate_ike_crypto_profile_findings(self.run)
+        self.assertEqual(len(self.hygiene()), len(PROFILES))
 
 
 class IkeFindingProseTests(IkeControlTestCase):
@@ -667,17 +829,26 @@ class IkeFindingProseTests(IkeControlTestCase):
                     self.assertNotIn(phrase, finding.summary)
 
     def test_every_finding_names_its_subject_and_its_appliance(self):
+        """TWO KEYINGS, because the four path controls have two names to answer to: the path's own
+        subject name is `tunnel / gateway`, and the profile these tables are written about is
+        named in the sentence rather than in the subject."""
         self.whole_lab()
-        for (control_id, name), finding in {**self.profile_findings(),
-                                            **self.gateway_findings()}.items():
+        for (control_id, name), finding in self.gateway_findings().items():
             with self.subTest(f"{control_id}/{name}"):
                 self.assertIn(name, finding.summary)
                 self.assertIn("pan-fw-111", finding.summary)
                 self.assertEqual(finding.subject_name, name)
+        for (control_id, profile_name), finding in self.profile_findings().items():
+            with self.subTest(f"{control_id}/{profile_name}"):
+                self.assertIn(profile_name, finding.summary)
+                self.assertIn("pan-fw-111", finding.summary)
+                path = finding.ipsec_tunnel_path
+                self.assertEqual(finding.subject_name,
+                                 f"{path.tunnel_name} / {path.gateway_name}")
 
     def test_every_finding_carries_the_snapshot_it_was_computed_from(self):
         self.whole_lab()
-        for finding in list(IkeCryptoProfileFinding.objects.all()) + \
+        for finding in list(IpsecTunnelPathFinding.objects.all()) + \
                 list(IkeGatewayFinding.objects.all()):
             with self.subTest(finding.subject_name):
                 self.assertIsNotNone(finding.snapshot_id)

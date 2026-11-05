@@ -133,10 +133,15 @@ class UnprovenancedSubjectFindingsTests(TestCase):
         is read through a spec that does not - the per-field cell is what every other tab over a
         non-provenanced model would print.
         """
-        FieldProvenance.objects.create(
+        # THE NORMALIZER NOW WRITES THIS ROW, so the row is RETYPED rather than created:
+        # `normalize_zones` has recorded one `__entry__` row per zone since 2026-11-04 - `local`
+        # for this unmarked fixture - and a second row for the same field is refused by the
+        # model's own unique constraint. What the test needs is the TEMPLATE case, which is now
+        # a property of the entry rather than something a test adds beside it.
+        FieldProvenance.objects.filter(
             content_type=ContentType.objects.get_for_model(Zone), object_id=self.zone.pk,
-            field_name="__entry__",
-            provenance_type=FieldProvenance.ProvenanceType.TEMPLATE, raw_value="ptpl-zon")
+            field_name="__entry__").update(
+                provenance_type=FieldProvenance.ProvenanceType.TEMPLATE, raw_value="ptpl-zon")
         per_field = dataclasses.replace(self.spec, provenance_cell=None)
 
         table = build_findings_table(per_field, tested=ALL_TESTED_COLUMNS)
@@ -148,7 +153,17 @@ class UnprovenancedSubjectFindingsTests(TestCase):
         self.assertEqual(["Template", "Template", "Template"], cell.split("\n"))
 
     def test_with_no_entry_row_the_cell_says_nothing_tracks_the_field(self):
-        """No `__entry__` row either: an empty `DERIVED_FIELDS` must not synthesise one."""
+        """No `__entry__` row either: an empty `DERIVED_FIELDS` must not synthesise one.
+
+        THE ROW IS DELETED TO REACH THIS STATE, and no longer arrives in it: `normalize_zones`
+        records an entry row for every zone since 2026-11-04, so a zone in this estate always
+        has one. What this still pins is the presentation of a subject whose own normalizer
+        writes none - which is most of them - and that is worth keeping: the walk must print
+        "nothing tracks this" rather than inventing a location.
+        """
+        FieldProvenance.objects.filter(
+            content_type=ContentType.objects.get_for_model(Zone), object_id=self.zone.pk,
+            field_name="__entry__").delete()
         per_field = dataclasses.replace(self.spec, provenance_cell=None)
 
         table = build_findings_table(per_field, tested=ALL_TESTED_COLUMNS)

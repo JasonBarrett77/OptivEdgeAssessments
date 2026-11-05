@@ -14,6 +14,7 @@ Fires-when cell has to be read rather than assumed:
 """
 from __future__ import annotations
 
+from assessments import identity_presentation as identity
 from assessments.models import Control
 
 from . import findings as findings_sheet
@@ -25,6 +26,7 @@ SPEC = findings_sheet.DeviceSettingSheet(
     # lists what each zero means, including idle_timeout defaulting to 60 rather than 0.
     description=("How the firewall protects administrative sessions: lockout after failed logins, "
                  "how long an account stays locked, idle session timeout, and API key lifetime."),
+    setting_labels=identity.AUTHENTICATION_SETTINGS_SETTING_LABELS,
 )
 
 

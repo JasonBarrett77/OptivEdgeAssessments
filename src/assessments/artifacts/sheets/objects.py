@@ -30,6 +30,8 @@ from optivedge_integrations.integrations.models import AddressObject, SecurityPr
 from assessments import decryption_policy_presentation as decryption_policy
 from assessments import device_id_presentation as device_id
 from assessments import device_services_presentation as device_services
+from assessments import certificate_presentation as certificates_pres
+from assessments import identity_presentation as identity
 from assessments import globalprotect_gateway_presentation as globalprotect_gateway
 from assessments import globalprotect_portal_presentation as globalprotect_portal
 from assessments import ha_panorama_presentation as ha_panorama
@@ -220,13 +222,27 @@ IKE_GATEWAY_SETTING_LABELS = {
     "gateway_is_active": "Gateway state",
 }
 
+#: EACH OF THE FOUR NAMES THE FIELD IT PRESENTS, 2026-11-04, and that is what lets a mark land on
+#: it. The four strength controls moved onto the IPSec tunnel path the same day, so on the
+#: REMEDIATION page over this profile they are SUBSTITUTED controls - the finding's subject is a
+#: path and the object an engineer opens is this profile - and `_axes_at_fault` marks a column by
+#: the FIELD it declares. A column declaring nothing cannot be marked, which is the state the
+#: sibling IPSec sheet's comment already warns about.
+#:
+#: THE LIST IS THE CELL TO MARK AND NOT A VERDICT BESIDE IT, which is the shipped pattern: the
+#: Security Profile sheet's `Decoders not blocking` reads "http, ftp, smtp (alert only)" - the
+#: members to change - and the antivirus controls mark exactly that. `offer_set` does the same
+#: here, printing the whole set with the member an exchange can be driven down to named inside
+#: it, because what a remediation does is DELETE a member and a weakest-member column names
+#: something nobody can edit.
 IKE_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IKE_ENTRY_NAME + (
     ("DH groups offered", 22, True,
-     lambda s, _p: ike.offer_set(s.dh_groups, s.weakest_dh_group)),
+     lambda s, _p: ike.offer_set(s.dh_groups, s.weakest_dh_group), "dh_groups"),
     ("Encryption offered", 22, True,
-     lambda s, _p: ike.offer_set(s.encryption_ciphers, s.weakest_encryption_cipher)),
-    ("Integrity offered", 24, True, lambda s, _p: ike.integrity_offer(s)),
-    ("Key lifetime (as set)", 20, False, lambda s, _p: ike.key_lifetime(s)),
+     lambda s, _p: ike.offer_set(s.encryption_ciphers, s.weakest_encryption_cipher),
+     "encryption_ciphers"),
+    ("Integrity offered", 24, True, lambda s, _p: ike.integrity_offer(s), "hash_algorithms"),
+    ("Key lifetime (as set)", 20, False, lambda s, _p: ike.key_lifetime(s), "key_lifetime_unit"),
     # NAMES `reauth_interval_bounded`, which is what PAN-IKE-005's second record asserts. Until
     # 2026-10-28 `tested_fields` read the baseline alone, nothing derived a column for that field,
     # and this column existed to compensate - unmarkable, because it named no field. The union
@@ -272,6 +288,143 @@ IPSEC_PROFILE_NAME = (("Object", None, False, lambda s, _p: s.profile_name or NO
                        "profile_name"),)
 IPSEC_TUNNEL_NAME = (("Object", None, False, lambda s, _p: s.tunnel_name or NONE,
                       "tunnel_name"),)
+
+#: An IPSec tunnel PATH. Nine declared columns and every one of them identifies a PLACE rather
+#: than grading anything: which tunnel, which gateway, which two profiles, and whether each of
+#: those three bindings resolves on this appliance. The graded columns are the derived settings
+#: columns below, which are the two profiles' own verdicts copied onto the path.
+#:
+#: WHY THE OBJECT COLUMN IS THE TUNNEL AND NOT THE PATH'S WHOLE NAME. A reader scanning this tab
+#: is looking for a tunnel they can name; the gateway is the column beside it. On an
+#: orphan-gateway row the cell says so in words, which is the only row where the tunnel is blank.
+#:
+#: THE THREE RESOLUTION COLUMNS ARE NOT TIDINESS. Jason's ruling of 2026-11-04 makes an
+#: unresolvable binding FAIL - a tunnel with no IKE gateway, a gateway naming no IKE crypto
+#: profile, an IPSec crypto profile left at `default` - so a row can fire a strength control
+#: while holding no algorithm at all, and without these three the reader would see a finding
+#: about a weak proposal beside a row of blanks.
+#:
+#: `tunnel_name` IS DECLARED ON THE OBJECT COLUMN AND `gateway_name` ON ITS OWN, which keeps both
+#: out of the derived settings block: a subject column that names its field suppresses the
+#: derived column for the same field, and a column declaring no field does not.
+IPSEC_TUNNEL_PATH_SUBJECT = APPLIANCE + (
+    ("Object", None, False, lambda s, _p: ipsec.path_tunnel_name(s), "tunnel_name"),
+    ("IKE gateway", 22, True, lambda s, _p: ipsec.path_gateway_name(s), "gateway_name"),
+    ("Gateway resolves here", 28, True, lambda s, _p: ipsec.path_gateway_resolves(s),
+     "gateway_resolution"),
+    ("IKE crypto profile named", 26, True, lambda s, _p: ipsec.path_ike_crypto_named(s),
+     "ike_crypto_profile_name"),
+    ("IKE crypto resolves here", 30, True, lambda s, _p: ipsec.path_ike_crypto_resolves(s),
+     "ike_crypto_resolution"),
+    ("IPSec crypto profile named", 28, True, lambda s, _p: ipsec.path_ipsec_crypto_named(s),
+     "ipsec_crypto_profile_name"),
+    ("IPSec crypto resolves here", 32, True, lambda s, _p: ipsec.path_ipsec_crypto_resolves(s),
+     "ipsec_crypto_resolution"),
+    ("Path keyed from", 24, False, lambda s, _p: ipsec.path_origin(s), "path_origin"),
+    # THE WHOLE PROPOSAL AND NOT ONLY THE WEAKEST MEMBER OF IT, for both phases. Jason,
+    # 2026-11-04: "The IPSec Tunnel page should display all of the *relevant* settings from all
+    # related Network Profiles." A control grades the weakest member, because that is what an
+    # exchange can be driven down to; a remediation has to know what to DELETE, and stage 4
+    # measured that `action=set` with one member ADDS to the stored list rather than replacing
+    # it, so an offer set cannot be shrunk by overwriting it.
+    #
+    # EVERY READER HERE IS THE ONE THE PROFILE'S OWN TAB USES, UNCHANGED. The path carries each
+    # list and each weakest-member column under the source model's own field name, so
+    # `ike.offer_set`, `ike.integrity_offer`, `ike.key_lifetime`, `ike.reauth_interval` and the
+    # three `ipsec.*_offered` readers run on a path exactly as they run on a profile - including
+    # `get_key_lifetime_unit_display()` and `get_lifetime_unit_display()`, which is why those two
+    # columns are declared with the source models' choices. One wording for one reading, rather
+    # than a second phrasing of it that could drift.
+    ("DH groups offered", 22, True,
+     lambda s, _p: ike.offer_set(s.dh_groups, s.weakest_dh_group)),
+    ("Encryption offered (IKE)", 24, True,
+     lambda s, _p: ike.offer_set(s.encryption_ciphers, s.weakest_encryption_cipher)),
+    ("Integrity offered (IKE)", 26, True, lambda s, _p: ike.integrity_offer(s)),
+    ("Key lifetime (as set)", 20, False, lambda s, _p: ike.key_lifetime(s)),
+    # NAMES `reauth_interval_bounded`, for the reason the profile tab's own column names it:
+    # PAN-IKE-005's second record asserts on it from a NON-BASELINE query, so nothing derives a
+    # column for it and without the field here the row carrying that finding would show no cell
+    # explaining it.
+    ("IKEv2 re-authentication", 26, True, lambda s, _p: ike.reauth_interval(s),
+     "reauth_interval_bounded"),
+    # THE GATEWAY'S OWN FOUR, DECLARED RATHER THAN DERIVED. A settings column appears only for a
+    # field one of the tab's own controls TESTS, and the four controls here grade the two crypto
+    # profiles - so the version the path negotiates and how it authenticates the peer, which are
+    # what phase 1 IS, would not appear on the row at all. PAN-IKE-001, -006 and -007 grade them
+    # on the gateway tab; this tab shows them because a path finding is read by somebody deciding
+    # which of three objects to open.
+    ("IKE version configured", 22, False,
+     lambda s, _p: s.get_ike_version_display() or NONE, "ike_version"),
+    ("Peer authentication", 28, True, lambda s, _p: ike.peer_authentication_detail(s),
+     "peer_authentication"),
+    ("IKEv1 exchange mode", 22, False, lambda s, _p: ike.exchange_mode(s),
+     "ikev1_exchange_mode"),
+    ("Encryption offered (ESP)", 24, True, lambda s, _p: ipsec.esp_encryption_offered(s),
+     "esp_encryption"),
+    ("Integrity offered (ESP)", 26, True, lambda s, _p: ipsec.esp_integrity_offered(s),
+     "esp_authentication"),
+    ("Integrity offered (AH)", 24, True, lambda s, _p: ipsec.ah_integrity_offered(s),
+     "ah_authentication"),
+    ("Payload key lifetime (as written)", 32, False, lambda s, _p: ipsec.key_lifetime(s),
+     "lifetime_unit"),
+)
+
+#: THE PATH'S GRADED COLUMNS, and every heading here is the one the same field already carries on
+#: the profile tab it was copied from - `Weakest DH group`, `Key lifetime (hours)` and the rest -
+#: because the value is the same reading and a second wording for it would read as a second
+#: measurement.
+#:
+#: THE TWO `*_unresolved` COLUMNS ARE THE ONLY HEADINGS NEW TO THIS TAB. They are the columns
+#: PAN-IPS-001 and PAN-IPS-002 fire on where nothing stands behind the path, because those two
+#: compare `protocol_branch` and `weakest_encryption_offered` against VALUE LISTS and a blank
+#: matches no member of either. Headed as the question rather than as the field.
+#: THE THREE CELLS ON THE PATH TAB THAT ARE JUDGEMENTS RATHER THAN FIELDS, and they are the
+#: PROFILE tab's own readers rather than new ones. Each exists because the stored value misreads
+#: when printed bare: `weakest_encryption_offered` is the EMPTY STRING on an AH-branch profile and
+#: `display_value` prints `(empty)` - offering a reader nothing as the thing to change - `null` at
+#: `esp/encryption` is the cleartext cipher and the worst member of the order rather than absent
+#: data, and `none` at `esp/authentication` is integrity DECLINED beside a cipher that only
+#: encrypts and the member the vendor MANDATES beside an AEAD one. A second phrasing of any of the
+#: three on this tab would let the two surfaces disagree about one reading.
+IPSEC_TUNNEL_PATH_READERS = {
+    "protocol_branch": findings_sheet.ValueReader(
+        read=ipsec.path_protocol_branch,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+    "weakest_encryption_offered": findings_sheet.ValueReader(
+        read=ipsec.path_weakest_cipher,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+    "weakest_integrity_offered": findings_sheet.ValueReader(
+        read=ipsec.path_weakest_integrity,
+        provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label),
+}
+
+IPSEC_TUNNEL_PATH_SETTING_LABELS = {
+    # PAN-IKE-002 to -005, under the IKE crypto profile tab's own headings - the same reading
+    # under the same words, rather than a second phrasing that could drift from it.
+    "dh_group_floor_met": "DH group meets the floor",
+    "weakest_dh_group": "Weakest DH group",
+    "encryption_floor_met": "Encryption meets the floor",
+    "weakest_encryption_cipher": "Weakest cipher",
+    "hash_floor_met": "Integrity meets the floor",
+    "weakest_hash_algorithm": "Weakest integrity algorithm",
+    "key_lifetime_known": "Key lifetime set?",
+    "key_lifetime_hours": "Key lifetime (hours)",
+    # PAN-IKE-005's applicability condition, and MEASURED here where the profile tab could only
+    # default it: a path holds the gateway whose IKE version answers it.
+    "used_by_ikev2_gateway": "Negotiates IKEv2",
+    # PAN-IPS-001 to -005. PREFIXED `Payload` where the IKE side has a column of the same name,
+    # because a tab carrying both phases would otherwise repeat a heading - which Excel rejects
+    # outright, dropping the whole table.
+    "protocol_branch": "Payload protection branch",
+    "weakest_encryption_offered": "Weakest payload cipher",
+    "weakest_integrity_offered": "Weakest payload integrity algorithm",
+    "all_offered_ciphers_authenticate": "Every payload cipher authenticates",
+    "integrity_meets_sha2_floor": "Payload integrity meets the floor",
+    "dh_group": "Payload key agreement group",
+    "dh_group_meets_target": "Payload key agreement meets the target",
+    "lifetime_hours": "Payload key lifetime (hours)",
+    "lifetime_within_target": "Payload key lifetime within target",
+}
 
 #: HOW FOUR DERIVED COLUMNS READ ON THE IPSEC CRYPTO TAB, through `value_readers` rather than
 #: through `display_value`. EVERY FIELD HERE IS ONE THE MODEL DECLARES IN `DERIVED_FIELDS`, and
@@ -379,6 +532,14 @@ IPSEC_CRYPTO_PROFILE_SUBJECT = APPLIANCE + IPSEC_PROFILE_NAME + (
      "ah_authentication"),
     ("Key lifetime (as written)", 22, False, lambda s, _p: ipsec.key_lifetime(s),
      "lifetime_unit"),
+    # TWO COLUMNS RESTORED 2026-11-04, and they are the object's OWN STORED KEYS rather than
+    # verdicts about it. Both were DERIVED columns until PAN-IPS-001 to -005 moved their subject
+    # to the IPSec tunnel path, which took every one of this sheet's derived columns with them -
+    # leaving the tab unable to say which branch a profile carries or what it re-keys with, and
+    # leaving PAN-IPS-001 and PAN-IPS-004 no cell to mark on the remediation page over this
+    # profile. Declared here, they are drawn whatever controls a page carries.
+    ("IPSec protocol", 18, False, lambda s, _p: ipsec.protocol_branch(s), "protocol_branch"),
+    ("Key agreement group", 22, False, lambda s, _p: s.dh_group or NONE, "dh_group"),
 )
 
 #: An IPSec tunnel. Six declared columns, every one of them a field stage 5 marks presented that
@@ -1009,10 +1170,64 @@ MLAV_COVERAGE = findings_sheet.ValueReader(
     provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
 )
 
+#: The three actions an inline ML model can hold, in a reader's words rather than the wire's.
+#: The device spells the middle one `enable(alert-only)` with no space, which is neither the
+#: vendor's Help nor the UI grid - see `SecurityProfileMlModel.STATE_STRENGTH_ORDER` - so the
+#: cell says what the engineer sees on the screen.
+_ML_ACTION_LABELS = {
+    "enable": "blocking",
+    "enable(alert-only)": "alert only",
+    "disable": "disabled",
+}
+
+
+def _ml_action(row) -> str:
+    """What one model's action is, with a blank read as the action an absent model takes.
+
+    A PROFILE THAT DOES NOT MENTION A MODEL STORES A BLANK, and the row carries the answer
+    itself: `SecurityProfileMlModel.ABSENT_STATE` is `disable`, because a profile written with no
+    `mlav-engine-filebased-enabled` node renders every model as `disable (for all protocols)` in
+    the UI. Jason, 2026-11-03: *"In the case of blank, use the default action, which should have
+    been normalized, and I think its disable."* Right on the value; the blank is deliberate
+    rather than un-normalised - OEI keeps it to record that the config says nothing - and this
+    reads the constant rather than the word, so a normaliser that starts writing the action
+    cannot make the cell disagree with it.
+    """
+    from optivedge_integrations.integrations.models.policy.security_profiles import (
+        SecurityProfileMlModel)
+
+    action = row.configured_action or SecurityProfileMlModel.ABSENT_STATE
+    return _ML_ACTION_LABELS.get(action, action)
+
+
+def _ml_coverage(profile) -> str:
+    """Which WildFire Inline ML models do not stop a file, AND WHAT EACH ONE IS SET TO.
+
+    THE ACTION IS THE REMEDIATION, which is why it is in the cell rather than implied by the
+    column heading. A model at `disable` is off and gets switched on; a model at
+    `enable(alert-only)` is running, logging the delivery and letting the file through, and gets
+    its action changed. OEI's own property says so - *"the same outcome for the control's
+    purpose and a different remediation for the engineer"* - and a cell listing eight model names
+    says neither. Jason asked for it on 2026-11-03.
+
+    PER VALUE AND NOT ONCE FOR THE CELL, which is the opposite of how `DECODER_COVERAGE` writes
+    its `(alert only)`. Measured on the lab: none of the eight antivirus profiles with a
+    non-blocking model mixes the two states, so a single suffix would read correctly on this
+    estate and silently mis-state the first profile that has one model off and another in
+    alert-only. The per-value form cannot do that.
+
+    ONE VALUE PER LINE, the house rule for a multi-value cell: the column wraps on the sheet and
+    the two web surfaces run it through `linebreaksbr`.
+    """
+    rows = [row for row in profile.ml_models.all() if not row.blocks]
+    if not rows:
+        return "all enabled" if profile.ml_models.all() else "—"
+    return "\n".join(f"{row.name} ({_ml_action(row)})"
+                      for row in sorted(rows, key=lambda row: row.name))
+
+
 ML_COVERAGE = findings_sheet.ValueReader(
-    read=lambda profile: (", ".join(profile.non_blocking_ml_models)
-                          if profile.non_blocking_ml_models
-                          else ("all enabled" if profile.ml_models.all() else "—")),
+    read=_ml_coverage,
     provenance=findings_sheet.FieldProvenance.ProvenanceType.DERIVED.label,
 )
 
@@ -1887,7 +2102,8 @@ SPECS = (
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     spec(T.MASTER_KEY,
          "The key that encrypts the firewall's own stored secrets, and whether it is still the "
-         "factory default."),
+         "factory default.",
+         setting_labels=certificates_pres.MASTER_KEY_SETTING_LABELS),
     # `management-services`, stage 9, 2026-11-03. `verify_identity` was a raw Django field name and
     # is this domain's own column (PAN-MGT-009). The label is the vendor's, Help 11.2 p.749 -
     # "Verify Update Server Identity" - and note that it is NOT on the screen the config node
@@ -1977,7 +2193,8 @@ SPECS = (
          "What the firewall forwards to WildFire: the per-type file size limits, and whether "
          "session context and benign/grayware verdicts are shared. DEVICE-WIDE, as against "
          "the WildFire analysis profile, which decides what is asked for and is reported on "
-         "the security rule."),
+         "the security rule.",
+         setting_labels=certificates_pres.WILDFIRE_SETTING_LABELS),
     # THE FIVE `device-services` TABS, stage 9, 2026-11-03. The three below already existed as
     # bare stubs - a description and a title and nothing else - so all 16 of their settings
     # columns were raw Django field names in front of a customer. Every heading and both new tab
@@ -2244,6 +2461,38 @@ SPECS = (
          "not assessed either: that is live device state and no configuration read carries it.",
          title="IPSec Tunnels", subject=IPSEC_TUNNEL_SUBJECT,
          setting_labels=IPSEC_TUNNEL_SETTING_LABELS,
+         tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
+    # Network > IPSec Tunnels read as PATHS, 2026-11-04 - a THIRD tab over the same estate and
+    # not a widening of either of the two above. The nine profile-strength controls moved here
+    # from the two crypto profile types, because a profile is a named algorithm set and not an
+    # enforcement point: keyed on the profile, one weak proposal earned one finding whether one
+    # tunnel ran on it or a thousand did. Jason, 2026-11-04: "A weak profile use on one IPSec
+    # tunnel should not receive the same treatment as a weak profile used on 1000 IPSec tunnels.
+    # The best way to accomplish this is to raise a finding per effected tunnel."
+    #
+    # THE TWO PROFILE TABS KEEP THEIR OWN CONTROLS AND ARE NOT REDUNDANT: PAN-IPS-009 grades a
+    # profile nothing references, which is a fact about the profile and has no path to sit on,
+    # and PAN-IKE-001, -006 to -009 grade the gateway itself. What left those tabs is the nine
+    # strength controls alone.
+    spec(T.IPSEC_TUNNEL_PATH,
+         "Every IPSec tunnel this firewall terminates, joined to the network profiles it "
+         "actually runs on - the IKE gateway it names, the IKE crypto profile that gateway "
+         "proposes in phase 1, and the IPSec crypto profile that protects the payload. ONE ROW "
+         "IS ONE PATH TRAFFIC CROSSES, so a weak proposal appears once per tunnel that uses it "
+         "and the number of findings for a control is the number of tunnels affected. A gateway "
+         "no tunnel names is listed with no tunnel against it. AN UNRESOLVABLE BINDING FAILS "
+         "RATHER THAN PASSING: a tunnel naming no IKE gateway, a gateway naming no IKE crypto "
+         "profile, and a tunnel left on the `default` IPSec crypto profile are each reported, "
+         "because what they propose cannot be read from the configuration at all. The disabled "
+         "switch is not read here - a tunnel is assessed the same whether it is on or off.",
+         title="IPSec Tunnel Paths", subject=IPSEC_TUNNEL_PATH_SUBJECT,
+         setting_labels=IPSEC_TUNNEL_PATH_SETTING_LABELS,
+         value_readers=IPSEC_TUNNEL_PATH_READERS,
+         # CATEGORY DERIVED FROM THE RAIL (`category=''`), like every other tab whose subject is a
+         # configuration object. The path HAS a rail item - `ipsec-tunnel-paths`, Network, at the
+         # tunnel screen - because the nine controls that moved here query it and every control
+         # query needs a results page. Deriving means the workbook cannot disagree with the app
+         # about where the subject lives.
          tested_columns=findings_sheet.ALL_TESTED_COLUMNS),
     # The three Device-ID tabs, 2026-11-02. Their column constants and the reasoning behind each
     # heading are above; what is decided HERE is the domain sentence, the title and the three
@@ -2711,15 +2960,18 @@ SPECS = (
     spec(T.SSL_TLS_SERVICE_PROFILE,
          "The TLS profiles the firewall presents to browsers and clients: their protocol floor "
          "and the certificate each uses.",
-         title="SSL-TLS Service Profile", subject=APPLIANCE + SCOPE + NAME),
+         title="SSL-TLS Service Profile", subject=APPLIANCE + SCOPE + NAME,
+         setting_labels=identity.SSL_TLS_SERVICE_PROFILE_SETTING_LABELS),
     spec(T.CERTIFICATE_PROFILE,
          "The profiles that decide how a presented certificate is validated - which CAs are "
          "trusted, and whether revocation is checked.",
-         subject=APPLIANCE + SCOPE + NAME),
+         subject=APPLIANCE + SCOPE + NAME,
+         setting_labels=certificates_pres.CERTIFICATE_PROFILE_SETTING_LABELS),
     spec(T.CERTIFICATE,
          "The certificates held on the firewall: who issued each, how strong its key is, and what "
          "signed it.",
-         subject=APPLIANCE + SCOPE + NAME,),
+         subject=APPLIANCE + SCOPE + NAME,
+         setting_labels=certificates_pres.CERTIFICATE_SETTING_LABELS,),
     # Device > Certificate Management > Certificates, 2026-11-02, for PAN-DCP-006 - a NEW TAB,
     # because `probe.surface_for PAN-DCP-006` reported NO SHEET SHOWS IT while the domain's other
     # six controls already reach `Security Profile`. One domain, two tabs.
@@ -3011,14 +3263,17 @@ SPECS = (
     spec(T.AUTHENTICATION_PROFILE,
          "How administrators and users are authenticated: the identity service behind each "
          "profile, its lockout settings and who it admits.",
-         subject=APPLIANCE + SCOPE + NAME,),
+         subject=APPLIANCE + SCOPE + NAME,
+         setting_labels=identity.AUTHENTICATION_PROFILE_SETTING_LABELS,),
     spec(T.AUTHENTICATION_SEQUENCE,
          "The ordered fallbacks tried when one authentication profile does not answer.",
-         subject=APPLIANCE + SCOPE + NAME,),
+         subject=APPLIANCE + SCOPE + NAME,
+         setting_labels=identity.AUTHENTICATION_SEQUENCE_SETTING_LABELS,),
     spec(T.PASSWORD_PROFILE,
          "Per-account password rules, which override the firewall-wide policy for the accounts "
          "they are bound to.",
-         subject=APPLIANCE + NAME,),
+         subject=APPLIANCE + NAME,
+         setting_labels=identity.PASSWORD_PROFILE_SETTING_LABELS,),
     spec(T.SECURITY_PROFILE,
          "The anti-spyware, vulnerability and antivirus profiles, and what each one blocks.",
          subject=VSYS_SCOPED + KIND + NAME + (
@@ -3797,11 +4052,13 @@ SPECS = (
     spec(T.ADMIN_USER,
          "The administrator accounts on each firewall: what each may do, and what it authenticates "
          "with.",
-         subject=APPLIANCE + NAME,),
+         subject=APPLIANCE + NAME,
+         setting_labels=identity.ADMIN_USER_SETTING_LABELS,),
     spec(T.SERVER_PROFILE,
          "The identity services the firewall authenticates against - LDAP, RADIUS, TACACS+, "
          "Kerberos and SAML - and how it connects to each.",
-         subject=APPLIANCE + SCOPE + KIND + NAME),
+         subject=APPLIANCE + SCOPE + KIND + NAME,
+         setting_labels=identity.SERVER_PROFILE_SETTING_LABELS),
     # Device > Dynamic Updates, 2026-11-03, for PAN-UPD-001, -002, -004 and -005 - FOUR controls
     # sharing ONE model and so one tab. Category DERIVED from the rail (`category=''`), whose item
     # is `content-update-schedule`, beside `content-streams` below at the same vendor screen: this

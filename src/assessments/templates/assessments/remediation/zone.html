@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% load lucide %}
+
+{% block title %} | Remediation · {{ title }}{% endblock %}
+
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
+{% comment %}
+THE ZONE PAGE, and the first page built to answer the full list of questions a row owes a reader
+rather than the four the policy pages grew up answering (2026-11-04). It is a copy of
+`control.html` and differs from it in the WHERE and the REACH columns only:
+
+  Edit on        the plane an engineer logs into - a firewall, or the Panorama that pushes to it
+  Authority      WHAT KIND OF PLACE holds the definition: `Local`, `Template`, `Device group`,
+                 `Predefined`. It answers whether the edit survives - a template or a device
+                 group is authored on Panorama and an edit on the box is overwritten at the
+                 next push - and it is a column rather than a second line under the location,
+                 which printed the container's name twice and read as an afterthought.
+                 `Not recorded` where nothing was collected about the definition's origin: not
+                 a claim of `Local`, which would be a measurement nobody made.
+  Location       the container itself, named: a virtual system, a template or stack, a device
+                 group, `shared`, or the device itself.
+  Zone           the name, as it is typed into the UI's own search
+  In force on    the blast radius - every enforcement point this one definition reaches, named.
+                 A zone is scoped to its own virtual system, so for a zone it is one point and
+                 it restates the two columns to the left; for a definition pushed from a
+                 template it is the list that says what one edit costs and what it buys.
+
+The value columns are read through the Security Zones sheet's own readers, so this page and that
+tab describe one object the same way. A multi-value cell is drawn one value per line, as there.
+
+NETWORK AND DEVICE OBJECTS ARE SHAPED DIFFERENTLY from the policy objects: their container is a
+template or a template stack rather than a device group, and often the device itself rather than
+a virtual system or `shared`. The two columns above carry all five kinds.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            <div class="flex shrink-0 items-center gap-3 bg-white px-4 py-2">
+                <a href="{% url 'assessment_remediation_index' %}"
+                   class="inline-flex h-7 shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+                    {% lucide "clipboard-check" class="h-3.5 w-3.5 shrink-0" %}
+                    Remediation
+                </a>
+                {% comment %}
+                ONE HEADER FOR BOTH PAGES. A control's page titles itself with the control id and
+                its name; a group's page with the object kind and the controls folded into it.
+                {% endcomment %}
+                <h1 class="truncate text-sm font-semibold text-slate-900">
+                    {{ title }}
+                    {% comment %}
+                    THE CONTROLS NAMED, NOT LINKED. They had their own pages until 2026-11-03
+                    and no longer do, so the ids here say which questions this page answers.
+                    {% endcomment %}
+                    <span class="font-normal text-slate-600">· {{ subtitle }}</span>
+                </h1>
+                <div class="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+                    {% for severity in severities %}
+                    <span class="inline-flex items-center border px-2 py-0.5 text-[11px] font-medium {{ severity.classes }}">
+                        {{ severity.count }} {{ severity.label }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% comment %}
+            The fold, stated rather than implied: it is what decides whether this view earns its
+            place on a given estate, and it is a property of the estate rather than of the report.
+            {% endcomment %}
+            <div class="shrink-0 border-y border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-600">
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
+                    <span>
+                        <span class="uppercase tracking-wide text-slate-500">Findings</span>
+                        <span class="ml-1.5 font-medium text-slate-800">{{ findings }}</span>
+                    </span>
+                    {% if authority_unrecorded %}
+                    <span>
+                        {% lucide "circle-question-mark" class="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" %}
+                        No provenance was collected for these objects, so <span class="font-medium text-slate-700">Location</span> cannot say whether one was pushed from a template.
+                    </span>
+                    {% endif %}
+                    {% if not fold_is_complete %}
+                    <span class="font-semibold text-red-700">
+                        {% lucide "triangle-alert" class="mr-1 inline h-3.5 w-3.5 align-text-bottom" %}
+                        These rows do not account for every finding of this control.
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% include "assessments/partials/no_findings_run.html" %}
+
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="analytical-table oea-table min-w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Edit on</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Authority</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Location</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">{{ object_heading|default:"Object" }}</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">In force on</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-right text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Findings</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Severity</th>
+                            {% if shows_controls %}
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Control ID</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">Control name</th>
+                            {% endif %}
+                            {% for heading in headings %}
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-slate-600">{{ heading }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            {% comment %}
+                            WHERE TO GO, as one sentence across two columns: log into THIS, look
+                            in THAT. One row is one place - the key the fold uses is the object
+                            AND its container - so each column holds one value, and an HA pair
+                            is one name because the pair is one place.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
+                                {% for name in row.managed_from %}
+                                <span class="block">{{ name }}</span>
+                                {% endfor %}
+                            </td>
+                            {% comment %}
+                            WILL THE EDIT SURVIVE. A kind, in its own column beside the
+                            container it describes, so the pair reads as one phrase - `Template
+                            creds_tpl`, `Local vsys3` - and the name is printed once. Pushed
+                            authorities are marked, because an edit made on the firewall for one
+                            of those is overwritten at the next push.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 {% if row.authority == 'Not recorded' %}italic text-slate-400{% elif row.pushed %}font-medium text-amber-700{% else %}text-slate-600{% endif %}">
+                                {{ row.authority }}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] font-medium leading-4 text-slate-900">
+                                {% for container in row.defined_in %}
+                                <span class="block">{% if container %}{{ container }}{% else %}<span class="text-slate-400">&mdash;</span>{% endif %}</span>
+                                {% endfor %}
+                            </td>
+                            {% comment %}
+                            The object to change. On a profile control that is the PROFILE, and
+                            a rule that names none of the right kind gets a row whose object is
+                            the ABSENCE - one fix is to attach a profile, the other is to change
+                            one, and both are the same question about the same traffic.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] font-semibold leading-4 {% if row.missing %}text-amber-800{% else %}text-slate-900{% endif %}">
+                                {{ row.name }}
+                                {% if row.missing %}
+                                {% comment %}
+                                The size of the absence, on the object itself: there is no
+                                profile to name, so what identifies this row is how much policy
+                                is running without one.
+
+                                RULE OBJECTS, NOT FINDINGS. Panorama Shared holds two rules
+                                with no antivirus profile and they materialise fourteen times,
+                                once on each of seven virtual systems: two edits, fourteen
+                                findings cleared. The Findings column counts the second.
+                                {% endcomment %}
+                                <span class="block font-normal text-amber-700">on {{ row.rule_objects }} rule{{ row.rule_objects|pluralize }}</span>
+                                {% endif %}
+                            </td>
+                            {% comment %}
+                            THE BLAST RADIUS: every enforcement point this one definition is in
+                            force on. A point is named by its firewalls and its virtual system
+                            rather than by the appliance group, whose name is this application's
+                            bookkeeping. Every place is listed, none truncated: a reader deciding
+                            whether to touch a shared rule needs all of them, and the pair's two
+                            members already collapse to one name.
+
+                            NO COUNT COLUMN BESIDE IT. It said "in force on 9" without saying
+                            nine of what, and on an absence row nothing is in force at all -
+                            Jason, 2026-11-03: *"it may be unnecessary because that story is
+                            already told by the Firewall and Virtual Systems column."* The list
+                            is the story; the number was the same story said shorter and worse.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
+                                {% comment %}
+                                THE POINTS THEMSELVES, named - not a phrase about them. This
+                                said `this location only` where the reach was exactly the row's
+                                own place, on the reasoning that repeating the firewall and the
+                                virtual system said nothing new; Jason, 2026-11-04 asked for the
+                                enforcement point instead, and he is right that a name an
+                                engineer can read back is worth more than a sentence that makes
+                                them hold two columns in their head to know what it refers to.
+                                {% endcomment %}
+                                {% for point in row.points %}
+                                <span class="block">{{ point }}</span>
+                                {% empty %}
+                                <span class="text-slate-400">&mdash;</span>
+                                {% endfor %}
+                            </td>
+                            {% comment %}
+                            ONE LINE PER CONTROL across four columns, read left to right as one
+                            sentence - Jason, 2026-11-04: *"3 findings of medium severity for
+                            control id PAN-IOT-002 with control name Device-ID Enabled on
+                            IoT-Hosting Zones"*. The row's own total is this column read down,
+                            which is what makes the fold checkable by eye rather than on trust.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 text-right align-top text-[11px] font-semibold leading-4 text-slate-900">
+                                {% for line in row.control_lines %}
+                                <span class="flex h-5 items-center justify-end">{% if line.count %}{{ line.count }}{% endif %}</span>
+                                {% empty %}
+                                <span class="flex h-5 items-center justify-end">{{ row.findings }}</span>
+                                {% endfor %}
+                            </td>
+                            {% comment %}
+                            ONE BADGE PER CONTROL, not one per row (Jason, 2026-11-03). A group
+                            page folds controls of different severities onto one row - the
+                            antivirus page's absences are PAN-AVW-001 high and PAN-AVW-002
+                            medium on the same rules - and a single badge there had to be the
+                            worst of them, which read as high findings that are not all high.
+
+                            ALIGNED WITH THE THREE COLUMNS BESIDE IT BY A FIXED SLOT, h-5 per
+                            line in each, with the text held on one line - they are separate
+                            cells and nothing else makes a reader's eye carry a badge across to
+                            the right control. Falls back to the row's own badge if a row ever
+                            names no control.
+                            {% endcomment %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
+                                {% for line in row.control_lines %}
+                                <span class="flex h-5 items-center">
+                                    {% if line.severity %}
+                                    <span class="inline-flex items-center border px-1.5 text-[10px] font-medium leading-4 {{ line.classes }}">{{ line.severity }}</span>
+                                    {% endif %}
+                                </span>
+                                {% empty %}
+                                <span class="flex h-5 items-center">
+                                    <span class="inline-flex items-center border px-1.5 text-[10px] font-medium leading-4 {{ row.classes }}">{{ row.severity }}</span>
+                                </span>
+                                {% endfor %}
+                            </td>
+                            {% comment %}
+                            THE CONTROL THAT ASKED, by id and then by its CATALOGUE NAME. The
+                            name used to be the setting at fault, in the findings tab's words -
+                            `Zone protection unresolved`, `Enable Device Identification` - which
+                            is not a control name and did not read as one off the antivirus
+                            page, where the same cell held a verdict sentence. Jason, 2026-11-04:
+                            *"I do not need a column for 'the setting at fault'."* What that
+                            column said is still said by the amber on the cell holding the
+                            failing value.
+
+                            GROUP PAGES ONLY: on a single-control page both columns would repeat
+                            one value on every row, and the page's own header names the control.
+                            {% endcomment %}
+                            {% if shows_controls %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-500">
+                                {% for line in row.control_lines %}
+                                <span class="flex h-5 items-center whitespace-nowrap">{{ line.control }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 text-slate-800">
+                                {% for line in row.control_lines %}
+                                <span class="flex h-5 items-center whitespace-nowrap">{{ line.control_name }}</span>
+                                {% endfor %}
+                            </td>
+                            {% endif %}
+                            {% comment %}
+                            The object's own cells. A cell holding the value at fault carries the
+                            value-at-fault fill, the same amber the findings tabs use - on a
+                            profile row that is the axis the verdict read, which the control's
+                            own asserted fields cannot place because they are columns on the RULE.
+
+                            THE FILL CARRIES IT, NOT THE WEIGHT. The findings tabs bold their
+                            at-fault cell as well as filling it; here the marked cells hold a
+                            LIST - eight inline ML model names on one row - and bold over eight
+                            lines reads as a block of emphasis rather than as one marked value
+                            (Jason, 2026-11-03, on `Inline ML not blocking`). The amber already
+                            says which cell it is.
+
+                            ONE VALUE PER LINE, which is the house rule for a multi-value cell
+                            and is why these arrive as lines rather than as a string: the member
+                            sets come line-separated from the sheet and the antivirus axes are
+                            split off their commas, at paren depth zero so that `ftp (no action
+                            set, which allows)` stays one value.
+                            {% endcomment %}
+                            {% for cell in row.cells %}
+                            <td class="border-b border-slate-100 px-2 py-1 align-top text-[11px] leading-4 {% if cell.at_fault %}bg-amber-50 text-slate-900{% else %}text-slate-800{% endif %}">
+                                {% for line in cell.lines %}
+                                <span class="block">{{ line }}</span>
+                                {% endfor %}
+                                {% comment %}
+                                WHICH CONTROL ASKED. A group row can hold five marked cells from
+                                three controls; without this the amber says "something here is
+                                wrong" rather than naming the question. One control per page has
+                                nothing to add, so it is left off there.
+                                {% endcomment %}
+                                {% if shows_controls and cell.at_fault %}
+                                <span class="mt-0.5 block text-[10px] text-amber-700">{% for id in cell.controls %}{% if not forloop.first %} · {% endif %}{{ id }}{% endfor %}</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if shows_controls %}{{ headings|length|add:9 }}{% else %}{{ headings|length|add:7 }}{% endif %}" class="px-4 py-8 text-center text-sm text-slate-500">
+                                No findings for these controls.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if page_obj.paginator.num_pages > 1 %}
+            {% comment %}
+            The findings pages' pager, same shape and same page size - a reader moving between
+            the two surfaces should not have to learn a second one.
+            {% endcomment %}
+            <div data-findings-pager class="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-2 text-[12px] text-slate-600">
+                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · rows {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ definitions }}</span>
+                <div class="flex items-center gap-1">
+                    <form method="get" data-findings-page-jump class="mr-2 flex items-center gap-1">
+                        <label for="remediation-page" class="text-slate-500">Go to page</label>
+                        <input id="remediation-page" type="number" name="page" min="1"
+                               max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}"
+                               class="h-8 w-16 border border-slate-300 bg-white px-2 text-[12px] text-slate-800 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        <button type="submit"
+                                class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">Go</button>
+                    </form>
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Prev</a>
+                    {% endif %}
+                    {% for page_number in page_range %}
+                    {% if page_number == page_obj.number %}
+                    <span class="inline-flex h-8 items-center border border-slate-400 bg-slate-100 px-2 text-[12px] font-medium text-slate-900">{{ page_number }}</span>
+                    {% else %}
+                    <a href="?page={{ page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">{{ page_number }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}

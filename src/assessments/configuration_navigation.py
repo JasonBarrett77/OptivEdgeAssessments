@@ -1133,6 +1133,24 @@ CONFIG_OBJECTS: tuple[ConfigObject, ...] = (
     ConfigObject("ipsec-tunnels", "IPSec Tunnels", "Network", "", "server",
                  where="Network > IPSec Tunnels",
                  search_model="integrations.IpsecTunnel"),
+    # Network > IPSec Tunnels read as PATHS, 2026-11-04 - a SECOND item at the same vendor
+    # address, which this rail already does twice (Policies > Decryption carries two).
+    #
+    # IT IS HERE BECAUSE THE NINE STRENGTH CONTROLS MOVED ONTO IT and every control query must
+    # have a results page: PAN-IKE-002 to -005 and PAN-IPS-001 to -005 now query
+    # `integrations.IpsecTunnelPath`, and 36 queries with nowhere to go are 36 an assessor cannot
+    # check. The page answers "which tunnels run on a weak proposal", which neither the tunnel
+    # item above nor the two crypto-profile items under Network Profiles can: a tunnel row does
+    # not carry what its profiles offer, and a profile row does not carry which tunnels use it.
+    #
+    # THE LABEL SAYS PATHS AND THE `where` STILL SAYS THE TUNNEL SCREEN, because that is where an
+    # engineer starts: the tunnel names the gateway, the gateway names the phase 1 proposal. The
+    # remedy for anything this page reports is one screen further on, under Network Profiles.
+    # `server`, the icon the tunnel item above uses. The vendored icon set is nineteen names
+    # and a name outside it renders a 500, so a new item takes one a sibling already proves.
+    ConfigObject("ipsec-tunnel-paths", "IPSec Tunnel Paths", "Network", "", "server",
+                 where="Network > IPSec Tunnels",
+                 search_model="integrations.IpsecTunnelPath"),
     # Network > DHCP, 2026-11-03, for PAN-NET-004. After IPSec Tunnels and GRE Tunnels in the
     # p.359 enumeration quoted above; GRE has no item here, so this follows `ipsec-tunnels`.
     # The section path `Network > DHCP` is in the corpus, with DHCP Server, DHCP Relay and DHCP

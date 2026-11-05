@@ -44,8 +44,9 @@ from ..layout import (
     NONE, SEVERITY_FILL, SheetInfo, TAB_COLOURS, plural, severity_group, utc, write_header_block,
     write_table)
 from .enforcement_points import natural_key
-from .findings import (collected_at_by_snapshot, display_value, implicated_format, load,
-                       newest_collection, provenance_index, tested_fields)
+from .findings import (carrying_columns, collected_at_by_snapshot, display_value,
+                       implicated_format, load, newest_collection, provenance_index,
+                       tested_fields)
 from ..errors import ArtifactBuildError
 
 TITLE = "Rules by Device Group"
@@ -155,6 +156,11 @@ FIELD_BY_COLUMN = {
     # Declares one of the three; its "in force" line renders all of them. It does NOT declare
     # `threat_profile_kinds_in_force`: that count has a column of its own below, because a field
     # declared through `hidden_fields` cannot be marked as the value at fault.
+    #
+    # THAT LAST CLAUSE STOPPED BEING TRUE ON 2026-11-03 and the column stays anyway. A hidden
+    # field that names its carrying column IS marked now - this tab reads the same map, below -
+    # so the reason for the column is no longer the mark; it is that a count a control grades on
+    # is worth a cell of its own.
     "Profiles": "has_antivirus_profile",
     # The eighteen settings, 2026-11-01. One column each, so each declares its own field and the
     # value at fault is marked here as it is on the per-finding tab.
@@ -209,6 +215,7 @@ def fold(subjects=None) -> dict:
                     f"{TITLE}: {control.control_id} tests {field!r} and no column here shows it. "
                     f"Add it to COLUMNS and FIELD_BY_COLUMN.")
 
+    carries = carrying_columns(spec)
     rules_by_finding = {f: spec.kind_for(f.control.control_type).subject_of(f) for f in findings}
     provenance = provenance_index(set(rules_by_finding.values()))
     #: Same map the findings tabs use, and for the same reason: this column read the date off
@@ -240,9 +247,16 @@ def fold(subjects=None) -> dict:
         for finding, rule in members:
             tested |= {field for field, _stored
                        in tested_fields(type(rule), finding.control, spec.value_readers)}
+        # AND THE SAME CARRYING-COLUMN MAP THE FINDINGS TABS READ, from 2026-11-03: a field this
+        # sheet hides has no column of its own, so a control whose every clause field is hidden
+        # marked nothing here either. `hidden_fields` names the cell that holds the value - see
+        # `security_rules.SPEC` - and the mark lands there. It matters less on this tab than on
+        # the per-finding one, because a row folds every control reported on the rule and another
+        # control's mark usually lands somewhere; it is the same defect either way.
+        carried = {carries[field] for field in tested if field in carries}
         row_index = len(rows)
         for i, (header, _width, _wrap) in enumerate(COLUMNS):
-            if FIELD_BY_COLUMN.get(header) in tested:
+            if FIELD_BY_COLUMN.get(header) in tested or header in carried:
                 implicated.append((row_index, i))
 
         rows.append([

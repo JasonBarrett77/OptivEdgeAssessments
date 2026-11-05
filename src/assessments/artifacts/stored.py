@@ -109,18 +109,16 @@ def _decode(blob) -> dict:
     return json.loads(zlib.decompress(bytes(blob)))
 
 
-def stored_payload(key: str, spec, compute, *, allow_running: bool = False) -> dict | None:
+def stored_table(key: str, controls, run_id, count, compute,
+                 *, allow_running: bool = False) -> dict | None:
     """The stored payload for `key`, or `compute()`'s - stored when it may be.
 
-    `compute()` returns a JSON-able dict carrying "count", the number of findings it
-    accounts for. Returns None where there is no single run to keep it for; the caller builds.
-
-    Nothing is stored for a run still filling, unless the caller is the run itself
-    (`allow_running`): a page opened mid-run would otherwise keep a table of half the findings,
-    and the count check would be the only thing standing between it and a reader.
+    THE SAME CONTRACT AS `stored_payload` WITHOUT A SHEET. A remediation page is a function of
+    the same three things a findings tab is - the run, the catalog and `layout_version()` - but
+    its controls come from a `RemediationGroup` rather than from a spec's selection, and its
+    count is over those controls' own finding models. Everything after that is identical, so
+    the fingerprint, the encoding and the mid-run rule live here and not in a second copy.
     """
-    controls = list(selected_controls(spec).order_by("control_id"))
-    run_id, count = run_and_count(spec, controls)
     if run_id is None:
         return None
     signature = fingerprint(key, controls)
@@ -143,6 +141,21 @@ def stored_payload(key: str, spec, compute, *, allow_running: bool = False) -> d
         except IntegrityError:
             pass  # stored by a concurrent reader meanwhile - the same table
     return payload
+
+
+def stored_payload(key: str, spec, compute, *, allow_running: bool = False) -> dict | None:
+    """The stored payload for `key`, or `compute()`'s - stored when it may be.
+
+    `compute()` returns a JSON-able dict carrying "count", the number of findings it
+    accounts for. Returns None where there is no single run to keep it for; the caller builds.
+
+    Nothing is stored for a run still filling, unless the caller is the run itself
+    (`allow_running`): a page opened mid-run would otherwise keep a table of half the findings,
+    and the count check would be the only thing standing between it and a reader.
+    """
+    controls = list(selected_controls(spec).order_by("control_id"))
+    run_id, count = run_and_count(spec, controls)
+    return stored_table(key, controls, run_id, count, compute, allow_running=allow_running)
 
 
 def _table_payload(table: FindingsTable) -> dict:

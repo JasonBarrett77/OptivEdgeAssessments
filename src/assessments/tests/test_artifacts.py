@@ -207,7 +207,7 @@ class WorkbookBuildTests(TestCase):
         # existed - more than any other domain has inherited - and what this stage owed those six
         # was fourteen column headings, four `choices` readers and three provenance cells.
         # THIS WAS THE LAST DOMAIN OF THE 28, so `AWAITING_PRESENTATION` is now empty.
-        self.assertIn("Summary: 80 tabs linked, 0 findings in total", reports[0])
+        self.assertIn("Summary: 81 tabs linked, 0 findings in total", reports[0])
 
     def test_the_summary_is_the_first_tab(self):
         names = sheet_names(build_workbook()[0])
@@ -334,7 +334,7 @@ class WorkbookBuildTests(TestCase):
         # existed - more than any other domain has inherited - and what this stage owed those six
         # was fourteen column headings, four `choices` readers and three provenance cells.
         # THIS WAS THE LAST DOMAIN OF THE 28, so `AWAITING_PRESENTATION` is now empty.
-        self.assertEqual(len(names), 81)
+        self.assertEqual(len(names), 82)
 
     def test_a_control_type_with_no_active_control_still_draws_its_tab(self):
         """It used to raise IndexError: the category came from the controls that LOADED, and

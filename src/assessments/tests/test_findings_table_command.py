@@ -286,14 +286,17 @@ class BaseEstateTests(TestCase):
         station, _appliances, _points = build_base_estate(self.stage6)
         renormalize_in_scope_configuration(station)
         self.assertEqual(list(Zone.objects.values_list("name", flat=True)), ["z01"])
-        # THE FLOW DOES NOT BUILD THIS ONE. Of the 57 normaliser wrappers in
-        # `normalization/__init__.py`, exactly two appear nowhere in `flows.py`, and both are
-        # zone-dos-protection's - so the committed renormalisation leaves the zone PROTECTION
-        # profiles behind while building the zones that reference them.
-        self.assertEqual(ZoneProtectionProfile.objects.count(), 0)
-        self.assertEqual(run_supplemental_normalizers(station), [])
+        # THE FLOW BUILDS THIS ONE NOW, and until 2026-11-04 it did not: of the 57 normaliser
+        # wrappers in `normalization/__init__.py`, two appeared nowhere in `flows.py` and both
+        # were zone-dos-protection's, so the committed renormalisation left the zone PROTECTION
+        # profiles behind while building the zones that reference them. This assertion is the
+        # other way round from the one it replaces, and that is the fix landing rather than a
+        # test being relaxed.
         self.assertEqual(
             list(ZoneProtectionProfile.objects.values_list("profile_name", flat=True)), ["p01"])
+        # And nothing is left for this command to supplement - `SUPPLEMENTAL_NORMALIZERS` is
+        # empty. Kept as the tripwire for the next omission somebody records there.
+        self.assertEqual(run_supplemental_normalizers(station), [])
 
     def test_the_software_version_is_carried_off_the_artifact(self):
         """Not decoration: `security_profiles.resolve_max_version` grades a decryption
@@ -417,6 +420,12 @@ class SupplementalNormalizerTests(SimpleTestCase):
     a claim about another repository goes stale silently. The first version of the list was read
     off a naming convention, found two of the seven, and left `ipsec-crypto` with every subject
     model empty and 64 reconciliation mismatches. So the claim is checked rather than asserted.
+
+    THE LIST IS EMPTY SINCE 2026-11-04 and these tests are what proved its seven entries had
+    become false: `flows.py` now calls all seven, so this command supplements nothing. Two of
+    them read as vacuous against an empty list, which is correct - they are tripwires for the
+    next entry somebody adds - and the third now asserts the OPPOSITE of what it was written
+    for, because the measurement it carried was that the flow never mentioned IPSec at all.
     """
 
     def _flows_source(self):
@@ -429,7 +438,6 @@ class SupplementalNormalizerTests(SimpleTestCase):
         from optivedge_integrations.integrations.platforms.pan_os import normalization
         from assessments.tests._estate import SUPPLEMENTAL_NORMALIZERS
 
-        self.assertTrue(SUPPLEMENTAL_NORMALIZERS)
         for grain, name in SUPPLEMENTAL_NORMALIZERS:
             normalize = getattr(normalization, name, None)
             self.assertTrue(callable(normalize), f"{name} is not exported any more")
@@ -468,7 +476,23 @@ class SupplementalNormalizerTests(SimpleTestCase):
             out[match.group(1)] = set(re.findall(r"return (normalize_\w+)\(", match.group(2)))
         return out
 
-    def test_the_flow_still_does_not_mention_ipsec_at_all(self):
-        """The measurement that made the gap obvious, kept as a tripwire: three of the seven are
-        this domain's, and the flow has never referred to it."""
-        self.assertNotIn("ipsec", self._flows_source().lower())
+    def test_the_flow_now_runs_every_ipsec_pass_including_the_path(self):
+        """THE TRIPWIRE THAT FIRED, kept and turned around. It asserted that `flows.py` contained
+        the string "ipsec" ZERO times, which was the measurement that made the gap obvious:
+        eighteen IKE and IPSec controls reported nothing on the lab because four collection
+        passes and the monitor profile pass, all written and all tested, were never called.
+
+        They are called now, and the path pass with them - so what is worth holding is that each
+        one is still there. The path is listed last for the reason its own module gives: it joins
+        the rows the other five write and reads no payload of its own.
+        """
+        source = self._flows_source()
+        for name in ("normalize_appliance_ike_crypto_profiles",
+                     "normalize_appliance_ike_gateways",
+                     "normalize_appliance_ipsec_crypto_profiles",
+                     "normalize_appliance_monitor_profiles",
+                     "normalize_appliance_ipsec_tunnels",
+                     "normalize_appliance_ipsec_tunnel_paths"):
+            self.assertIn(name, source, f"{name} is no longer called from flows.py")
+        self.assertLess(source.index("normalize_appliance_ipsec_tunnels"),
+                        source.index("normalize_appliance_ipsec_tunnel_paths"))

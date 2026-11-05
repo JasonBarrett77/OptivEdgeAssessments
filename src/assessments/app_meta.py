@@ -1,7 +1,8 @@
 """Assessments app metadata for project composition.
 
-Four items, in the order the work runs in: the controls that ask, the explorer that asks of the
-configuration directly, what the controls found, and the experimental shelf. The Findings item names two routes
+Five items, in the order the work runs in: the controls that ask, the explorer that asks of the
+configuration directly, what the controls found, where those findings get FIXED, and the
+experimental shelf. The Findings item names two routes
 rather than one per domain - the domain pages route on a slug, so the list cannot fall behind
 the way the old Device Configuration item did, which drifted six tabs behind because this file
 is nowhere near the one you edit when adding a tab.
@@ -19,6 +20,8 @@ SIDEBAR_SECTION = [
         "active_names": {
             "assessment_findings_summary",
             "assessment_findings_domain",
+            "assessment_remediation_index",
+            "assessment_remediation_group",
             "assessment_downloads",
             "assessment_catalog_list",
             "assessment_catalog_apply",
@@ -91,6 +94,28 @@ SIDEBAR_SECTION = [
                 "active_names": {
                     "assessment_findings_summary",
                     "assessment_findings_domain",
+                },
+            },
+            {
+                #: The findings folded by the place a change is made: one row per rule
+                #: DEFINITION, with the places it is in force on and what one change clears.
+                #: Security-rule controls only so far; the plan for the rest is in
+                #: OptivEdgeProbe at scratch/plan-remediation-points-2026-11-03.md.
+                #:
+                #: Its own top-level item rather than a rail entry under Explorer: that rail is
+                #: one item per PAN-OS object, each carrying a vendor screen path and a search
+                #: model, and a remediation point is neither an object nor a screen. Beside
+                #: Findings because it is the same findings asked a different question - not
+                #: "what is wrong" but "where do I go and what does one trip fix".
+                #:
+                #: `clipboard-check` of the nineteen vendored icons: a list of work, checked
+                #: off. `wand-sparkles` was the alternative and says magic rather than labour.
+                "label": "Remediation",
+                "href": "/assessments/remediation/",
+                "icon": "clipboard-check",
+                "active_names": {
+                    "assessment_remediation_index",
+                    "assessment_remediation_group",
                 },
             },
             {

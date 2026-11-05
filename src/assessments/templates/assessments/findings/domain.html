@@ -94,8 +94,21 @@ wrapping it), so every cell runs through `linebreaksbr` and device-supplied text
             </div>
             {% if page_obj.paginator.num_pages > 1 %}
             <div data-findings-pager class="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-2 text-[12px] text-slate-600">
-                <span>{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ finding_count }}</span>
+                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · findings {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ finding_count }}</span>
                 <div class="flex items-center gap-1">
+                    {% comment %}
+                    A page typed in, for a domain too long to click through: production's
+                    anti-spyware domain is 88 pages. A GET form, so the result is a URL like any
+                    other page's; an out-of-range number lands on the last page (get_page).
+                    {% endcomment %}
+                    <form method="get" data-findings-page-jump class="mr-2 flex items-center gap-1">
+                        <label for="findings-page" class="text-slate-500">Go to page</label>
+                        <input id="findings-page" type="number" name="page" min="1"
+                               max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}"
+                               class="h-8 w-16 border border-slate-300 bg-white px-2 text-[12px] text-slate-800 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                        <button type="submit"
+                                class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">Go</button>
+                    </form>
                     {% if page_obj.has_previous %}
                     <a href="?page={{ page_obj.previous_page_number }}"
                        class="inline-flex h-8 items-center border border-slate-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-slate-50">Prev</a>

@@ -246,7 +246,23 @@ class DeviceSettingSheet:
     #: Tested fields a subject column already presents, so the per-field cells do not repeat them.
     #: `Fires when` still shows the whole condition: the control tests what it tests, and dropping
     #: a clause from it would misreport the control.
-    hidden_fields: tuple = ()
+    #:
+    #: WRITE IT AS {field: carrying column heading} WHEREVER A COLUMN CARRIES THE FACT, because a
+    #: hidden field is still the value at fault and the row has to say which cell holds it.
+    #: `build_rows` marks the value at fault by matching a column's declared `field` against the
+    #: matched queries' `asserted_fields`, and a hidden field has no column of its own - so a
+    #: control whose every asserted field was hidden marked NOTHING, and the row rendered finished
+    #: with no cell named as the thing to fix. Measured on the lab estate 2026-11-03: FOURTEEN
+    #: controls in that state over 12,665 of 17,437 rows - every PAN-SPY, PAN-VLN and PAN-AVW
+    #: control on the five by-rule tabs, plus PAN-POL-002 and PAN-POL-014 on the rules sheet, with
+    #: no control partly marked, which is the signature of a declaration rather than of data.
+    #: Naming the column puts the mark where the value actually is: PAN-POL-002's host count marks
+    #: `Sources`, a spyware verdict marks `Profiles`.
+    #:
+    #: A BARE TUPLE STILL MEANS WHAT IT ALWAYS DID - hidden, with no column named - and `()` stays
+    #: the right declaration for a sheet that hides nothing. Map a field to `""` to say
+    #: deliberately that nothing on this sheet carries it, which is not the same as not knowing.
+    hidden_fields: tuple | dict = ()
     #: What to HEAD a derived setting column, where the field name is not what a customer should
     #: read. `setting_columns` is derived on purpose - a control added to the catalog brings its
     #: setting with it - and the price has always been that the heading is the raw field name.
@@ -630,6 +646,19 @@ TAIL_COLUMNS = [
 ]
 
 
+def carrying_columns(spec) -> dict:
+    """{hidden field: the heading of the column that carries it}, from `hidden_fields`.
+
+    A tuple declares a hidden field and names no column, which is what every sheet wrote before
+    the mapping existed; a dict names one per field. Either way this is the only reader of the
+    difference, so a sheet may be written in whichever form says what it means.
+    """
+    hidden = spec.hidden_fields
+    if isinstance(hidden, dict):
+        return {field: column for field, column in hidden.items() if column}
+    return {}
+
+
 def as_column(entry):
     """(header, width, wrap, read, field). `field` names the setting a column presents, where it
     presents one - that is what lets the cell be marked when the row's control tests it."""
@@ -703,6 +732,8 @@ def build_rows(spec, findings, controls, settings, tested=None):
     #: controls drew the same cells ten times. Production, 2026-10-15: 126k rule findings on
     #: 12k rules, and the Profiles cell alone walked each rule's verdicts 22 times per row.
     cells_by_subject = {}
+    #: Read once: the sheet's own statement of which column carries each field it hides.
+    carries = carrying_columns(spec)
 
     rows = []
     for row_index, finding in enumerate(findings):
@@ -796,13 +827,18 @@ def build_rows(spec, findings, controls, settings, tested=None):
         asserted = {field for name in (finding.matched_query_names or [])
                     for field in by_name.get(name, ())}
         tested_names = asserted or {field for field, _ in fields}
+        # AND A HIDDEN FIELD IS STILL THE VALUE AT FAULT. It has no column of its own by
+        # definition, so a control whose every asserted field is hidden marked nothing at all -
+        # fourteen of them, over 12,665 rows, until 2026-11-03. Where the sheet names the column
+        # that carries the fact, the mark lands on that cell instead: see `hidden_fields`.
+        carried = {carries[field] for field in tested_names if field in carries}
         offset = len(HEAD_COLUMNS)
         for i, column in enumerate(map(as_column, spec.subject_columns)):
-            if column[4] in tested_names:
+            if column[4] in tested_names or column[0] in carried:
                 implicated.append((row_index, offset + i))
         offset += len(subject_cells) + len(tested_cell_values) + len(source_cells)
         for i, column in enumerate(settings):
-            if column[4] in tested_names:
+            if column[4] in tested_names or column[0] in carried:
                 implicated.append((row_index, offset + i))
 
         rows.append([

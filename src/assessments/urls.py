@@ -30,6 +30,8 @@ from assessments.views import (
     ControlUpdateView,
     ConfigurationObjectView,
     ConfigurationIndexView,
+    RemediationIndexView,
+    RemediationGroupView,
 )
 
 
@@ -51,6 +53,25 @@ urlpatterns = [
         FindingsDomainView.as_view(),
         name="assessment_findings_domain",
     ),
+    # The findings asked a different question: not what is wrong, but where a change is made and
+    # what one change clears. Top level rather than under `findings/` because it is its own
+    # sidebar destination and because `findings/<slug>/` would otherwise swallow a single
+    # segment under it.
+    path(
+        "remediation/",
+        RemediationIndexView.as_view(),
+        name="assessment_remediation_index",
+    ),
+    # `group/` is still in the path although nothing else sits under `remediation/` any more:
+    # it was there to keep a one-segment control route from swallowing the slug, and the links
+    # to these pages are live in notes and bookmarks, so the segment stays.
+    path(
+        "remediation/group/<str:slug>/",
+        RemediationGroupView.as_view(),
+        name="assessment_remediation_group",
+    ),
+    # A control id rather than a slug: it is what the catalogue, the workbook and every findings
+    # row already call a control, so a link from any of them needs no second name.
     path(
         "catalogs/",
         CatalogListView.as_view(),

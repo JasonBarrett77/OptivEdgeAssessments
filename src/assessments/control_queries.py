@@ -43,6 +43,7 @@ IKE_GATEWAY_MODEL = "integrations.IkeGateway"
 # PHASE 2. Four near-identical names across the two phases; these two are the IPSec ones.
 IPSEC_CRYPTO_PROFILE_MODEL = "integrations.IpsecCryptoProfile"
 IPSEC_TUNNEL_MODEL = "integrations.IpsecTunnel"
+IPSEC_TUNNEL_PATH_MODEL = "integrations.IpsecTunnelPath"
 HIGH_AVAILABILITY_CONFIG_MODEL = "integrations.HighAvailabilityConfig"
 PANORAMA_REGISTRATION_MODEL = "integrations.PanoramaRegistration"
 INTERFACE_MODEL = "integrations.Interface"
@@ -451,6 +452,14 @@ def evaluate_ipsec_tunnel_control_queries(queryset, control):
         queryset,
         control,
         model_name=control.target_model or IPSEC_TUNNEL_MODEL,
+    )
+
+
+def evaluate_ipsec_tunnel_path_control_queries(queryset, control):
+    return evaluate_queryset_control_queries(
+        queryset,
+        control,
+        model_name=control.target_model or IPSEC_TUNNEL_PATH_MODEL,
     )
 
 

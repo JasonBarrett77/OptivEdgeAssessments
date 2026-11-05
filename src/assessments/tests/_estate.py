@@ -510,38 +510,25 @@ def software_versions_from_stage6(stage6) -> dict[str, str]:
 
 #: Normalisers that `flows.renormalize_in_scope_configuration` does NOT run, by grain.
 #:
-#: MEASURED, not read off a naming convention. Of the 86 `normalize_*` callables that
-#: `normalization/__init__.py` exports, these seven are reachable from `flows.py` NEITHER by
-#: their own name NOR through any wrapper that `flows.py` calls. `flows.py` contains the string
-#: "ipsec" zero times.
+#: EMPTY SINCE 2026-11-04, AND THE LIST IS KEPT RATHER THAN DELETED because its two tripwires are
+#: what will catch the next omission. It held seven entries - the two zone-protection passes, four
+#: IKE/IPSec collection passes and the monitor profile - every one of them reachable from
+#: `flows.py` by neither its own name nor any wrapper the flow called. That was a gap in the
+#: COMMITTED COLLECTION FLOW and not in this command: a real collection run wrote no zone
+#: protection profile, DoS rule, IKE crypto profile, IKE gateway, IPSec crypto profile, IPSec
+#: tunnel or monitor profile row either, and eighteen IKE/IPSec controls plus five zone-protection
+#: controls reported nothing on the lab for that reason alone.
 #:
-#: The first attempt at this list checked only the `normalize_appliance_*` /
-#: `normalize_enforcement_point_*` wrappers and so found two of the seven, which was enough to
-#: make `zone-dos-protection` reconcile and left `ipsec-crypto` at 64 mismatches with every one
-#: of its subject models empty. The convention is not the contract; reachability is.
+#: All seven are now called from `flows.py`, along with `normalize_ipsec_tunnel_paths`, which the
+#: path subject needs and which runs last of them because it joins the rows the other five wrote.
+#: So this command no longer supplements anything, and
+#: `test_every_listed_normaliser_is_unreachable_from_the_flow` holds the claim this list makes.
 #:
-#: THIS IS A GAP IN THE COMMITTED COLLECTION FLOW, not in this command: a real collection run
-#: writes no zone protection profile, DoS rule, IKE crypto profile, IKE gateway, IPSec crypto
-#: profile, IPSec tunnel or monitor profile row either. It is recorded here rather than fixed
-#: because OptivEdgeIntegrations is not this command's to change, and it is worth somebody's
-#: attention on its own: it spans three pipeline domains.
-#:
-#: RUN AFTER the renormalisation. `normalize_zone_protection_profiles` resolves
-#: `Zone.zone_protection_unresolved` over the zone rows built from the SAME snapshot, so it has
-#: to follow the zone pass the flow performs - its own docstring says running it first leaves
-#: every zone row at the firing default its normalizer set, which over-reports rather than going
-#: quiet. The others depend on nothing in this list: each reads its own subtree of the merged
-#: payload directly, including `normalize_ipsec_tunnels`, which resolves the crypto profile and
-#: monitor actions a tunnel names out of the PAYLOAD and not out of the rows written above it.
-SUPPLEMENTAL_NORMALIZERS: tuple[tuple[str, str], ...] = (
-    ("appliance", "normalize_ike_crypto_profiles"),
-    ("appliance", "normalize_ike_gateways"),
-    ("appliance", "normalize_ipsec_crypto_profiles"),
-    ("appliance", "normalize_monitor_profiles"),
-    ("appliance", "normalize_ipsec_tunnels"),
-    ("appliance", "normalize_appliance_zone_protection_profiles"),
-    ("enforcement_point", "normalize_enforcement_point_dos_policy_rules"),
-)
+#: THE FIRST VERSION OF THE LIST WAS READ OFF A NAMING CONVENTION and found two of the seven,
+#: which was enough to make `zone-dos-protection` reconcile and left `ipsec-crypto` at 64
+#: mismatches with every one of its subject models empty. The convention is not the contract;
+#: reachability is. Anything added here must be measured the same way.
+SUPPLEMENTAL_NORMALIZERS: tuple[tuple[str, str], ...] = ()
 
 #: `show predefined pan-url-categories`, the only auxiliary read no subject can supply, keyed by
 #: domain. RECONSTRUCTED, NEVER MEASURED, and the distinction matters: the device's own oracle

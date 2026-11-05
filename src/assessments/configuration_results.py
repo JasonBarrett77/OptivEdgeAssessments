@@ -77,6 +77,7 @@ from optivedge_integrations.integrations.models import (
     InterfaceManagementProfile,
     IpsecCryptoProfile,
     IpsecTunnel,
+    IpsecTunnelPath,
     ManagementInterface,
     ManagementPlaneAddressing,
     ApplianceOperationalMode,
@@ -2692,6 +2693,46 @@ RESULTS = {
             # cost a query per row for a column nothing queries. The findings tab does say it.
             ipsec.crypto_profile_named(t),
             ipsec.running_on_a_chosen_profile(t),
+        ),
+    ),
+    # The PATH over the four IPSec objects, 2026-11-04 - the page the nine strength controls
+    # need. PAN-IKE-002 to -005 and PAN-IPS-001 to -005 query `integrations.IpsecTunnelPath`
+    # since the move off the two crypto profile models, and a control query with no results page
+    # is one an assessor cannot check: 36 queries, every one of them homeless until this spec.
+    #
+    # ONE ROW IS ONE PATH TRAFFIC CROSSES, which is what neither neighbouring page can show: the
+    # tunnel page does not carry what its profiles offer, and a crypto profile page does not
+    # carry which tunnels use it. An orphan IKE gateway - one no tunnel on the appliance names -
+    # is listed with no tunnel against it.
+    #
+    # EVERY CELL IS THE READER THE FINDINGS TAB USES, which is the rule this module already
+    # follows for the two profile pages beside it: a cell reading "0" on one surface and
+    # "nothing names it" on the other sends an engineer to argue with their own report.
+    #
+    # `query_fields` POINTS AT THE VERDICT COLUMNS AND NOT AT THE OFFER SETS, as on the IKE and
+    # IPSec profile pages: the member lists are JSONFields and deliberately unreachable from a
+    # query, so a heading mapped to one would be mapped to a lookup that matches nothing. The two
+    # resolution columns ARE mapped, because they are the columns an engineer would select rows
+    # by - "show me every path whose IPSec crypto profile is left at `default`".
+    "ipsec-tunnel-paths": ResultsSpec(
+        query_fields={"Appliance": "hostname", "Tunnel": "tunnel_name",
+                      "IKE gateway": "gateway_name",
+                      "IKE crypto profile": "ike_crypto_profile_name",
+                      "Phase 1 proposal": "ike_crypto_resolution",
+                      "IPSec crypto profile": "ipsec_crypto_profile_name",
+                      "Payload proposal": "ipsec_crypto_resolution"},
+        columns=("Appliance", "Tunnel", "IKE gateway", "IKE crypto profile",
+                 "Phase 1 proposal", "IPSec crypto profile", "Payload proposal"),
+        base_queryset=_ordered(IpsecTunnelPath, "appliance__hostname", "tunnel_name",
+                               "gateway_name"),
+        row=lambda p: (
+            str(p.appliance),
+            ipsec.path_tunnel_name(p),
+            ipsec.path_gateway_name(p),
+            ipsec.path_ike_crypto_named(p),
+            ipsec.path_ike_crypto_resolves(p),
+            ipsec.path_ipsec_crypto_named(p),
+            ipsec.path_ipsec_crypto_resolves(p),
         ),
     ),
     # --- Network > Network Profiles -------------------------------------------------------

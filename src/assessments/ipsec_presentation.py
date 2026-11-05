@@ -353,3 +353,123 @@ def running_on_a_chosen_profile(tunnel) -> str:
     if tunnel.effective_crypto_profile_chosen:
         return "Yes"
     return "No - nobody chose or hardened it (not reported by any control)"
+
+
+# ---------------------------------------------------------------------------
+# THE IPSEC TUNNEL PATH, 2026-11-04. One row per tunnel-and-gateway pair, plus one per IKE
+# gateway no tunnel on the appliance names. Its cells are read by the same tab machinery as the
+# two above; what is different is that EVERY VALUE ON THE ROW WAS COPIED OFF ANOTHER OBJECT, so a
+# cell that says only `resolved` or `missing` tells a reader nothing about which object to open.
+# Each reader below names the object and what state it is in.
+# ---------------------------------------------------------------------------
+
+#: The three-state resolution as a sentence, by WHICH binding is being described. One map per
+#: binding rather than one shared map: "not named" means an invalid configuration on the IKE
+#: crypto side, an inferred `default` on the IPSec side, and a tunnel created outside the dialog
+#: on the gateway side - three different remedies behind one stored word.
+_GATEWAY_RESOLUTION = {
+    "resolved": "Yes",
+    "missing": "No - the tunnel names a gateway this appliance does not hold",
+    "not_named": "No gateway named - not reachable through the dialog, which requires one",
+}
+
+_IKE_CRYPTO_RESOLUTION = {
+    "resolved": "Yes",
+    "missing": "No - the gateway names a profile this appliance does not hold",
+    "not_named": "No profile named - an invalid configuration, not a weak one",
+    "no_gateway": "No gateway on this path to carry one",
+}
+
+_IPSEC_CRYPTO_RESOLUTION = {
+    "resolved": "Yes",
+    "missing": "No - the tunnel names a profile this appliance does not hold",
+    "not_named": "No profile named",
+    "default_assumed": "Left at `default` - the tunnel stores no reference and what PAN-OS "
+                       "renders cannot be read from the configuration",
+}
+
+_PATH_ORIGIN = {
+    "tunnel": "An IPSec tunnel",
+    "orphan_gateway": "An IKE gateway no tunnel on this appliance names",
+}
+
+
+def path_tunnel_name(path) -> str:
+    """The tunnel, or the fact that there is not one.
+
+    An orphan-gateway row is NOT a gap in the report: Jason's keying puts every IKE gateway no
+    tunnel names onto the list with a blank tunnel value, so this cell is the one that says the
+    gateway is configured and unused.
+    """
+    return path.tunnel_name or "No tunnel names this gateway"
+
+
+def path_gateway_name(path) -> str:
+    return path.gateway_name or NOT_APPLICABLE
+
+
+def path_gateway_resolves(path) -> str:
+    return _GATEWAY_RESOLUTION.get(path.gateway_resolution, path.gateway_resolution)
+
+
+def path_ike_crypto_named(path) -> str:
+    """The IKE crypto profile the gateway's own version branch selects.
+
+    WHICH of the gateway's two names this is depends on `ike_version`, which is a column on the
+    same row: `ikev2` and `ikev2-preferred` take the v2 name, `ikev1` the v1 name. The cell shows
+    the name alone and the version column beside it says which branch chose it.
+    """
+    return path.ike_crypto_profile_name or NOT_APPLICABLE
+
+
+def path_ike_crypto_resolves(path) -> str:
+    return _IKE_CRYPTO_RESOLUTION.get(path.ike_crypto_resolution, path.ike_crypto_resolution)
+
+
+def path_ipsec_crypto_named(path) -> str:
+    """The IPSec crypto profile the tunnel's auto-key branch names.
+
+    A BLANK IS AN ORPHAN-GATEWAY ROW rather than a tunnel naming nothing: a tunnel that stores no
+    reference carries the inferred literal `default`, which the resolution column beside this one
+    reports as the inference it is.
+    """
+    return path.ipsec_crypto_profile_name or NOT_APPLICABLE
+
+
+def path_ipsec_crypto_resolves(path) -> str:
+    return _IPSEC_CRYPTO_RESOLUTION.get(
+        path.ipsec_crypto_resolution, path.ipsec_crypto_resolution)
+
+
+def path_origin(path) -> str:
+    return _PATH_ORIGIN.get(path.path_origin, path.path_origin)
+
+
+#: WHY THE THREE PATH WRAPPERS BELOW EXIST. Each of the three readers above falls through to
+#: `NOT_RECOMPUTED` on a blank, which is right on a profile row - a blank there means the column
+#: was never written - and wrong on a PATH row, where the commonest cause of a blank is that no
+#: IPSec crypto profile stands behind the path at all. "Not recomputed" would send an engineer
+#: looking for a stale row when what the path needs is a profile.
+#:
+#: THE TEST IS THE FOREIGN KEY AND NOT `ipsec_crypto_unresolved`. A tunnel left on `default` is
+#: UNRESOLVED by Jason's ruling and may still resolve to a stored entry, and where it does the
+#: entry's own values are copied onto the path and belong in these cells.
+_NO_PROFILE_BEHIND_THE_PATH = "No IPSec crypto profile stands behind this path"
+
+
+def path_protocol_branch(path) -> str:
+    if path.ipsec_crypto_profile_id is None:
+        return _NO_PROFILE_BEHIND_THE_PATH
+    return protocol_branch(path)
+
+
+def path_weakest_cipher(path) -> str:
+    if path.ipsec_crypto_profile_id is None:
+        return _NO_PROFILE_BEHIND_THE_PATH
+    return weakest_cipher(path)
+
+
+def path_weakest_integrity(path) -> str:
+    if path.ipsec_crypto_profile_id is None:
+        return _NO_PROFILE_BEHIND_THE_PATH
+    return weakest_integrity(path)

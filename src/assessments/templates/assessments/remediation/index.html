@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %} | Remediation{% endblock %}
+
+{% block head %}
+{% include "assessments/partials/table_styles.html" %}
+{% endblock %}
+
+{% comment %}
+The controls over what a DEVICE GROUP pushes, as work rather than as findings.
+
+Laid out the way the Findings summary lays out its domains, and since 2026-11-04 grouped the
+same way too - PAN-OS's own four categories, in the product's order, a heading each - because
+the two surfaces are the same findings asked two questions and a reader should not need two
+reading habits. What differs is the ROW: Findings lists a domain, this lists the OBJECT a change
+is made to.
+{% endcomment %}
+
+{% block content %}
+<section class="flex h-full w-full min-h-0 min-w-0 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div class="flex min-h-0 flex-1 flex-col border border-slate-200">
+
+            {% comment %}
+            THE TABS ARE THE HEADER (Jason, 2026-11-04). A title band saying "Remediation" over
+            a page reached from a sidebar item saying "Remediation", a strapline, and an
+            estate-wide count that no reader of one category wanted - all three removed, and
+            the page starts where the work does. The sidebar says where you are; the tab says
+            which category; the table says the rest.
+            {% endcomment %}
+            {% include "assessments/partials/remediation_nav.html" with categories=tabs %}
+
+            {% if dashboard %}
+            {% comment %}
+            THE DASHBOARD: the four categories counted and graded, and nothing else. It replaced
+            a list of every page in the estate (Jason, 2026-11-04), which answered "how much is
+            there" only by being read end to end. Severity columns are the findings summary's
+            own, through `severity_cells`, so the two surfaces grade alike.
+            {% endcomment %}
+            <div class="shrink-0 px-4 py-3">
+                <table class="oea-table border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Category</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Pages</th>
+                            <th class="border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Findings</th>
+                            {% for severity in severity_headers %}
+                            <th class="w-16 border-b border-slate-300 bg-slate-50 px-1 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+                                title="{{ severity.label }}">{{ severity.short }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in dashboard %}
+                        <tr class="transition-colors hover:bg-blue-50/60">
+                            <td class="border-b border-slate-100 px-3 py-1.5 text-[13px] font-medium">
+                                {% if row.href %}
+                                <a href="{{ row.href }}" class="text-blue-700 hover:underline">{{ row.label }}</a>
+                                {% else %}
+                                <span class="text-slate-400">{{ row.label }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="border-b border-slate-100 px-3 py-1.5 text-right text-[12px] {% if row.pages %}text-slate-900{% else %}text-slate-400{% endif %}">{{ row.pages }}</td>
+                            <td class="border-b border-slate-100 px-3 py-1.5 text-right text-[12px] {% if row.findings %}font-semibold text-slate-900{% else %}text-slate-400{% endif %}">{{ row.findings }}</td>
+                            {% for severity in row.cells %}
+                            <td class="border-b border-slate-100 px-1 py-1.5">
+                                {% if severity.count %}
+                                <span class="flex h-5 w-full items-center justify-center border text-[11px] font-semibold {{ severity.classes }}"
+                                      title="{{ severity.count }} {{ severity.label }}">{{ severity.count }}</span>
+                                {% else %}
+                                <span class="flex h-5 w-full items-center justify-center text-[11px] text-slate-300">&ndash;</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                        <tr>
+                            <td class="px-3 py-1.5 text-[12px] font-semibold text-slate-700">Total</td>
+                            <td class="px-3 py-1.5 text-right text-[12px] font-semibold text-slate-900">{{ dashboard_total.pages }}</td>
+                            <td class="px-3 py-1.5 text-right text-[12px] font-semibold text-slate-900">{{ dashboard_total.findings }}</td>
+                            {% for severity in dashboard_total.cells %}
+                            <td class="px-1 py-1.5 text-center text-[11px] font-semibold text-slate-700">{% if severity.count %}{{ severity.count }}{% else %}<span class="text-slate-300">&ndash;</span>{% endif %}</td>
+                            {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% include "assessments/partials/no_findings_run.html" %}
+
+            {% if not dashboard %}
+            {% comment %}
+            THE PAGES OF ONE CATEGORY. The dashboard above answers how much and how bad across
+            the four; this answers which object to open, and only a category at a time - the
+            two were stacked for one build and the list made the summary impossible to see.
+            {% endcomment %}
+            <div class="min-h-0 flex-1 overflow-auto">
+                <table class="analytical-table oea-table min-w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Object</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600">Description</th>
+                            <th class="sticky top-0 z-10 border-b border-slate-300 bg-slate-50 px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-600">Findings</th>
+                            {% comment %}
+                            The severity columns, headed and sized exactly as the Findings
+                            summary heads and sizes them - "Info" rather than "Informational"
+                            for the same reason it is short there.
+                            {% endcomment %}
+                            {% for severity in severity_headers %}
+                            <th class="sticky top-0 z-10 w-16 border-b border-slate-300 bg-slate-50 px-1 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+                                title="{{ severity.label }}">
+                                {{ severity.short }}
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for category in categories %}
+                        {% if category.heading %}
+                        <tr>
+                            <th colspan="{{ severity_headers|length|add:3 }}"
+                                class="border-y border-slate-200 bg-slate-100/70 px-3 py-1 text-left text-[11px] font-semibold text-slate-700">
+                                {{ category.heading }}
+                                <span class="font-normal text-slate-500">· {{ category.total }} finding{{ category.total|pluralize }}</span>
+                            </th>
+                        </tr>
+                        {% endif %}
+                        {% for screen in category.screens %}
+                        {% for row in screen.controls %}
+                        <tr class="transition-colors hover:bg-blue-50/60">
+                            <td class="border-b border-slate-100 px-3 py-1.5 align-top">
+                                {% comment %}
+                                THE OBJECT, not the controls over it. The control ids used to
+                                sit under this title; Jason, 2026-11-04: *"Remove the control
+                                ID's from the Control column"* - this surface is read by what
+                                you go and edit, and the ids are on the page behind the link.
+                                {% endcomment %}
+                                <a href="{{ row.url }}"
+                                   class="text-[13px] font-medium text-blue-700 hover:underline">{{ row.title }}</a>
+                            </td>
+                            <td class="oea-prose border-b border-slate-100 px-3 py-1.5 align-top text-[11px] leading-4 text-slate-600">
+                                {{ row.summary }}
+                            </td>
+                            <td class="border-b border-slate-100 px-3 py-1.5 align-top text-right text-[12px] {% if row.findings %}font-semibold text-slate-900{% else %}text-slate-400{% endif %}">
+                                {{ row.findings }}
+                            </td>
+                            {% for severity in row.cells %}
+                            <td class="border-b border-slate-100 px-1 py-1.5 align-top">
+                                {% if severity.count %}
+                                <span class="flex h-5 w-full items-center justify-center border text-[11px] font-semibold {{ severity.classes }}"
+                                      title="{{ severity.count }} {{ severity.label }}">{{ severity.count }}</span>
+                                {% else %}
+                                {% comment %}
+                                A dash, not a 0 - the same choice the Findings summary makes, for
+                                the same reason: the zeros are the majority of the grid and a
+                                field of noughts hides the numbers that matter.
+                                {% endcomment %}
+                                <span class="flex h-5 w-full items-center justify-center text-[11px] text-slate-300">&ndash;</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                        {% empty %}
+                        {% comment %}
+                        A category with no page yet still has its heading, and says so in its
+                        own row rather than leaving the reader to wonder - see the view.
+                        {% endcomment %}
+                        <tr>
+                            <td colspan="{{ severity_headers|length|add:3 }}"
+                                class="border-b border-slate-100 px-3 py-1.5 text-[11px] italic text-slate-400">
+                                No object group here yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</section>
+{% endblock %}

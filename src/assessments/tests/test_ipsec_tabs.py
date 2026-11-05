@@ -17,6 +17,22 @@ and reading a row is what found them, which is the argument for pinning them her
     of the cell called both a declined integrity algorithm, on `Suite-B-GCM-128`, beside a
     finding about something else entirely.
 
+FIVE OF THESE CONTROLS CHANGED SUBJECT ON 2026-11-04. PAN-IPS-001 to -005 are keyed on the IPSEC
+TUNNEL PATH now rather than on the crypto profile, so their rows are on a third tab - Jason: *"A
+weak profile use on one IPSec tunnel should not receive the same treatment as a weak profile used
+on 1000 IPSec tunnels. The best way to accomplish this is to raise a finding per effected
+tunnel."* PAN-IPS-009 stays on the profile tab, because a profile nothing references is a fact
+about the profile and has no path to sit on, and PAN-IPS-006 to -008 stay on the tunnel tab.
+
+EVERY CELL WORDING PINNED BELOW MOVED WITH ITS CONTROL AND NOT ONE OF THEM CHANGED, which is the
+point: the path tab declares the SAME `value_readers` the profile tab does, so `null` is still
+named as the cleartext cipher and `none` still reads two ways. A second phrasing on the new tab
+would be the same defect this file was written for.
+
+AND EACH PROFILE IS PUT ON A SYNTHETIC PATH so the five moved controls have a row to assert. The
+lab's four tunnels name only `oep-ips6-p10`, so without one tunnel per profile five of the six
+readback profiles would have no path and no row at all.
+
 THE FIXTURE IS A SUBSET AND SAYS SO. Six of the lab's sixteen crypto profiles and all four of its
 tunnels, transcribed from `stage6-ipsec-crypto.json`'s `verified.read_back` blocks - which is what
 `type=config&action=show` returned from pan-fw-111 and pan-fw-201 after the commits that created
@@ -36,16 +52,23 @@ from assessments.artifacts.layout import NONE
 from assessments.artifacts.sheets.findings import build_findings_table
 from assessments.ipsec_crypto_profile_findings import generate_ipsec_crypto_profile_findings
 from assessments.ipsec_tunnel_findings import generate_ipsec_tunnel_findings
+from assessments.ipsec_tunnel_path_findings import generate_ipsec_tunnel_path_findings
 from assessments.models import AssessmentRun, Control
 from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.normalization.ipsec import (
     normalize_ipsec_crypto_profiles, normalize_ipsec_tunnels, normalize_monitor_profiles)
+from optivedge_integrations.integrations.platforms.pan_os.normalization.ipsec_path import (
+    normalize_ipsec_tunnel_paths)
+from optivedge_integrations.integrations.models import IpsecCryptoProfile, IpsecTunnel
 
-PROFILE_CONTROLS = ["PAN-IPS-001", "PAN-IPS-002", "PAN-IPS-003", "PAN-IPS-004",
-                    "PAN-IPS-005", "PAN-IPS-009"]
+#: The five that moved onto the path, 2026-11-04.
+PATH_CONTROLS = ["PAN-IPS-001", "PAN-IPS-002", "PAN-IPS-003", "PAN-IPS-004", "PAN-IPS-005"]
+#: What is left on the profile tab: the unreferenced-profile control alone.
+PROFILE_CONTROLS = ["PAN-IPS-009"]
 TUNNEL_CONTROLS = ["PAN-IPS-006", "PAN-IPS-007", "PAN-IPS-008"]
+PATH_SLUG = "ipsec-tunnel-paths"
 
 #: A one-member list is what the read_back blocks record and what `iter_member_values` reads; a
 #: bare string is what xmltodict delivers for the same node. Both arrive here, and the normalizer
@@ -126,6 +149,7 @@ class IpsecTabTestCase(TestCase):
             name="IPSec", status=AssessmentRun.Status.RUNNING, started_at=timezone.now())
         seed_controls(PROFILE_CONTROLS, control_type=Control.ControlType.IPSEC_CRYPTO_PROFILE)
         seed_controls(TUNNEL_CONTROLS, control_type=Control.ControlType.IPSEC_TUNNEL)
+        seed_controls(PATH_CONTROLS, control_type=Control.ControlType.IPSEC_TUNNEL_PATH)
         Snapshot.objects.create(
             management_station=station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(),
@@ -135,6 +159,24 @@ class IpsecTabTestCase(TestCase):
         normalize_ipsec_tunnels(appliance)
         generate_ipsec_crypto_profile_findings(run)
         generate_ipsec_tunnel_findings(run)
+        self._one_tunnel_per_profile(station, group, appliance)
+        normalize_ipsec_tunnel_paths(appliance)
+        generate_ipsec_tunnel_path_findings(run)
+
+    @staticmethod
+    def _one_tunnel_per_profile(station, group, appliance):
+        """A tunnel naming each stored profile, so every profile is on exactly one path.
+
+        SCAFFOLDING AND NOT A READING, and prefixed `probe-` so no assertion can mistake one for
+        a stage 6 subject. The path normalizer joins stored rows rather than parsing a payload,
+        so stored rows are what it is given.
+        """
+        snapshot = Snapshot.objects.filter(appliance=appliance).latest("collected_at")
+        for profile in IpsecCryptoProfile.objects.filter(appliance=appliance):
+            IpsecTunnel.objects.create(
+                management_station=station, appliance=appliance, appliance_group=group,
+                source_snapshot=snapshot, tunnel_name=f"probe-{profile.profile_name}",
+                crypto_profile_name=profile.profile_name)
 
     @staticmethod
     def table(slug):
@@ -157,31 +199,52 @@ class IpsecTabTestCase(TestCase):
         index = table.rows.index(self.row(table, control_id, subject))
         return sorted(table.headers[c] for (r, c) in table.implicated if r == index)
 
+    @staticmethod
+    def path_row(table, control_id, profile_name):
+        """One row of the path tab, found by the PROFILE it runs on.
+
+        The path tab's Object column is the TUNNEL - one row is one place traffic crosses - and
+        every expectation in this file is a statement about one profile's content.
+        """
+        named = table.headers.index("IPSec crypto profile named")
+        found = [r for r in table.rows if r[1] == control_id and r[named] == profile_name]
+        assert len(found) == 1, f"{control_id} / {profile_name}: {len(found)} rows"
+        return found[0]
+
+    def path_cell(self, control_id, profile_name, heading):
+        table = self.table(PATH_SLUG)
+        return self.path_row(table, control_id, profile_name)[table.headers.index(heading)]
+
+    def path_marked(self, control_id, profile_name):
+        table = self.table(PATH_SLUG)
+        index = table.rows.index(self.path_row(table, control_id, profile_name))
+        return sorted(table.headers[c] for (r, c) in table.implicated if r == index)
+
 
 class NoHeadingIsSilentlyBroken(IpsecTabTestCase):
     """A duplicate header is the silent one: Excel rejects a table that has one, xlsxwriter drops
     the table with a warning, and the sheet comes out as stray cells where the table should be
     (seen 2026-09-18 on two other tabs). Nothing else in the build fails."""
 
-    def test_neither_tab_repeats_a_heading(self):
-        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels"):
+    def test_no_tab_repeats_a_heading(self):
+        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels", PATH_SLUG):
             headers = self.table(slug).headers
             repeated = sorted({h for h in headers if headers.count(h) > 1})
             self.assertEqual([], repeated, f"{slug} repeats {repeated}")
 
-    def test_neither_tab_heads_a_column_with_a_field_name(self):
+    def test_no_tab_heads_a_column_with_a_field_name(self):
         """`setting_columns` falls back to the raw Django field name, which is what 28 of the 33
         findings tabs still head every derived column with."""
-        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels"):
+        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels", PATH_SLUG):
             for heading in self.table(slug).headers:
                 self.assertNotIn("_", heading, f"{slug} heads a column `{heading}`")
 
-    def test_both_tabs_carry_the_firing_condition_in_the_workbook(self):
+    def test_every_tab_carries_the_firing_condition_in_the_workbook(self):
         """`tested_columns` DEFAULTS to `('Provenance',)`, which keeps `Fires when` on the live
         page and drops it from the xlsx - so a row's defects split across the two media and the
         workbook shows the contradicting value under the control's name with no stated condition
         at all. Both specs declare `ALL_TESTED_COLUMNS` instead, deliberately."""
-        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels"):
+        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels", PATH_SLUG):
             self.assertIn("Fires when (failing condition)", self.table(slug).headers, slug)
 
 
@@ -191,8 +254,8 @@ class EveryRowPointsAtSomething(IpsecTabTestCase):
     in both directions. `check_every_tested_field_is_presented` would NOT catch it: it accepts a
     field's presence in `hidden_fields` as proof that something shows it."""
 
-    def test_every_row_on_both_tabs_marks_at_least_one_cell(self):
-        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels"):
+    def test_every_row_on_every_tab_marks_at_least_one_cell(self):
+        for slug in ("ipsec-crypto-profiles", "ipsec-tunnels", PATH_SLUG):
             table = self.table(slug)
             marked_rows = {r for r, _c in table.implicated}
             unmarked = [i for i in range(len(table.rows)) if i not in marked_rows]
@@ -203,9 +266,9 @@ class EveryRowPointsAtSomething(IpsecTabTestCase):
         """`all_offered_ciphers_authenticate` is PAN-IPS-003's applicability clause and no
         control asserts on it. Marked, it would read No with the value-at-fault fill on the rows
         of a control that is only applicable BECAUSE it reads No."""
-        table = self.table("ipsec-crypto-profiles")
+        table = self.table(PATH_SLUG)
         marked = {table.headers[c] for (_r, c) in table.implicated}
-        self.assertNotIn("Every offered cipher authenticates too?", marked)
+        self.assertNotIn("Every payload cipher authenticates", marked)
         self.assertTrue(marked, "nothing was marked at all, so this proves nothing")
 
     def test_the_companion_column_is_what_an_unread_switch_marks(self):
@@ -231,26 +294,25 @@ class ACellSaysWhatTheStoredValueCannot(IpsecTabTestCase):
         """PAN-IPS-002 fires on the AH-branch profile and MARKS `weakest_encryption_offered`,
         which stores the empty string there. `display_value` prints `(empty)`, so the row offered
         `(empty)` as the value an engineer should change."""
-        self.assertEqual(["Weakest cipher offered"],
-                         self.marked("ipsec-crypto-profiles", "PAN-IPS-002", "oep-ips6-p08"))
-        cell = self.cell("ipsec-crypto-profiles", "PAN-IPS-002", "oep-ips6-p08",
-                         "Weakest cipher offered")
+        self.assertEqual(["Weakest payload cipher"],
+                         self.path_marked("PAN-IPS-002", "oep-ips6-p08"))
+        cell = self.path_cell("PAN-IPS-002", "oep-ips6-p08", "Weakest payload cipher")
         self.assertNotIn("(empty)", cell)
         self.assertIn("AH", cell)
 
     def test_the_cleartext_cipher_is_named_rather_than_printed_bare(self):
         """`null` is a cipher and the WORST member of the order. Bare, it reads as absent data."""
-        for heading in ("Weakest cipher offered", "Encryption offered (ESP)"):
-            cell = self.cell("ipsec-crypto-profiles", "PAN-IPS-002", "oep-ips6-p01", heading)
+        for heading in ("Weakest payload cipher", "Encryption offered (ESP)"):
+            cell = self.path_cell("PAN-IPS-002", "oep-ips6-p01", heading)
             self.assertIn("cleartext", cell, heading)
 
     def test_the_two_meanings_of_a_none_integrity_member_read_differently(self):
         """Same stored value, opposite facts: declined integrity beside a cipher that only
         encrypts, against the member the vendor MANDATES for an AEAD cipher."""
-        declined = self.cell("ipsec-crypto-profiles", "PAN-IPS-003", "oep-ips6-p11",
-                             "Weakest integrity algorithm offered")
-        mandated = self.cell("ipsec-crypto-profiles", "PAN-IPS-002", "Suite-B-GCM-128",
-                             "Weakest integrity algorithm offered")
+        declined = self.path_cell("PAN-IPS-003", "oep-ips6-p11",
+                                  "Weakest payload integrity algorithm")
+        mandated = self.path_cell("PAN-IPS-002", "Suite-B-GCM-128",
+                                  "Weakest payload integrity algorithm")
         self.assertIn("declined", declined)
         self.assertNotIn("declined", mandated)
         self.assertIn("not required", mandated)
@@ -259,15 +321,15 @@ class ACellSaysWhatTheStoredValueCannot(IpsecTabTestCase):
         """`protocol_branch` stores the token `none` for a COMMITTED state, and `display_value`'s
         word for a NULL is `(none)` - so printed raw a reader cannot tell the two apart."""
         self.assertEqual("Neither branch",
-                         self.cell("ipsec-crypto-profiles", "PAN-IPS-001", "oep-ips6-p09",
-                                   "IPSec protocol"))
+                         self.path_cell("PAN-IPS-001", "oep-ips6-p09",
+                                        "Payload protection branch"))
 
     def test_the_lifetime_carries_the_unit_it_was_written_in(self):
         """The hours are a CONVERSION; the unit is where an engineer goes to change it, and a
         profile written in days holds nothing at all at the hour branch."""
         self.assertEqual("720 h (written in days)",
-                         self.cell("ipsec-crypto-profiles", "PAN-IPS-005", "oep-ips6-p01",
-                                   "Key lifetime (as written)"))
+                         self.path_cell("PAN-IPS-005", "oep-ips6-p01",
+                                        "Payload key lifetime (as written)"))
 
     def test_a_zero_reference_count_says_what_was_counted(self):
         """A bare 0 in a reference column reads as "not counted" exactly where it means
@@ -289,11 +351,10 @@ class ACellSaysWhatTheStoredValueCannot(IpsecTabTestCase):
         a branch the profile does not have. The two integrity columns are separate because ONE
         grid column on the device serves both branches."""
         self.assertEqual(NONE,
-                         self.cell("ipsec-crypto-profiles", "PAN-IPS-003", "oep-ips6-p11",
-                                   "Integrity offered (AH)"))
+                         self.path_cell("PAN-IPS-003", "oep-ips6-p11", "Integrity offered (AH)"))
         self.assertEqual(NONE,
-                         self.cell("ipsec-crypto-profiles", "PAN-IPS-002", "oep-ips6-p08",
-                                   "Encryption offered (ESP)"))
+                         self.path_cell("PAN-IPS-002", "oep-ips6-p08",
+                                        "Encryption offered (ESP)"))
 
 
 class ThePointerColumnsSayWhatNoOtherCellCan(IpsecTabTestCase):
@@ -347,8 +408,11 @@ class TheExplorerPagesLambdasActuallyRun(IpsecTabTestCase):
     "nothing names it" on the other sends an engineer to argue with their own report."""
 
     def test_both_result_specs_render_every_row_at_the_right_width(self):
+        # The tunnel count includes the one synthetic tunnel per profile that setUp adds so the
+        # five moved controls have a path to sit on. The explorer page lists every tunnel the
+        # appliance holds and has no reason to hide them.
         for slug, expected in (("ipsec-crypto", len(PROFILES)),
-                               ("ipsec-tunnels", len(TUNNELS))):
+                               ("ipsec-tunnels", len(TUNNELS) + len(PROFILES))):
             spec = config_results.RESULTS[slug]
             rows = list(spec.base_queryset())
             self.assertEqual(expected, len(rows), slug)

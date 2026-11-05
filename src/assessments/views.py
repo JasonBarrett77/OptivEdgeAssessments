@@ -37,6 +37,7 @@ from assessments.finding_run import (
 )
 from assessments.controls_catalog.drift import catalog_has_drifted
 from assessments.management_interface_naming import surface_label
+from assessments import remediation
 from assessments.tables import Column
 from assessments import configuration_navigation as config_nav
 from assessments import configuration_dashboard
@@ -1141,6 +1142,225 @@ class ArtifactBuildStatusView(View):
     def get(self, request, *args, **kwargs):
         artifact = artifact_store.build_in_progress()
         return JsonResponse({"building": artifact.pk if artifact is not None else None})
+
+
+class RemediationIndexView(TemplateView):
+    """Every security-rule control, as work rather than as findings.
+
+    The findings surfaces answer what is wrong. This one answers where a change is made and what
+    one change clears, which is a different question over the same findings - so a control's row
+    here carries its finding count and its worst severity, and the page behind it carries one row
+    per rule DEFINITION.
+    """
+
+    template_name = "assessments/remediation/index.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # A GROUP'S CONTROLS ARE ONE ROW HERE. `remediation_index` states both shapes with
+        # the same keys, so nothing below needs to know which it is drawing.
+        rows = remediation.remediation_index()
+        for row in rows:
+            row["cells"] = severity_cells(row["by_severity"])
+            row["url"] = reverse(row["url_name"], kwargs=row["url_arg"])
+
+        # BY PAN-OS CATEGORY, exactly as `FindingsSummaryView` groups: the product's four
+        # categories in the product's own order, a heading each, its rows beneath, and the same
+        # severity grid read down the page. Two surfaces over the same findings should not need
+        # two reading habits (Jason, 2026-11-04).
+        #
+        # EVERY category, including the ones with nothing on them. That is the configuration
+        # explorer's rule for its category bar - "a reader can see what has not been built yet
+        # as well as what has" - and it matters more here than there: this surface answers
+        # "where do I make a change", and a silent omission would read as "there is nothing to
+        # change in Network", which is not what it means.
+        # THE CATEGORY TABS, and which one is open. A category is chosen by its slug in the
+        # query string, so the four chips behave as the configuration explorer's do and the
+        # unfiltered index stays reachable as `All` - the only view that totals the four
+        # against each other.
+        wanted = self.request.GET.get("category", "")
+        active = next((name for name in config_nav.CATEGORIES
+                       if config_nav.category_slug(name) == wanted), "")
+        context["active_category"] = active
+        context["tabs"] = [{
+            "name": name,
+            "count": sum(1 for row in rows if row["category"] == name),
+            "href": f"?category={config_nav.category_slug(name)}",
+            "is_active": name == active,
+        } for name in config_nav.CATEGORIES]
+        context["pages"] = len(rows)
+        # THE DASHBOARD IS WHAT THE UNFILTERED VIEW IS NOW (Jason, 2026-11-04). `All` listed
+        # every page of every category, which is a long table nobody reads end to end; the
+        # four categories counted and graded is the question that view actually answers.
+        if not active:
+            dashboard = []
+            for name in config_nav.CATEGORIES:
+                held = [row for row in rows if row["category"] == name]
+                by_severity = defaultdict(int)
+                for row in held:
+                    for severity, count in row["by_severity"].items():
+                        by_severity[severity] += count
+                dashboard.append({
+                    "label": name,
+                    "pages": len(held),
+                    "findings": sum(row["findings"] for row in held),
+                    "cells": severity_cells(by_severity),
+                    "href": f"?category={config_nav.category_slug(name)}" if held else "",
+                })
+            context["dashboard"] = dashboard
+            context["dashboard_total"] = {
+                "pages": len(rows),
+                "findings": sum(row["findings"] for row in rows),
+                "cells": severity_cells({
+                    severity: sum(row["by_severity"].get(severity, 0) for row in rows)
+                    for severity in {s for row in rows for s in row["by_severity"]}}),
+            }
+
+        categories = []
+        for name in config_nav.CATEGORIES:
+            if active and name != active:
+                continue
+            held = [row for row in rows if row["category"] == name]
+            # ORDERED BY THE PRODUCT'S OWN SCREEN, not headed by it. The heading rows were
+            # tried and removed (Jason, 2026-11-04); the order they imposed is kept, so the
+            # families of one screen still read together under the category tab.
+            screens = [{"label": "", "controls": held,
+                        "total": sum(row["findings"] for row in held)}]
+            categories.append({
+                "label": name,
+                # THE CATEGORY HEADING IS THE TAB when one is open, so the row that repeats it
+                # inside the table is dropped there and kept on `All`, where it is what tells
+                # the four apart.
+                "heading": "" if active else name,
+                "screens": screens,
+                "controls": held,
+                "total": sum(row["findings"] for row in held),
+            })
+
+        context["categories"] = categories
+        context["severity_headers"] = severity_cells({})
+        context["environment"] = get_application_environment()
+        context["no_findings_run"] = (
+            NO_FINDINGS_RUN if artifact_store.findings_run_of_record() is None else "")
+        return context
+
+
+class RemediationGroupView(TemplateView):
+    """Several controls over one object kind, folded to one row per object DEFINITION.
+
+    The same table as a control's page and the same template - what differs is that a row can
+    carry marked cells from several controls, so each one names the control that marked it.
+    """
+
+    template_name = "assessments/remediation/control.html"
+
+    #: A GROUP MAY HAVE ITS OWN TEMPLATE, and the zone page has one: it is the first page built
+    #: to the full list of questions a row owes a reader (2026-11-04), and the WHERE and REACH
+    #: columns it needs are not the ones the ten policy pages draw. Separate rather than
+    #: parameterised, deliberately - the two shapes are being compared on screen, and a shared
+    #: template full of branches would make that comparison harder to read than two files.
+    TEMPLATES_BY_SLUG = dict.fromkeys(
+        # EVERY OBJECT PAGE TAKES ONE SHAPE. Antivirus went first as the pattern (Jason,
+        # 2026-11-04) and the other nine followed: `Edit on`, `Authority`, `Location`. The
+        # POSTURE families - a virtual system's rulebase, where the finding is that no rule
+        # exists - do not fit this shape and are not listed here; they need their own.
+        ("antivirus-profile", "anti-spyware-profile", "vulnerability-protection-profile",
+         "url-filtering-profile", "decryption-profile", "file-blocking-profile",
+         "dos-protection-profile", "custom-url-category", "decryption-rule", "security-rule",
+         "zone", "interface", "aaa-server-profile", "authentication-profile",
+         "administrator", "management-interface", "interface-management-profile",
+         "globalprotect-portal", "password-complexity",
+         "globalprotect-portal-authentication", "logging-and-reporting", "management-ssh",
+         "ssl-tls-service-profile", "authentication-settings", "content-update-schedule",
+         "globalprotect-coverage", "virtual-router", "dhcp-interface", "service-route", "certificate", "certificate-profile", "ssl-decryption-exclusion", "password-profile", "authentication-sequence", "login-banner", "management-tls", "ntp", "dns", "snmp", "system-identity", "master-key", "session-settings", "wildfire-settings", "iot-security", "installed-content", "licences", "alarm-settings", "log-server-target", "forward-proxy-signing", "management-plane-addressing", "operational-mode", "user-id-agent", "user-id-discovery", "update-server",
+         "high-availability", "panorama-settings",
+         # Site-to-site VPN, 2026-11-04. Four objects, four pages, all Network.
+         "ipsec-tunnel", "ike-gateway", "ike-crypto-profile", "ipsec-crypto-profile"),
+        "assessments/remediation/zone.html")
+
+    def get_template_names(self):
+        slug = self.kwargs.get("slug", "")
+        group = remediation.GROUP_BY_SLUG.get(slug)
+        if group is not None and group.shape == "posture":
+            return ["assessments/remediation/posture.html"]
+        return [self.TEMPLATES_BY_SLUG.get(slug, self.template_name)]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        group = remediation.GROUP_BY_SLUG.get(self.kwargs["slug"])
+        if group is None:
+            raise Http404(f"No remediation group {self.kwargs['slug']!r}")
+        controls = remediation.group_controls(group)
+        # STORED FOR THE RUN, folded only when the store misses - see `stored_group_rows`.
+        rows = remediation.stored_group_rows(group)
+        for row in rows:
+            row["classes"] = _SEVERITY_BADGE_CLASSES.get(row["severity_value"], "")
+            for line in row["control_lines"]:
+                line["classes"] = _SEVERITY_BADGE_CLASSES.get(line["severity_value"], "")
+        # PER CONTROL, NOT PER ROW. A row's badge is the WORST severity on it, so adding the
+        # row's whole count there credits every finding to that severity: the antivirus group
+        # read `2043 High / 3 Medium / 3 Low` when PAN-AVW-001 has 1,027 high findings and
+        # PAN-AVW-002 1,019 medium ones on the same rows. Same mistake the row's own badge and
+        # count made before they were split, and the strip has to be fixed with them or the
+        # page disagrees with itself.
+        by_severity = defaultdict(int)
+        for row in rows:
+            for counts in row["findings_by_control"].values():
+                for severity, count in counts.items():
+                    by_severity[severity] += count
+
+        paginator = Paginator(rows, FINDINGS_PAGE_SIZE)
+        page_obj = paginator.get_page(self.request.GET.get("page"))
+
+        context["title"] = group.label
+        # The object column is headed by the KIND of object the group is over, because
+        # "Object" says nothing a reader of one group's page does not already know.
+        context["object_heading"] = group.label
+        # THE IDS, and on a single-control page its NAME as well: the Control ID and Control
+        # name columns are drawn only where a row can carry several controls, so without this a
+        # one-control page would state the id and never say what it asks.
+        context["subtitle"] = " · ".join(control.control_id for control in controls)
+        if len(controls) == 1:
+            context["subtitle"] = f"{controls[0].control_id} · {controls[0].name}"
+        context["shows_controls"] = len(controls) > 1
+        context["rows"] = list(page_obj)
+        context["page_obj"] = page_obj
+        context["page_range"] = pagination_range(page_obj)
+        context["headings"] = [cell["heading"] for cell in rows[0]["cells"]] if rows else []
+        # A POSTURE PAGE LAYS ITS CONTROLS OUT AS COLUMNS. One cell per control per row, in the
+        # header's order, so a virtual system's posture reads across and a control's reach down.
+        if group.shape == "posture":
+            context["control_headers"] = [
+                {"control_id": control.control_id, "name": control.name}
+                for control in controls]
+            for row in rows:
+                row["control_cells"] = [{
+                    "count": sum(row["findings_by_control"].get(control.control_id, {}).values()),
+                    "severity": Control.Severity(
+                        row["severity_by_control"][control.control_id]).label
+                    if control.control_id in row["severity_by_control"] else "",
+                    "classes": _SEVERITY_BADGE_CLASSES.get(
+                        row["severity_by_control"].get(control.control_id), ""),
+                } for control in controls]
+            context["column_count"] = len(context["headings"]) + len(controls) + 2
+        context["findings"] = sum(row["findings"] for row in rows)
+        context["definitions"] = len(rows)
+        context["severities"] = severity_breakdown(by_severity)
+        context["fold_is_complete"] = remediation.group_fold_is_complete(group, rows)
+        # NOTHING WAS COLLECTED ABOUT WHERE ANY OF THESE DEFINITIONS CAME FROM, which is a fact
+        # about the estate's collection rather than about the objects - every zone on the lab is
+        # in this state - and a column of `not recorded` begs the question unless the page says
+        # why. Computed rather than declared, so it disappears the moment provenance arrives.
+        for row in rows:
+            # Marked on the page: an edit made on the firewall to a definition held in a
+            # template or a device group is overwritten at the next push.
+            row["pushed"] = row["authority"] in remediation.PUSHED_AUTHORITIES
+        context["authority_unrecorded"] = bool(rows) and all(
+            row["authority"] == remediation.AUTHORITY_UNRECORDED for row in rows)
+        context["environment"] = get_application_environment()
+        context["no_findings_run"] = (
+            NO_FINDINGS_RUN if artifact_store.findings_run_of_record() is None else "")
+        return context
 
 
 def findings_href_for(config_object) -> str:

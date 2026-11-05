@@ -116,6 +116,12 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 m.Control.ControlType.IPSEC_CRYPTO_PROFILE, "IPSec crypto profile"),
     FindingKind(m.IpsecTunnelFinding, "ipsec_tunnel",
                 m.Control.ControlType.IPSEC_TUNNEL, "IPSec tunnel"),
+    # THE COMPOSITE OVER BOTH PHASES AND THE SUBJECT OF THE NINE STRENGTH CONTROLS. A third kind
+    # rather than a widening of either of the two above: the path is a different grain - one row
+    # per tunnel-and-gateway pair, plus one per unreferenced gateway - and the finding count on it
+    # is the number of tunnels a weak proposal actually reaches.
+    FindingKind(m.IpsecTunnelPathFinding, "ipsec_tunnel_path",
+                m.Control.ControlType.IPSEC_TUNNEL_PATH, "IPSec tunnel path"),
     # "high availability" rather than "high availability configuration": the label goes into
     # prose and the subject is the relationship, not the node that describes it.
     FindingKind(m.HighAvailabilityFinding, "high_availability_config",
