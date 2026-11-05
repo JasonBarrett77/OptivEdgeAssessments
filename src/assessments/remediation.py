@@ -1017,6 +1017,11 @@ PUSHED_AUTHORITIES = frozenset({"Device group", "Template", "Panorama"})
 #: The same distinction `not_configured` draws from `no` elsewhere in the application.
 AUTHORITY_UNRECORDED = "Not recorded"
 
+#: What a counted value stands as when the reader gave nothing back. A blank line carrying only
+#: a count would read as a count with no value; the sheets already say `(empty)` for a member set
+#: with no members, and this is the same statement about a cell.
+NO_VALUE = "(nothing recorded)"
+
 
 def _agreed_authority(seen) -> str:
     """One authority for a row, with `Not recorded` yielding to evidence.
@@ -1320,11 +1325,73 @@ def _agreed(values) -> str:
 
     The idiom `rules_by_device_group.agreed` uses, for the same reason: a row that folds several
     objects must not print one of them as if it spoke for the rest.
+
+    THE VALUE COLUMNS NO LONGER READ THIS - see `_agreed_lines`. It remains the Authority
+    column's, where a disagreement is not a measurement to show but a row that should have been
+    keyed apart, and one word is the right amount to say about it.
     """
     distinct = {value for value in values}
     if not distinct:
         return ""
     return distinct.pop() if len(distinct) == 1 else "(differs)"
+
+
+def _agreed_lines(values, is_list: bool) -> list[str]:
+    """A folded cell as the lines to draw it on: every value the objects hold, each counted.
+
+    `(differs)` was all this said until 2026-11-05, and on the one page where it appears it was
+    both uninformative and MARKED AT FAULT - the amber says "this is the value to change" over a
+    word that is not a value. Jason: *"The differs should carry all the values. On the values
+    that differ, perhaps just a simple count of how many appliances carry the differing value."*
+
+    COUNTED IN DEFINITIONS AND NOT IN APPLIANCES, which is the one place this departs from how
+    he put it. The objects folded onto a row are the materialisations of one definition, and for
+    a security rule that is one per ENFORCEMENT POINT: `Ingress Internet` is pushed to seven, and
+    five of those seven are virtual systems on one HA pair. "5 appliances" would be false of a
+    pair that is two boxes, and "2 appliances" would lose four of the five readings. `4 of 7` is
+    the ratio that is true either way, and the row's `In force on` column names the seven.
+
+    A SET COLUMN IS COUNTED BY ITS MEMBERS, not by the whole set. `Sources` and the offer sets
+    hold several values in one cell, and counting the sets would print two cells that read the
+    same - `ftp`, and `ftp` again - with a count against each and no way to see that what
+    differs is the `smtp` one of them also offers. Counted per member, the same cell says `ftp`
+    on all seven and `smtp (3 of 7)`, which is the sentence an engineer acts on.
+
+    ORDER. A set keeps the reader's own order, first appearance first, because the order of an
+    offer set or a member list means something. Single values lead with the biggest share, then
+    alphabetically, so the dominant reading is read first and nothing moves between runs.
+
+    AGREEMENT IS LEFT EXACTLY AS IT WAS: the value, no annotation, in the reader's order. The
+    count earns its place only where there is something to count.
+    """
+    held = [value for value in values]
+    if not held:
+        return []
+    total = len(held)
+    if len({*held}) == 1:
+        return _as_lines(held[0], is_list)
+
+    if is_list:
+        # DEDUPED WITHIN AN OBJECT FIRST: a member a single object lists twice is still that one
+        # object holding it, and counting it twice would read as two.
+        counts: dict = {}
+        for members in (_as_lines(value, True) for value in held):
+            for member in dict.fromkeys(members):
+                counts[member] = counts.get(member, 0) + 1
+        return [member if count == total else f"{member} ({count} of {total})"
+                for member, count in counts.items()]
+
+    lines = []
+    for value, count in sorted(collections.Counter(held).items(),
+                               key=lambda item: (-item[1], str(item[0]))):
+        # ANNOTATED ON THE FIRST LINE OF THE VALUE, because a single value can still be several
+        # lines - `any` and the address count it expands to - and a count on a line of its own
+        # would read as a value. A blank still carries its count: "nothing recorded here, on
+        # three of the seven" is a measurement and not an absence of one.
+        drawn = _as_lines(value, is_list) or [NO_VALUE]
+        lines.append(f"{drawn[0]} ({count} of {total})")
+        lines.extend(drawn[1:])
+    return lines
 
 
 #: assertion -> the profile fields the verdict pass READ to reach it, which is also which of
@@ -1795,8 +1862,8 @@ def remediation_rows(control: Control, columns_controls=None, prune=True,
         # WHAT THIS MERGES, measured and visible rather than hidden: a name that exists in two
         # places is two objects to edit, and both places are listed in the row. PAN-POL-002 has
         # six such names and PAN-POL-008 forty-seven, all of them a rule defined in two device
-        # groups. The cells say `(differs)` where the two objects do not agree, which is the
-        # idiom `rules_by_device_group` uses for the same situation.
+        # groups. Where the objects do not agree the cell carries EVERY value they hold, each
+        # with how many of them hold it - see `_agreed_lines`.
         # ONE ROW IS ONE PLACE YOU GO. Jason, 2026-11-04: *"Each row should be an 'instance'
         # of an object that can be changed. Each row should resolve to a single location."*
         # The name alone used to be the key for a named object, which folded every definition
@@ -1887,7 +1954,7 @@ def remediation_rows(control: Control, columns_controls=None, prune=True,
                 provenance_of = _provenance_of(subject, provenance, subject_ct)
                 readings.append([read(subject, provenance_of)
                                  for _heading, read, _field in columns])
-            values = [(heading, _as_lines(_agreed(column), heading in list_columns))
+            values = [(heading, _agreed_lines(column, heading in list_columns))
                       for (heading, _read, _field), column in zip(columns, zip(*readings))]
             # The highlight for a substituted profile row, which the control's own asserted
             # fields cannot place - see `_axes_at_fault`.
@@ -2496,7 +2563,7 @@ def fold_group_rows(group: RemediationGroup) -> list[dict] | None:
             row["at_fault_by"] = {}
         else:
             held = [readings[read_key(subject)] for subject in subjects_here]
-            values = [(heading, _as_lines(_agreed(column), heading in list_columns))
+            values = [(heading, _agreed_lines(column, heading in list_columns))
                       for (heading, _read, _field), column in zip(columns, zip(*held))]
             # The highlight for a substituted profile row, which the control's own asserted
             # fields cannot place - see `_axes_at_fault`.
