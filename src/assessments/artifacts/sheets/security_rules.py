@@ -37,7 +37,8 @@ from assessments.models import Control
 
 from . import findings as findings_sheet
 from . import profile_kinds
-from optivedge_integrations.integrations.presentation import address_breadth_label
+from optivedge_integrations.integrations.presentation import (
+    address_breadth_label, listed_address_ref_members)
 
 from ..layout import NONE, SheetInfo, appliance_names
 
@@ -278,13 +279,21 @@ SERVICE_READER = findings_sheet.ValueReader(
 #: Addresses are REFERENCES: `raw_value` is what the rule names - an object, a group, `any` - which
 #: is what an engineer reads in the UI and searches the configuration for. What each reference
 #: resolves to is a question for the objects domain, not for this cell.
+#: THROUGH `listed_address_ref_members` AND NOT `joined`, since 2026-11-05. The ref rows carry
+#: group membership - one row per resolved member, each with the GROUP's name - so joining
+#: `raw_value` down the rows printed a three-member group's name three times, here, in the
+#: workbook and on the remediation page. The configuration explorer's rule rows never did,
+#: because they have always read the deduping helper beside this one; this makes the two agree
+#: and adds the member count, which is what ties the names to the breadth line beneath them.
 SOURCES_READER = findings_sheet.ValueReader(
     read=lambda rule: with_breadth(
-        joined(rule.source_address_refs.all(), "raw_value"), rule.source_num_hosts),
+        "\n".join(listed_address_ref_members(rule, "source_address_refs")) or "(empty)",
+        rule.source_num_hosts),
 )
 DESTINATIONS_READER = findings_sheet.ValueReader(
     read=lambda rule: with_breadth(
-        joined(rule.destination_address_refs.all(), "raw_value"), rule.destination_num_hosts),
+        "\n".join(listed_address_ref_members(rule, "destination_address_refs")) or "(empty)",
+        rule.destination_num_hosts),
 )
 APPLICATIONS_READER = findings_sheet.ValueReader(
     read=lambda rule: joined(rule.securityruleapplications.all()),
