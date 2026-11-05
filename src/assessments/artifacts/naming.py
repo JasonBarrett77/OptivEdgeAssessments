@@ -36,3 +36,20 @@ def workbook_filename(environment=None, *, today: dt.date | None = None) -> str:
     parts.append("assessment")
     parts.append((today or dt.date.today()).isoformat())
     return "-".join(parts) + ".xlsx"
+
+
+def remediation_workbook_filename(environment=None, *, today: dt.date | None = None) -> str:
+    """`acme-op-1234567-remediation-2026-11-05.xlsx`, the same three parts with its own word.
+
+    Named for what it answers rather than for the first file plus a suffix: a consultant with
+    both in a directory is choosing between "what did we find" and "where do I go", and
+    `-assessment-remediation` would sort them together and read as a variant of one.
+    """
+    parts = []
+    if environment is not None:
+        name = environment.client_short_name or environment.client_name
+        parts.extend(part for part in (slugify(name),
+                                       slugify(environment.opportunity_number)) if part)
+    parts.append("remediation")
+    parts.append((today or dt.date.today()).isoformat())
+    return "-".join(parts) + ".xlsx"

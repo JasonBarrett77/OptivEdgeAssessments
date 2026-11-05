@@ -33,8 +33,9 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
-from assessments.artifacts import ArtifactBuildError, build_workbook
-from assessments.artifacts.naming import workbook_filename
+from assessments.artifacts import (
+    ArtifactBuildError, build_remediation_workbook, build_workbook)
+from assessments.artifacts.naming import remediation_workbook_filename, workbook_filename
 from assessments.environment import get_application_environment
 from assessments.models import AssessmentRun, GeneratedArtifact
 
@@ -81,13 +82,36 @@ def findings_run_of_record() -> AssessmentRun | None:
             .order_by("-pk").first())
 
 
-def open_workbook_build() -> GeneratedArtifact:
+#: What each kind of deliverable is built by and called. Dispatched rather than duplicated: the
+#: run of record, the refusals, the MEDIA_ROOT guard, the background thread and the failure
+#: recording are the same for both files, and the only differences are these two.
+#:
+#: THE BUILDER IS HELD BY NAME, not as the function. Holding the function would capture it at
+#: import, and `mock.patch("assessments.artifact_store.build_workbook")` - which is how the
+#: downloads tests make a guard refuse and how they make a build raise - would rebind the module
+#: attribute while this dict went on calling the real one. A build that cannot be stubbed is a
+#: build whose failure paths are untested.
+BUILDERS = {
+    GeneratedArtifact.Kind.WORKBOOK: ("build_workbook", workbook_filename),
+    GeneratedArtifact.Kind.REMEDIATION: ("build_remediation_workbook",
+                                         remediation_workbook_filename),
+}
+
+
+def builder_for(kind):
+    """The build function for a kind, read off this module so a patch of it is honoured."""
+    name, _filename = BUILDERS[kind]
+    return globals()[name]
+
+
+def open_workbook_build(kind=GeneratedArtifact.Kind.WORKBOOK) -> GeneratedArtifact:
     """The row, BUILDING, before the thread starts - so the page it redirects to can show it."""
+    _name, name = BUILDERS[kind]
     return GeneratedArtifact.objects.create(
-        kind=GeneratedArtifact.Kind.WORKBOOK,
+        kind=kind,
         status=GeneratedArtifact.Status.BUILDING,
         assessment_run=findings_run_of_record(),
-        filename=workbook_filename(get_application_environment()),
+        filename=name(get_application_environment()),
     )
 
 
@@ -99,7 +123,7 @@ def fill_workbook(artifact: GeneratedArtifact) -> GeneratedArtifact:
     because X" is precisely what the reader needs to see on the downloads page.
     """
     try:
-        content, _reports = build_workbook()
+        content, _reports = builder_for(artifact.kind)()
     except ArtifactBuildError as exc:
         return _fail(artifact, f"The workbook was not built: {exc}")
     except Exception as exc:

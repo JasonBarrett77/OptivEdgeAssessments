@@ -34,6 +34,7 @@ NON_PAGE_URL_NAMES = {
     "assessment_catalog_refresh_seed",
     "assessment_control_run_findings",
     "assessment_workbook_build",
+    "assessment_remediation_workbook_build",
     "assessment_artifact_delete",
     "assessment_control_create",
     "assessment_control_update",

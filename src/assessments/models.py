@@ -3320,6 +3320,10 @@ class GeneratedArtifact(models.Model):
 
     class Kind(models.TextChoices):
         WORKBOOK = "workbook", "Engineer-detail workbook"
+        #: The second deliverable, 2026-11-05. Jason: *"Remediation needs its own artifact,
+        #: separate from the existing Findings artifact."* Same findings, folded onto the object
+        #: an engineer opens - so a row is a place to go rather than a thing that is wrong.
+        REMEDIATION = "remediation", "Remediation workbook"
 
     class Status(models.TextChoices):
         BUILDING = "building", "Building"

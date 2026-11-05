@@ -99,6 +99,74 @@ class BuildingTests(_MediaRoot):
         self.assertIn("RuntimeError: disk full", artifact.error)
 
 
+class RemediationBuildTests(_MediaRoot):
+    """The second deliverable, 2026-11-05. Everything above applies to it unchanged - which is
+    the point of dispatching on kind rather than copying the module - so these tests cover only
+    what differs: which builder runs, what the file is called, and that the two refuse each
+    other for the reason a findings run and a build refuse each other."""
+
+    def built(self):
+        return artifact_store.fill_workbook(
+            artifact_store.open_workbook_build(GeneratedArtifact.Kind.REMEDIATION))
+
+    def test_it_builds_and_is_named_for_remediation(self):
+        ApplicationEnvironment.objects.create(
+            client_name="Acme Corporation", client_short_name="Acme",
+            opportunity_number="OP-1234567")
+
+        artifact = self.built()
+
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.READY)
+        self.assertTrue(artifact.filename.startswith("acme-op-1234567-remediation-"))
+        self.assertEqual(Path(artifact.file.path).read_bytes()[:2], XLSX_MAGIC)
+
+    def test_the_kind_decides_which_builder_runs(self):
+        with mock.patch("assessments.artifact_store.build_remediation_workbook",
+                        return_value=(b"PK-remediation", [])) as remediation:
+            with mock.patch("assessments.artifact_store.build_workbook") as findings:
+                self.built()
+
+        remediation.assert_called_once()
+        findings.assert_not_called()
+
+    def test_its_guard_refusing_lands_on_the_row(self):
+        with mock.patch("assessments.artifact_store.build_remediation_workbook",
+                        side_effect=ArtifactBuildError("the zone group reached no tab")):
+            artifact = self.built()
+
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.FAILED)
+        self.assertIn("the zone group reached no tab", artifact.error)
+
+    def test_the_view_hands_it_to_a_thread_as_the_remediation_kind(self):
+        with mock.patch("assessments.views.threading.Thread") as thread:
+            response = self.client.post(
+                reverse("assessment_remediation_workbook_build"), follow=True)
+
+        self.assertRedirects(response, reverse("assessment_downloads"))
+        artifact = GeneratedArtifact.objects.get()
+        self.assertEqual(artifact.kind, GeneratedArtifact.Kind.REMEDIATION)
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.BUILDING)
+        thread.assert_called_once()
+
+    def test_one_build_at_a_time_across_both_kinds(self):
+        """Each reads every stored table in turn, so a findings run landing between two builds
+        would hand the later tabs a different run's findings than the earlier ones."""
+        with mock.patch("assessments.views.threading.Thread"):
+            self.client.post(reverse("assessment_workbook_build"), follow=True)
+            response = self.client.post(
+                reverse("assessment_remediation_workbook_build"), follow=True)
+
+        self.assertEqual(GeneratedArtifact.objects.count(), 1)
+        self.assertIn("already being built",
+                      str(list(get_messages(response.wsgi_request))[-1]))
+
+    def test_the_downloads_page_offers_both(self):
+        page = self.client.get(reverse("assessment_downloads"))
+
+        self.assertContains(page, "Build Findings Workbook")
+        self.assertContains(page, "Build Remediation Workbook")
+
+
 class BuildViewTests(_MediaRoot):
     def post(self):
         with mock.patch("assessments.views.threading.Thread") as thread:

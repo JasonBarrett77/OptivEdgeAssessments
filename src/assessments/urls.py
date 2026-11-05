@@ -17,6 +17,7 @@ from assessments.views import (
     ControlListView,
     FindingsDomainView,
     FindingsSummaryView,
+    RemediationWorkbookBuildView,
     WorkbookBuildView,
     DownloadsView,
     ArtifactDownloadView,
@@ -61,6 +62,13 @@ urlpatterns = [
         "remediation/",
         RemediationIndexView.as_view(),
         name="assessment_remediation_index",
+    ),
+    # Two segments, so `remediation/<slug>/` could not swallow it even if a one-segment route
+    # arrived later - the lesson `findings/workbook/build/` already carries.
+    path(
+        "remediation/workbook/build/",
+        RemediationWorkbookBuildView.as_view(),
+        name="assessment_remediation_workbook_build",
     ),
     # `group/` is still in the path although nothing else sits under `remediation/` any more:
     # it was there to keep a one-segment control route from swallowing the slug, and the links

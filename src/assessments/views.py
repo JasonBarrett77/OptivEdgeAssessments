@@ -1027,7 +1027,13 @@ class WorkbookBuildView(View):
     a second click starting a second build, and slower on the VDI an engagement actually runs
     on. Jason, 2026-10-14: a background process, and a view listing the files to download.
     See `artifact_store` for why a build and a findings run refuse each other.
+
+    SUBCLASSED BY KIND, 2026-11-05: the remediation workbook is a second deliverable built from
+    the same findings, and every refusal above applies to it unchanged - a run mid-flight, a
+    build already running, a collection in progress, no run at all. Only `kind` differs.
     """
+
+    kind = GeneratedArtifact.Kind.WORKBOOK
 
     def post(self, request, *args, **kwargs):
         downloads_url = reverse("assessment_downloads")
@@ -1058,7 +1064,7 @@ class WorkbookBuildView(View):
             return HttpResponseRedirect(downloads_url)
 
         # Opened HERE, not on the thread, so the page this redirects to already lists it.
-        artifact = artifact_store.open_workbook_build()
+        artifact = artifact_store.open_workbook_build(self.kind)
         threading.Thread(
             target=artifact_store.build_workbook_in_background,
             args=(artifact.pk,),
@@ -1070,6 +1076,17 @@ class WorkbookBuildView(View):
             "Building the workbook in the background. It appears here when it is ready, and "
             "you can browse away without stopping it.")
         return HttpResponseRedirect(downloads_url)
+
+
+class RemediationWorkbookBuildView(WorkbookBuildView):
+    """The remediation workbook, built the same way and refused under the same conditions.
+
+    `build_in_progress()` covers both kinds, so the two cannot build at once - which is right
+    rather than restrictive: each reads every stored table in turn, and a findings run landing
+    between them would hand the later tabs a different run's findings.
+    """
+
+    kind = GeneratedArtifact.Kind.REMEDIATION
 
 
 class DownloadsView(TemplateView):
