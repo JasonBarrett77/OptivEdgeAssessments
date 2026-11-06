@@ -17,6 +17,7 @@ from assessments.views import (
     ControlListView,
     FindingsDomainView,
     FindingsSummaryView,
+    HealthCheckBuildView,
     RemediationWorkbookBuildView,
     WorkbookBuildView,
     DownloadsView,
@@ -48,6 +49,14 @@ urlpatterns = [
         "findings/workbook/build/",
         WorkbookBuildView.as_view(),
         name="assessment_workbook_build",
+    ),
+    # Optiv's own health check document, the third deliverable. Under `findings/` beside the
+    # findings workbook build and two segments deep, for the reason that route carries: a
+    # one-segment name here would have to be kept clear of `findings/<slug>/` for good.
+    path(
+        "findings/health-check/build/",
+        HealthCheckBuildView.as_view(),
+        name="assessment_health_check_build",
     ),
     path(
         "findings/<slug:slug>/",

@@ -1,6 +1,8 @@
 import json
+import re
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -11,7 +13,8 @@ from assessments.controls_catalog.io.importers import (
     refresh_seeded_catalogs,
     seed_catalogs_if_empty,
 )
-from assessments.controls_catalog.schemas import validate_catalog_payload
+from assessments.controls_catalog.schemas import (
+    SHORT_REMEDIATION_LIMIT, validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -64,6 +67,137 @@ class SeededCatalogTextTests(TestCase):
                     if isinstance(value, str) and "\\n" in value:
                         offenders.setdefault(control["control_id"], []).append(field)
         self.assertEqual(offenders, {})
+
+
+    def test_every_active_control_ships_a_short_recommendation(self):
+        """The one sentence of a control a CLIENT reads, in the health check's Summary of
+        Findings and Recommendations.
+
+        It used to be `remediation`, the engineer's instruction - so the table carried UI paths
+        and CLI into a document for whoever decides whether to fund the work. Jason, 2026-11-06:
+        *"The 'Recommendation' is too long, and the values themselves aren't appropriate for
+        this customer facing artifact."*
+        """
+        missing = [control["control_id"]
+                   for catalog in load_seed_payload()["catalogs"]
+                   for control in catalog["controls"]
+                   if control["is_active"] and not control.get("short_remediation", "").strip()]
+
+        self.assertEqual(missing, [])
+
+    def test_no_short_recommendation_reads_like_an_instruction_to_an_engineer(self):
+        """The rule, over the shipped payload: one sentence, 100 characters or fewer, no
+        command, no UI path, no control id. `schemas` refuses a catalogue that breaks it; this
+        says so about the one that ships, so a bad line cannot reach a client even if the
+        refusal is ever loosened.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                value = (control.get("short_remediation") or "").strip()
+                if not value:
+                    continue
+                why = []
+                if len(value) > SHORT_REMEDIATION_LIMIT:
+                    why.append(f"{len(value)} characters")
+                if "`" in value or ">" in value:
+                    why.append("a command or a UI path")
+                if re.search(r"[A-Z]{2,4}-[A-Z]{2,5}-\d{3}", value):
+                    why.append("a control id")
+                if len(re.findall(r"\.(?:\s|$)", value)) != 1 or not value.endswith("."):
+                    why.append("more or less than one sentence")
+                if why:
+                    offenders[control["control_id"]] = why
+
+        self.assertEqual(offenders, {})
+
+    def test_a_control_with_no_short_recommendation_is_refused(self):
+        """A guard and not a convention: a control added tomorrow without one would put the full
+        remediation back in front of a client, and nothing else in the build would notice."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], short_remediation="")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("short_remediation", str(caught.exception))
+
+    def test_a_short_recommendation_that_carries_a_command_is_refused(self):
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    short_remediation="Run `set deviceconfig system`.")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("remediation", str(caught.exception))
+
+    def test_a_short_recommendation_over_the_limit_is_refused(self):
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    short_remediation="Narrow it. " * 20)]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn(str(SHORT_REMEDIATION_LIMIT), str(caught.exception))
+
+    def test_a_snapshot_of_controls_that_predate_the_field_is_not_refused(self):
+        """`apply_catalog` snapshots the live controls before replacing them. On a deployment
+        upgraded from a release before this field those rows carry nothing, and refusing the
+        snapshot would refuse the upgrade that introduces it."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], short_remediation="")]
+
+        validated = validate_catalog_payload(payload, require_short_remediation=False)
+
+        self.assertEqual(validated["controls"][0]["short_remediation"], "")
+
+    def test_a_snapshot_still_refuses_a_line_that_is_unfit_to_print(self):
+        """Only the PRESENCE rule is relaxed for a snapshot. A line that exists has to be one a
+        client can read, however the payload was built."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    short_remediation="Run `set deviceconfig system`.")]
+
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload, require_short_remediation=False)
+
+    def test_an_inactive_control_needs_no_short_recommendation(self):
+        """It is graded by nothing, so it reaches no document."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], short_remediation="",
+                                    is_active=False)]
+
+        validated = validate_catalog_payload(payload)
+
+        self.assertEqual(validated["controls"][0]["short_remediation"], "")
+
+    def test_it_survives_a_round_trip_through_the_exporter(self):
+        """A catalogue exported from the live controls and validated again must not lose it -
+        which is how a reissue is made, and losing it there would put the full remediation back
+        in the document with nothing failing."""
+        seed_catalogs_if_empty()
+        refresh_seeded_catalogs()
+        payload = load_seed_payload()["catalogs"][0]
+        for row in payload["controls"]:
+            Control.objects.create(
+                control_id=row["control_id"], name=row["name"],
+                control_type=row["control_type"], description=row["description"],
+                remediation=row["remediation"],
+                short_remediation=row["short_remediation"],
+                default_severity=row["default_severity"], is_active=row["is_active"],
+                target_model=row.get("target_model", ""))
+
+        exported = create_catalog_from_current_controls(
+            label="Round trip", version="1", description="A snapshot of the live controls.")
+
+        validated = validate_catalog_payload(exported.payload)
+        shipped = next(row for row in validated["controls"]
+                       if row["control_id"] == "PAN-MGT-007")
+        self.assertEqual(shipped["short_remediation"],
+                         Control.objects.get(control_id="PAN-MGT-007").short_remediation)
+        self.assertTrue(shipped["short_remediation"])
 
 
 class ControlsCatalogTests(TestCase):
@@ -145,6 +279,7 @@ class ControlsCatalogTests(TestCase):
                         "rationale": "",
                         "audit": "",
                         "remediation": "Tighten rule scope.",
+                        "short_remediation": "Tighten the rule's scope.",
                         "default_severity": "high",
                         "implementation_version": "v1",
                         "target_model": "integrations.SecurityRule",
@@ -250,6 +385,8 @@ class ControlsCatalogTests(TestCase):
                             "rationale": "",
                             "audit": "",
                             "remediation": "Tighten rule scope.",
+                            "short_remediation": "Tighten the rule's scope.",
+                        "short_remediation": "Tighten the rule's scope.",
                             "default_severity": "high",
                             "implementation_version": "v1",
                             "target_model": "integrations.SecurityRule",
@@ -378,6 +515,7 @@ class CatalogDriftTargetModelTests(TestCase):
                 "control_type": "security_rule",
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
+                "short_remediation": "Tighten the rule's scope.",
                 "default_severity": "medium",
                 "implementation_version": "v1",
                 "target_model": target_model,
@@ -418,6 +556,7 @@ class CatalogSchemaTargetModelValidationTests(TestCase):
                 "control_type": "security_rule",
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
+                "short_remediation": "Tighten the rule's scope.",
                 "default_severity": "medium",
                 "implementation_version": "v1",
                 "target_model": target_model,

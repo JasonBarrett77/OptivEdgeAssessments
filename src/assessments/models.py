@@ -746,6 +746,20 @@ class Control(models.Model):
     rationale = models.TextField(blank=True)
     audit = models.TextField(blank=True)
     remediation = models.TextField(blank=True)
+    #: The same recommendation in one sentence, for the client-facing health check document.
+    #:
+    #: WHY A SECOND FIELD AND NOT A TRUNCATION OF THE FIRST. `remediation` is written for the
+    #: engineer who will make the change: it names dialogs, gives CLI, and says what to do about
+    #: the awkward cases. Measured 2026-11-06, 96 of the 218 controls carry a command or a UI
+    #: path in its FIRST SENTENCE, so no amount of trimming turns it into something a client
+    #: reads. Jason, 2026-11-06: *"The 'Recommendation' is too long, and the values themselves
+    #: aren't appropriate for this customer facing artifact."*
+    #:
+    #: The rule, enforced by `controls_catalog.schemas`: one sentence, 100 characters or fewer,
+    #: imperative, naming the change and never the steps - no commands, no UI paths, no control
+    #: ids. Optiv's own template sets that register in its other recommendation tables ("Create
+    #: Panorama Log Forwarders", "Review unused rules and remove where practical").
+    short_remediation = models.TextField(blank=True)
     #: The severity a finding reports when only the baseline query matched - the baseline-tier
     #: severity, stored here rather than on the query because a control has exactly one baseline.
     #: A non-baseline query carrying `adjusted_severity` overrides it, and the WORST such match
@@ -3324,6 +3338,11 @@ class GeneratedArtifact(models.Model):
         #: separate from the existing Findings artifact."* Same findings, folded onto the object
         #: an engineer opens - so a row is a place to go rather than a thing that is wrong.
         REMEDIATION = "remediation", "Remediation workbook"
+        #: The third deliverable, 2026-11-05: Optiv's own PAN Health Check document, generated
+        #: into a scaffold derived from their .dotx. Jason: *"Go with the scaffold approach."*
+        #: A .docx rather than a workbook, which is why `ArtifactDownloadView` now serves a
+        #: content type BY KIND instead of sending the one spreadsheet type for everything.
+        HEALTH_CHECK = "health_check", "Health check document"
 
     class Status(models.TextChoices):
         BUILDING = "building", "Building"

@@ -33,6 +33,9 @@ from assessments.tests._seed import seed_controls
 from assessments.tests.test_findings_views import build_estate
 from optivedge.models import ApplicationEnvironment
 
+#: Every OOXML file is a zip, so this is the magic a .xlsx and a .docx share. Named for the
+#: workbook when the workbook was the only deliverable; kept, because renaming it would touch
+#: every assertion in this module for no gain.
 XLSX_MAGIC = b"PK"
 
 
@@ -165,6 +168,114 @@ class RemediationBuildTests(_MediaRoot):
 
         self.assertContains(page, "Build Findings Workbook")
         self.assertContains(page, "Build Remediation Workbook")
+
+
+class HealthCheckBuildTests(_MediaRoot):
+    """The third deliverable, 2026-11-05, and the first that is not a spreadsheet. Everything
+    `BuildingTests` covers applies to it unchanged - which is the point of dispatching on kind -
+    so these cover only what differs: which builder runs, what the file is called, and the
+    content type the download has to send now that one of the three is a .docx."""
+
+    def built(self):
+        return artifact_store.fill_workbook(
+            artifact_store.open_workbook_build(GeneratedArtifact.Kind.HEALTH_CHECK))
+
+    def test_it_builds_and_is_named_for_the_health_check(self):
+        ApplicationEnvironment.objects.create(
+            client_name="Acme Corporation", client_short_name="Acme",
+            opportunity_number="OP-1234567")
+
+        artifact = self.built()
+
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.READY)
+        self.assertTrue(artifact.filename.startswith("acme-op-1234567-health-check-"))
+        self.assertTrue(artifact.filename.endswith(".docx"))
+        self.assertEqual(Path(artifact.file.path).read_bytes()[:2], XLSX_MAGIC)
+
+    def test_the_kind_decides_which_builder_runs(self):
+        with mock.patch("assessments.artifact_store.build_health_check_document",
+                        return_value=(b"PK-document", [])) as document:
+            with mock.patch("assessments.artifact_store.build_workbook") as findings:
+                self.built()
+
+        document.assert_called_once()
+        findings.assert_not_called()
+
+    def test_its_guard_refusing_lands_on_the_row(self):
+        with mock.patch("assessments.artifact_store.build_health_check_document",
+                        side_effect=ArtifactBuildError(
+                            "the scaffold has no Rating-Critical style")):
+            artifact = self.built()
+
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.FAILED)
+        self.assertIn("Rating-Critical", artifact.error)
+
+    def test_the_view_hands_it_to_a_thread_as_the_health_check_kind(self):
+        with mock.patch("assessments.views.threading.Thread") as thread:
+            response = self.client.post(reverse("assessment_health_check_build"), follow=True)
+
+        self.assertRedirects(response, reverse("assessment_downloads"))
+        artifact = GeneratedArtifact.objects.get()
+        self.assertEqual(artifact.kind, GeneratedArtifact.Kind.HEALTH_CHECK)
+        self.assertEqual(artifact.status, GeneratedArtifact.Status.BUILDING)
+        thread.assert_called_once()
+
+    def test_one_build_at_a_time_across_all_three_kinds(self):
+        with mock.patch("assessments.views.threading.Thread"):
+            self.client.post(reverse("assessment_workbook_build"), follow=True)
+            response = self.client.post(reverse("assessment_health_check_build"), follow=True)
+
+        self.assertEqual(GeneratedArtifact.objects.count(), 1)
+        self.assertIn("already being built",
+                      str(list(get_messages(response.wsgi_request))[-1]))
+
+    def test_the_refusal_names_what_was_being_built(self):
+        """The messages were written when every deliverable was a workbook. `noun` is what the
+        three views differ by besides their kind."""
+        with mock.patch("assessments.views.threading.Thread"):
+            self.client.post(reverse("assessment_health_check_build"), follow=True)
+            response = self.client.post(reverse("assessment_health_check_build"), follow=True)
+
+        self.assertIn("A health check document is already being built",
+                      str(list(get_messages(response.wsgi_request))[-1]))
+
+    def test_a_docx_is_served_as_a_word_document_and_not_as_a_spreadsheet(self):
+        """It was one constant for every kind until 2026-11-05. A .docx served as
+        `spreadsheetml.sheet` downloads with the right extension and the wrong type, and Excel
+        is what opens it on a machine that trusts the header over the suffix."""
+        artifact = self.built()
+
+        response = self.client.get(
+            reverse("assessment_artifact_download", args=[artifact.pk]))
+
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+    def test_a_workbook_is_still_served_as_a_spreadsheet(self):
+        artifact = artifact_store.fill_workbook(artifact_store.open_workbook_build())
+
+        response = self.client.get(
+            reverse("assessment_artifact_download", args=[artifact.pk]))
+
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def test_every_kind_has_a_content_type(self):
+        """`ArtifactDownloadView` indexes the map rather than defaulting, because a wrong
+        default is a file that opens in the wrong application. So a kind added without one has
+        to fail here rather than with a KeyError on somebody's download."""
+        from assessments.views import CONTENT_TYPES
+
+        self.assertEqual(set(CONTENT_TYPES), set(GeneratedArtifact.Kind.values))
+
+    def test_the_downloads_page_offers_all_three(self):
+        page = self.client.get(reverse("assessment_downloads"))
+
+        self.assertContains(page, "Build Findings Workbook")
+        self.assertContains(page, "Build Remediation Workbook")
+        self.assertContains(page, "Build Health Check Document")
 
 
 class BuildViewTests(_MediaRoot):

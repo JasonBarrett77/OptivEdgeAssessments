@@ -53,3 +53,21 @@ def remediation_workbook_filename(environment=None, *, today: dt.date | None = N
     parts.append("remediation")
     parts.append((today or dt.date.today()).isoformat())
     return "-".join(parts) + ".xlsx"
+
+
+def health_check_filename(environment=None, *, today: dt.date | None = None) -> str:
+    """`acme-op-1234567-health-check-2026-11-05.docx`, the same three parts and a new extension.
+
+    `health-check` and not `report`: the two workbooks and this are all reports, and the thing a
+    consultant is choosing between in a directory is the engineer's detail, the list of edits,
+    and the document that goes to the client. The hyphen is kept inside the word so the name
+    reads as the deliverable Optiv's template is called after.
+    """
+    parts = []
+    if environment is not None:
+        name = environment.client_short_name or environment.client_name
+        parts.extend(part for part in (slugify(name),
+                                       slugify(environment.opportunity_number)) if part)
+    parts.append("health-check")
+    parts.append((today or dt.date.today()).isoformat())
+    return "-".join(parts) + ".docx"

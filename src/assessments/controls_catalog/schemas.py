@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from django.core.exceptions import ValidationError
 
 from assessments.models import Control
@@ -29,6 +31,73 @@ def _require_bool(mapping: dict, key: str, *, context: str) -> bool:
     value = mapping.get(key)
     if not isinstance(value, bool):
         _raise_validation_error(f"{context} must include a boolean '{key}'.")
+    return value
+
+
+#: The longest a `short_remediation` may be. Measured on the built document 2026-11-06: at this
+#: length the Summary of Findings table falls from about 12.6 pages to 5, and the Recommendation
+#: column stops being what sets the height of any row - so a tighter cap would buy nothing.
+SHORT_REMEDIATION_LIMIT = 100
+
+#: What a client-facing recommendation must not contain. A backtick or an angle bracket is a
+#: command or a UI path; a control id is this application's own vocabulary, which the Finding
+#: column beside it already carries.
+_NOT_FOR_A_CLIENT = (
+    ("`", "a command or a quoted setting"),
+    (">", "a UI path"),
+)
+_CONTROL_ID = re.compile(r"\b[A-Z]{2,4}-[A-Z]{2,5}-\d{3}\b")
+#: A full stop that ends a sentence, as opposed to the one in `TLS 1.2`.
+_SENTENCE_END = re.compile(r"\.(?:\s|$)")
+
+
+def _validate_short_remediation(control_payload: dict, control_id: str, is_active: bool,
+                                *, required: bool) -> str:
+    """The one-sentence recommendation the health check document prints, and its rules.
+
+    WHY IT IS CHECKED HERE. This is the only sentence of a control that a CLIENT reads - the
+    Summary of Findings and Recommendations table, on the page after the executive summary - and
+    the thing it replaced was `remediation`, which on 96 of the 218 controls opens with a CLI
+    command or a UI path. A control added tomorrow with no short line, or with its full
+    remediation pasted in, would put that straight back in front of a client. Refusing the
+    CATALOGUE is what makes that impossible, rather than a test that a new control's author has
+    to know to run.
+
+    An INACTIVE control is exempt: it is graded by nothing, so it reaches no document.
+
+    SO IS A SNAPSHOT, which is the reason `required` exists. `exporters.export_control_catalog`
+    builds a payload out of the controls ALREADY IN THE DATABASE - `apply_catalog` takes one as
+    a backup before it replaces them. On a deployment upgraded from a release before this field,
+    those rows carry nothing, and refusing their snapshot would refuse the upgrade itself. A
+    record of what is already there is not a proposal for what to ship. The FORMAT rules below
+    still apply either way: a line that exists must be fit to print.
+    """
+    value = str(control_payload.get("short_remediation", "") or "").strip()
+    context = f"Control '{control_id}'"
+    if not value:
+        if not is_active or not required:
+            return ""
+        _raise_validation_error(
+            f"{context} must include a 'short_remediation': one imperative sentence of "
+            f"{SHORT_REMEDIATION_LIMIT} characters or fewer, naming the change rather than the "
+            f"steps. It is what a client reads in the health check document.")
+    if len(value) > SHORT_REMEDIATION_LIMIT:
+        _raise_validation_error(
+            f"{context} has a 'short_remediation' of {len(value)} characters; the limit is "
+            f"{SHORT_REMEDIATION_LIMIT}. The full instruction belongs in 'remediation'.")
+    if len(_SENTENCE_END.findall(value)) != 1 or not value.endswith("."):
+        _raise_validation_error(
+            f"{context} must have a 'short_remediation' of exactly one sentence, ending in a "
+            f"full stop.")
+    for mark, what in _NOT_FOR_A_CLIENT:
+        if mark in value:
+            _raise_validation_error(
+                f"{context} has {what} in its 'short_remediation'. That belongs in "
+                f"'remediation', which the remediation pages and the findings workbook print.")
+    if _CONTROL_ID.search(value):
+        _raise_validation_error(
+            f"{context} names a control id in its 'short_remediation'. The column beside it in "
+            f"the document already carries one.")
     return value
 
 
@@ -94,7 +163,8 @@ def _validate_query_payload(query_payload: dict, *, control_id: str) -> dict:
     return normalized_query
 
 
-def _validate_control_payload(control_payload: dict) -> dict:
+def _validate_control_payload(control_payload: dict, *,
+                              require_short_remediation: bool = True) -> dict:
     if not isinstance(control_payload, dict):
         _raise_validation_error("Each control entry must be an object.")
 
@@ -150,6 +220,8 @@ def _validate_control_payload(control_payload: dict) -> dict:
                     f"{q_model!r} but control target_model is '{target_model}'."
                 )
 
+    is_active = _require_bool(control_payload, "is_active", context=f"Control '{control_id}'")
+
     return {
         "control_id": control_id,
         "name": _require_string(control_payload, "name", context=f"Control '{control_id}'"),
@@ -162,21 +234,19 @@ def _validate_control_payload(control_payload: dict) -> dict:
         "rationale": str(control_payload.get("rationale", "") or ""),
         "audit": str(control_payload.get("audit", "") or ""),
         "remediation": str(control_payload.get("remediation", "") or ""),
+        "short_remediation": _validate_short_remediation(
+            control_payload, control_id, is_active, required=require_short_remediation),
         #: The severity a finding reports when only the baseline query matched. A non-baseline
         #: query's `adjusted_severity` overrides it, worst match winning.
         "default_severity": default_severity,
         "implementation_version": str(control_payload.get("implementation_version", "v1") or "v1"),
         "target_model": target_model,
-        "is_active": _require_bool(
-            control_payload,
-            "is_active",
-            context=f"Control '{control_id}'",
-        ),
+        "is_active": is_active,
         "queries": normalized_queries,
     }
 
 
-def validate_catalog_payload(payload: dict) -> dict:
+def validate_catalog_payload(payload: dict, *, require_short_remediation: bool = True) -> dict:
     if not isinstance(payload, dict):
         _raise_validation_error("Catalog payload must be an object.")
     if payload.get("type") != CATALOG_PAYLOAD_TYPE:
@@ -193,7 +263,8 @@ def validate_catalog_payload(payload: dict) -> dict:
     normalized_controls = []
     seen_control_ids: set[str] = set()
     for control_payload in controls:
-        normalized_control = _validate_control_payload(control_payload)
+        normalized_control = _validate_control_payload(
+            control_payload, require_short_remediation=require_short_remediation)
         if normalized_control["control_id"] in seen_control_ids:
             _raise_validation_error(
                 f"Catalog payload contains duplicate control_id '{normalized_control['control_id']}'."

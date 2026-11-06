@@ -14,6 +14,17 @@ dependencies = [
     # The engineer-detail workbook. Writes to a file-like object, so a build never needs a
     # path on disk - see assessments/artifacts/workbook.py.
     "XlsxWriter>=3.1",
+    # The health check document. Opens the committed scaffold read-only and saves to a
+    # BytesIO, for the same reason - see assessments/artifacts/docx/scaffold.py.
+    #
+    # NOT docxtpl, which was the obvious alternative and is Jinja markers inside the Word file:
+    # that is the modify-in-place approach Jason ruled out on 2026-11-05 ("modifying something
+    # in place comes with its own challenges"), and it would put the report's structure in a
+    # document nobody can diff.
+    #
+    # It was already in the venv at 1.2.0 and undeclared, which is how a build worked on this
+    # machine and would have failed on a fresh install.
+    "python-docx>=1.1",
 ]
 
 [project.scripts]
@@ -27,6 +38,10 @@ exclude = ["assessments.tests*"]
 [tool.setuptools.package-data]
 assessments = [
     "controls_catalog/catalogs/*.json",
+    # The health-check scaffold: Optiv's template with its body stripped to a marker, 1.49 MB
+    # and 74 parts. Without this line the wheel ships the generator and not the file it needs,
+    # and the first build on a deployed install is what finds out.
+    "docx/*.docx",
     "docs/*.md",
     "templates/**/*.html",
 ]

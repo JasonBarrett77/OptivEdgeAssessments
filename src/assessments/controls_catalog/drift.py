@@ -11,7 +11,7 @@ Query fields included: name, canonical_query, is_baseline, adjusted_severity,
 is_active.
 
 Fields excluded: pk, created_at, updated_at, name (control), description,
-rationale, audit, remediation, short_description — these do not affect query
+rationale, audit, remediation, short_remediation, short_description — these do not affect query
 evaluation or finding generation.
 """
 

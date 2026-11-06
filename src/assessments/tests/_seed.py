@@ -42,6 +42,10 @@ def seed_control(spec, *, control_type=None, **overrides):
         "rationale": spec["rationale"],
         "audit": spec["audit"],
         "remediation": spec["remediation"],
+        # The one sentence the health check document prints. Set here for the same reason the
+        # three above were: a control test that leaves it empty is a test of a document whose
+        # Recommendation column says MANUAL.
+        "short_remediation": spec["short_remediation"],
         "default_severity": spec["default_severity"],
         "target_model": spec.get("target_model", ""),
         "is_active": spec.get("is_active", True),

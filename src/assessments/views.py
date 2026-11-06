@@ -1018,6 +1018,17 @@ class FindingsDomainView(TemplateView):
 #: What a browser is told an .xlsx is. The long one: the short `application/vnd.ms-excel`
 #: names the pre-2007 format, and Excel warns that the file does not match its extension.
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+#: What to tell the browser a stored deliverable is, BY KIND. It was one constant until
+#: 2026-11-05, when the third deliverable stopped being a spreadsheet: a .docx served as
+#: `spreadsheetml.sheet` downloads with the right extension and the wrong type, and Excel is
+#: what opens it on a machine that trusts the header over the suffix.
+CONTENT_TYPES = {
+    GeneratedArtifact.Kind.WORKBOOK: XLSX_CONTENT_TYPE,
+    GeneratedArtifact.Kind.REMEDIATION: XLSX_CONTENT_TYPE,
+    GeneratedArtifact.Kind.HEALTH_CHECK: DOCX_CONTENT_TYPE,
+}
 
 
 class WorkbookBuildView(View):
@@ -1034,6 +1045,13 @@ class WorkbookBuildView(View):
     """
 
     kind = GeneratedArtifact.Kind.WORKBOOK
+    #: What the messages call it. One word rather than `get_kind_display()` so a refusal reads
+    #: as a sentence - "A workbook is already being built", not "An Engineer-detail workbook is".
+    noun = "workbook"
+    #: And what its parts are called, for the refusal that explains the risk. A workbook's
+    #: parts are its tabs and the document's are its sections, and the sentence names the thing
+    #: the reader would open.
+    parts = "tabs"
 
     def post(self, request, *args, **kwargs):
         downloads_url = reverse("assessment_downloads")
@@ -1045,20 +1063,20 @@ class WorkbookBuildView(View):
         if findings_run_in_progress() is not None:
             messages.error(
                 request,
-                "A findings run is in progress. Build the workbook once it finishes - built "
-                "now, its tabs could come from two different runs.")
+                f"A findings run is in progress. Build the {self.noun} once it finishes - "
+                f"built now, its {self.parts} could come from two different runs.")
             return HttpResponseRedirect(downloads_url)
         if artifact_store.build_in_progress() is not None:
-            messages.error(request, "A workbook is already being built.")
+            messages.error(request, f"A {self.noun} is already being built.")
             return HttpResponseRedirect(downloads_url)
         if integration_work_in_progress():
             messages.error(
                 request,
-                "A collection or normalization is running. Build the workbook once it "
-                "finishes, and after running findings on what it collected.")
+                f"A collection or normalization is running. Build the {self.noun} once it "
+                f"finishes, and after running findings on what it collected.")
             return HttpResponseRedirect(downloads_url)
-        # Without a run the workbook would be every domain empty - a clean estate, on a
-        # deliverable, about one nothing has assessed.
+        # Without a run the deliverable would be every domain empty - a clean estate, on a
+        # file sent to a client, about one nothing has assessed.
         if artifact_store.findings_run_of_record() is None:
             messages.error(request, NO_FINDINGS_RUN)
             return HttpResponseRedirect(downloads_url)
@@ -1073,8 +1091,8 @@ class WorkbookBuildView(View):
         ).start()
         messages.success(
             request,
-            "Building the workbook in the background. It appears here when it is ready, and "
-            "you can browse away without stopping it.")
+            f"Building the {self.noun} in the background. It appears here when it is ready, "
+            f"and you can browse away without stopping it.")
         return HttpResponseRedirect(downloads_url)
 
 
@@ -1087,6 +1105,24 @@ class RemediationWorkbookBuildView(WorkbookBuildView):
     """
 
     kind = GeneratedArtifact.Kind.REMEDIATION
+    noun = "remediation workbook"
+    parts = "tabs"
+
+
+class HealthCheckBuildView(WorkbookBuildView):
+    """Optiv's PAN Health Check document, built the same way and refused under the same
+    conditions.
+
+    THE THIRD DELIVERABLE, 2026-11-05, and the first that is not a spreadsheet. Every refusal
+    the workbook view makes applies to it for the same reasons - a findings run mid-flight would
+    give its executive summary and its observation tables two different runs, and `artifacts.
+    health_check.check_the_run_is_one_run` refuses that from the other side as well - so only
+    `kind` and the word in the messages differ.
+    """
+
+    kind = GeneratedArtifact.Kind.HEALTH_CHECK
+    noun = "health check document"
+    parts = "sections"
 
 
 class DownloadsView(TemplateView):
@@ -1132,7 +1168,7 @@ class ArtifactDownloadView(View):
         except FileNotFoundError:
             raise Http404("the file for this build is no longer on disk")
         return FileResponse(handle, as_attachment=True, filename=artifact.filename,
-                            content_type=XLSX_CONTENT_TYPE)
+                            content_type=CONTENT_TYPES[artifact.kind])
 
 
 class ArtifactDeleteView(View):
@@ -1142,7 +1178,10 @@ class ArtifactDeleteView(View):
     def post(self, request, pk, *args, **kwargs):
         artifact = get_object_or_404(GeneratedArtifact, pk=pk)
         if artifact.status == GeneratedArtifact.Status.BUILDING:
-            messages.error(request, "That workbook is still being built.")
+            # Not "that workbook": since 2026-11-05 a build can be a document, and the row's
+            # own display name says which without this sentence guessing.
+            messages.error(request,
+                           f"That {artifact.get_kind_display().lower()} is still being built.")
         else:
             artifact.delete()
             messages.success(request, f"Deleted {artifact.filename or 'the build'}.")

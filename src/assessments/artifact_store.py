@@ -34,8 +34,9 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from assessments.artifacts import (
-    ArtifactBuildError, build_remediation_workbook, build_workbook)
-from assessments.artifacts.naming import remediation_workbook_filename, workbook_filename
+    ArtifactBuildError, build_health_check_document, build_remediation_workbook, build_workbook)
+from assessments.artifacts.naming import (
+    health_check_filename, remediation_workbook_filename, workbook_filename)
 from assessments.environment import get_application_environment
 from assessments.models import AssessmentRun, GeneratedArtifact
 
@@ -91,10 +92,17 @@ def findings_run_of_record() -> AssessmentRun | None:
 #: downloads tests make a guard refuse and how they make a build raise - would rebind the module
 #: attribute while this dict went on calling the real one. A build that cannot be stubbed is a
 #: build whose failure paths are untested.
+#:
+#: THE DOCUMENT IS DISPATCHED THE SAME WAY, 2026-11-05, and it is not a workbook. Everything
+#: this module does for the two xlsx files applies to it unchanged - the run of record, the
+#: refusals, the MEDIA_ROOT guard, the thread and the failure recording - and the only things
+#: that differ are these two and the content type the download view sends.
 BUILDERS = {
     GeneratedArtifact.Kind.WORKBOOK: ("build_workbook", workbook_filename),
     GeneratedArtifact.Kind.REMEDIATION: ("build_remediation_workbook",
                                          remediation_workbook_filename),
+    GeneratedArtifact.Kind.HEALTH_CHECK: ("build_health_check_document",
+                                          health_check_filename),
 }
 
 

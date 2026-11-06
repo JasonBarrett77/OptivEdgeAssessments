@@ -21,10 +21,12 @@ leaves the machine, and the flag is there so the decision is made knowingly.
             <div class="flex shrink-0 items-center justify-between bg-white px-4 py-2">
                 <h1 class="text-sm font-semibold text-slate-900">Downloads</h1>
                 {% comment %}
-                TWO DELIVERABLES, two buttons (Jason, 2026-11-05). The findings workbook says
-                what is wrong, one row per finding; the remediation workbook says where to go,
-                one row per place. Either is disabled while the other builds: both read every
-                stored table in turn and a findings run landing between them would mix two runs.
+                THREE DELIVERABLES, three buttons (Jason, 2026-11-05). The findings workbook
+                says what is wrong, one row per finding; the remediation workbook says where to
+                go, one row per place; the health check document is what goes to the client,
+                generated into Optiv's own template. Any one is disabled while another builds:
+                each reads every stored table in turn and a findings run landing between them
+                would mix two runs.
                 {% endcomment %}
                 <div class="flex items-center gap-2">
                     <form method="post" action="{% url 'assessment_workbook_build' %}">
@@ -41,6 +43,14 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                                 {% if building %}disabled title="A workbook is already being built."{% endif %}
                                 class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
                             Build Remediation Workbook
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'assessment_health_check_build' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                {% if building %}disabled title="A deliverable is already being built."{% endif %}
+                                class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                            Build Health Check Document
                         </button>
                     </form>
                 </div>
@@ -157,7 +167,7 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                     </tbody>
                 </table>
                 {% else %}
-                <p class="px-4 py-6 text-sm text-slate-500">Nothing has been built yet. Build Findings Workbook makes the engineer-detail workbook from the current findings; Build Remediation Workbook folds the same findings onto the objects that clear them.</p>
+                <p class="px-4 py-6 text-sm text-slate-500">Nothing has been built yet. Build Findings Workbook makes the engineer-detail workbook from the current findings; Build Remediation Workbook folds the same findings onto the objects that clear them; Build Health Check Document generates Optiv&rsquo;s PAN Health Check deliverable, with the sections a consultant has to write marked MANUAL.</p>
                 {% endif %}
             </div>
 
