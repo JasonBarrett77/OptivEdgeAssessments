@@ -39,6 +39,8 @@ from optivedge_integrations.integrations.models import (
     Appliance, EnforcementNode, EnforcementPoint, ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.flows import get_in_scope_appliances
 
+from assessments import finding_registry
+
 from .errors import ArtifactBuildError
 
 
@@ -110,6 +112,13 @@ def enforcement_nodes_in_scope():
     return EnforcementNode.objects.filter(enforcement_point__in_scope=True)
 
 
+def snapshots_out_of_scope():
+    """Snapshots whose enforcement point, or whose appliance, is no longer in scope."""
+    return Snapshot.objects.filter(
+        Q(enforcement_point__isnull=False, enforcement_point__in_scope=False)
+        | (Q(appliance__isnull=False) & ~Q(appliance__in=appliances_in_scope())))
+
+
 def check_findings_are_in_scope() -> None:
     """Refuse a build whose findings reach outside the engagement's scope.
 
@@ -119,27 +128,42 @@ def check_findings_are_in_scope() -> None:
     that moved an appliance between groups without retiring the point it left - and quietly
     dropping it from the deliverable would answer that question by hiding it.
 
-    CHECKED ON THE SNAPSHOTS rather than on the findings. Every finding hangs off a snapshot,
-    there are seventy-five finding models and one snapshot model, and a snapshot in scope
-    cannot carry a finding that is not.
+    IT IS THE FINDINGS THAT ARE CHECKED, NOT EVERY SNAPSHOT EVER COLLECTED. Snapshots
+    accumulate: nothing in production deletes one, and the lab holds 47, 47, 72 and 1
+    `show_merged_config` snapshots for its four appliances while its findings reference 10
+    snapshots of the 1,062 there are. A first version of this guard asked whether any snapshot
+    was out of scope, which would have refused a build over a collection from before scope last
+    changed - a deliverable blocked by history rather than by anything in it. So the snapshots
+    are narrowed first, which is one query and almost always empty, and only then is each
+    finding model asked whether it points at one.
     """
     check_scope_is_declared()
     if not scope_is_declared():
         return
-    offending = Snapshot.objects.filter(
-        Q(enforcement_point__isnull=False, enforcement_point__in_scope=False)
-        | (Q(appliance__isnull=False) & ~Q(appliance__in=appliances_in_scope()))
-    ).select_related("appliance", "enforcement_point")[:6]
-    named = [
-        f"{snapshot.source_type} on "
-        f"{(snapshot.appliance.hostname or snapshot.appliance.serial_number) if snapshot.appliance else 'no appliance'}"
-        + (f" / {snapshot.enforcement_point.vsys_name}" if snapshot.enforcement_point else "")
-        for snapshot in offending
-    ]
+    stale = set(snapshots_out_of_scope().values_list("pk", flat=True))
+    if not stale:
+        return
+    named = []
+    for kind in finding_registry.FINDING_KINDS:
+        snapshot = (Snapshot.objects
+                    .filter(pk__in=kind.model.objects.filter(snapshot_id__in=stale)
+                            .values_list("snapshot_id", flat=True))
+                    .select_related("appliance", "enforcement_point")
+                    .first())
+        if snapshot is None:
+            continue
+        where = (snapshot.appliance.hostname or snapshot.appliance.serial_number
+                 if snapshot.appliance else "no appliance")
+        if snapshot.enforcement_point:
+            where += f" / {snapshot.enforcement_point.vsys_name}"
+        named.append(f"{kind.label} on {where}")
+        if len(named) == 6:
+            break
     if named:
         raise ArtifactBuildError(
-            "the findings reach outside the engagement's scope, so this build would report on "
+            "findings reach outside the engagement's scope, so this build would report on "
             "something nobody asked for: " + "; ".join(named) + ". An enforcement point "
-            "unticked after it was collected keeps its snapshots, and nothing re-checks scope "
-            "when findings are generated. Re-run the findings after collection, or put the "
-            "point back in scope.")
+            "unticked after it was collected keeps the configuration read through it, and "
+            "nothing re-checks scope when findings are generated - so re-running the findings "
+            "on its own will not clear this. Put the point back in scope if it belongs there, "
+            "or collect and renormalize so the configuration behind these findings is retired.")

@@ -19,8 +19,11 @@ from django.utils import timezone
 from assessments.artifacts import (
     ArtifactBuildError, build_health_check_document, build_workbook)
 from assessments.artifacts import scope
+from assessments.finding_run import regenerate_findings
+from assessments.tests._seed import seed_controls
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, EnforcementNode, EnforcementPoint, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, EnforcementNode, EnforcementPoint, LoginBanner,
+    ManagementStation, Snapshot)
 from optivedge_integrations.integrations.platforms.pan_os.flows import get_in_scope_appliances
 
 
@@ -65,6 +68,14 @@ class _Estate(TestCase):
         self.snapshot = Snapshot.objects.create(
             management_station=self.station, appliance=self.inside,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})
+        # A real finding, because the guard asks the finding models what they point AT - a
+        # snapshot on its own is history, not a deliverable. PAN-MGT-007 on an empty banner is
+        # the cheapest one finding in this suite.
+        LoginBanner.objects.create(
+            management_station=self.station, appliance=self.inside,
+            source_snapshot=self.snapshot, text="", acknowledgement_required=False)
+        seed_controls(["PAN-MGT-007"])
+        regenerate_findings()
 
         self.out_group = ApplianceGroup.objects.create(
             management_station=self.station, name="g-out",
@@ -140,6 +151,40 @@ class ScopeTests(_Estate):
 
         self.assertIn("outside the engagement's scope", str(raised.exception))
         self.assertIn("vsys1", str(raised.exception))
+
+
+    def test_a_collection_from_before_scope_changed_does_not_refuse_the_build(self):
+        """Snapshots ACCUMULATE - nothing deletes one - so an estate holds collections from
+        before scope last changed. The first version of this guard asked whether any snapshot
+        was out of scope and would have refused a build over history rather than over anything
+        in the deliverable. On the lab that is 1,062 snapshots against the 10 its findings
+        reference.
+        """
+        stale = Snapshot.objects.create(
+            management_station=self.station, appliance=self.outside,
+            enforcement_point=self.out_point, source_type="show_merged_config",
+            collected_at=timezone.now(), payload={})
+
+        self.assertIn(stale.pk, set(
+            scope.snapshots_out_of_scope().values_list("pk", flat=True)))
+        scope.check_findings_are_in_scope()          # no finding points at it, so it is history
+
+    def test_the_refusal_says_re_running_the_findings_will_not_clear_it(self):
+        """Because it would not: generation reads the normalized configuration and never asks
+        about scope, so the same findings come back. The remedy is the point or the
+        configuration behind it, not the run."""
+        self.snapshot.enforcement_point = self.in_point
+        self.snapshot.save(update_fields=["enforcement_point"])
+        self.in_point.in_scope = False
+        self.in_point.save(update_fields=["in_scope"])
+        self.out_point.in_scope = True
+        self.out_point.save(update_fields=["in_scope"])
+
+        with self.assertRaises(ArtifactBuildError) as raised:
+            scope.check_findings_are_in_scope()
+
+        self.assertIn("re-running the findings on its own will not clear this",
+                      str(raised.exception))
 
 
 class ArtifactScopeTests(_Estate):
