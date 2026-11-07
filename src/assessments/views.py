@@ -1031,6 +1031,12 @@ CONTENT_TYPES = {
 }
 
 
+#: The checkbox beside Build Health Check Document. Named in one place because the template's
+#: `name=` and the view's `request.POST` lookup are the same string, and a typo in either would
+#: silently build the shorter document for ever.
+CONTROL_DETAIL_FIELD = "control_detail"
+
+
 class WorkbookBuildView(View):
     """Start building the workbook in the background, then go to Downloads to collect it.
 
@@ -1052,6 +1058,14 @@ class WorkbookBuildView(View):
     #: parts are its tabs and the document's are its sections, and the sentence names the thing
     #: the reader would open.
     parts = "tabs"
+
+    def build_options(self, request) -> dict:
+        """What the form on the downloads page asked for, beyond "build it".
+
+        Nothing, for both workbooks: they have no content to decide about. Overridden by the
+        health check document, whose Control Detail section is a checkbox.
+        """
+        return {}
 
     def post(self, request, *args, **kwargs):
         downloads_url = reverse("assessment_downloads")
@@ -1082,7 +1096,7 @@ class WorkbookBuildView(View):
             return HttpResponseRedirect(downloads_url)
 
         # Opened HERE, not on the thread, so the page this redirects to already lists it.
-        artifact = artifact_store.open_workbook_build(self.kind)
+        artifact = artifact_store.open_workbook_build(self.kind, **self.build_options(request))
         threading.Thread(
             target=artifact_store.build_workbook_in_background,
             args=(artifact.pk,),
@@ -1124,6 +1138,18 @@ class HealthCheckBuildView(WorkbookBuildView):
     noun = "health check document"
     parts = "sections"
 
+    def build_options(self, request) -> dict:
+        """Whether this build carries the Control Detail section.
+
+        READ AS A TICKED BOX, which is how a browser sends one: an unticked checkbox sends
+        nothing at all, so absence means "without it". The box on the downloads page is ticked
+        by default (Jason, 2026-11-06: *"an option on the downloads page to include/exclude.
+        Include by default."*), and the generator's own default is OFF - so the engineer gets
+        the section unless they clear the box, and anything posting this form without the field
+        gets the shorter document rather than forty pages it did not ask for.
+        """
+        return {"control_detail": CONTROL_DETAIL_FIELD in request.POST}
+
 
 class DownloadsView(TemplateView):
     """Every built deliverable, kept until somebody deletes it (Jason, 2026-10-14)."""
@@ -1148,6 +1174,9 @@ class DownloadsView(TemplateView):
             })
         context["rows"] = rows
         context["building"] = artifact_store.build_in_progress()
+        # The checkbox's own `name=`, from the one place it is spelled - see
+        # `CONTROL_DETAIL_FIELD`.
+        context["control_detail_field"] = CONTROL_DETAIL_FIELD
         return context
 
 

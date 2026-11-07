@@ -101,6 +101,84 @@ def _validate_short_remediation(control_payload: dict, control_id: str, is_activ
     return value
 
 
+#: The four lines of the health check document's Control Detail section, and the longest each
+#: may be. The caps come from the mock-up agreed 2026-11-06: two sentences for what a control
+#: checks, one or two for why it matters and what to change, and a screen path for where to
+#: confirm it. Each block sits in a two-column table, so a line that runs long pushes the
+#: control onto a second page.
+CLIENT_DETAIL_LIMITS = {
+    "what_it_checks": 320,
+    "why_it_matters": 240,
+    "where_to_confirm": 220,
+    "what_to_change": 280,
+}
+
+#: `where_to_confirm` IS a UI path, so the angle-bracket rule cannot apply to it. Nothing else
+#: is relaxed: a backtick is still a command, and a control id is still our vocabulary.
+_MAY_CARRY_A_UI_PATH = ("where_to_confirm",)
+
+#: Written to us rather than to a client. Found in the existing prose fields on 2026-11-06 and
+#: refused here so it cannot come back: "we only count", "our corpus prefers".
+_FIRST_PERSON = re.compile(r"\b(?:we|we're|our|ours|us|I|I'm|my)\b")
+
+
+def _validate_client_detail(control_payload: dict, control_id: str, is_active: bool,
+                            *, required: bool) -> dict:
+    """The four lines a client reads about one control, and the rules they are held to.
+
+    WHY THEY ARE SEPARATE FIELDS AND NOT CUTS OF `description`, `rationale`, `audit` AND
+    `remediation`. Those four are written to whoever will make the change. Measured over all
+    218 controls on 2026-11-06, counting backticked identifiers, ALL-CAPS asides, dated notes
+    and control ids: `rationale` is clean on 209, `audit` on 140, `remediation` on 116, and
+    `description` has a median length of 1,924 characters. Jason, 2026-11-06: *"These probably
+    all need to be produced because the existing seed data isn't consistently using the right
+    level language."* So the Control Detail section reads these, and the older fields keep
+    serving the remediation pages, the findings workbook and the UI unchanged.
+
+    `required`, `is_active` and the snapshot exemption work exactly as they do for
+    `short_remediation`; see `_validate_short_remediation` for why a snapshot of rows already
+    in the database must not be refused for lacking a field its release predates.
+    """
+    context = f"Control '{control_id}'"
+    detail = {}
+    for field, limit in CLIENT_DETAIL_LIMITS.items():
+        value = str(control_payload.get(field, "") or "").strip()
+        if not value:
+            if not is_active or not required:
+                detail[field] = ""
+                continue
+            _raise_validation_error(
+                f"{context} must include a '{field}' of {limit} characters or fewer, written "
+                f"for the client who reads the health check document's Control Detail section.")
+        if len(value) > limit:
+            _raise_validation_error(
+                f"{context} has a '{field}' of {len(value)} characters; the limit is {limit}. "
+                f"The longer version belongs in the engineer-facing field beside it.")
+        if not value.endswith((".", "?")):
+            _raise_validation_error(
+                f"{context} has a '{field}' that does not end in a full stop.")
+        for mark, what in _NOT_FOR_A_CLIENT:
+            if mark == ">" and field in _MAY_CARRY_A_UI_PATH:
+                continue
+            if mark in value:
+                _raise_validation_error(
+                    f"{context} has {what} in its '{field}'. That belongs in the "
+                    f"engineer-facing field beside it.")
+        #: A reference to ANOTHER control reads here, because this section prints control ids
+        #: and a client can follow the cross-reference. The control's OWN id does not: the row
+        #: at the top of the same table already carries it.
+        if control_id in value:
+            _raise_validation_error(
+                f"{context} names its own control id in its '{field}'. The Control row at the "
+                f"top of the same table already carries it.")
+        if _FIRST_PERSON.search(value):
+            _raise_validation_error(
+                f"{context} writes in the first person in its '{field}'. The Control Detail "
+                f"section is addressed to the client, not written by us to each other.")
+        detail[field] = value
+    return detail
+
+
 def _validate_catalog_metadata(metadata: dict) -> dict:
     if not isinstance(metadata, dict):
         _raise_validation_error("Catalog payload 'catalog' must be an object.")
@@ -164,7 +242,7 @@ def _validate_query_payload(query_payload: dict, *, control_id: str) -> dict:
 
 
 def _validate_control_payload(control_payload: dict, *,
-                              require_short_remediation: bool = True) -> dict:
+                              require_client_text: bool = True) -> dict:
     if not isinstance(control_payload, dict):
         _raise_validation_error("Each control entry must be an object.")
 
@@ -235,7 +313,9 @@ def _validate_control_payload(control_payload: dict, *,
         "audit": str(control_payload.get("audit", "") or ""),
         "remediation": str(control_payload.get("remediation", "") or ""),
         "short_remediation": _validate_short_remediation(
-            control_payload, control_id, is_active, required=require_short_remediation),
+            control_payload, control_id, is_active, required=require_client_text),
+        **_validate_client_detail(
+            control_payload, control_id, is_active, required=require_client_text),
         #: The severity a finding reports when only the baseline query matched. A non-baseline
         #: query's `adjusted_severity` overrides it, worst match winning.
         "default_severity": default_severity,
@@ -246,7 +326,7 @@ def _validate_control_payload(control_payload: dict, *,
     }
 
 
-def validate_catalog_payload(payload: dict, *, require_short_remediation: bool = True) -> dict:
+def validate_catalog_payload(payload: dict, *, require_client_text: bool = True) -> dict:
     if not isinstance(payload, dict):
         _raise_validation_error("Catalog payload must be an object.")
     if payload.get("type") != CATALOG_PAYLOAD_TYPE:
@@ -264,7 +344,7 @@ def validate_catalog_payload(payload: dict, *, require_short_remediation: bool =
     seen_control_ids: set[str] = set()
     for control_payload in controls:
         normalized_control = _validate_control_payload(
-            control_payload, require_short_remediation=require_short_remediation)
+            control_payload, require_client_text=require_client_text)
         if normalized_control["control_id"] in seen_control_ids:
             _raise_validation_error(
                 f"Catalog payload contains duplicate control_id '{normalized_control['control_id']}'."

@@ -39,6 +39,10 @@ def export_control_catalog(*, key: str, label: str, version: str, description: s
             "audit": control.audit,
             "remediation": control.remediation,
             "short_remediation": control.short_remediation,
+            "what_it_checks": control.what_it_checks,
+            "why_it_matters": control.why_it_matters,
+            "where_to_confirm": control.where_to_confirm,
+            "what_to_change": control.what_to_change,
             "default_severity": control.default_severity,
             "implementation_version": control.implementation_version,
             "target_model": control.target_model,
@@ -61,7 +65,7 @@ def export_control_catalog(*, key: str, label: str, version: str, description: s
     # A SNAPSHOT OF WHAT IS ALREADY HERE, not a proposal for what to ship: a control written
     # before `short_remediation` existed carries none, and refusing its snapshot would refuse
     # the upgrade that introduces the field. See `schemas._validate_short_remediation`.
-    return validate_catalog_payload(payload, require_short_remediation=False)
+    return validate_catalog_payload(payload, require_client_text=False)
 
 
 def export_catalog_seed_payload(*, catalogs=None) -> dict:

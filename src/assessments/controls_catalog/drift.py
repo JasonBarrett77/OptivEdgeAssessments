@@ -11,8 +11,10 @@ Query fields included: name, canonical_query, is_baseline, adjusted_severity,
 is_active.
 
 Fields excluded: pk, created_at, updated_at, name (control), description,
-rationale, audit, remediation, short_remediation, short_description — these do not affect query
-evaluation or finding generation.
+rationale, audit, remediation, short_remediation, short_description, and the four
+Control Detail fields the health check document prints (what_it_checks, why_it_matters,
+where_to_confirm, what_to_change) — these do not affect query evaluation or finding
+generation.
 """
 
 from __future__ import annotations

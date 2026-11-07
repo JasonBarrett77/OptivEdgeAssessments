@@ -45,8 +45,23 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                             Build Remediation Workbook
                         </button>
                     </form>
-                    <form method="post" action="{% url 'assessment_health_check_build' %}">
+                    <form method="post" action="{% url 'assessment_health_check_build' %}"
+                          class="flex items-center gap-2">
                         {% csrf_token %}
+                        {% comment %}
+                        THE CONTROL DETAIL SECTION IS OPTIONAL, and the box is ticked by
+                        default (Jason, 2026-11-06). It adds one block per control that raised
+                        a finding - 203 of the 216 active controls on the lab, some forty pages
+                        - so the document roughly doubles in length. A checkbox nobody ticked
+                        sends nothing at all, which the view reads as "without it".
+                        {% endcomment %}
+                        <label title="One block per control that raised a finding: what it checks, why it matters, where to confirm it and what to change. Roughly doubles the length of the document."
+                               class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700">
+                            <input type="checkbox" name="{{ control_detail_field }}" value="1" checked
+                                   {% if building %}disabled{% endif %}
+                                   class="h-3.5 w-3.5 border-slate-300 text-blue-600 disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
+                            Control detail
+                        </label>
                         <button type="submit"
                                 {% if building %}disabled title="A deliverable is already being built."{% endif %}
                                 class="inline-flex h-7 items-center gap-1.5 border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/20">
@@ -140,6 +155,15 @@ leaves the machine, and the flag is there so the decision is made knowingly.
                                 <span data-artifact-stale
                                       title="A newer findings run has completed since this was built, or its run was discarded. It does not show what the findings pages show now."
                                       class="ml-1.5 inline-flex items-center border border-amber-200 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800">Stale</span>
+                                {% endif %}
+                                {% comment %}
+                                Two documents built on one day share a filename, so without
+                                this nothing here would say which of them is the long one.
+                                {% endcomment %}
+                                {% if artifact.control_detail %}
+                                <span data-artifact-control-detail
+                                      title="This document carries the Control Detail section - one block per control that raised a finding."
+                                      class="ml-1.5 inline-flex items-center border border-slate-300 bg-slate-50 px-1.5 text-[11px] font-medium text-slate-700">Control detail</span>
                                 {% endif %}
                             </td>
                             <td class="h-9 border-b border-slate-200 px-3 py-2 text-sm text-slate-800">{{ artifact.requested_at|date:"Y-m-d H:i:s" }}</td>

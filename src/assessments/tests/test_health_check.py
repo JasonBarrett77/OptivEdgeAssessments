@@ -41,6 +41,7 @@ from assessments.artifacts.docx import partials, scaffold as scaffold_module
 from assessments.finding_run import regenerate_findings
 import collections
 
+from assessments.control_queries import SEVERITY_RANK
 from assessments.finding_registry import FINDING_KINDS
 from assessments.models import Control
 from assessments.tests._seed import seed_controls, seed_specs
@@ -97,6 +98,17 @@ def generated_paragraphs(body) -> list:
         if style is not None and style.get(w("val")) in emitted:
             found.append(para)
     return found
+
+
+def spanned_columns(row) -> int:
+    """How many grid columns one row covers, counting a `gridSpan` cell as the columns it
+    spans - which is how `DocumentStructureTests` holds every table to its own grid."""
+    spanned = 0
+    for cell in row.findall(w("tc")):
+        properties = cell.find(w("tcPr"))
+        span = properties.find(w("gridSpan")) if properties is not None else None
+        spanned += int(span.get(w("val"))) if span is not None else 1
+    return spanned
 
 
 def unnamed_runs(body) -> list:
@@ -193,6 +205,22 @@ class StyleContractTests(SimpleTestCase):
                     for child in element.find(w("r")).find(w("rPr"))]
 
         self.assertEqual(children, ["rFonts", "b"])
+
+    def test_a_paragraph_that_opens_with_a_label_carries_two_runs(self):
+        """`Where to confirm it.` is bold and the path after it is not, in one paragraph - the
+        shape the Control Detail mock-up agreed on 2026-11-06. Both runs name the typeface, and
+        the space between them belongs to the second so the bold stops at the label."""
+        element = partials.lead_paragraph(partials.NORMAL, "Where to confirm it.",
+                                          "Device > Server Profiles > LDAP.")
+
+        runs = element.findall(w("r"))
+        self.assertEqual(len(runs), 2)
+        self.assertIsNotNone(runs[0].find(w("rPr")).find(w("b")))
+        self.assertIsNone(runs[1].find(w("rPr")).find(w("b")))
+        self.assertEqual(_text(runs[1]), " Device > Server Profiles > LDAP.")
+        for run in runs:
+            self.assertEqual(run.find(w("rPr")).find(w("rFonts")).get(w("ascii")),
+                             partials.BODY_FONT)
 
     def test_no_style_constant_is_left_out_of_the_emitted_lists(self):
         """`EMITTED_PARAGRAPH_STYLES` is what the scaffold guard checks, and it is written out
@@ -633,9 +661,11 @@ class DocumentStructureTests(_SeededEstate):
         figures = [int(number) for number in re.findall(r"Figure (\d+):", text)]
 
         self.assertEqual(tables, list(range(1, len(tables) + 1)))
+        self.assertGreater(len(tables), 5)
+        # NO FIGURES. The only ones were the screenshot frames under the rulebase tables, and
+        # those went when the tables did (Jason, 2026-11-06). The numbering still has to be
+        # gapless if a section ever emits one, which is what the first assertion says.
         self.assertEqual(figures, list(range(1, len(figures) + 1)))
-        self.assertGreater(len(tables), 10)
-        self.assertGreater(len(figures), 1)
 
     def test_the_caption_counters_advance_in_document_order(self):
         """Two counters, advanced as the body is written, so a section that emits a table and
@@ -671,22 +701,27 @@ class DocumentStructureTests(_SeededEstate):
         self.assertGreater(checked, 5)
 
     def test_an_ungraded_row_carries_no_rating_style(self):
-        """An Area with no controls on this plane is NOT a pass. Grading it Informational would
-        print a pass over a question nobody asked, which is the one thing a health check must
-        not do."""
+        """A row nobody has graded must not look graded. Grading it would print a verdict over
+        a question nobody answered, which is the one thing a health check must not do.
+
+        The surviving instance is the Process Observations table, whose five rows are interview
+        findings a consultant writes: each carries `[MANUAL: grade]` where a severity would go.
+        The rulebase tables used to contribute "Not assessed" rows of their own and no longer
+        exist.
+        """
         root = document_xml(self.built())
         rating_styles = set(partials.RATING_STYLES.values())
-        not_assessed = 0
+        ungraded = 0
 
         for para in root.iter(w("p")):
-            text = "".join(node.text or "" for node in para.iter(w("t")))
-            if not text.startswith("Not assessed"):
+            text = _text(para)
+            if "[MANUAL: grade]" not in text:
                 continue
-            not_assessed += 1
+            ungraded += 1
             properties = para.find(w("pPr"))
             style = properties.find(w("pStyle")) if properties is not None else None
             self.assertNotIn(style.get(w("val")), rating_styles)
-        self.assertGreater(not_assessed, 5)
+        self.assertEqual(ungraded, 5)
 
     def test_the_media_headers_footers_and_the_single_final_sectpr_survive(self):
         """The scaffold's whole reason for existing: 74 parts, Optiv's theme, 15 media files
@@ -748,7 +783,7 @@ class DocumentStructureTests(_SeededEstate):
             properties = table.find(w("tr")).find(w("trPr"))
             self.assertIsNotNone(properties)
             self.assertIsNotNone(properties.find(w("tblHeader")))
-        self.assertGreater(checked, 10)
+        self.assertGreater(checked, 5)
 
     def test_an_appendix_heading_does_not_print_its_own_prefix(self):
         """`Heading1-AppendixList` declares `<w:numPr w:numId="52"/>`, which is what prints
@@ -826,42 +861,85 @@ class ContentTests(_SeededEstate):
         self.assertIn("carries no risk to the network and security infrastructure on its own",
                       text)
 
-    def test_a_rulebase_this_assessment_does_not_read_is_not_mentioned_at_all(self):
-        """Jason, 2026-11-06: *"OptivEdgeAssessments defines what goes into the template. The
-        template does not define the controls or findings."* So a rulebase Optiv's template has
-        a row for and this assessment does not read gets no table, no caption AND no sentence
-        apologising for it - naming it would be organising our findings around the template's
-        categories rather than around what was measured.
+    def test_no_rulebase_gets_a_table_of_its_own(self):
+        """Jason, 2026-11-06: *"remove table 6 and all other tables/content all the way down to
+        'Assessment Coverage'"*. Every finding those tables carried is in the observation table
+        already, against the control that raised it - so they said the same thing twice.
+
+        Nothing is said about the rulebases this assessment does not read either: naming them
+        would organise our findings around the template's categories rather than around what
+        was measured.
         """
         text = all_text(self.built())
 
-        for label in ("NAT", "QoS", "PBF", "App Override", "Captive Portal"):
+        for label in ("Security", "Decryption", "DoS", "NAT", "QoS", "PBF", "App Override",
+                      "Captive Portal"):
             self.assertNotIn(f"Risks in {label} Rules", text)
             self.assertNotIn(f"{label} rules were not reviewed", text)
         self.assertNotIn("this assessment does not collect them", text)
-        self.assertIn("Risks in Security Rules", text)
+        self.assertIn("Firewall Observations", text)
 
-    def test_no_control_is_left_off_the_table(self):
+    def test_every_control_with_a_finding_has_a_row_and_no_other_does(self):
         """What the "outside the template" paragraph used to be for. 47 of the 218 controls
         answered questions the hand-written Area list did not ask, so they were named in a
         sentence and left out of the table. With the headings derived from the object a finding
-        is about, there is nowhere to be outside: every active control has a row.
+        is about, there is nowhere to be outside.
+
+        A control that found nothing has no row either (Jason, 2026-11-06), so the claim is
+        exactly: the rows are the controls with findings.
+        """
+        measured = health_check.measure()
+        subjects, _ = health_check.read_subjects(measured)
+
+        named = {row.control_name for subject in subjects for row in subject.rows}
+        firing = {control.name
+                  for control in Control.objects.filter(is_active=True)
+                  if measured.count([control.control_id])}
+
+        self.assertEqual(named, firing)
+        self.assertLess(len(firing), Control.objects.filter(is_active=True).count())
+
+    def test_rows_run_worst_first_within_a_heading(self):
+        """Jason, 2026-11-06: *"Can you sort within each section heading by severity?"*
+
+        By the ROW's severity, not the control's. A control with findings at three severities
+        has three rows, and ordering by the control's worst put a High below a Medium belonging
+        to a worse control - so the severity column did not run downhill.
         """
         subjects, _ = health_check.read_subjects(health_check.measure())
 
-        named = {row.control_name for subject in subjects for row in subject.rows}
+        for subject in subjects:
+            ranks = [SEVERITY_RANK[row.severity] for row in subject.rows]
+            with self.subTest(subject.name):
+                self.assertEqual(ranks, sorted(ranks, reverse=True))
 
-        self.assertEqual(
-            named,
-            set(Control.objects.filter(is_active=True).values_list("name", flat=True)))
+    def test_the_severity_column_of_the_built_table_never_rises(self):
+        """Asserted on the OUTPUT as well, because the order a reader sees is the order the
+        cells are in, not the order the dataclass was sorted in."""
+        order = {label: n for n, label in enumerate(
+            ["Critical", "High", "Medium", "Low", "Informational"])}
+        root = document_xml(self.built())
 
-    def test_a_rule_class_with_no_rules_on_a_plane_is_not_graded_as_clean(self):
-        """The correction the lab forced. "No risks were identified in the decryption rules
-        defined on Panorama" is false where that plane defines no decryption rules at all - all
-        17 on the lab are local."""
-        text = all_text(self.built())
+        for table in root.iter(w("tbl")):
+            seen = []
+            for row in table.iter(w("tr")):
+                cells = list(row.iter(w("tc")))
+                if len(cells) != 3:
+                    seen = []            # a spanning row: a new heading, so the run restarts
+                    continue
+                grade = _text(cells[-1])
+                if grade in order:
+                    seen.append(order[grade])
+            with self.subTest(_text(list(table.iter(w("tr")))[0])[:40]):
+                self.assertEqual(seen, sorted(seen))
 
-        self.assertIn("so there is nothing here to review and no finding", text)
+    def test_a_subject_whose_controls_all_passed_gets_no_heading(self):
+        """A heading standing over no rows reads as a section somebody forgot to fill in."""
+        subjects, _ = health_check.read_subjects(health_check.measure())
+
+        self.assertTrue(subjects)
+        for subject in subjects:
+            self.assertTrue(subject.rows, f"{subject.name} has a heading and no rows")
 
     def test_the_subjects_of_an_area_are_counted_once_each(self):
         """Counting per control and adding up was the first version, and sixteen controls report
@@ -882,13 +960,11 @@ class ContentTests(_SeededEstate):
 
     def test_the_manual_placeholders_are_marked_and_counted(self):
         """Not prose invented to make the document look finished: a health check's environment
-        description, its interview findings and its rule-base screenshots are things a person
-        did."""
+        description and its interview findings are things a person did."""
         content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
         text = all_text(content)
 
         self.assertIn("[MANUAL: describe the sites this health check covers", text)
-        self.assertIn("[MANUAL: paste a screenshot", text)
         self.assertIn("[MANUAL: peer reviewer]", text)
         # The count is over the FINISHED document and so includes the cover's own, which a
         # deployment with no `ApplicationEnvironment` gets two of.
@@ -932,6 +1008,286 @@ class ContentTests(_SeededEstate):
         self.assertIn("PAN-NOPE-001", str(caught.exception))
 
 
+def control_detail_blocks(content: bytes) -> list:
+    """Every block of the Control Detail section, read out of the built document.
+
+    `(object heading, control heading, {label: value}, the line under the table)`. Read off the
+    output rather than off the dataclasses, for the reason the module docstring gives: a
+    generator that agrees with itself and disagrees with Word is the failure a test over the
+    builder's return value cannot see.
+    """
+    body = document_xml(content).find(w("body"))
+    blocks, inside, subject, control, lines, trailing = [], False, None, None, {}, []
+
+    def close():
+        if control is not None:
+            blocks.append((subject, control, dict(lines), list(trailing)))
+
+    for element in body:
+        tag = element.tag.split("}")[1]
+        if tag == "p":
+            properties = element.find(w("pPr"))
+            style = properties.find(w("pStyle")) if properties is not None else None
+            style = style.get(w("val")) if style is not None else ""
+            body_text = _text(element)
+            if style == partials.HEADING_1:
+                close()
+                control, lines, trailing = None, {}, []
+                inside = body_text == "Control Detail"
+            elif not inside:
+                continue
+            elif style == partials.HEADING_2:
+                close()
+                subject, control, lines, trailing = body_text, None, {}, []
+            elif style == partials.HEADING_3:
+                close()
+                control, lines, trailing = body_text, {}, []
+            elif control is not None and body_text:
+                trailing.append(body_text)
+        elif tag == "tbl" and inside and control is not None:
+            for row in element.findall(w("tr")):
+                cells = [_text(cell) for cell in row.findall(w("tc"))]
+                # LABEL, VALUE, LABEL, VALUE: the first row carries two pairs, because the
+                # control's id and its severity share it.
+                for index in range(0, len(cells) - 1, 2):
+                    lines[cells[index]] = cells[index + 1]
+    close()
+    return blocks
+
+
+class ControlDetailTests(_SeededEstate):
+    """The optional section, 2026-11-06. Jason: *"I want to insert an optional section just
+    before the 'recommendations' section. This section will provide more detail on each
+    control that has a finding."*
+
+    203 of the 216 active controls raised a finding on the lab, so the section is some forty
+    pages and about doubles the document - which is why it is asked for rather than assumed, by
+    a parameter on the generator and a checkbox on the downloads page (P554a). These tests hold
+    the switch, the shape agreed in the mock-up, and the one thing a section built from four new
+    catalogue fields can get wrong without anybody noticing: printing an empty line.
+    """
+
+    def with_detail(self) -> bytes:
+        return build_health_check_document(today=dt.date(2026, 11, 5),
+                                           control_detail=True)[0]
+
+    def test_a_build_that_does_not_ask_for_it_does_not_get_it(self):
+        """The generator's default is OFF. A caller that says nothing - a script, a test, an
+        older caller - gets the shorter document rather than forty pages it did not ask for."""
+        content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
+
+        self.assertNotIn("Control Detail", all_text(content))
+        self.assertIn("Control Detail: left out - this build did not ask for it", reports)
+
+    def test_asking_for_it_adds_one_block_per_control_that_raised_a_finding(self):
+        measured = health_check.measure()
+        firing = {control.name
+                  for control in Control.objects.filter(is_active=True)
+                  if measured.count([control.control_id])}
+
+        blocks = control_detail_blocks(self.with_detail())
+
+        self.assertEqual({control for _subject, control, _lines, _after in blocks}, firing)
+        self.assertTrue(firing)
+
+    def test_the_object_is_a_heading_and_so_is_the_control(self):
+        """Jason, 2026-11-06, on the first mock-up: real headings rather than a shaded band, so
+        the object and the control both reach the table of contents and Word's navigation pane.
+        That is how a reader gets to one control in forty pages."""
+        blocks = control_detail_blocks(self.with_detail())
+
+        subjects = {subject for subject, _control, _lines, _after in blocks}
+        self.assertTrue(subjects)
+        for subject, control, _lines, _after in blocks:
+            self.assertTrue(subject and control)
+
+    def test_the_table_carries_the_control_id_and_the_three_catalogue_lines(self):
+        """The id is in the table because a client who follows one of these up quotes it - and
+        because the catalogue's validator refuses a line that names the control's own id, the
+        row above having said it already."""
+        blocks = {control: lines for _subject, control, lines, _after
+                  in control_detail_blocks(self.with_detail())}
+        control = Control.objects.get(control_id="PAN-MGT-007")
+
+        lines = blocks[control.name]
+        self.assertEqual(lines["Control"], "PAN-MGT-007")
+        self.assertEqual(lines["What it checks"], control.what_it_checks)
+        self.assertEqual(lines["Why it matters"], control.why_it_matters)
+        self.assertEqual(lines["What to change"], control.what_to_change)
+        self.assertNotIn("Where to confirm", lines)
+
+    def test_the_id_and_the_severity_share_the_first_row(self):
+        """Jason, 2026-11-06: *"Control id and severity can probably be on the same row."* Two
+        label-and-value pairs on one row, and every row under it one label and one value."""
+        body = document_xml(self.with_detail()).find(w("body"))
+        tables = [table for table in body.iter(w("tbl"))
+                  if tuple(int(column.get(w("w")))
+                           for column in table.find(w("tblGrid")).findall(w("gridCol")))
+                  == health_check.DETAIL_GRID]
+
+        self.assertTrue(tables)
+        for table in tables:
+            rows = table.findall(w("tr"))
+            first = [_text(cell) for cell in rows[0].findall(w("tc"))]
+            self.assertEqual([first[0], first[2]], ["Control", "Severity"])
+            for row in rows[1:]:
+                self.assertEqual(len(row.findall(w("tc"))), 2)
+
+    def test_where_to_confirm_is_the_one_line_outside_the_table(self):
+        """Jason, 2026-11-06: *"Move 'Why it matters.' and 'What to change' to the table."*
+        - which left this one, the screen path, as prose under it."""
+        after = {control: lines for _subject, control, _lines, lines
+                 in control_detail_blocks(self.with_detail())}
+        control = Control.objects.get(control_id="PAN-MGT-007")
+
+        self.assertIn(f"Where to confirm it. {control.where_to_confirm}", after[control.name])
+
+    def test_the_line_says_how_many_findings_and_what_they_are_about(self):
+        measured = health_check.measure()
+        lines = {control: block for _subject, control, block, _after
+                 in control_detail_blocks(self.with_detail())}
+        control = Control.objects.get(control_id="PAN-MGT-007")
+
+        findings = measured.count([control.control_id])
+        objects = measured.distinct_subjects([control.control_id])
+        noun = health_check.plural_noun(objects, "login banner")
+        self.assertEqual(lines[control.name]["Findings"],
+                         f"{findings}, across {objects} {noun}")
+        self.assertEqual(lines[control.name]["Severity"], "Low")
+
+    def test_the_blocks_run_worst_first(self):
+        """The section's own first line says so, and a reader who scans it is reading the order
+        rather than the grades."""
+        detail = health_check.read_control_detail(health_check.measure())
+
+        headings = [controls[0].worst for _name, controls in detail]
+        self.assertEqual([SEVERITY_RANK[severity] for severity in headings],
+                         sorted((SEVERITY_RANK[severity] for severity in headings),
+                                reverse=True))
+        for name, controls in detail:
+            ranks = [SEVERITY_RANK[one.worst] for one in controls]
+            with self.subTest(name):
+                self.assertEqual(ranks, sorted(ranks, reverse=True))
+
+    def test_a_control_that_found_nothing_has_no_block(self):
+        """The same call the observation table makes: a heading over nothing reads as a section
+        somebody forgot to fill in."""
+        detail = health_check.read_control_detail(health_check.measure())
+
+        self.assertTrue(detail)
+        for name, controls in detail:
+            self.assertTrue(controls, f"{name} has a heading and no controls")
+            for one in controls:
+                self.assertTrue(one.findings)
+
+    def test_the_section_sits_just_before_the_recommendations(self):
+        """Where Jason asked for it, which is also where it belongs: the observations say what
+        was found, this says it control by control, and the recommendations follow from both."""
+        text = all_text(self.with_detail())
+
+        self.assertLess(text.index("Control Detail"), text.index("High-Level Recommendations"))
+        self.assertGreater(text.index("Control Detail"), text.index("Firewall Observations"))
+
+    def test_a_catalogue_line_nobody_wrote_is_marked_rather_than_left_blank(self):
+        """The catalogue's validator requires all four of an active control, so this is a
+        control somebody added through the UI - and an empty cell under a client's heading is
+        worse than a placeholder saying who has to write it."""
+        Control.objects.filter(control_id="PAN-MGT-007").update(
+            what_it_checks="", where_to_confirm="")
+
+        content, reports = build_health_check_document(today=dt.date(2026, 11, 5),
+                                                       control_detail=True)
+
+        text = all_text(content)
+        self.assertIn("[MANUAL: write the what it checks line for PAN-MGT-007", text)
+        self.assertIn("[MANUAL: write the where to confirm line for PAN-MGT-007", text)
+        self.assertTrue(any("2 lines marked MANUAL" in line for line in reports))
+
+    def test_the_section_reports_itself_and_its_tables_keep_the_contract(self):
+        """One build, and the three structural rules the rest of the document is held to:
+        every row spans its grid, the first row repeats over a page break, and every run and
+        every paragraph mark names Optiv's own typeface."""
+        content, reports = build_health_check_document(today=dt.date(2026, 11, 5),
+                                                       control_detail=True)
+        body = document_xml(content).find(w("body"))
+
+        self.assertTrue(any(line.startswith("Control Detail:") and "under" in line
+                            for line in reports))
+        self.assertEqual(unnamed_runs(body), [])
+        self.assertEqual(unnamed_marks(body), [])
+        for table in body.iter(w("tbl")):
+            style = table.find(w("tblPr")).find(w("tblStyle"))
+            if style is None or style.get(w("val")) != partials.TABLE_STYLE:
+                continue            # the template's own cover tables, carried over verbatim
+            columns = len(table.find(w("tblGrid")).findall(w("gridCol")))
+            for row in table.findall(w("tr")):
+                # Counted in SPANS, not in cells: an observation table's subject heading is one
+                # cell covering all three columns.
+                self.assertEqual(spanned_columns(row), columns)
+            self.assertIsNotNone(table.find(w("tr")).find(w("trPr")).find(w("tblHeader")))
+
+
+class DetailPhraseTests(SimpleTestCase):
+    """The three measured lines of a Control Detail table, which are sentences built out of
+    counts - so each is pinned where it is written rather than only on the built document."""
+
+    def detail(self, **overrides) -> health_check.ControlDetail:
+        fields = dict(
+            control=Control(control_id="PAN-AAA-001", name="LDAP Server Profiles Require SSL"),
+            graded=(("critical", 4),), findings=4, objects=4,
+            object_noun="AAA server profile",
+            reach=((("pan-fw-111",), 4),), others=0)
+        fields.update(overrides)
+        return health_check.ControlDetail(**fields)
+
+    def test_one_severity_is_named_and_two_are_both_named(self):
+        self.assertEqual(health_check.severity_phrase((("critical", 4),)), "Critical")
+        self.assertEqual(health_check.severity_phrase((("critical", 1), ("high", 1))),
+                         "Critical, and High")
+        self.assertEqual(
+            health_check.severity_phrase((("critical", 1), ("high", 1), ("medium", 2))),
+            "Critical, High, and Medium")
+
+    def test_the_findings_line_counts_the_objects_once_each(self):
+        self.assertEqual(health_check.findings_phrase(self.detail()),
+                         "4, across 4 AAA server profiles")
+
+    def test_two_gradings_of_one_control_are_counted_apart(self):
+        """PAN-CRT-002 grades a key below half its floor Critical and anything else off it
+        High. A single total would hide that the worse of them is one certificate."""
+        detail = self.detail(graded=(("critical", 1), ("high", 1)), findings=2, objects=2,
+                             object_noun="certificate")
+
+        self.assertEqual(health_check.findings_phrase(detail),
+                         "1 critical, 1 high, across 2 certificates")
+
+    def test_a_noun_that_is_already_plural_is_left_alone(self):
+        """Measured over all 75 finding kinds 2026-11-06: seven of their labels already end in
+        `s` - `logging settings`, `session settings`, `firewall content streams` - and the `es`
+        English wants after a sibilant made every one of them "settingses"."""
+        self.assertEqual(health_check.plural_noun(8, "logging settings"), "logging settings")
+        self.assertEqual(health_check.plural_noun(2, "rulebase device match"),
+                         "rulebase device matches")
+        self.assertEqual(health_check.plural_noun(2, "licence inventory"),
+                         "licence inventories")
+        self.assertEqual(health_check.plural_noun(1, "logging settings"), "logging settings")
+
+    def test_an_ha_pair_is_named_once_and_the_rest_are_counted(self):
+        detail = self.detail(reach=((("fw-core-tpa-a", "fw-core-tpa-b"), 6),
+                                    (("pan-fw-111",), 2)),
+                             others=3)
+
+        self.assertEqual(health_check.firewalls_phrase(detail),
+                         "fw-core-tpa-a/b (6), pan-fw-111 (2), and 3 other firewalls")
+
+    def test_a_finding_no_snapshot_attributes_says_so_rather_than_nothing(self):
+        """Every one of the lab's 17,555 findings resolves to a firewall, so this is the
+        snapshot taken from somewhere that is not an appliance - and a blank cell in a client
+        document is a question rather than an answer."""
+        self.assertEqual(health_check.firewalls_phrase(self.detail(reach=(), others=0)),
+                         health_check.NO_FIREWALL_NAMED)
+
+
 class NumberTests(SimpleTestCase):
     """How a count is printed, which on this estate is a five-figure number."""
 
@@ -956,6 +1312,97 @@ class NumberTests(SimpleTestCase):
 
         self.assertIn("4,647 findings", line)
         self.assertNotIn("4647", line)
+
+
+class BandTests(_SeededEstate):
+    """The subject headings, which Jason asked to be shaded."""
+
+    def test_a_subject_heading_carries_optivs_own_band_colour(self):
+        """`accent5`, which is the grey Optiv's table style paints its own emphasis row with -
+        named as the theme colour as well as the literal, so a reissued template carries it."""
+        root = document_xml(self.built())
+
+        shaded = [cell for cell in root.iter(w("tc"))
+                  if cell.find(w("tcPr")) is not None
+                  and cell.find(w("tcPr")).find(w("shd")) is not None]
+
+        self.assertTrue(shaded)
+        for cell in shaded:
+            shading = cell.find(w("tcPr")).find(w("shd"))
+            with self.subTest(_text(cell)):
+                self.assertEqual(shading.get(w("fill")), "CCCCCC")
+                self.assertEqual(shading.get(w("themeFill")), "accent5")
+                self.assertEqual(shading.get(w("val")), "clear")
+
+    def test_the_shading_sits_where_the_schema_wants_it(self):
+        """`w:tcPr` is a sequence: `shd` comes after `gridSpan` and before `vAlign`. Out of
+        order Word reports unreadable content, which is how this document lost a day."""
+        root = document_xml(self.built())
+        order = ["cnfStyle", "tcW", "gridSpan", "hMerge", "vMerge", "tcBorders", "shd",
+                 "noWrap", "tcMar", "textDirection", "tcFitText", "vAlign", "hideMark"]
+
+        for properties in root.iter(w("tcPr")):
+            seen = [child.tag.split("}")[1] for child in properties]
+            with self.subTest(seen):
+                self.assertEqual(seen, sorted(seen, key=order.index))
+
+
+class ReachTests(SimpleTestCase):
+    """The second column of the observation table: which firewalls carry a control's findings.
+
+    Jason, 2026-11-06: *"present counts by firewall instead of subject ... If the number of
+    firewalls exceeds 5, then state something like and 'n' others"*, and *"the five named
+    should be the worst affected by count"*.
+    """
+
+    def test_the_worst_affected_are_named_first(self):
+        counts = collections.Counter({("a",): 3, ("b",): 9, ("c",): 5})
+
+        reach, others = health_check.worst_affected(counts)
+
+        self.assertEqual([name for name, _ in reach], [("b",), ("c",), ("a",)])
+        self.assertEqual(others, 0)
+
+    def test_beyond_five_firewalls_the_rest_are_counted_not_named(self):
+        counts = collections.Counter({(chr(97 + n),): 10 - n for n in range(8)})
+
+        reach, others = health_check.worst_affected(counts)
+
+        self.assertEqual(len(reach), health_check.FIREWALLS_NAMED)
+        self.assertEqual(others, 3)
+
+    def test_a_tie_is_broken_by_name_so_a_rebuild_does_not_reshuffle(self):
+        counts = collections.Counter({("b",): 4, ("a",): 4})
+
+        reach, _ = health_check.worst_affected(counts)
+
+        self.assertEqual([name for name, _ in reach], [("a",), ("b",)])
+
+    def test_an_ha_pair_is_one_line_naming_both(self):
+        """One configuration on two appliances, fixed once. Counting it against each member
+        would double the row's own total and read as two jobs.
+
+        Named by `remediation.firewall_label`, which writes the shared stem once - the same
+        spelling the remediation pages give the same pair (Jason, 2026-11-06)."""
+        row = health_check.SubjectRow(
+            "Decryption Profile Negotiable Primitives", "high", 4,
+            ((("fw-core-tpa-a", "fw-core-tpa-b"), 3), (("PA-VM",), 1)), 0)
+
+        lines = health_check.subject_detail(row)
+
+        self.assertEqual(lines, ["4 findings:",
+                                 "fw-core-tpa-a/b (3)",
+                                 "PA-VM (1)"])
+
+    def test_the_remainder_is_said_in_the_last_line(self):
+        row = health_check.SubjectRow("Any", "low", 99, ((("a",), 9),), 7)
+
+        self.assertEqual(health_check.subject_detail(row)[-1], "and 7 other firewalls")
+
+    def test_one_other_firewall_is_singular(self):
+        row = health_check.SubjectRow("Any", "low", 99, ((("a",), 9),), 1)
+
+        self.assertEqual(health_check.subject_detail(row)[-1], "and 1 other firewall")
 
 
 class ScaffoldTests(SimpleTestCase):

@@ -112,14 +112,34 @@ def builder_for(kind):
     return globals()[name]
 
 
-def open_workbook_build(kind=GeneratedArtifact.Kind.WORKBOOK) -> GeneratedArtifact:
-    """The row, BUILDING, before the thread starts - so the page it redirects to can show it."""
+def build_arguments(artifact: GeneratedArtifact) -> dict:
+    """What the builder is called with, for a row that carries a choice about its own content.
+
+    ONE KIND HAS ONE, 2026-11-06: the health check document's Control Detail section is some
+    forty pages and the build is asked for it rather than assuming it (see
+    `health_check.build_health_check_document`). The two workbooks have nothing to decide, so
+    they are called with no arguments, exactly as before - which is why this is a function of
+    the row and not a fourth entry in `BUILDERS`.
+    """
+    if artifact.kind == GeneratedArtifact.Kind.HEALTH_CHECK:
+        return {"control_detail": artifact.control_detail}
+    return {}
+
+
+def open_workbook_build(kind=GeneratedArtifact.Kind.WORKBOOK, *,
+                        control_detail: bool = False) -> GeneratedArtifact:
+    """The row, BUILDING, before the thread starts - so the page it redirects to can show it.
+
+    `control_detail` is recorded here because the thread is given a pk and reads the rest back:
+    the view knows what the engineer ticked and the thread does not.
+    """
     _name, name = BUILDERS[kind]
     return GeneratedArtifact.objects.create(
         kind=kind,
         status=GeneratedArtifact.Status.BUILDING,
         assessment_run=findings_run_of_record(),
         filename=name(get_application_environment()),
+        control_detail=control_detail,
     )
 
 
@@ -131,7 +151,7 @@ def fill_workbook(artifact: GeneratedArtifact) -> GeneratedArtifact:
     because X" is precisely what the reader needs to see on the downloads page.
     """
     try:
-        content, _reports = builder_for(artifact.kind)()
+        content, _reports = builder_for(artifact.kind)(**build_arguments(artifact))
     except ArtifactBuildError as exc:
         return _fail(artifact, f"The workbook was not built: {exc}")
     except Exception as exc:

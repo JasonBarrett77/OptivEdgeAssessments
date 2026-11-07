@@ -14,7 +14,7 @@ from assessments.controls_catalog.io.importers import (
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import (
-    SHORT_REMEDIATION_LIMIT, validate_catalog_payload)
+    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -149,7 +149,7 @@ class SeededCatalogTextTests(TestCase):
         payload = load_seed_payload()["catalogs"][0]
         payload["controls"] = [dict(payload["controls"][0], short_remediation="")]
 
-        validated = validate_catalog_payload(payload, require_short_remediation=False)
+        validated = validate_catalog_payload(payload, require_client_text=False)
 
         self.assertEqual(validated["controls"][0]["short_remediation"], "")
 
@@ -161,7 +161,7 @@ class SeededCatalogTextTests(TestCase):
                                     short_remediation="Run `set deviceconfig system`.")]
 
         with self.assertRaises(ValidationError):
-            validate_catalog_payload(payload, require_short_remediation=False)
+            validate_catalog_payload(payload, require_client_text=False)
 
     def test_an_inactive_control_needs_no_short_recommendation(self):
         """It is graded by nothing, so it reaches no document."""
@@ -186,6 +186,10 @@ class SeededCatalogTextTests(TestCase):
                 control_type=row["control_type"], description=row["description"],
                 remediation=row["remediation"],
                 short_remediation=row["short_remediation"],
+                what_it_checks=row["what_it_checks"],
+                why_it_matters=row["why_it_matters"],
+                where_to_confirm=row["where_to_confirm"],
+                what_to_change=row["what_to_change"],
                 default_severity=row["default_severity"], is_active=row["is_active"],
                 target_model=row.get("target_model", ""))
 
@@ -198,6 +202,134 @@ class SeededCatalogTextTests(TestCase):
         self.assertEqual(shipped["short_remediation"],
                          Control.objects.get(control_id="PAN-MGT-007").short_remediation)
         self.assertTrue(shipped["short_remediation"])
+        for field in CLIENT_DETAIL_LIMITS:
+            self.assertEqual(shipped[field],
+                             getattr(Control.objects.get(control_id="PAN-MGT-007"), field))
+            self.assertTrue(shipped[field])
+
+    def test_every_active_control_ships_the_four_lines_of_its_control_detail(self):
+        """The Control Detail section of the health check gives a client one block per control
+        that raised a finding, and reads these four fields for it.
+
+        They are WRITTEN for that audience rather than condensed from `description`,
+        `rationale`, `audit` and `remediation`. Jason, 2026-11-06: *"These probably all need to
+        be produced because the existing seed data isn't consistently using the right level
+        language."* Measured the same day over all 218 controls, counting backticked
+        identifiers, ALL-CAPS asides, dated notes and control ids: `rationale` was clean on 209,
+        `audit` on 140, `remediation` on 116, and `description` ran to a median of 1,924
+        characters written to us.
+        """
+        missing = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                if not control["is_active"]:
+                    continue
+                absent = [field for field in CLIENT_DETAIL_LIMITS
+                          if not (control.get(field) or "").strip()]
+                if absent:
+                    missing[control["control_id"]] = absent
+
+        self.assertEqual(missing, {})
+
+    def test_no_line_of_a_control_detail_reads_like_a_note_to_an_engineer(self):
+        """The rule over the shipped payload: inside its cap, ending in a full stop, no
+        command, no mention of the control's own id, nothing in the first person.
+        `where_to_confirm` is the one field allowed a UI path, because a screen path is what it
+        is for. `schemas` refuses a catalogue that breaks this; the test says so about the one
+        that ships.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                for field, limit in CLIENT_DETAIL_LIMITS.items():
+                    value = (control.get(field) or "").strip()
+                    if not value:
+                        continue
+                    why = []
+                    if len(value) > limit:
+                        why.append(f"{len(value)} characters")
+                    if "`" in value:
+                        why.append("a command")
+                    if ">" in value and field != "where_to_confirm":
+                        why.append("a UI path")
+                    if control["control_id"] in value:
+                        why.append("its own control id")
+                    if re.search(r"\b(?:we|our|ours|us|I|my)\b", value):
+                        why.append("the first person")
+                    if not value.endswith((".", "?")):
+                        why.append("no full stop")
+                    if why:
+                        offenders[f"{control['control_id']}.{field}"] = why
+
+        self.assertEqual(offenders, {})
+
+    def test_a_control_with_no_control_detail_is_refused(self):
+        """A guard rather than a convention: a control added tomorrow without these four would
+        appear in the Control Detail section with nothing under its heading."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], what_it_checks="")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("what_it_checks", str(caught.exception))
+
+    def test_a_control_detail_line_that_carries_a_command_is_refused(self):
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    why_it_matters="It runs `set deviceconfig system`.")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("why_it_matters", str(caught.exception))
+
+    def test_where_to_confirm_may_carry_a_ui_path_and_its_neighbors_may_not(self):
+        """The one relaxation, and the reason for it: `where_to_confirm` IS a screen path."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    where_to_confirm="Device > Setup > Management.")]
+
+        validated = validate_catalog_payload(payload)
+        self.assertEqual(validated["controls"][0]["where_to_confirm"],
+                         "Device > Setup > Management.")
+
+        payload["controls"] = [dict(payload["controls"][0],
+                                    what_to_change="Set Device > Setup > Management.")]
+        with self.assertRaises(ValidationError):
+            validate_catalog_payload(payload)
+
+    def test_a_control_detail_line_over_its_cap_is_refused(self):
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    what_to_change="Narrow it. " * 40)]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn(str(CLIENT_DETAIL_LIMITS["what_to_change"]), str(caught.exception))
+
+    def test_a_snapshot_of_controls_that_predate_the_control_detail_is_not_refused(self):
+        """Same reason as `short_remediation`: `apply_catalog` snapshots the live controls
+        before replacing them, and on a deployment upgraded from a release before these fields
+        those rows carry nothing."""
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    **{field: "" for field in CLIENT_DETAIL_LIMITS})]
+
+        validated = validate_catalog_payload(payload, require_client_text=False)
+
+        for field in CLIENT_DETAIL_LIMITS:
+            self.assertEqual(validated["controls"][0][field], "")
+
+    def test_an_inactive_control_needs_no_control_detail(self):
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], is_active=False,
+                                    **{field: "" for field in CLIENT_DETAIL_LIMITS})]
+
+        validated = validate_catalog_payload(payload)
+
+        self.assertEqual(validated["controls"][0]["what_it_checks"], "")
 
 
 class ControlsCatalogTests(TestCase):
@@ -280,6 +412,10 @@ class ControlsCatalogTests(TestCase):
                         "audit": "",
                         "remediation": "Tighten rule scope.",
                         "short_remediation": "Tighten the rule's scope.",
+                        "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                        "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
+                        "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
+                        "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                         "default_severity": "high",
                         "implementation_version": "v1",
                         "target_model": "integrations.SecurityRule",
@@ -386,7 +522,15 @@ class ControlsCatalogTests(TestCase):
                             "audit": "",
                             "remediation": "Tighten rule scope.",
                             "short_remediation": "Tighten the rule's scope.",
+                            "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                            "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
+                            "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
+                            "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                         "short_remediation": "Tighten the rule's scope.",
+                        "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                        "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
+                        "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
+                        "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                             "default_severity": "high",
                             "implementation_version": "v1",
                             "target_model": "integrations.SecurityRule",
@@ -516,6 +660,10 @@ class CatalogDriftTargetModelTests(TestCase):
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
                 "short_remediation": "Tighten the rule's scope.",
+                "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
+                "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
+                "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                 "default_severity": "medium",
                 "implementation_version": "v1",
                 "target_model": target_model,
@@ -557,6 +705,10 @@ class CatalogSchemaTargetModelValidationTests(TestCase):
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
                 "short_remediation": "Tighten the rule's scope.",
+                "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
+                "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
+                "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                 "default_severity": "medium",
                 "implementation_version": "v1",
                 "target_model": target_model,

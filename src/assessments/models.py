@@ -760,6 +760,24 @@ class Control(models.Model):
     #: ids. Optiv's own template sets that register in its other recommendation tables ("Create
     #: Panorama Log Forwarders", "Review unused rules and remove where practical").
     short_remediation = models.TextField(blank=True)
+    #: The four lines of the health check document's Control Detail section, which gives a
+    #: client one block per control that raised a finding. They are WRITTEN FOR THAT AUDIENCE
+    #: and are not condensed from the four fields above.
+    #:
+    #: WHY NOT CONDENSE. Jason, 2026-11-06: *"These probably all need to be produced because the
+    #: existing seed data isn't consistently using the right level language."* Measured the same
+    #: day over all 218 controls, counting backticked identifiers, ALL-CAPS asides, dated notes
+    #: and control ids: `rationale` is clean on 209, `audit` on 140, `remediation` on 116, and
+    #: `description` runs to a median of 1,924 characters written to us. Those four stay as they
+    #: are - the remediation pages, the findings workbook and the UI print them.
+    #:
+    #: The rules, enforced by `controls_catalog.schemas`: a length cap each, no commands, no
+    #: control ids, nothing in the first person. `where_to_confirm` is the exception that may
+    #: carry a UI path, because a UI path is what it is for.
+    what_it_checks = models.TextField(blank=True)
+    why_it_matters = models.TextField(blank=True)
+    where_to_confirm = models.TextField(blank=True)
+    what_to_change = models.TextField(blank=True)
     #: The severity a finding reports when only the baseline query matched - the baseline-tier
     #: severity, stored here rather than on the query because a control has exactly one baseline.
     #: A non-baseline query carrying `adjusted_severity` overrides it, and the WORST such match
@@ -3350,6 +3368,17 @@ class GeneratedArtifact(models.Model):
         FAILED = "failed", "Failed"
 
     kind = models.CharField(max_length=32, choices=Kind.choices)
+    #: Whether a HEALTH_CHECK build was asked for its Control Detail section - one block per
+    #: control that raised a finding, which on the lab is 203 blocks and some forty pages.
+    #: Jason, 2026-11-06: a parameter on the generator, and a checkbox on the downloads page
+    #: ticked by default.
+    #:
+    #: KEPT ON THE ROW rather than handed to the thread, for two reasons. The build runs on a
+    #: thread that is given a pk and reads everything else back, so this is how the choice
+    #: reaches it at all; and two documents built on one day share a filename, so without this
+    #: nothing on the downloads page would say which of them is the long one. Always False on
+    #: the two workbooks, which have no such section.
+    control_detail = models.BooleanField(default=False)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.BUILDING)
     #: The findings run the file was built FROM. SET_NULL rather than CASCADE: a reseed
     #: discards runs, and a kept deliverable must not vanish with them - it becomes stale, and

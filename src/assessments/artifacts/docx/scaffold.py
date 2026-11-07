@@ -243,6 +243,37 @@ def check_fonts(document) -> None:
             f"run. Change partials.BODY_FONT to match the template, or stop writing it.")
 
 
+def check_sizes(document) -> None:
+    """Refuse a scaffold where a style this generator sizes has grown a size of its own.
+
+    `partials.BODY_SIZE` is written onto every run of `Normal`, `List Bullet` and `Screenshot`
+    because Optiv's template states no size for them and none for `w:docDefaults` either, so
+    their text falls through to whatever the reader's Word uses - 12pt, measured 2026-11-06.
+    Filling that gap is safe. OVERRIDING A SIZE OPTIV CHOSE IS NOT, and the difference is one
+    reissue away, so it is checked rather than assumed.
+    """
+    styles = document.styles.element
+    sized = []
+    for style in styles.iterchildren(qn("w:style")):
+        if style.get(qn("w:styleId")) not in partials.UNSIZED_STYLES:
+            continue
+        properties = style.find(qn("w:rPr"))
+        size = properties.find(qn("w:sz")) if properties is not None else None
+        if size is not None:
+            sized.append(f"{style.get(qn('w:styleId'))} is "
+                         f"{int(size.get(qn('w:val'))) / 2:.0f}pt")
+    defaults = styles.find(qn("w:docDefaults"))
+    run_defaults = defaults.find(qn("w:rPrDefault")) if defaults is not None else None
+    properties = run_defaults.find(qn("w:rPr")) if run_defaults is not None else None
+    if properties is not None and properties.find(qn("w:sz")) is not None:
+        sized.append("w:docDefaults states a size")
+    if sized:
+        raise ArtifactBuildError(
+            f"{SCAFFOLD_PATH.name} now sizes the body text itself ({'; '.join(sized)}), and "
+            f"this generator writes {int(partials.BODY_SIZE) / 2:.0f}pt onto every run of it. "
+            f"Drop partials.BODY_SIZE, or change it to match the template.")
+
+
 def open_scaffold(path: Path | None = None) -> Scaffold:
     """The scaffold, read into memory and checked, for one build.
 
@@ -263,4 +294,5 @@ def open_scaffold(path: Path | None = None) -> Scaffold:
     check_bookmarks(document)
     check_markup_compatibility(document)
     check_fonts(document)
+    check_sizes(document)
     return Scaffold(document=document, styles=styles)

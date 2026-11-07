@@ -81,6 +81,22 @@ TABLE_STYLE = "OptivLightGreyBorders"
 #: on trust.
 BODY_FONT = "Arial"
 
+#: The size body prose is written at, in half-points. 10pt.
+#:
+#: THREE STYLES IN OPTIV'S TEMPLATE CARRY NO SIZE AT ALL - `Normal`, `List Bullet` and
+#: `Screenshot` - and neither does `w:docDefaults`, so a paragraph in any of them falls through
+#: to whatever the reader's Word uses. Measured 2026-11-06: that is 12pt, against the 9 and 10
+#: Optiv sets everywhere it does state a size. Jason, 2026-11-06: *"I'm noticing a lot of the
+#: paragraph text is 12 pt instead of 10 pt. Can you ensure the paragraph text is explicitly set
+#: to 10 pt."*
+#:
+#: WRITTEN ONLY ON THE STYLES THAT STATE NOTHING. A heading is 20, 16 or 12pt and a table cell
+#: is 9pt because Optiv said so, and `scaffold.check_sizes` refuses a scaffold where one of
+#: these three has grown a size of its own - at which point this override would be fighting the
+#: template rather than filling a gap in it.
+BODY_SIZE = "20"
+UNSIZED_STYLES = (NORMAL, BULLET, SCREENSHOT)
+
 
 def _fonts():
     """`<w:rFonts>` naming `BODY_FONT` for both Latin slots.
@@ -94,12 +110,17 @@ def _fonts():
     return element
 
 
-def _run_properties(*, bold: bool = False):
-    """`<w:rPr>` in schema order: `rFonts` before `b`, which is the order Word requires."""
+def _run_properties(*, bold: bool = False, size: str | None = None):
+    """`<w:rPr>` in schema order: `rFonts`, then `b`, then `sz` and `szCs`."""
     properties = OxmlElement("w:rPr")
     properties.append(_fonts())
     if bold:
         properties.append(OxmlElement("w:b"))
+    if size:
+        for tag in ("w:sz", "w:szCs"):
+            element = OxmlElement(tag)
+            element.set(qn("w:val"), size)
+            properties.append(element)
     return properties
 
 #: Every style id this module can emit, for the scaffold guard to check in one call. Derived
@@ -123,7 +144,7 @@ def rating_style(severity: str) -> str:
     return RATING_STYLES[severity]
 
 
-def paragraph(style: str, text: str = "", *, bold: bool = False):
+def paragraph(style: str, text: str = "", *, bold: bool = False, tight: bool = False):
     """One `<w:p>` in `style`, carrying `text` as a single run.
 
     An EMPTY text is a real paragraph and not a mistake: the `Screenshot` style is an empty
@@ -138,19 +159,46 @@ def paragraph(style: str, text: str = "", *, bold: bool = False):
     style_element = OxmlElement("w:pStyle")
     style_element.set(qn("w:val"), style)
     properties.append(style_element)
+    if tight:
+        # NO SPACE ABOVE OR BELOW. `w:docDefaults` puts 3pt either side of every paragraph, so
+        # a cell holding one line per firewall spends 6pt between each of them saying nothing.
+        # BEFORE `w:rPr`, which is where `w:pPr`'s sequence puts it.
+        spacing = OxmlElement("w:spacing")
+        spacing.set(qn("w:before"), "0")
+        spacing.set(qn("w:after"), "0")
+        properties.append(spacing)
     # THE PARAGRAPH MARK CARRIES IT TOO. Word reports the formatting of the mark when the caret
     # sits at the end of a line or the paragraph is empty, and an empty `Screenshot` paragraph
     # is nothing but its mark.
-    properties.append(_run_properties(bold=bold))
+    size = BODY_SIZE if style in UNSIZED_STYLES else None
+    properties.append(_run_properties(bold=bold, size=size))
     element.append(properties)
     if text:
-        element.append(_run(text, bold=bold))
+        element.append(_run(text, bold=bold, size=size))
     return element
 
 
-def _run(text: str, *, bold: bool = False):
+def lead_paragraph(style: str, lead: str, text: str, *, tight: bool = False):
+    """One paragraph that OPENS with a bold label - `Where to confirm it.  Device > ...`.
+
+    `paragraph` bolds the whole run, which is what the observation tables want for a label row
+    and wrong for a sentence whose first words are its own label. The Control Detail section's
+    one prose line is written that way in the mock-up Jason agreed on 2026-11-06, so the
+    paragraph carries two runs and they share the style's font and size.
+    """
+    element = paragraph(style, "", tight=tight)
+    size = BODY_SIZE if style in UNSIZED_STYLES else None
+    element.append(_run(lead, bold=True, size=size))
+    if text:
+        # The space BELONGS TO THE SECOND RUN and `_run` preserves it, so the bold does not
+        # run on into the gap between the label and the sentence.
+        element.append(_run(f" {text}", size=size))
+    return element
+
+
+def _run(text: str, *, bold: bool = False, size: str | None = None):
     run = OxmlElement("w:r")
-    run.append(_run_properties(bold=bold))
+    run.append(_run_properties(bold=bold, size=size))
     element = OxmlElement("w:t")
     # Word collapses leading and trailing space in a run unless told not to, and the measured
     # sentences here end in a period rather than a space - but a value read off the database
@@ -177,7 +225,7 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     properties.append(style)
     # This paragraph builds its own `w:pPr` rather than going through `paragraph`, so it has to
     # name the face itself - see `BODY_FONT`.
-    properties.append(_run_properties())
+    properties.append(_run_properties(size=BODY_SIZE))
     element.append(properties)
 
     begin = OxmlElement("w:r")
@@ -202,7 +250,8 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     # The placeholder Word replaces. Written as a sentence rather than left blank so that a
     # reader who opens the file in something that does not calculate fields - a browser preview,
     # a converter - sees why the contents are missing instead of a gap.
-    element.append(_run("Right-click and choose Update Field to build the table of contents."))
+    element.append(_run("Right-click and choose Update Field to build the table of contents.",
+                        size=BODY_SIZE))
 
     end = OxmlElement("w:r")
     char = OxmlElement("w:fldChar")
@@ -230,6 +279,8 @@ class Cell:
     span: int = 1
     #: `center` on the rating cells, which is what the template sets on them.
     valign: str | None = None
+    #: `(fill, themeFill)` for the cell's background, or None for the style's own.
+    shading: tuple | None = None
 
 
 def bullet_cell(lead: str, lines, *, width=None, lead_style: str = TABLE_TEXT,
@@ -243,8 +294,16 @@ def bullet_cell(lead: str, lines, *, width=None, lead_style: str = TABLE_TEXT,
     return Cell(paragraphs=paragraphs, width=width)
 
 
-def text_cell(text: str, *, width=None, style: str = TABLE_TEXT, bold: bool = False) -> Cell:
-    return Cell(paragraphs=[paragraph(style, text, bold=bold)], width=width)
+def text_cell(text: str, *, width=None, style: str = TABLE_TEXT, bold: bool = False,
+              shading: tuple | None = None, tight: bool = False) -> Cell:
+    return Cell(paragraphs=[paragraph(style, text, bold=bold, tight=tight)], width=width,
+                shading=shading)
+
+
+#: The grey Optiv's own table style paints its emphasis row with - `accent5`, measured on the
+#: scaffold 2026-11-06. Named as the THEME colour as well as the literal, so a reissued template
+#: that restyles its palette carries this with it rather than leaving one grey behind.
+BAND_SHADING = ("CCCCCC", "accent5")
 
 
 def rating_cell(severity: str | None, label: str, *, width=None) -> Cell:
@@ -328,6 +387,17 @@ def _cell(cell: Cell):
         span = OxmlElement("w:gridSpan")
         span.set(qn("w:val"), str(cell.span))
         properties.append(span)
+    if cell.shading is not None:
+        # AFTER `gridSpan` AND BEFORE `vAlign`: `w:tcPr` is a sequence, and out of order Word
+        # reports unreadable content - the same class of defect as the namespace one.
+        fill, theme_fill = cell.shading
+        shading = OxmlElement("w:shd")
+        shading.set(qn("w:val"), "clear")
+        shading.set(qn("w:color"), "auto")
+        shading.set(qn("w:fill"), fill)
+        if theme_fill:
+            shading.set(qn("w:themeFill"), theme_fill)
+        properties.append(shading)
     if cell.valign is not None:
         valign = OxmlElement("w:vAlign")
         valign.set(qn("w:val"), cell.valign)

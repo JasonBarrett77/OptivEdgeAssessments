@@ -46,6 +46,13 @@ def seed_control(spec, *, control_type=None, **overrides):
         # three above were: a control test that leaves it empty is a test of a document whose
         # Recommendation column says MANUAL.
         "short_remediation": spec["short_remediation"],
+        # The four lines the health check's Control Detail section prints, for the same reason
+        # again: a control test that leaves them empty is a test of a document with an empty
+        # block under the control's heading.
+        "what_it_checks": spec["what_it_checks"],
+        "why_it_matters": spec["why_it_matters"],
+        "where_to_confirm": spec["where_to_confirm"],
+        "what_to_change": spec["what_to_change"],
         "default_severity": spec["default_severity"],
         "target_model": spec.get("target_model", ""),
         "is_active": spec.get("is_active", True),
