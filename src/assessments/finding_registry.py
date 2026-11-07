@@ -183,9 +183,15 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
                 "SNMP settings",
                 "SNMP settings"),
     FindingKind(m.SystemIdentityFinding, "system_identity",
+                # `firewalls` AND NOT `general settings`, which is what this said first.
+                # `SystemIdentityFinding` is one row per APPLIANCE - its name, its time zone and
+                # its management addressing - so `across 4 general settings` counts panels where
+                # the reader needs devices, and a panel is not a thing a client counts. Jason,
+                # 2026-11-07, on four values flagged for his ruling: *"Go with your
+                # recommendations on all four nouns"*.
                 m.Control.ControlType.SYSTEM_IDENTITY, "system identity", "General Settings",
-                "general settings",
-                "general settings"),
+                "firewalls",
+                "firewall"),
     # `device-services`, 2026-11-01. The labels are SINGULAR and are not the model names:
     # `test_labels_are_unique_and_prose_shaped` refuses a plural, and the allowlist beside it is
     # for a subject the vendor's own UI calls plural - neither of these is one.
@@ -322,6 +328,10 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # posture matcher - and nothing that does not exist can carry a row.
     FindingKind(m.GlobalProtectEnforcementPointFinding, "globalprotect_enforcement_point",
                 m.Control.ControlType.GLOBALPROTECT_ENFORCEMENT_POINT,
+                # `virtual systems` STANDS, the one of the four flagged that was already
+                # right: the row IS the vsys, as the model says above, and every alternative
+                # names something the control exists to report the absence of. A count of
+                # GlobalProtect deployments cannot include the vsys that has none.
                 "GlobalProtect enforcement point", "GlobalProtect Gateway",
                 "virtual systems",
                 "virtual system"),
@@ -431,9 +441,14 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # and the thing an engineer changes. The control type keeps the model's own name.
     FindingKind(m.DecryptionSettingsFinding, "decryption_settings",
                 m.Control.ControlType.DECRYPTION_SETTINGS,
+                # `firewalls` FOR THE REASON THE MODEL GIVES: *"THE SUBJECT IS THE APPLIANCE
+                # AND NOT THE DESIGNATION SLOT"*, because the commonest failing state is no
+                # certificate designated at all. `across 2 decryption settings` counts a panel
+                # that the label above is at pains not to call a cluster of settings, and
+                # naming the certificate would count certificates that do not exist.
                 "forward-proxy signing designation", "Decryption Settings",
-                "decryption settings",
-                "decryption settings"),
+                "firewalls",
+                "firewall"),
     # `globalprotect-gateway` adds THREE kinds for its three new models. The domain's fourth
     # model, the GlobalProtect enforcement point, already has a kind above and PAN-GPG-005
     # reuses it - which is why there are three entries here for a seven-control domain.
@@ -539,9 +554,15 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # subject is per-VIRTUAL-SYSTEM so its finding model carries `subject_scope`; the second is
     # per-APPLIANCE so the appliance's own name is the scope.
     FindingKind(m.VsysRulePostureFinding, "vsys_rule_posture",
+                # `security rulebases`, THE SAME WORDS AS `rulebase_device_match` ABOVE,
+                # because it is the same object: one vsys's security rulebase, read for a
+                # different verdict. Two nouns for it left a client comparing `3 security
+                # rulebases` in one Control Detail table with `3 virtual system rulebases` in
+                # the next and counting two sets of three. The distinction between the verdicts
+                # is ours; the rulebase is theirs.
                 m.Control.ControlType.VSYS_RULE_POSTURE, "virtual system rule posture", "Security Rulebase",
-                "virtual system rulebases",
-                "virtual system rulebase"),
+                "security rulebases",
+                "security rulebase"),
     # ITS ONE CONTROL SHIPS INACTIVE, by Jason's decision of 2026-10-31. The kind is registered
     # anyway, because `test_every_control_type_has_a_finding_kind` requires it of the type and
     # because the catalogue carries the question with its reason rather than dropping it.
