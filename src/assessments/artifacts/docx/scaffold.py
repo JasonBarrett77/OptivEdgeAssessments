@@ -127,10 +127,10 @@ class Scaffold:
         disagrees with it by the time a client reads it is the kind of thing a client notices.
         The build knows the date. It writes it, and the field goes.
 
-        The table of contents keeps its field - it is the one thing here that genuinely has to
-        be recalculated, because page numbers do not exist until Word lays the document out -
-        and `partials.table_of_contents` marks it dirty so Word still builds it on open without
-        asking about it.
+        The table of contents keeps its field, but nothing asks Word to update it:
+        `partials.table_of_contents` writes the entries, so the file opens with a contents page
+        already in it and no question. That the prompt survived a first attempt at this - a
+        dirty field rather than the setting - is written up in `partials.toc_field`.
         """
         written = 0
         for paragraph in self.body.iter(qn("w:p")):

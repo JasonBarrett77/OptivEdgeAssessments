@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from docx.oxml.ns import qn
 from docx.oxml.shared import OxmlElement
 
+from ..errors import ArtifactBuildError
+
 #: Paragraph style ids, measured off the scaffold. The build-time guard in `scaffold` refuses a
 #: scaffold missing any of them, so these names are the contract with Optiv's template.
 NORMAL = "Normal"
@@ -46,6 +48,10 @@ HEADING_3 = "Heading3"
 #: bare names and its table of contents reads `Appendix A: Reports`, which settles it.
 HEADING_APPENDIX = "Heading1-AppendixList"
 TOC_HEADING = "TOCHeading"
+#: The entry style for a heading at outline level 1, 2 and 3 - the three levels
+#: `TOC \o "1-3"` collects. `table_of_contents` writes those lines itself, so these are
+#: styles this module emits rather than ones left for Word to fill in.
+TOC_ENTRIES = ("TOC1", "TOC2", "TOC3")
 BULLET = "ListBullet"
 CAPTION = "Caption"
 SCREENSHOT = "Screenshot"
@@ -85,19 +91,19 @@ BODY_FONT = "Arial"
 
 #: The size body prose is written at, in half-points. 10pt.
 #:
-#: THREE STYLES IN OPTIV'S TEMPLATE CARRY NO SIZE AT ALL - `Normal`, `List Bullet` and
-#: `Screenshot` - and neither does `w:docDefaults`, so a paragraph in any of them falls through
-#: to whatever the reader's Word uses. Measured 2026-11-06: that is 12pt, against the 9 and 10
+#: SIX STYLES IN OPTIV'S TEMPLATE CARRY NO SIZE AT ALL - `Normal`, `List Bullet`,
+#: `Screenshot` and the three `toc` entry styles - and neither does `w:docDefaults`, so a
+#: paragraph in any of them falls through to whatever the reader's Word uses. Measured 2026-11-06: that is 12pt, against the 9 and 10
 #: Optiv sets everywhere it does state a size. Jason, 2026-11-06: *"I'm noticing a lot of the
 #: paragraph text is 12 pt instead of 10 pt. Can you ensure the paragraph text is explicitly set
 #: to 10 pt."*
 #:
 #: WRITTEN ONLY ON THE STYLES THAT STATE NOTHING. A heading is 20, 16 or 12pt and a table cell
 #: is 9pt because Optiv said so, and `scaffold.check_sizes` refuses a scaffold where one of
-#: these three has grown a size of its own - at which point this override would be fighting the
+#: these has grown a size of its own - at which point this override would be fighting the
 #: template rather than filling a gap in it.
 BODY_SIZE = "20"
-UNSIZED_STYLES = (NORMAL, BULLET, SCREENSHOT)
+UNSIZED_STYLES = (NORMAL, BULLET, SCREENSHOT, *TOC_ENTRIES)
 
 
 def _fonts():
@@ -129,7 +135,8 @@ def _run_properties(*, bold: bool = False, size: str | None = None):
 #: rather than listed a second time: a style added above and forgotten here would be the one
 #: that silently falls back to Normal.
 EMITTED_PARAGRAPH_STYLES = (
-    NORMAL, HEADING_1, HEADING_2, HEADING_3, HEADING_APPENDIX, TOC_HEADING, BULLET, CAPTION,
+    NORMAL, HEADING_1, HEADING_2, HEADING_3, HEADING_APPENDIX, TOC_HEADING, *TOC_ENTRIES,
+    BULLET, CAPTION,
     SCREENSHOT, TABLE_HEADING, TABLE_TEXT, TABLE_TEXT_BOLD, TABLE_BULLET,
     *RATING_STYLES.values(),
 )
@@ -231,19 +238,23 @@ def run_like(source, text: str):
 
 
 def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
-    """The table of contents as an EMPTY field, MARKED DIRTY, which Word fills on open.
+    """The table of contents as a `TOC` field with a placeholder result, which
+    `table_of_contents` fills with one line per heading.
 
-    A generated document has no page numbers until Word lays it out, so there is nothing to
-    write into the field's cached result.
+    NOT MARKED DIRTY, AND THAT IS THE WHOLE POINT. The scaffold carried
+    `<w:updateFields w:val="true"/>` in `word/settings.xml`, which made Word stop and ask
+    *"This document contains fields that may refer to other files. Do you want to update the
+    fields in this document?"* (Jason, 2026-11-07). Nothing in here refers to another file;
+    Word words it that way for any document that asks it to recalculate on open. So the build
+    dropped the setting and marked this one field dirty instead, on the understanding that a
+    dirty field is updated silently - and Word asked the same question anyway: *"It asks, but
+    it asks when opening the file now instead of enable editing. It also takes longer for word
+    to open the new file."* (Jason, 2026-11-07.) A field Word has to update as the file opens
+    is that question, however it is flagged, and the wait was Word laying out two hundred
+    pages to number them.
 
-    `w:dirty` IS WHAT ASKS WORD TO BUILD IT, and it asks for this field alone. The scaffold
-    used to carry `<w:updateFields w:val="true"/>` in `word/settings.xml`, which told Word to
-    recalculate everything - and made it stop and ask first: *"This document contains fields
-    that may refer to other files. Do you want to update the fields in this document?"*
-    (Jason, 2026-11-07). Nothing in here refers to another file; Word words it that way for
-    any document that asks. A dirty field is updated without the question, so
-    `Scaffold.write_date_fields` drops the setting and writes the dates as text, and this is
-    the one field left that genuinely cannot be written ahead of time.
+    So nothing is left for Word to do. The entries are written here, the field is left clean,
+    and a consultant who wants Optiv's page numbers right-clicks and updates once.
     """
     element = OxmlElement("w:p")
     properties = OxmlElement("w:pPr")
@@ -258,7 +269,6 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     begin = OxmlElement("w:r")
     char = OxmlElement("w:fldChar")
     char.set(qn("w:fldCharType"), "begin")
-    char.set(qn("w:dirty"), "true")
     begin.append(char)
     element.append(begin)
 
@@ -275,9 +285,9 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     separate.append(char)
     element.append(separate)
 
-    # The placeholder Word replaces. Written as a sentence rather than left blank so that a
-    # reader who opens the file in something that does not calculate fields - a browser preview,
-    # a converter - sees why the contents are missing instead of a gap.
+    # The placeholder `table_of_contents` replaces. It survives only in a document with no
+    # headings at all, and is written as a sentence rather than left blank so that case reads
+    # as an instruction rather than a gap.
     element.append(_run("Right-click and choose Update Field to build the table of contents.",
                         size=BODY_SIZE))
 
@@ -287,6 +297,119 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     end.append(char)
     element.append(end)
     return element
+
+
+#: The outline level each heading style sits at, which decides the entry style its line gets.
+HEADING_LEVELS = {HEADING_1: 1, HEADING_2: 2, HEADING_3: 3, HEADING_APPENDIX: 1}
+
+#: Where the bookmarks a contents entry links to start numbering. The scaffold's own bookmark
+#: ids run to 463, and Word allocates more of its own the first time somebody updates the
+#: field, so this starts well clear of both. `_Toc` is the prefix Word uses for the same job,
+#: and a name beginning with an underscore is hidden from Word's Bookmark dialog - a reader
+#: looking for the bookmarks they placed themselves does not want two hundred of ours listed.
+BOOKMARK_BASE = 10_000
+
+
+def table_of_contents(elements: list) -> int:
+    """Fill the `TOC` field in `elements` with one link per heading. Returns the line count.
+
+    READ BACK OFF THE DOCUMENT, NOT BUILT FROM THE SECTION LIST, so the contents cannot
+    disagree with the pages: every heading a build just produced is bookmarked where it
+    stands, and the entries link to those bookmarks.
+
+    NO PAGE NUMBERS, BECAUSE THERE ARE NONE YET. A generated document has no page numbers
+    until Word lays it out, and a number this cannot know is better left off than guessed. The
+    entries are links, which is what a reader on screen uses anyway, and the field is still a
+    `TOC` field - Update Field replaces all of this with Optiv's numbered version whenever
+    somebody wants it. See `toc_field` for why Word is not asked to do that on open.
+    """
+    index = _toc_index(elements)
+    entries, appendices = [], 0
+    for element in elements:
+        if element.tag != qn("w:p"):
+            continue
+        style = _style_of(element)
+        level = HEADING_LEVELS.get(style)
+        if level is None:
+            continue
+        text = "".join(node.text or "" for node in element.iter(qn("w:t")))
+        if style == HEADING_APPENDIX:
+            # `Heading1-AppendixList` PRINTS `Appendix A: ` from `w:numId 52` and the paragraph
+            # text is the bare name, so the entry has to carry the prefix itself or the contents
+            # would read `Reports` where the page reads `Appendix A: Reports`. The template's
+            # own contents reads the long form, which settles it.
+            text = f"Appendix {chr(ord('A') + appendices)}: {text}"
+            appendices += 1
+        name = f"_Toc{BOOKMARK_BASE + len(entries)}"
+        _bookmark(element, name, BOOKMARK_BASE + len(entries))
+        entries.append(_toc_entry(level, text, name))
+    if not entries:
+        return 0
+    _carry_field_runs(elements[index], entries[0], entries[-1])
+    elements[index:index + 1] = entries
+    return len(entries)
+
+
+def _toc_index(elements: list) -> int:
+    """Where the `TOC` field sits in `elements`. Exactly one, or the build stops.
+
+    A second one would be filled with the same entries and leave the document contradicting
+    itself; none means `write_contents` stopped emitting the field and the deliverable would
+    ship with no contents page at all.
+    """
+    found = [index for index, element in enumerate(elements)
+             if element.tag == qn("w:p")
+             and any((node.text or "").strip().startswith("TOC")
+                     for node in element.iter(qn("w:instrText")))]
+    if len(found) != 1:
+        raise ArtifactBuildError(
+            f"the document carries {len(found)} TOC fields and the table of contents is "
+            f"written into exactly one - see partials.table_of_contents")
+    return found[0]
+
+
+def _toc_entry(level: int, text: str, name: str):
+    """One contents line: the heading's text, linked to the bookmark on the heading."""
+    element = paragraph(TOC_ENTRIES[level - 1])
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("w:anchor"), name)
+    link.append(_run(text, size=BODY_SIZE))
+    element.append(link)
+    return element
+
+
+def _carry_field_runs(field, first, last) -> None:
+    """Move the field's own runs onto the first and last entry, which is where Word puts them.
+
+    A `TOC` field's result is a run of paragraphs, so the field opens inside the first line and
+    closes inside the last rather than sitting in a paragraph of its own. The runs are moved
+    rather than rebuilt so the instruction that reaches Word is the one `toc_field` wrote.
+    """
+    runs = [run for run in field.iterchildren(qn("w:r"))
+            if run.find(qn("w:fldChar")) is not None
+            or run.find(qn("w:instrText")) is not None]
+    for offset, run in enumerate(runs[:-1]):
+        # AFTER `w:pPr`, which is the paragraph's first child.
+        first.insert(1 + offset, run)
+    last.append(runs[-1])
+
+
+def _bookmark(paragraph_element, name: str, number: int) -> None:
+    """Wrap a heading's content in the bookmark its contents entry links to."""
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), str(number))
+    start.set(qn("w:name"), name)
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), str(number))
+    paragraph_element.insert(1 if paragraph_element.find(qn("w:pPr")) is not None else 0, start)
+    paragraph_element.append(end)
+
+
+def _style_of(element):
+    """The paragraph's style id, or None for one carrying no `w:pStyle`."""
+    properties = element.find(qn("w:pPr"))
+    style = properties.find(qn("w:pStyle")) if properties is not None else None
+    return style.get(qn("w:val")) if style is not None else None
 
 
 @dataclass

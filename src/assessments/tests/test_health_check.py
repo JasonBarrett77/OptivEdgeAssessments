@@ -75,6 +75,13 @@ def _text(node) -> str:
     return "".join(child.text or "" for child in node.iter(w("t")))
 
 
+def style_of(paragraph):
+    """The paragraph's style id, or None - which is how the generated paragraphs are found."""
+    properties = paragraph.find(w("pPr"))
+    style = properties.find(w("pStyle")) if properties is not None else None
+    return style.get(w("val")) if style is not None else None
+
+
 def _names_the_face(properties) -> bool:
     fonts = properties.find(w("rFonts")) if properties is not None else None
     return fonts is not None and fonts.get(w("ascii")) == partials.BODY_FONT
@@ -93,11 +100,47 @@ def generated_paragraphs(body) -> list:
     emitted = set(partials.EMITTED_PARAGRAPH_STYLES)
     found = []
     for para in body.iter(w("p")):
-        properties = para.find(w("pPr"))
-        style = properties.find(w("pStyle")) if properties is not None else None
-        if style is not None and style.get(w("val")) in emitted:
-            found.append(para)
+        style = style_of(para)
+        if style not in emitted:
+            continue
+        # THE STYLES BOTH SIDES USE. The scaffold's own body carries an empty `TOC3` paragraph,
+        # so a contents style alone does not say who wrote the line - a generated entry is the
+        # one with a link in it. See `partials.table_of_contents`.
+        if style in partials.TOC_ENTRIES and para.find(w("hyperlink")) is None:
+            continue
+        found.append(para)
     return found
+
+
+def heading_texts(body) -> list:
+    """The generated headings, in the order the document reaches them - its outline.
+
+    TEXT ORDER IS NO LONGER THE OUTLINE. The contents page names every heading before the
+    document arrives at any of them, so `all_text` holds each one twice and the first of the
+    two is on page two. A test about where a section SITS has to read the headings.
+    """
+    return [_text(paragraph) for paragraph in body.iter(w("p"))
+            if style_of(paragraph) in partials.HEADING_LEVELS]
+
+
+def contents_entries(body) -> list:
+    """The contents lines this build wrote, in order.
+
+    TOLD APART BY THE LINK, not by the style alone: the scaffold's own body carries an empty
+    `TOC3` paragraph, and it comes first in the file.
+    """
+    return [paragraph for paragraph in body.iter(w("p"))
+            if style_of(paragraph) in partials.TOC_ENTRIES
+            and paragraph.find(w("hyperlink")) is not None]
+
+
+def heading_at(headings: list, text: str) -> int:
+    """Where the first heading naming `text` sits, so a test can state an order without
+    depending on a heading's exact wording."""
+    for index, heading in enumerate(headings):
+        if text in heading:
+            return index
+    raise AssertionError(f"no heading names {text!r} - found {headings}")
 
 
 def spanned_columns(row) -> int:
@@ -785,15 +828,60 @@ class DocumentStructureTests(_SeededEstate):
         self.assertEqual([text.strip() for text in instructions],
                          ['TOC \\o "1-3" \\h \\z \\u'])
 
-    def test_the_table_of_contents_field_is_marked_dirty(self):
-        """What replaces `updateFields`: a dirty field is one Word updates on open WITHOUT
-        asking, so the contents still build themselves and the prompt is gone."""
+    def test_no_field_is_marked_dirty(self):
+        """Jason, 2026-11-07, on the first attempt at this - `updateFields` out and the TOC
+        field marked dirty instead: *"It asks, but it asks when opening the file now instead of
+        enable editing. It also takes longer for word to open the new file."*
+
+        A field Word has to update as the file opens is the prompt, however it is flagged. So
+        the contents are written out and nothing is left dirty.
+        """
         body = document_xml(self.built()).find(w("body"))
 
         dirty = [marker for marker in body.iter(w("fldChar"))
                  if marker.get(w("dirty")) == "true"]
-        self.assertEqual(len(dirty), 1)
-        self.assertEqual(dirty[0].get(w("fldCharType")), "begin")
+        self.assertEqual(dirty, [])
+
+    def test_the_table_of_contents_lists_every_heading_and_links_to_it(self):
+        """What replaces the update: the entries, written by the build. Each one is a link to a
+        bookmark on the heading it names, so the contents page works on open."""
+        body = document_xml(self.built()).find(w("body"))
+
+        entries = contents_entries(body)
+        self.assertEqual(len(entries), len(heading_texts(body)))
+        self.assertGreater(len(entries), 20)
+
+        bookmarks = {node.get(w("name")) for node in body.iter(w("bookmarkStart"))}
+        for entry in entries:
+            link = entry.find(w("hyperlink"))
+            self.assertIsNotNone(link)
+            self.assertIn(link.get(w("anchor")), bookmarks)
+
+    def test_the_field_opens_in_the_first_entry_and_closes_in_the_last(self):
+        """Where Word puts a TOC field's own runs: a contents list is the field's result, so the
+        field cannot sit in a paragraph beside it. Update Field has to replace all of it."""
+        body = document_xml(self.built()).find(w("body"))
+        entries = contents_entries(body)
+
+        def chars(paragraph):
+            return [node.get(w("fldCharType")) for node in paragraph.iter(w("fldChar"))]
+
+        self.assertEqual(chars(entries[0]), ["begin", "separate"])
+        self.assertEqual(chars(entries[-1]), ["end"])
+        for entry in entries[1:-1]:
+            self.assertEqual(chars(entry), [])
+
+    def test_an_appendix_entry_carries_the_prefix_its_numbering_prints(self):
+        """`Heading1-AppendixList` prints `Appendix A: ` from its numbering, so the heading's
+        own text is the bare name. An entry copying that text would read `Reports` where the
+        page reads `Appendix A: Reports`."""
+        body = document_xml(self.built()).find(w("body"))
+        entries = [_text(paragraph) for paragraph in contents_entries(body)]
+
+        appendices = [entry for entry in entries if entry.startswith("Appendix ")]
+        self.assertGreater(len(appendices), 1)
+        self.assertEqual([entry[:11] for entry in appendices],
+                         [f"Appendix {chr(ord('A') + i)}:" for i in range(len(appendices))])
 
     def test_the_cover_carries_the_date_the_document_was_built(self):
         """The date the template asked Word for, written by the build instead - and the same
@@ -848,11 +936,16 @@ class DocumentStructureTests(_SeededEstate):
 
     def test_an_appendix_heading_does_not_print_its_own_prefix(self):
         """`Heading1-AppendixList` declares `<w:numPr w:numId="52"/>`, which is what prints
-        `Appendix A: `. Writing the prefix would print it twice."""
-        text = all_text(self.built())
+        `Appendix A: `. Writing the prefix would print it twice.
 
-        self.assertNotIn("Appendix A:", text)
-        self.assertIn("Devices Included in Review", text)
+        THE CONTENTS ENTRY DOES CARRY IT, and has to: numbering prints on the page and not into
+        a line that copies the heading's text. See `partials.table_of_contents`.
+        """
+        content = self.built()
+        headings = heading_texts(document_xml(content).find(w("body")))
+
+        self.assertEqual([name for name in headings if name.startswith("Appendix")], [])
+        self.assertIn("Devices Included in Review", all_text(content))
 
     def test_it_reopens_as_a_word_document(self):
         import docx
@@ -1246,10 +1339,12 @@ class ControlDetailTests(_SeededEstate):
     def test_the_section_sits_just_before_the_recommendations(self):
         """Where Jason asked for it, which is also where it belongs: the observations say what
         was found, this says it control by control, and the recommendations follow from both."""
-        text = all_text(self.with_detail())
+        headings = heading_texts(document_xml(self.with_detail()).find(w("body")))
 
-        self.assertLess(text.index("Control Detail"), text.index("High-Level Recommendations"))
-        self.assertGreater(text.index("Control Detail"), text.index("Firewall Observations"))
+        self.assertLess(heading_at(headings, "Control Detail"),
+                        heading_at(headings, "High-Level Recommendations"))
+        self.assertGreater(heading_at(headings, "Control Detail"),
+                           heading_at(headings, "Review and Analysis of Firewall(s)"))
 
     def test_a_catalogue_line_nobody_wrote_is_marked_rather_than_left_blank(self):
         """The catalogue's validator requires all four of an active control, so this is a

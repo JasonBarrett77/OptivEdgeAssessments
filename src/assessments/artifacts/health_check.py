@@ -989,11 +989,14 @@ def fill(text: str, engagement: Engagement) -> str:
 # Section writers. One per section, each returning (elements, report line)
 # --------------------------------------------------------------------------------------------
 
-def write_contents() -> tuple[list, str]:
-    """The heading and an empty `TOC` field. Word fills it on first open - see
-    `partials.toc_field` and the scaffold's `updateFields`."""
-    return ([p.paragraph(p.TOC_HEADING, "Table of Contents"), p.toc_field()],
-            "Table of Contents: a TOC field Word fills on first open")
+def write_contents() -> list:
+    """The heading and an empty `TOC` field, for `partials.table_of_contents` to fill.
+
+    OUT OF THE SECTION LOOP because it is the one section whose content is the rest of the
+    document: the field goes in here, at the front where it belongs, and the entries are
+    written once every other section has produced its headings.
+    """
+    return [p.paragraph(p.TOC_HEADING, "Table of Contents"), p.toc_field()]
 
 
 def write_executive_summary(engagement: Engagement, captions: p.CaptionCounters,
@@ -1888,8 +1891,11 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     subjects, subjects_report = read_subjects(measured)
 
     elements, reports = [], [*scope_lines, groups_report, containers_report, subjects_report]
+    elements.extend(write_contents())
+    #: Where the contents line goes in the report - ahead of the sections, as on the page. Its
+    #: count is not known until they have all been written.
+    contents = len(reports)
     for section in (
-        lambda: write_contents(),
         lambda: write_executive_summary(engagement, captions, groups),
         lambda: write_project_overview(engagement, containers, captions),
     ):
@@ -1919,6 +1925,10 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     produced, report = write_general(engagement)
     elements.extend(produced)
     reports.append(report)
+
+    # LAST, because it reads its entries back out of the headings above.
+    reports.insert(contents, f"Table of Contents: {p.table_of_contents(elements)} entries, "
+                             f"each one a link to its heading")
 
     scaffold = open_scaffold()
     scaffold.substitute_cover({
