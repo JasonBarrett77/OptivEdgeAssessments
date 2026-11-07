@@ -114,7 +114,7 @@ def build_workbook() -> tuple[bytes, list[str]]:
     try:
         # Created first so it is the first tab; filled last, from what the other sheets report.
         summary_worksheet = workbook.add_worksheet(SUMMARY_TITLE)
-        scope.check_findings_are_in_scope()
+        scope_lines = scope.scope_report()
         infos = [getattr(sheet, "write_sheet", sheet)(build) for sheet in SHEETS]
         check_every_finding_reached_a_tab(infos)
         check_tabs_follow_the_summary(infos)
@@ -125,5 +125,6 @@ def build_workbook() -> tuple[bytes, list[str]]:
         raise
     workbook.close()
     reports = [summary_report] + [info.report for info in infos]
+    reports += scope_lines
     reports += link_budget_report(build)
     return buffer.getvalue(), reports

@@ -1124,7 +1124,12 @@ def write_sheet(build, spec) -> SheetInfo:
     if "Appliance" in headers:
         appliance_col = headers.index("Appliance")
         for i, meta in enumerate(table.row_meta):
-            if meta["appliance"] is not None:
+            # ONLY IF THE APPLIANCE HAS A ROW TO OPEN. The Appliances tab lists the firewalls in
+            # scope, and a finding read through an enforcement point the estate has since
+            # reorganized can name one that is not among them - `artifacts.scope`. Linking it
+            # anyway raised `no appliance row registered for pk ...` and the engineer got no
+            # workbook at all, which is a worse answer than a hostname that is not a link.
+            if meta["appliance"] is not None and ("appliance", meta["appliance"]) in build.anchors:
                 write_link(build, sheet, top + 1 + i, appliance_col, "appliance",
                            meta["appliance"], rows[i][appliance_col])
 

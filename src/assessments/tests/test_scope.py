@@ -131,26 +131,72 @@ class ScopeTests(_Estate):
         EnforcementPoint.objects.update(in_scope=False)
 
         with self.assertRaises(ArtifactBuildError) as raised:
-            scope.check_findings_are_in_scope()
+            scope.scope_report()
 
         self.assertIn("is in scope", str(raised.exception))
 
-    def test_a_snapshot_on_a_point_unticked_after_collection_refuses_the_build(self):
-        """The one way a finding can sit outside scope: the point was in scope when it was
-        collected and was unticked afterwards. A guard rather than a filter, Jason 2026-11-07 -
-        quietly dropping it would answer a question about the estate by hiding it."""
+    def test_a_retired_point_whose_vsys_is_still_in_scope_is_not_outside_it(self):
+        """THE PRODUCTION BLOCKER, 2026-11-07. `retire_superseded_enforcement_points` clears
+        `in_scope` on the points an appliance moved away from when an HA pair comes up and
+        carries the choice to the new rows. Jason: *"I haven't changed scope recently, and I
+        really don't want to go through a collection again."* He had not: the vsys was in scope
+        through a replacement row while the configuration behind the findings hung off the
+        retired one, and the first version of this refused the build over it.
+        """
+        self.snapshot.enforcement_point = self.in_point
+        self.snapshot.save(update_fields=["enforcement_point"])
+        self.in_point.in_scope = False
+        self.in_point.is_missing = True
+        self.in_point.save(update_fields=["in_scope", "is_missing"])
+        # The replacement row, which is what the retirement creates: the pair comes up, the
+        # appliance moves into the new HA group, and the point is recreated THERE - one point
+        # per (group, vsys), which is why the old row is left behind rather than updated.
+        pair = ApplianceGroup.objects.create(
+            management_station=self.station, name="ha-pair-in",
+            group_type=ApplianceGroup.TYPE_HA_PAIR)
+        self.inside.appliance_group = pair
+        self.inside.save(update_fields=["appliance_group"])
+        replacement = EnforcementPoint.objects.create(
+            management_station=self.station, appliance_group=pair,
+            vsys_name="vsys1", vsys_display_name="trust", in_scope=True)
+        EnforcementNode.objects.create(management_station=self.station, appliance=self.inside,
+                                       enforcement_point=replacement)
+
+        self.assertEqual(scope.findings_outside_scope(), [])
+        self.assertEqual(scope.scope_report(), [])
+
+    def test_a_vsys_with_no_in_scope_row_anywhere_is_reported_not_refused(self):
+        """Reported beside the other counts rather than blocking the deliverable: a device is
+        only ever collected through an in-scope point, so what reaches here is a row the estate
+        reorganized, and the remedy is a collection the engineer may not want to run today."""
         self.snapshot.enforcement_point = self.in_point
         self.snapshot.save(update_fields=["enforcement_point"])
         self.in_point.in_scope = False
         self.in_point.save(update_fields=["in_scope"])
+        self.out_point.vsys_name = "vsys9"
         self.out_point.in_scope = True
-        self.out_point.save(update_fields=["in_scope"])
+        self.out_point.save(update_fields=["vsys_name", "in_scope"])
 
-        with self.assertRaises(ArtifactBuildError) as raised:
-            scope.check_findings_are_in_scope()
+        report = scope.scope_report()
 
-        self.assertIn("outside the engagement's scope", str(raised.exception))
-        self.assertIn("vsys1", str(raised.exception))
+        self.assertEqual(len(report), 1)
+        self.assertIn("login banner on fw-in-scope / vsys1", report[0])
+        self.assertIn("no longer the one in scope for its vsys", report[0])
+
+    def test_the_build_still_produces_a_workbook_and_says_so_in_its_report(self):
+        """What the refusal cost: the engineer got no file at all."""
+        self.snapshot.enforcement_point = self.in_point
+        self.snapshot.save(update_fields=["enforcement_point"])
+        self.in_point.in_scope = False
+        self.in_point.save(update_fields=["in_scope"])
+        self.out_point.vsys_name = "vsys9"
+        self.out_point.in_scope = True
+        self.out_point.save(update_fields=["vsys_name", "in_scope"])
+
+        content, reports = build_workbook()
+
+        self.assertTrue(content.startswith(b"PK"))
+        self.assertTrue(any(line.startswith("Scope:") for line in reports))
 
 
     def test_a_collection_from_before_scope_changed_does_not_refuse_the_build(self):
@@ -160,6 +206,8 @@ class ScopeTests(_Estate):
         in the deliverable. On the lab that is 1,062 snapshots against the 10 its findings
         reference.
         """
+        self.out_point.vsys_name = "vsys9"
+        self.out_point.save(update_fields=["vsys_name"])
         stale = Snapshot.objects.create(
             management_station=self.station, appliance=self.outside,
             enforcement_point=self.out_point, source_type="show_merged_config",
@@ -167,24 +215,8 @@ class ScopeTests(_Estate):
 
         self.assertIn(stale.pk, set(
             scope.snapshots_out_of_scope().values_list("pk", flat=True)))
-        scope.check_findings_are_in_scope()          # no finding points at it, so it is history
+        self.assertEqual(scope.findings_outside_scope(), [])   # nothing points at it: history
 
-    def test_the_refusal_says_re_running_the_findings_will_not_clear_it(self):
-        """Because it would not: generation reads the normalized configuration and never asks
-        about scope, so the same findings come back. The remedy is the point or the
-        configuration behind it, not the run."""
-        self.snapshot.enforcement_point = self.in_point
-        self.snapshot.save(update_fields=["enforcement_point"])
-        self.in_point.in_scope = False
-        self.in_point.save(update_fields=["in_scope"])
-        self.out_point.in_scope = True
-        self.out_point.save(update_fields=["in_scope"])
-
-        with self.assertRaises(ArtifactBuildError) as raised:
-            scope.check_findings_are_in_scope()
-
-        self.assertIn("re-running the findings on its own will not clear this",
-                      str(raised.exception))
 
 
 class ArtifactScopeTests(_Estate):

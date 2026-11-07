@@ -113,36 +113,77 @@ def enforcement_nodes_in_scope():
 
 
 def snapshots_out_of_scope():
-    """Snapshots whose enforcement point, or whose appliance, is no longer in scope."""
-    return Snapshot.objects.filter(
-        Q(enforcement_point__isnull=False, enforcement_point__in_scope=False)
-        | (Q(appliance__isnull=False) & ~Q(appliance__in=appliances_in_scope())))
+    """Snapshots whose enforcement point, or whose appliance, is not in scope today.
 
-
-def check_findings_are_in_scope() -> None:
-    """Refuse a build whose findings reach outside the engagement's scope.
-
-    A GUARD AND NOT A FILTER, Jason 2026-11-07: there should never be a finding outside scope,
-    because a device is only collected through an in-scope enforcement point. So one that
-    exists is a question about the estate - a point unticked after it was collected, a sync
-    that moved an appliance between groups without retiring the point it left - and quietly
-    dropping it from the deliverable would answer that question by hiding it.
-
-    IT IS THE FINDINGS THAT ARE CHECKED, NOT EVERY SNAPSHOT EVER COLLECTED. Snapshots
-    accumulate: nothing in production deletes one, and the lab holds 47, 47, 72 and 1
-    `show_merged_config` snapshots for its four appliances while its findings reference 10
-    snapshots of the 1,062 there are. A first version of this guard asked whether any snapshot
-    was out of scope, which would have refused a build over a collection from before scope last
-    changed - a deliverable blocked by history rather than by anything in it. So the snapshots
-    are narrowed first, which is one query and almost always empty, and only then is each
-    finding model asked whether it points at one.
+    A SUPERSEDED POINT IS NOT OUT OF SCOPE. `retire_superseded_enforcement_points` clears
+    `in_scope` on the points an appliance has moved away from and carries the choice to their
+    replacements, so a vsys can be in scope through a new row while the configuration a finding
+    was read through hangs off the old one. The vsys is in scope; only the row is retired. So a
+    point whose `vsys_name` has an in-scope point on the same management station is excluded
+    here - matching on the vsys and the station, which is what the retirement itself matches on.
     """
-    check_scope_is_declared()
+    return Snapshot.objects.filter(
+        Q(enforcement_point_id__in=_retired_with_no_replacement())
+        | (Q(appliance__isnull=False)
+           & ~Q(appliance_id__in=_appliances_reaching_a_vsys_in_scope())))
+
+
+def _in_scope_vsys() -> set:
+    """`(station, vsys name)` for every vsys that has an in-scope point today."""
+    return set(EnforcementPoint.objects.filter(in_scope=True).values_list(
+        "management_station_id", "vsys_name"))
+
+
+def _retired_with_no_replacement() -> list:
+    """Points not in scope whose vsys has no in-scope row either - genuinely out of scope."""
+    live = _in_scope_vsys()
+    return [pk for pk, station, vsys in EnforcementPoint.objects.filter(
+        in_scope=False).values_list("pk", "management_station_id", "vsys_name")
+        if (station, vsys) not in live]
+
+
+def _appliances_reaching_a_vsys_in_scope() -> set:
+    """Appliance pks in scope, OR reaching a vsys that is - through a retired row.
+
+    The second half is the same forgiveness `snapshots_out_of_scope` gives a superseded point,
+    applied to the appliance the snapshot names: an HA pair that came up after the first sync
+    has its findings on the old row and its scope on the new one, and the firewall itself never
+    left the engagement.
+    """
+    pks = set(appliances_in_scope().values_list("pk", flat=True))
+    live = _in_scope_vsys()
+    for appliance_id, station, vsys in EnforcementNode.objects.values_list(
+            "appliance_id", "enforcement_point__management_station_id",
+            "enforcement_point__vsys_name"):
+        if (station, vsys) in live:
+            pks.add(appliance_id)
+    return pks
+
+
+def findings_outside_scope() -> list:
+    """`(kind label, where)` for each finding kind reaching outside scope, at most six.
+
+    REPORTED, NOT REFUSED. This was a refusal for half a day and it blocked a production build
+    on an estate nobody had touched: Jason, 2026-11-07, *"I haven't changed scope recently, and
+    I really don't want to go through a collection again."* Two things were wrong with it.
+
+    The first is fixed in `snapshots_out_of_scope`: a point retired when an HA pair came up is
+    not a scope decision anybody made, it is normalization carrying the choice to a new row, and
+    the findings read through the old one are about a vsys that is still in scope.
+
+    The second is the refusal itself. A device is only ever collected through an in-scope
+    enforcement point, so what is left here cannot be a firewall nobody assessed - it is a row
+    the estate has since reorganized, and the remedy for it is a collection the engineer may
+    reasonably not want to run today. Blocking the deliverable to insist on that trades
+    something they need for something they already know. The build says what it found instead,
+    on the page beside the other counts, and `scope.appliances_in_scope` keeps the out-of-scope
+    firewalls out of every list regardless - which is what Jason asked for.
+    """
     if not scope_is_declared():
-        return
+        return []
     stale = set(snapshots_out_of_scope().values_list("pk", flat=True))
     if not stale:
-        return
+        return []
     named = []
     for kind in finding_registry.FINDING_KINDS:
         snapshot = (Snapshot.objects
@@ -153,17 +194,22 @@ def check_findings_are_in_scope() -> None:
         if snapshot is None:
             continue
         where = (snapshot.appliance.hostname or snapshot.appliance.serial_number
-                 if snapshot.appliance else "no appliance")
+                 if snapshot.appliance else "a configuration naming no appliance")
         if snapshot.enforcement_point:
             where += f" / {snapshot.enforcement_point.vsys_name}"
         named.append(f"{kind.label} on {where}")
         if len(named) == 6:
             break
-    if named:
-        raise ArtifactBuildError(
-            "findings reach outside the engagement's scope, so this build would report on "
-            "something nobody asked for: " + "; ".join(named) + ". An enforcement point "
-            "unticked after it was collected keeps the configuration read through it, and "
-            "nothing re-checks scope when findings are generated - so re-running the findings "
-            "on its own will not clear this. Put the point back in scope if it belongs there, "
-            "or collect and renormalize so the configuration behind these findings is retired.")
+    return named
+
+
+def scope_report() -> list:
+    """The build's own line about findings read through a row the estate has reorganized."""
+    check_scope_is_declared()
+    outside = findings_outside_scope()
+    if not outside:
+        return []
+    return [f"Scope: findings read through an enforcement point that is no longer the one in "
+            f"scope for its vsys - {'; '.join(outside)}. The firewalls and vsys listed in this "
+            f"artifact are the ones in scope either way; collect and re-run the findings to "
+            f"move these onto the current rows."]

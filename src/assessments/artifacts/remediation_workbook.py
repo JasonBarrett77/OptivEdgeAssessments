@@ -96,7 +96,7 @@ def build_remediation_workbook() -> tuple[bytes, list[str]]:
     """
     groups = groups_in_summary_order()
     remediation_sheet.check_tab_names_are_distinct(groups)
-    scope.check_findings_are_in_scope()
+    scope_lines = scope.scope_report()
 
     buffer = io.BytesIO()
     workbook = xlsxwriter.Workbook(buffer, {"in_memory": True})
@@ -115,7 +115,7 @@ def build_remediation_workbook() -> tuple[bytes, list[str]]:
         workbook.close()
         raise
     workbook.close()
-    reports = [summary_report] + [info.report for info in infos]
+    reports = [summary_report] + [info.report for info in infos] + scope_lines
     # Nothing here can reach Excel's hyperlink limit - the only links are one per tab on the
     # Summary - but the budget is shared with the findings workbook, and a fallback nobody
     # reports is the failure this was added to stop.

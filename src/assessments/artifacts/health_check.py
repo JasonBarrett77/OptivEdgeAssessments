@@ -149,6 +149,13 @@ def plural_noun(count: int, singular: str) -> str:
     "logging settingses" in the Control Detail section's own Findings line. Seven labels, seven
     wrong words. The `es` branch stays for the one label it is right for, `rulebase device
     match`, and for the `x`, `z` and `sh` endings no label carries yet.
+
+    NOTHING IN THIS PACKAGE PLURALIZES A LABEL ANY MORE. The Findings line was its one caller
+    and it now prints `FindingKind.client_plural`, because 31 of the 75 labels are not the
+    client's word for the object in any number. What is left is the rule itself and the
+    measurements behind it, which `test_finding_registry` uses to assert that a client plural
+    is ALREADY plural - and the question of whether a new noun takes `s`, `es` or `ies` is
+    answered here rather than per caller.
     """
     if count == 1:
         return singular
@@ -254,8 +261,14 @@ class Measured:
     #: configuration and is fixed once, so counting the finding against each member would
     #: double the row's own total and read as two jobs.
     firewalls: dict = field(default_factory=lambda: defaultdict(Counter))
-    #: control id -> the singular noun its findings are about ("security rule", "zone").
-    subject_label: dict = field(default_factory=dict)
+    #: control id -> what a CLIENT calls the things its findings are about, as
+    #: `(plural, singular)` - ("security rules", "security rule").
+    #:
+    #: THE CLIENT'S PLURAL AND NOT `FindingKind.label`, which this carried first. The Findings
+    #: line is always about a count, so the noun is always printed plural, and the registry's
+    #: singular pluralized gave a client "12 password complexities" and "coverages". The
+    #: registry's own comment on the field has the measurement.
+    subject_nouns: dict = field(default_factory=dict)
     #: Every run id any finding belongs to. More than one means the tables are mixed.
     runs: set = field(default_factory=set)
 
@@ -328,7 +341,8 @@ def measure() -> Measured:
             if owner:
                 measured.firewalls[(control_id, severity)][owner] += 1
             measured.by_severity[control_id][severity] += 1
-            measured.subject_label[control_id] = kind.label
+            measured.subject_nouns[control_id] = (
+                kind.client_plural, kind.client_singular or kind.label)
             measured.runs.add(run_id)
             measured.subjects[control_id].add((kind.name, subject_id))
             measured.subjects_by_severity[(control_id, severity)].add((kind.name, subject_id))
@@ -557,9 +571,10 @@ class ControlDetail:
     #: `(severity, findings)` worst-first, for the severities that actually fired.
     graded: tuple
     findings: int
-    #: How many distinct objects those findings are about, and what one of them is called.
+    #: How many distinct objects those findings are about, and what a client calls them -
+    #: the registry's own `(plural, singular)`, printed as they stand.
     objects: int
-    object_noun: str
+    object_nouns: tuple
     #: `(firewalls, findings)` worst affected first - an HA pair is one entry naming both.
     reach: tuple
     #: How many more firewalls carry the findings than the line names.
@@ -588,8 +603,22 @@ def findings_phrase(detail: ControlDetail) -> str:
 
     The object count is the DISTINCT objects, not the findings: sixteen controls report on the
     security rulebase, and a rule that fails several of them is one rule to open.
+
+    THE NOUN IS THE REGISTRY'S CLIENT PLURAL AND IS NOT PLURALIZED HERE. `plural_noun` over
+    `FindingKind.label` was the first version of this line and it printed the registry's own
+    vocabulary at a client - "across 12 password complexities" under a heading reading Minimum
+    Password Complexity. No pluralizer gets from one to the other, so each kind carries the
+    word, and this prints it.
+
+    AND THE REGISTRY CARRIES BOTH NUMBERS, because the count can be one: 11 of the lab's 203
+    control blocks are about a single object, and six of them read "1, across 1 AAA server
+    profiles" when the plural was printed unconditionally. `client_singular` is the client's
+    word for one of them where `label` is not it - see the registry's comment on the field -
+    so neither the grammar nor the register has to give.
     """
-    objects = f"across {tally(detail.objects)} {plural_noun(detail.objects, detail.object_noun)}"
+    plural, singular = detail.object_nouns
+    objects = (f"across {tally(detail.objects)} "
+               f"{singular if detail.objects == 1 else plural}")
     if len(detail.graded) == 1:
         return f"{tally(detail.findings)}, {objects}"
     counts = ", ".join(f"{tally(count)} {Control.Severity(severity).label.lower()}"
@@ -639,7 +668,7 @@ def read_control_detail(measured: Measured) -> list:
                 graded=graded,
                 findings=sum(count for _severity, count in graded),
                 objects=len(measured.subjects[control.control_id]),
-                object_noun=measured.subject_label[control.control_id],
+                object_nouns=measured.subject_nouns[control.control_id],
                 reach=reach,
                 others=others))
         if not controls:
@@ -1850,7 +1879,7 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     measured = measure()
     check_the_run_is_one_run(measured)
     check_every_finding_reached_the_spine(measured)
-    scope.check_findings_are_in_scope()
+    scope_lines = scope.scope_report()
 
     engagement = read_engagement(today=today, revision=revision)
     captions = p.CaptionCounters()
@@ -1858,7 +1887,7 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     containers, containers_report = read_containers()
     subjects, subjects_report = read_subjects(measured)
 
-    elements, reports = [], [groups_report, containers_report, subjects_report]
+    elements, reports = [], [*scope_lines, groups_report, containers_report, subjects_report]
     for section in (
         lambda: write_contents(),
         lambda: write_executive_summary(engagement, captions, groups),

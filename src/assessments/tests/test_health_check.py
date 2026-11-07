@@ -1211,7 +1211,9 @@ class ControlDetailTests(_SeededEstate):
 
         findings = measured.count([control.control_id])
         objects = measured.distinct_subjects([control.control_id])
-        noun = health_check.plural_noun(objects, "login banner")
+        # The SINGULAR at one object: the seeded estate has one banner, and
+        # "1, across 1 login banners" was the first version of this line.
+        noun = "login banner" if objects == 1 else "login banners"
         self.assertEqual(lines[control.name]["Findings"],
                          f"{findings}, across {objects} {noun}")
         self.assertEqual(lines[control.name]["Severity"], "Low")
@@ -1296,7 +1298,7 @@ class DetailPhraseTests(SimpleTestCase):
         fields = dict(
             control=Control(control_id="PAN-AAA-001", name="LDAP Server Profiles Require SSL"),
             graded=(("critical", 4),), findings=4, objects=4,
-            object_noun="AAA server profile",
+            object_nouns=("AAA server profiles", "AAA server profile"),
             reach=((("pan-fw-111",), 4),), others=0)
         fields.update(overrides)
         return health_check.ControlDetail(**fields)
@@ -1317,10 +1319,21 @@ class DetailPhraseTests(SimpleTestCase):
         """PAN-CRT-002 grades a key below half its floor Critical and anything else off it
         High. A single total would hide that the worse of them is one certificate."""
         detail = self.detail(graded=(("critical", 1), ("high", 1)), findings=2, objects=2,
-                             object_noun="certificate")
+                             object_nouns=("certificates", "certificate"))
 
         self.assertEqual(health_check.findings_phrase(detail),
                          "1 critical, 1 high, across 2 certificates")
+
+    def test_the_noun_is_the_registry_s_own_word_for_a_client(self):
+        """Printed as `FindingKind.client_plural` carries it, with no pluralizer over it. The
+        kind this reads is the one that forced the field: `plural_noun` over its label put
+        "12 password complexities" under a heading reading Minimum Password Complexity."""
+        kind, = (k for k in FINDING_KINDS if k.label == "password complexity")
+        detail = self.detail(graded=(("medium", 14),), findings=14, objects=12,
+                             object_nouns=(kind.client_plural, kind.client_singular))
+
+        self.assertEqual(health_check.findings_phrase(detail),
+                         "14, across 12 password complexity settings")
 
     def test_a_noun_that_is_already_plural_is_left_alone(self):
         """Measured over all 75 finding kinds 2026-11-06: seven of their labels already end in
