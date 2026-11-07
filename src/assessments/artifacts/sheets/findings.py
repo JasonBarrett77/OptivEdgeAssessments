@@ -53,6 +53,7 @@ from ..layout import (
     NONE, SEVERITY_FILL, SheetInfo, TAB_COLOURS, category_of, ha_role, plural, severity_group, utc, write_header_block, write_link,
     write_table)
 from ..errors import ArtifactBuildError
+from .. import scope
 
 #: What the Config collected column says for a finding with no snapshot recorded - a run that
 #: predates `FindingBase.snapshot`, which fills itself on the next run.
@@ -1089,7 +1090,7 @@ def write_sheet(build, spec) -> SheetInfo:
     by_severity = table.by_severity
     sheet = workbook.add_worksheet(title[:31])
 
-    appliances = Appliance.objects.count()
+    appliances = scope.appliances_in_scope().count()
     rationales = {c.rationale for c in controls if c.rationale}
     top = write_header_block(build, sheet, title=title, last_col=len(columns) - 1,
         tab_colour=TAB_COLOURS[category],

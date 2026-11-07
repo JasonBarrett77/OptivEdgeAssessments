@@ -20,9 +20,12 @@ import contextlib
 import datetime
 import io
 import re
+import warnings
 import zipfile
 from pathlib import Path
+from unittest import mock
 
+import xlsxwriter
 from django.db import connection
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
@@ -418,6 +421,98 @@ class WorkbookIsolationTests(TestCase):
         self.assertTrue(second.startswith(b"PK"))
 
 
+class HyperlinkBudgetTests(SimpleTestCase):
+    """Excel keeps 65,530 hyperlink records on a worksheet and xlsxwriter drops the rest.
+
+    Jason, in production 2026-11-07: *"Ignoring URL 'internal:'Controls'!A175:J175' since it
+    exceeds Excel's limit of 65,530 URLs per worksheet."* A dropped link does not fail the
+    build and does not blank the cell - it leaves the control id sitting there looking like
+    every other control id and opening nothing. These tests run against a real workbook with
+    the limit lowered, because a test that wrote 65,531 links would take minutes to prove the
+    same thing.
+    """
+
+    LIMIT = 3
+
+    @contextlib.contextmanager
+    def workbook(self):
+        """A real xlsxwriter workbook, the limit lowered, and the sheet XML read back out."""
+        buffer = io.BytesIO()
+        book = xlsxwriter.Workbook(buffer, {"in_memory": True})
+        build = WorkbookBuild(workbook=book)
+        with mock.patch.object(layout, "HYPERLINK_RECORDS_PER_SHEET", self.LIMIT):
+            yield book, build
+        book.close()
+        self.written = {}
+        with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as archive:
+            for name in archive.namelist():
+                if name.startswith("xl/worksheets/sheet"):
+                    self.written[name] = archive.read(name).decode("utf-8")
+
+    def links_and_formulas(self) -> tuple[int, int]:
+        records = sum(xml.count("<hyperlink ") for xml in self.written.values())
+        formulas = sum(xml.count("HYPERLINK(") for xml in self.written.values())
+        return records, formulas
+
+    def test_links_within_the_limit_are_hyperlink_records(self):
+        """Nothing changes for a workbook that fits, which is every one built so far."""
+        with self.workbook() as (book, build):
+            sheet = book.add_worksheet("Findings")
+            layout.register_row_anchor(build, "control", 7, "Controls", 5, 9)
+            for row in range(self.LIMIT):
+                layout.write_link(build, sheet, row, 0, "control", 7, "PAN-MGT-007")
+
+        self.assertEqual(self.links_and_formulas(), (self.LIMIT, 0))
+        self.assertEqual(layout.link_budget_report(build), [])
+
+    def test_a_link_past_the_limit_is_written_as_a_formula_and_warns_nobody(self):
+        """The row stays clickable, and xlsxwriter has nothing to complain about because it is
+        never asked for a record it cannot keep."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with self.workbook() as (book, build):
+                sheet = book.add_worksheet("Findings")
+                layout.register_row_anchor(build, "control", 7, "Controls", 5, 9)
+                for row in range(self.LIMIT + 2):
+                    layout.write_link(build, sheet, row, 0, "control", 7, "PAN-MGT-007")
+
+        self.assertEqual(self.links_and_formulas(), (self.LIMIT, 2))
+        self.assertEqual([str(one.message) for one in caught], [])
+        # The target is the anchor `register_row_anchor` recorded, with xlsxwriter's own
+        # `internal:` marker swapped for the `#` that `HYPERLINK` wants - and the display text
+        # is also the formula's CACHED VALUE, so a reader that shows values without
+        # calculating shows the control id rather than an empty cell.
+        xml = next(iter(self.written.values()))
+        self.assertIn('<f>HYPERLINK("#\'Controls\'!A6:J6","PAN-MGT-007")</f>'
+                      '<v>PAN-MGT-007</v>', xml)
+
+    def test_the_limit_is_per_tab_and_not_per_workbook(self):
+        """Excel's limit is a property of the worksheet, and the count that ran out on one tab
+        must not spend the next tab's allowance."""
+        with self.workbook() as (book, build):
+            layout.register_row_anchor(build, "control", 7, "Controls", 5, 9)
+            for title in ("First", "Second"):
+                sheet = book.add_worksheet(title)
+                for row in range(self.LIMIT):
+                    layout.write_link(build, sheet, row, 0, "control", 7, "PAN-MGT-007")
+
+        self.assertEqual(self.links_and_formulas(), (self.LIMIT * 2, 0))
+
+    def test_the_build_reports_the_tab_that_ran_out(self):
+        """The warning went to a console; a tab 65,530 rows long is also the one nobody
+        scrolls to the end of, so the build says it in the report the page shows."""
+        with self.workbook() as (book, build):
+            sheet = book.add_worksheet("Anti-Spyware (by rule)")
+            layout.register_row_anchor(build, "control", 7, "Controls", 5, 9)
+            for row in range(self.LIMIT + 4):
+                layout.write_link(build, sheet, row, 0, "control", 7, "PAN-MGT-007")
+
+            report = layout.link_budget_report(build)
+
+        self.assertEqual(report, ["Anti-Spyware (by rule): 3 links, Excel's limit for one tab, "
+                                  "then 4 more written as HYPERLINK formulas"])
+
+
 class WorkbookGuardTests(TestCase):
     def test_a_finding_on_no_tab_refuses_the_build(self):
         """The guard that matters most: a workbook silently missing a finding is worse than
@@ -669,9 +764,13 @@ class EveryDomainDrawsWithTheWholeCatalogTests(TestCase):
         appliance = Appliance.objects.create(
             management_station=station, appliance_group=group,
             serial_number="S-domains", hostname="fw-domains")
+        # `in_scope=True` is trap 1 in `_estate`: it defaults FALSE, and an estate that
+        # leaves it there is one collection would have visited no appliance on - so a snapshot
+        # sitting on it could not exist. `artifacts.scope` refuses a build whose findings reach
+        # outside scope, and this fixture is the estate it is describing.
         point = EnforcementPoint.objects.create(
             management_station=station, appliance_group=group,
-            vsys_name="vsys1", vsys_display_name="vsys1")
+            vsys_name="vsys1", vsys_display_name="vsys1", in_scope=True)
         snapshot = Snapshot.objects.create(
             management_station=station, appliance=appliance,
             source_type="show_merged_config", collected_at=timezone.now(), payload={})

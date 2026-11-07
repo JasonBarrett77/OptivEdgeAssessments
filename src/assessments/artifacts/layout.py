@@ -196,19 +196,74 @@ def _link_format(build):
     return build.format("link", {"font_color": LINK_TEXT, "underline": 1, "valign": "top"})
 
 
+#: How many hyperlink RECORDS Excel keeps on one worksheet. xlsxwriter drops every link past
+#: this one with a warning and returns without writing the cell, which leaves the row's text
+#: where `write_table` put it and NO LINK ON IT - a cell that reads like every other cell in
+#: the column and is the only kind that opens nothing.
+#:
+#: Jason hit it in production on 2026-11-07: *"Ignoring URL 'internal:'Controls'!A175:J175'
+#: since it exceeds Excel's limit of 65,530 URLs per worksheet."* One link per findings row,
+#: two where the row names an appliance, so a tab reaches it at somewhere over 32,765 findings.
+#: The lab's longest tab, Anti-Spyware (by rule), writes 5,124.
+HYPERLINK_RECORDS_PER_SHEET = 65_530
+
+
+def _write_link_cell(build, sheet, row, col, target, cell_format, text, tip):
+    """One link cell: a hyperlink record while the sheet still has one, a formula after that.
+
+    `HYPERLINK()` IS NOT SUBJECT TO THE LIMIT, because it is a formula rather than an entry in
+    the sheet's hyperlink table, so a tab of any length keeps every row clickable. It is the
+    fallback and not the rule because a record is what Excel itself treats as a hyperlink: it
+    carries the tooltip, and it is what the right-click menu and a screen reader look for. So
+    every workbook that fit under the limit is written exactly as it was written before.
+    """
+    spent = build.link_records.get(sheet, 0)
+    if spent < HYPERLINK_RECORDS_PER_SHEET:
+        build.link_records[sheet] = spent + 1
+        sheet.write_url(row, col, target, cell_format, string=text, tip=tip)
+        return
+    build.link_formulas[sheet] = build.link_formulas.get(sheet, 0) + 1
+    # `internal:` is xlsxwriter's own marker for a target inside the workbook; `HYPERLINK`
+    # wants that same address with a `#` in front of it. The display text is passed again as
+    # the formula's cached value, so a reader that shows values without calculating shows the
+    # control id rather than an empty cell.
+    location = target.split(":", 1)[1] if target.startswith("internal:") else target
+    quoted = str(text).replace('"', '""')
+    sheet.write_formula(row, col, f'=HYPERLINK("#{location}","{quoted}")', cell_format, text)
+
+
 def write_link(build, sheet, row, col, kind, pk, text):
     """Overwrite a table cell with a link to the row registered for (kind, pk)."""
     if (kind, pk) not in build.anchors:
         raise ArtifactBuildError(
             f"no {kind} row registered for pk {pk}: is the target sheet written before this one?")
     target, sheet_name = build.anchors[(kind, pk)]
-    sheet.write_url(row, col, target, _link_format(build), string=text,
-                    tip=f"Open on the {sheet_name} tab")
+    _write_link_cell(build, sheet, row, col, target, _link_format(build), text,
+                     f"Open on the {sheet_name} tab")
+
+
+def link_budget_report(build) -> list:
+    """A line for every tab long enough to have run out of hyperlink records, or nothing.
+
+    REPORTED rather than left silent. The build used to say nothing at all about this and
+    xlsxwriter said it to a console nobody reads; a tab this long is also the one nobody
+    scrolls to the end of, so the dead links went unnoticed in production until the warning
+    did. Nothing is printed for a workbook that fit, which is every one built so far.
+    """
+    if not build.link_formulas:
+        return []
+    lines = []
+    for sheet, count in sorted(build.link_formulas.items(), key=lambda item: -item[1]):
+        lines.append(
+            f"{sheet.get_name()}: {HYPERLINK_RECORDS_PER_SHEET:,} links, Excel's limit for one "
+            f"tab, then {count:,} more written as HYPERLINK formulas")
+    return lines
 
 
 def write_sheet_link(build, sheet, row, col, title, text=None, cell_format=None):
-    sheet.write_url(row, col, sheet_target(title), cell_format or _link_format(build),
-                    string=text or title, tip=f"Open the {title} tab")
+    _write_link_cell(build, sheet, row, col, sheet_target(title),
+                     cell_format or _link_format(build), text or title,
+                     f"Open the {title} tab")
 
 
 def severity_group(by_severity):

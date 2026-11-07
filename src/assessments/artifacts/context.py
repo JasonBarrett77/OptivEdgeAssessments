@@ -38,6 +38,12 @@ class WorkbookBuild:
     #: Formats are registered with one workbook and cannot be used with another.
     formats: dict[Any, Any] = field(default_factory=dict)
 
+    #: Hyperlink RECORDS written to each worksheet, and the links that had to be written as a
+    #: formula instead because the sheet had already spent Excel's allowance of them. Per sheet
+    #: because the limit is - see `layout.HYPERLINK_RECORDS_PER_SHEET`.
+    link_records: dict[Any, int] = field(default_factory=dict)
+    link_formulas: dict[Any, int] = field(default_factory=dict)
+
     #: Subjects already loaded, shared by every tab that loads them the same way - see
     #: `findings.load`. Six tabs report on security rules, and each loaded every rule and its
     #: ten member sets again. Per build, for the reason above: a later build must read the

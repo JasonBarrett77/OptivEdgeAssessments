@@ -30,7 +30,8 @@ from assessments import remediation as surface
 
 from .context import WorkbookBuild
 from .errors import ArtifactBuildError
-from .layout import SUMMARY_TITLE
+from .layout import SUMMARY_TITLE, link_budget_report
+from . import scope
 from .sheets import controls as controls_sheet
 from .sheets import remediation as remediation_sheet
 from .sheets import remediation_summary
@@ -95,6 +96,7 @@ def build_remediation_workbook() -> tuple[bytes, list[str]]:
     """
     groups = groups_in_summary_order()
     remediation_sheet.check_tab_names_are_distinct(groups)
+    scope.check_findings_are_in_scope()
 
     buffer = io.BytesIO()
     workbook = xlsxwriter.Workbook(buffer, {"in_memory": True})
@@ -113,4 +115,9 @@ def build_remediation_workbook() -> tuple[bytes, list[str]]:
         workbook.close()
         raise
     workbook.close()
-    return buffer.getvalue(), [summary_report] + [info.report for info in infos]
+    reports = [summary_report] + [info.report for info in infos]
+    # Nothing here can reach Excel's hyperlink limit - the only links are one per tab on the
+    # Summary - but the budget is shared with the findings workbook, and a fallback nobody
+    # reports is the failure this was added to stop.
+    reports += link_budget_report(build)
+    return buffer.getvalue(), reports

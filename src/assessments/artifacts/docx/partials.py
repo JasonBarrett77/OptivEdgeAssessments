@@ -27,6 +27,8 @@ repeated header leaves the reader with three unlabelled columns.
 
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass, field
 
 from docx.oxml.ns import qn
@@ -209,14 +211,39 @@ def _run(text: str, *, bold: bool = False, size: str | None = None):
     return run
 
 
+def run_like(source, text: str):
+    """A run carrying `text`, formatted the way `source` is formatted.
+
+    Used where a run the TEMPLATE wrote has to be replaced by one we write - see
+    `scaffold._write_date_fields`. The properties are copied rather than rebuilt from
+    `_run_properties`, because they are Optiv's: the copyright year on the back cover is white
+    on a dark panel, and a replacement built from our own defaults would print it in black.
+    """
+    run = OxmlElement("w:r")
+    properties = source.find(qn("w:rPr"))
+    if properties is not None:
+        run.append(copy.deepcopy(properties))
+    element = OxmlElement("w:t")
+    element.set(qn("xml:space"), "preserve")
+    element.text = text
+    run.append(element)
+    return run
+
+
 def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
-    """The table of contents as an EMPTY field, which Word fills when it opens the file.
+    """The table of contents as an EMPTY field, MARKED DIRTY, which Word fills on open.
 
     A generated document has no page numbers until Word lays it out, so there is nothing to
-    write into the field's cached result. `word/settings.xml` carries
-    `<w:updateFields w:val="true"/>` - set once on the scaffold, because it is a property of the
-    file's shape rather than of any build - and that is what makes Word recalculate it rather
-    than show an empty heading.
+    write into the field's cached result.
+
+    `w:dirty` IS WHAT ASKS WORD TO BUILD IT, and it asks for this field alone. The scaffold
+    used to carry `<w:updateFields w:val="true"/>` in `word/settings.xml`, which told Word to
+    recalculate everything - and made it stop and ask first: *"This document contains fields
+    that may refer to other files. Do you want to update the fields in this document?"*
+    (Jason, 2026-11-07). Nothing in here refers to another file; Word words it that way for
+    any document that asks. A dirty field is updated without the question, so
+    `Scaffold.write_date_fields` drops the setting and writes the dates as text, and this is
+    the one field left that genuinely cannot be written ahead of time.
     """
     element = OxmlElement("w:p")
     properties = OxmlElement("w:pPr")
@@ -231,6 +258,7 @@ def toc_field(instruction: str = 'TOC \\o "1-3" \\h \\z \\u'):
     begin = OxmlElement("w:r")
     char = OxmlElement("w:fldChar")
     char.set(qn("w:fldCharType"), "begin")
+    char.set(qn("w:dirty"), "true")
     begin.append(char)
     element.append(begin)
 

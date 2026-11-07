@@ -13,6 +13,7 @@ from functools import partial
 import xlsxwriter
 
 from .context import WorkbookBuild
+from . import scope
 
 from .sheets import appliances as appliances_sheet
 from .sheets import controls as controls_sheet
@@ -20,7 +21,7 @@ from .sheets import management_crypto as management_crypto_sheet
 from .sheets import authentication_settings as authentication_settings_sheet
 from .sheets import management_stations as management_stations_sheet
 from .sheets import summary as summary_sheet
-from .layout import SUMMARY_TITLE
+from .layout import SUMMARY_TITLE, link_budget_report
 from .sheets import enforcement_points as enforcement_points_sheet
 from .sheets import password_complexity as password_complexity_sheet
 from .sheets import findings as findings_sheet
@@ -113,6 +114,7 @@ def build_workbook() -> tuple[bytes, list[str]]:
     try:
         # Created first so it is the first tab; filled last, from what the other sheets report.
         summary_worksheet = workbook.add_worksheet(SUMMARY_TITLE)
+        scope.check_findings_are_in_scope()
         infos = [getattr(sheet, "write_sheet", sheet)(build) for sheet in SHEETS]
         check_every_finding_reached_a_tab(infos)
         check_tabs_follow_the_summary(infos)
@@ -122,4 +124,6 @@ def build_workbook() -> tuple[bytes, list[str]]:
         workbook.close()
         raise
     workbook.close()
-    return buffer.getvalue(), [summary_report] + [info.report for info in infos]
+    reports = [summary_report] + [info.report for info in infos]
+    reports += link_budget_report(build)
+    return buffer.getvalue(), reports

@@ -24,6 +24,7 @@ from optivedge_integrations.integrations.models import (
     Appliance, EnforcementPoint, ManagementStation)
 
 from . import appliances as appliances_sheet
+from .. import scope
 from assessments.configuration_navigation import CATEGORIES
 
 from ..layout import (
@@ -64,7 +65,8 @@ def engagement_rows(infos):
     completed = "\n".join(utc(r.completed_at) for r in runs)
 
     collected = sorted(
-        appliances_sheet.collected_at_by_appliance(list(Appliance.objects.all())).values())
+        appliances_sheet.collected_at_by_appliance(
+            list(scope.appliances_in_scope())).values())
     if not collected:
         collected_text = "Not collected"
     elif collected[0] == collected[-1]:
@@ -156,9 +158,11 @@ def write_sheet(build, sheet, infos) -> str:
         for severity, count in (info.by_severity or {}).items():
             totals[severity] += count
             findings_total += count
-    stations = ManagementStation.objects.count()
-    appliances = Appliance.objects.count()
-    points = EnforcementPoint.objects.count()
+    # The estate this engagement assessed, not the estate Panorama manages - see
+    # `artifacts.scope`.
+    stations = scope.management_stations_in_scope().count()
+    appliances = scope.appliances_in_scope().count()
+    points = scope.enforcement_points_in_scope().count()
 
     top = write_header_block(build, sheet, title=SUMMARY_TITLE, last_col=LAST_COL, back_link=False,
         tab_colour=TAB_COLOURS["summary"],

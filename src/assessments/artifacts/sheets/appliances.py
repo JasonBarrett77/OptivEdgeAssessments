@@ -25,6 +25,7 @@ from ..layout import (
     NONE, SheetInfo, TAB_COLOURS, ha_role, plural, register_row_anchor, utc, write_link,
     write_simple_header, write_table)
 from ..errors import ArtifactBuildError
+from .. import scope
 
 TITLE = "Appliances"
 MERGED_CONFIG = "show_merged_config"
@@ -88,8 +89,11 @@ def build_rows(appliances):
 
 def write_sheet(build) -> SheetInfo:
     workbook = build.workbook
+    # IN SCOPE ONLY. Normalizing the inventory creates a row for every device Panorama
+    # manages, so this tab used to list firewalls the engagement never assessed - see
+    # `artifacts.scope`.
     appliances = sorted(
-        Appliance.objects.select_related("appliance_group", "management_station"),
+        scope.appliances_in_scope().select_related("appliance_group", "management_station"),
         key=lambda a: a.hostname or a.serial_number)
     rows = build_rows(appliances)
     sheet = workbook.add_worksheet(TITLE)
@@ -109,9 +113,10 @@ def write_sheet(build) -> SheetInfo:
         write_link(build, sheet, top + 1 + i, station_col, "management_station",
                    appliance.management_station_id, rows[i][station_col])
 
-    expected = Appliance.objects.count()
+    expected = scope.appliances_in_scope().count()
     if len(rows) != expected:
-        raise ArtifactBuildError(f"{TITLE}: wrote {len(rows)} rows but {expected} appliances exist")
+        raise ArtifactBuildError(
+            f"{TITLE}: wrote {len(rows)} rows but {expected} appliances are in scope")
     return SheetInfo(
         title=TITLE,
         description="Firewall models, software versions and HA pairing.",

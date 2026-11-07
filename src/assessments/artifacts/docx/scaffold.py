@@ -40,8 +40,7 @@ SCAFFOLD_PATH = Path(__file__).resolve().parents[2] / "docx" / "health-check-sca
 #: `derive_health_check_scaffold.BODY_MARKER`.
 BODY_MARKER = "{{OEA-BODY}}"
 
-#: The cover's three placeholders, substituted in its runs. Its dates are Word DATE fields and
-#: need nothing from us.
+#: The cover's three placeholders, substituted in its runs.
 COVER_CLIENT = "[Client Long Name, Inc.]"
 COVER_OPPORTUNITY = "[op_number]"
 COVER_REVISION = "[revision_number]"
@@ -109,10 +108,101 @@ class Scaffold:
                 f"placeholder is split across runs in this scaffold and the replacement has to "
                 f"join them")
 
+    def write_date_fields(self, replacements: dict) -> int:
+        """Replace Word's own DATE fields with the dates this build writes, and stop Word
+        offering to update the fields when a reader opens the file. Returns how many it wrote.
+
+        TWO THINGS THAT HAVE TO HAPPEN TOGETHER. Jason, 2026-11-07, opening the deliverable:
+        *"after I click 'Enable Editing' in Word, I get a message: 'This document contains
+        fields that may refer to other files. Do you want to update the fields in this
+        document?'"* That prompt is `<w:updateFields w:val="true"/>` in `word/settings.xml`,
+        carried over from Optiv's template, and Word words it that way for any document that
+        asks - nothing in here refers to another file. Taking the setting out on its own,
+        though, would leave the cover reading `February 4, 2026`, the day Optiv last saved the
+        template, because that is the cached result sitting in the field.
+
+        SO THE DATES STOP BEING FIELDS. A `DATE` field is *the day the document is opened*,
+        which on a dated deliverable is wrong even when it refreshes: a health check is issued
+        on a date, the Version Control section already states that date, and a cover that
+        disagrees with it by the time a client reads it is the kind of thing a client notices.
+        The build knows the date. It writes it, and the field goes.
+
+        The table of contents keeps its field - it is the one thing here that genuinely has to
+        be recalculated, because page numbers do not exist until Word lays the document out -
+        and `partials.table_of_contents` marks it dirty so Word still builds it on open without
+        asking about it.
+        """
+        written = 0
+        for paragraph in self.body.iter(qn("w:p")):
+            written += _write_date_fields(paragraph, replacements)
+        if written != FROZEN_DATE_FIELDS:
+            raise ArtifactBuildError(
+                f"{SCAFFOLD_PATH.name} has {written} DATE "
+                f"{'field' if written == 1 else 'fields'} this build can write and "
+                f"{FROZEN_DATE_FIELDS} were expected. A reissued template has moved them, or "
+                f"asks for a date in a format this build does not write; see "
+                f"Scaffold.write_date_fields.")
+        settings = self.document.settings.element
+        for element in settings.findall(qn("w:updateFields")):
+            settings.remove(element)
+        return written
+
     def to_bytes(self) -> bytes:
         buffer = io.BytesIO()
         self.document.save(buffer)
         return buffer.getvalue()
+
+
+#: The `DATE` fields this scaffold carries, by the picture switch that says which is which -
+#: the cover wants the delivery date written out, the back cover's copyright line wants the
+#: year. THREE FIELDS, TWO PICTURES: measured on this scaffold 2026-11-07, the year appears
+#: once on each of the two back-cover panels. Both are named here so
+#: `Scaffold.write_date_fields` can refuse a reissue that has moved one, lost one or grown a
+#: fourth, rather than quietly leaving a template date on a client's cover.
+FROZEN_DATE_PICTURES = ('"MMMM d, yyyy"', '"yyyy"')
+FROZEN_DATE_FIELDS = 3
+
+
+def _write_date_fields(paragraph, replacements: dict) -> int:
+    """Rewrite each DATE field in one paragraph as the text it should show. Returns how many.
+
+    A Word field is not an element: it is a RUN SAYING `begin`, a run carrying the instruction,
+    a run saying `separate`, the runs holding the last calculated result, and a run saying
+    `end`. So this walks the paragraph's runs, and replaces the whole sequence with one run
+    carrying our text - copied from the result run, so it keeps the formatting the template
+    gave it. The copyright year is white on a dark back cover, and a replacement that dropped
+    its `w:rPr` would print the year in black on black.
+    """
+    written = 0
+    field = None
+    for run in list(paragraph.iterchildren(qn("w:r"))):
+        marker = run.find(qn("w:fldChar"))
+        kind = marker.get(qn("w:fldCharType")) if marker is not None else None
+        if kind == "begin":
+            field = {"runs": [run], "instruction": "", "result": []}
+            continue
+        if field is None:
+            continue
+        field["runs"].append(run)
+        instruction = run.find(qn("w:instrText"))
+        if instruction is not None:
+            field["instruction"] += instruction.text or ""
+        elif kind is None and field["result"] is not None:
+            field["result"].append(run)
+        if kind != "end":
+            continue
+        picture = next((p for p in replacements if p in field["instruction"]), None)
+        if "DATE" in field["instruction"] and picture is not None:
+            # The result run's own properties, or - for a field Word has never calculated and
+            # so has no result run for - the run that carried the instruction.
+            source = field["result"][0] if field["result"] else field["runs"][1]
+            frozen = partials.run_like(source, replacements[picture])
+            field["runs"][0].addprevious(frozen)
+            for run_element in field["runs"]:
+                paragraph.remove(run_element)
+            written += 1
+        field = None
+    return written
 
 
 def read_styles(document) -> dict:

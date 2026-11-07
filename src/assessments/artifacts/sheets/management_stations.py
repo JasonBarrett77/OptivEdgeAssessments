@@ -20,6 +20,7 @@ from optivedge_integrations.integrations.models import Appliance, ManagementStat
 from ..layout import (
     NONE, SheetInfo, TAB_COLOURS, plural, register_row_anchor, write_simple_header, write_table)
 from ..errors import ArtifactBuildError
+from .. import scope
 
 TITLE = "Management Stations"
 
@@ -33,8 +34,11 @@ COLUMNS = [
 
 def write_sheet(build) -> SheetInfo:
     workbook = build.workbook
-    stations = sorted(ManagementStation.objects.all(), key=str)
-    managed = Counter(Appliance.objects.values_list("management_station_id", flat=True))
+    # A station with nothing in scope on it collects nothing and reports nothing, and the
+    # appliances counted against one are the in-scope ones - see `artifacts.scope`.
+    stations = sorted(scope.management_stations_in_scope(), key=str)
+    managed = Counter(scope.appliances_in_scope().values_list(
+        "management_station_id", flat=True))
     rows = [[str(station), station.hostname or NONE, station.get_station_type_display(),
              managed[station.pk]] for station in stations]
     assert all(len(r) == len(COLUMNS) for r in rows), "row/column mismatch"
@@ -50,9 +54,10 @@ def write_sheet(build) -> SheetInfo:
         register_row_anchor(build, "management_station", station.pk, TITLE, top + 1 + i,
                             len(COLUMNS) - 1)
 
-    expected = ManagementStation.objects.count()
+    expected = scope.management_stations_in_scope().count()
     if len(rows) != expected:
-        raise ArtifactBuildError(f"{TITLE}: wrote {len(rows)} rows but {expected} stations exist")
+        raise ArtifactBuildError(
+            f"{TITLE}: wrote {len(rows)} rows but {expected} stations are in scope")
     return SheetInfo(
         title=TITLE,
         description="The Panorama and other management platforms the configuration was "

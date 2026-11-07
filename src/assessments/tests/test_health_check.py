@@ -743,7 +743,8 @@ class DocumentStructureTests(_SeededEstate):
             for name in ("word/header1.xml", "word/header5.xml", "word/footer1.xml",
                          "word/footer4.xml", "word/theme/theme1.xml", "word/numbering.xml"):
                 self.assertIn(name, archive.namelist())
-            self.assertIn(b"updateFields", archive.read("word/settings.xml"))
+            # `updateFields` is the one setting a build takes OUT - see FieldTests.
+            self.assertNotIn(b"updateFields", archive.read("word/settings.xml"))
 
         body = document_xml(content).find(w("body"))
         self.assertEqual(len([child for child in body if child.tag == w("sectPr")]), 1)
@@ -753,6 +754,66 @@ class DocumentStructureTests(_SeededEstate):
                   if child.tag == w("p") and child.find(w("pPr")) is not None
                   and child.find(w("pPr")).find(w("sectPr")) is not None]
         self.assertEqual(len(inline), 1)
+
+    def test_word_is_not_asked_to_update_the_fields_when_the_file_opens(self):
+        """Jason, 2026-11-07, opening the deliverable: *"after I click 'Enable Editing' in Word,
+        I get a message: 'This document contains fields that may refer to other files. Do you
+        want to update the fields in this document?'"*
+
+        The prompt is `<w:updateFields w:val="true"/>`, inherited from Optiv's template. Word
+        words it that way for any document that asks, and nothing in this one refers to another
+        file.
+        """
+        content = self.built()
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            settings = archive.read("word/settings.xml").decode("utf-8")
+        self.assertNotIn("updateFields", settings)
+
+    def test_the_only_field_left_in_the_body_is_the_table_of_contents(self):
+        """A `DATE` field is the day the document is OPENED, so a cover carrying one says it was
+        issued whenever the client got round to reading it - and the cached result underneath it
+        is the day Optiv last saved the template. The build knows the date, so it writes it.
+
+        The table of contents keeps its field because page numbers do not exist until Word lays
+        the document out. There is nothing else left to recalculate.
+        """
+        content = self.built()
+        body = document_xml(content).find(w("body"))
+
+        instructions = [node.text for node in body.iter(w("instrText"))]
+        self.assertEqual([text.strip() for text in instructions],
+                         ['TOC \\o "1-3" \\h \\z \\u'])
+
+    def test_the_table_of_contents_field_is_marked_dirty(self):
+        """What replaces `updateFields`: a dirty field is one Word updates on open WITHOUT
+        asking, so the contents still build themselves and the prompt is gone."""
+        body = document_xml(self.built()).find(w("body"))
+
+        dirty = [marker for marker in body.iter(w("fldChar"))
+                 if marker.get(w("dirty")) == "true"]
+        self.assertEqual(len(dirty), 1)
+        self.assertEqual(dirty[0].get(w("fldCharType")), "begin")
+
+    def test_the_cover_carries_the_date_the_document_was_built(self):
+        """The date the template asked Word for, written by the build instead - and the same
+        date the Version Control section states, rather than one that disagrees with it."""
+        content = build_health_check_document(today=dt.date(2026, 11, 5))[0]
+
+        text = all_text(content)
+        self.assertIn("November 5, 2026", text)
+        self.assertNotIn("February 4, 2026", text)
+
+    def test_a_scaffold_whose_dates_have_moved_refuses_the_build(self):
+        """The guard the rest of this module's checks are built on: a reissued template that
+        moved or renamed a date field must fail loudly rather than leave a template date on a
+        client's cover."""
+        with mock.patch.object(scaffold_module, "FROZEN_DATE_FIELDS", 4):
+            with self.assertRaises(ArtifactBuildError) as raised:
+                build_health_check_document(today=dt.date(2026, 11, 5))
+
+        self.assertIn("DATE", str(raised.exception))
+        self.assertIn("3", str(raised.exception))
 
     def test_every_table_row_spans_exactly_its_grid(self):
         """A row whose cells span more or fewer columns than the grid is a document Word offers

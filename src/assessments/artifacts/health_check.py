@@ -61,6 +61,7 @@ from optivedge_integrations.integrations.models import (
     LicenceInventory, ManagementStation, ManagementPlaneAddressing, Snapshot)
 
 from .docx import partials as p
+from . import scope
 from .docx.scaffold import (
     COVER_CLIENT, COVER_OPPORTUNITY, COVER_REVISION, SHORTNAME, open_scaffold)
 from .errors import ArtifactBuildError
@@ -294,7 +295,9 @@ def firewalls_by_snapshot() -> dict:
     snapshots carry no findings, because no control reads Panorama's own configuration.
     """
     members = defaultdict(list)
-    for hostname, serial, group_id in Appliance.objects.values_list(
+    # IN SCOPE ONLY, so a pair's label cannot name a firewall this engagement did not assess.
+    # Collection resolves whole groups, so both halves of a pair are normally in scope together.
+    for hostname, serial, group_id in scope.appliances_in_scope().values_list(
             "hostname", "serial_number", "appliance_group_id"):
         if group_id:
             members[group_id].append(hostname or serial)
@@ -938,9 +941,12 @@ def read_engagement(*, today: dt.date | None = None, revision: str = "1.0") -> E
         revision=revision,
         built_on=today or dt.date.today(),
         collected_on=collected.date() if collected else None,
-        firewalls=sorted(Appliance.objects.all(),
+        # Jason, 2026-11-07: *"an out-of-scope firewall should vanish from Reviewed
+        # Devices"*. These two lists are Project Overview's counts and the Reviewed Devices
+        # table - see `artifacts.scope`.
+        firewalls=sorted(scope.appliances_in_scope(),
                          key=lambda a: a.hostname or a.serial_number),
-        panoramas=sorted(ManagementStation.objects.all(), key=lambda s: s.name),
+        panoramas=sorted(scope.management_stations_in_scope(), key=lambda s: s.name),
     )
 
 
@@ -1844,6 +1850,7 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     measured = measure()
     check_the_run_is_one_run(measured)
     check_every_finding_reached_the_spine(measured)
+    scope.check_findings_are_in_scope()
 
     engagement = read_engagement(today=today, revision=revision)
     captions = p.CaptionCounters()
@@ -1890,6 +1897,11 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
         COVER_OPPORTUNITY: engagement.opportunity,
         COVER_REVISION: engagement.revision,
     })
+    # The template asks Word for the date; this build knows it. See
+    # `Scaffold.write_date_fields` - which also stops Word offering to update the fields when
+    # a reader opens the file.
+    scaffold.write_date_fields({'"MMMM d, yyyy"': long_date(engagement.built_on),
+                                '"yyyy"': str(engagement.built_on.year)})
     scaffold.insert(elements)
     reports.append(f"Captions: {captions.tables} tables and {captions.figures} figures, "
                    f"numbered in document order")
