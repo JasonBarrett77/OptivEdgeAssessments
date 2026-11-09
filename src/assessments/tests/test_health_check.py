@@ -12,7 +12,7 @@ So these tests check three things, and the second is the one that makes the whol
   `tblStyle` it references exists in the scaffold's own `styles.xml` and is of the right kind,
   every table row spans its grid, the marker is gone, the cover's placeholders are substituted,
   the captions number without gaps, and the media, headers, footers and final `sectPr` survive
-* that the Area mapping is honest: a control id that is not in the catalogue stops the build, an
+* that the Area mapping is honest: a control id that is not in the catalog stops the build, an
   Area with no controls is never graded, and no active control is silently left off the spine
 
 They read the OUTPUT rather than what built it, for the reason `test_remediation_workbook`
@@ -43,7 +43,7 @@ import collections
 
 from assessments.control_queries import SEVERITY_RANK
 from assessments.finding_registry import FINDING_KINDS
-from assessments.models import Control
+from assessments.models import Control, ControlQuery
 from assessments.tests._seed import seed_controls, seed_specs
 from assessments.tests.test_artifacts import sheet_names
 from assessments.tests.test_findings_views import build_estate
@@ -110,6 +110,11 @@ def generated_paragraphs(body) -> list:
             continue
         found.append(para)
     return found
+
+
+def _text_of_cell(cell) -> str:
+    """The text of one `partials.Cell`, across its paragraphs."""
+    return " ".join(_text(paragraph) for paragraph in cell.paragraphs).strip()
 
 
 def heading_texts(body) -> list:
@@ -314,7 +319,7 @@ class StyleContractTests(SimpleTestCase):
     def test_every_catalogue_severity_has_a_rating_style(self):
         """Jason, 2026-11-05: *"We are not going to use 'No Deviation' for now. that can be
         replaced with Informational."* With D-5 retired the template's five grades are 1:1 with
-        the catalogue's five severities."""
+        the catalog's five severities."""
         self.assertEqual(set(partials.RATING_STYLES), set(Control.Severity.values))
 
 
@@ -347,7 +352,7 @@ class SubjectTests(TestCase):
         Control.objects.update(control_type="no_such_type")
 
         with self.assertRaises(ArtifactBuildError) as caught:
-            health_check.read_subjects(health_check.measure())
+            health_check.read_control_detail(health_check.measure())
 
         self.assertIn("PAN-MGT-007", str(caught.exception))
         self.assertIn("finding_registry", str(caught.exception))
@@ -388,7 +393,7 @@ class EmptyEstateTests(TestCase):
         content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
 
         self.assertEqual(content[:2], DOCX_MAGIC)
-        self.assertIn("Firewall Observations", " ".join(reports))
+        self.assertIn("Detailed Findings and Recommendations", " ".join(reports))
 
     def test_an_estate_with_no_devices_says_so_rather_than_leaving_the_scope_blank(self):
         text = all_text(build_health_check_document()[0])
@@ -416,7 +421,7 @@ class EmptyEstateTests(TestCase):
         self.assertIn("MANUAL: set the client's long name", text)
 
     def test_nothing_at_all_is_graded_with_no_catalogue(self):
-        """With no catalogue, nothing has been assessed - and nothing is graded. Informational
+        """With no catalog, nothing has been assessed - and nothing is graded. Informational
         would be a pass on a question nobody asked, which is the one thing a health check must
         not do. The only Rating-* paragraphs left are the five rows of the legend."""
         root = document_xml(build_health_check_document()[0])
@@ -438,7 +443,7 @@ class EmptyEstateTests(TestCase):
         back."""
         text = all_text(build_health_check_document()[0])
 
-        self.assertIn("No controls are active in this deployment's catalogue", text)
+        self.assertIn("No controls are active in this deployment's catalog", text)
         self.assertNotIn("No findings were identified in the configuration reviewed", text)
 
 
@@ -966,13 +971,15 @@ class ContentTests(_SeededEstate):
                 return table
         self.fail("the document has no Summary of Findings and Recommendations table")
 
-    def test_the_finding_column_names_the_control_and_counts_its_findings(self):
+    def test_the_finding_column_names_the_control_and_counts_what_it_names(self):
         """Jason, 2026-11-06: *"We can remove the control.id and just use the name that's on
-        there now. And then include only the findings count."*
+        there now."* The id stays in the detail block, where the reader is an engineer
+        following a finding into the workbook. Here the reader is deciding what to fund.
 
-        The control id stays in the two observation tables, where the reader is an engineer
-        following a finding into the workbook. Here the reader is deciding what to fund, and the
-        id is this application's vocabulary rather than theirs.
+        AND THE COUNT IS THE NAMED CONTROL'S OWN. This cell used to carry a REMEDIATION GROUP's
+        total under its worst control's name - 75,664 findings beside
+        `Source/Destination Address Breadth Bounded`, whose own findings were 5,428 (Jason,
+        2026-11-09). Both numbers are here now and both are about this control at this grade.
         """
         rows = list(self.summary_of_findings().iter(w("tr")))[1:]
 
@@ -983,7 +990,24 @@ class ContentTests(_SeededEstate):
             with self.subTest(cell):
                 self.assertNotIn("places to edit", cell)
                 self.assertIsNone(re.search(r"[A-Z]{2,4}-[A-Z]{2,5}-\d{3}", cell))
-                self.assertRegex(cell, r"^.+\. (?:[\d,]+ findings?|No findings)")
+                self.assertRegex(cell, r"^.+[\d,]+ findings?( ,|,)? ?.*$")
+
+    def test_every_row_counts_exactly_the_control_it_names(self):
+        """The defect this table was rebuilt for. A row named after one control carried the
+        whole remediation group's total, so Table 1 and the detail could not be reconciled by
+        the engineer reading them, let alone by a client (Jason, 2026-11-09)."""
+        measured = health_check.measure()
+        detail, _coverage = health_check.split_coverage(
+            health_check.read_control_detail(measured))
+        rows = list(self.summary_of_findings().iter(w("tr")))[1:]
+
+        self.assertEqual(len(rows), len(detail))
+        for row, one in zip(rows, detail):
+            cell = _text(list(row.iter(w("tc")))[1])
+            with self.subTest(one.control.control_id):
+                self.assertTrue(cell.startswith(one.control.name), cell)
+                self.assertIn(f"{one.findings:,} ", cell)
+                self.assertNotIn(f"{one.findings:,} findings on {one.objects:,}", cell)
 
     def test_every_observation_is_measured_rather_than_a_question(self):
         """Turning the template's questions into measured observations IS the job: 68 of its 139
@@ -998,7 +1022,7 @@ class ContentTests(_SeededEstate):
 
     def test_the_rating_scale_uses_the_severity_words_and_not_the_d_codes(self):
         """Jason, 2026-11-05: *"We are not going to use 'No Deviation' for now. that can be
-        replaced with Informational."* With D-5 retired the scale is 1:1 with the catalogue."""
+        replaced with Informational."* With D-5 retired the scale is 1:1 with the catalog."""
         text = all_text(self.built())
 
         for code in ("D-1", "D-2", "D-3", "D-4", "D-5"):
@@ -1021,7 +1045,7 @@ class ContentTests(_SeededEstate):
         already, against the control that raised it - so they said the same thing twice.
 
         Nothing is said about the rulebases this assessment does not read either: naming them
-        would organise our findings around the template's categories rather than around what
+        would organize our findings around the template's categories rather than around what
         was measured.
         """
         text = all_text(self.built())
@@ -1031,7 +1055,7 @@ class ContentTests(_SeededEstate):
             self.assertNotIn(f"Risks in {label} Rules", text)
             self.assertNotIn(f"{label} rules were not reviewed", text)
         self.assertNotIn("this assessment does not collect them", text)
-        self.assertIn("Firewall Observations", text)
+        self.assertIn("Detailed Findings and Recommendations", text)
 
     def test_every_control_with_a_finding_has_a_row_and_no_other_does(self):
         """What the "outside the template" paragraph used to be for. 47 of the 218 controls
@@ -1043,9 +1067,9 @@ class ContentTests(_SeededEstate):
         exactly: the rows are the controls with findings.
         """
         measured = health_check.measure()
-        subjects, _ = health_check.read_subjects(measured)
+        detail = health_check.read_control_detail(measured)
 
-        named = {row.control_name for subject in subjects for row in subject.rows}
+        named = {one.control.name for one in detail}
         firing = {control.name
                   for control in Control.objects.filter(is_active=True)
                   if measured.count([control.control_id])}
@@ -1053,19 +1077,19 @@ class ContentTests(_SeededEstate):
         self.assertEqual(named, firing)
         self.assertLess(len(firing), Control.objects.filter(is_active=True).count())
 
-    def test_rows_run_worst_first_within_a_heading(self):
-        """Jason, 2026-11-06: *"Can you sort within each section heading by severity?"*
+    def test_the_rows_run_worst_first(self):
+        """Jason, 2026-11-06: *"Can you sort within each section heading by severity?"*, and
+        from 2026-11-09 there is one list rather than a heading each: the summary table and the
+        detail section walk it together, so a single order settles both.
 
         By the ROW's severity, not the control's. A control with findings at three severities
-        has three rows, and ordering by the control's worst put a High below a Medium belonging
+        is three rows, and ordering by the control's worst put a High below a Medium belonging
         to a worse control - so the severity column did not run downhill.
         """
-        subjects, _ = health_check.read_subjects(health_check.measure())
+        detail = health_check.read_control_detail(health_check.measure())
 
-        for subject in subjects:
-            ranks = [SEVERITY_RANK[row.severity] for row in subject.rows]
-            with self.subTest(subject.name):
-                self.assertEqual(ranks, sorted(ranks, reverse=True))
+        ranks = [SEVERITY_RANK[one.severity] for one in detail]
+        self.assertEqual(ranks, sorted(ranks, reverse=True))
 
     def test_the_severity_column_of_the_built_table_never_rises(self):
         """Asserted on the OUTPUT as well, because the order a reader sees is the order the
@@ -1087,13 +1111,17 @@ class ContentTests(_SeededEstate):
             with self.subTest(_text(list(table.iter(w("tr")))[0])[:40]):
                 self.assertEqual(seen, sorted(seen))
 
-    def test_a_subject_whose_controls_all_passed_gets_no_heading(self):
-        """A heading standing over no rows reads as a section somebody forgot to fill in."""
-        subjects, _ = health_check.read_subjects(health_check.measure())
+    def test_a_control_that_passed_everywhere_is_nowhere(self):
+        """Jason, 2026-11-06: a control that raised nothing gets no row - an earlier draft gave
+        every control one so the table read as a record of the review, and on the lab that was
+        twelve rows saying only that nothing was wrong."""
+        measured = health_check.measure()
+        detail = health_check.read_control_detail(measured)
 
-        self.assertTrue(subjects)
-        for subject in subjects:
-            self.assertTrue(subject.rows, f"{subject.name} has a heading and no rows")
+        self.assertTrue(detail)
+        for one in detail:
+            with self.subTest(one.control.control_id):
+                self.assertGreater(one.findings, 0)
 
     def test_the_subjects_of_an_area_are_counted_once_each(self):
         """Counting per control and adding up was the first version, and sixteen controls report
@@ -1131,10 +1159,11 @@ class ContentTests(_SeededEstate):
         reports = build_health_check_document(today=dt.date(2026, 11, 5))[1]
 
         self.assertTrue(any(line.startswith("Summary of Findings") for line in reports))
-        # There is no Panorama observations line: every control reads a firewall's own
-        # configuration, so the Panorama section carries the rule tables and nothing to grade.
-        self.assertTrue(any(line.startswith("Firewall Observations:") for line in reports))
-        self.assertTrue(any(line.startswith("Subjects:") for line in reports))
+        # No Panorama line and, since 2026-11-09, no firewall one: every control reads a
+        # firewall's own configuration, and the observation table that stood under that heading
+        # printed what every detail block prints.
+        self.assertTrue(any(line.startswith("Detailed Findings and Recommendations:")
+                            for line in reports))
         self.assertTrue(any(line.startswith("Captions:") for line in reports))
 
     def test_findings_from_two_runs_are_refused(self):
@@ -1187,7 +1216,7 @@ def control_detail_blocks(content: bytes) -> list:
             if style == partials.HEADING_1:
                 close()
                 control, lines, trailing = None, {}, []
-                inside = body_text == "Control Detail"
+                inside = body_text == "Detailed Findings and Recommendations"
             elif not inside:
                 continue
             elif style == partials.HEADING_2:
@@ -1210,54 +1239,86 @@ def control_detail_blocks(content: bytes) -> list:
 
 
 class ControlDetailTests(_SeededEstate):
-    """The optional section, 2026-11-06. Jason: *"I want to insert an optional section just
-    before the 'recommendations' section. This section will provide more detail on each
-    control that has a finding."*
+    """Detailed Findings and Recommendations, 2026-11-09 - the section that was Control Detail.
 
-    203 of the 216 active controls raised a finding on the lab, so the section is some forty
-    pages and about doubles the document - which is why it is asked for rather than assumed, by
-    a parameter on the generator and a checkbox on the downloads page (P554a). These tests hold
-    the switch, the shape agreed in the mock-up, and the one thing a section built from four new
-    catalogue fields can get wrong without anybody noticing: printing an empty line.
+    It is no longer optional and no longer one block per control: the summary table and this
+    section are one ordered list walked twice, a block per control AND severity, each linked
+    from its row. Jason, 2026-11-09: *"Control Detail is no longer optional. We can remove that
+    code entirely"*, and *"There is a separate detail block per severity, this allows us to be
+    more specific about the query/parameters that caused the finding too."*
     """
 
     def with_detail(self) -> bytes:
-        return build_health_check_document(today=dt.date(2026, 11, 5),
-                                           control_detail=True)[0]
+        return build_health_check_document(today=dt.date(2026, 11, 5))[0]
 
-    def test_a_build_that_does_not_ask_for_it_does_not_get_it(self):
-        """The generator's default is OFF. A caller that says nothing - a script, a test, an
-        older caller - gets the shorter document rather than forty pages it did not ask for."""
+    def test_every_build_carries_it(self):
+        """It was a parameter defaulting to OFF until the counts broke out here and nowhere
+        else. A build without it would ship a summary whose rows link into empty space."""
         content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
 
-        self.assertNotIn("Control Detail", all_text(content))
-        self.assertIn("Control Detail: left out - this build did not ask for it", reports)
+        self.assertIn("Detailed Findings and Recommendations", all_text(content))
+        self.assertTrue(any(line.startswith("Detailed Findings and Recommendations:")
+                            for line in reports))
 
-    def test_asking_for_it_adds_one_block_per_control_that_raised_a_finding(self):
+    def test_there_is_one_block_per_control_and_severity(self):
         measured = health_check.measure()
-        firing = {control.name
-                  for control in Control.objects.filter(is_active=True)
-                  if measured.count([control.control_id])}
+        detail, _coverage = health_check.split_coverage(
+            health_check.read_control_detail(measured))
 
         blocks = control_detail_blocks(self.with_detail())
 
-        self.assertEqual({control for _subject, control, _lines, _after in blocks}, firing)
-        self.assertTrue(firing)
+        self.assertEqual(len(blocks), len(detail))
+        self.assertEqual([control for _severity, control, _lines, _after in blocks],
+                         [one.control.name for one in detail])
 
-    def test_the_object_is_a_heading_and_so_is_the_control(self):
+    def test_the_severity_is_a_heading_and_so_is_the_control(self):
         """Jason, 2026-11-06, on the first mock-up: real headings rather than a shaded band, so
-        the object and the control both reach the table of contents and Word's navigation pane.
-        That is how a reader gets to one control in forty pages."""
+        both reach the table of contents and Word's navigation pane. That is how a reader gets
+        to one control in forty pages. The outer heading is the GRADE from 2026-11-09, because
+        that is the order the summary table is in."""
         blocks = control_detail_blocks(self.with_detail())
 
-        subjects = {subject for subject, _control, _lines, _after in blocks}
-        self.assertTrue(subjects)
-        for subject, control, _lines, _after in blocks:
-            self.assertTrue(subject and control)
+        grades = {grade for grade, _control, _lines, _after in blocks}
+        self.assertTrue(grades)
+        self.assertTrue(grades <= {Control.Severity(severity).label
+                                   for severity in health_check.WORST_FIRST})
+        for grade, control, lines, _after in blocks:
+            self.assertTrue(grade and control)
+            self.assertEqual(lines["Severity"], grade)
+
+    def test_a_summary_row_links_to_its_own_block(self):
+        """Jason, 2026-11-09: *"the summary is a doc link to the detail."* Every row's control
+        name is a hyperlink, and the bookmark it names is on that block's heading."""
+        body = document_xml(self.with_detail()).find(w("body"))
+
+        anchors = [link.get(w("anchor")) for link in body.iter(w("hyperlink"))
+                   if (link.get(w("anchor")) or "").startswith("_Ref")]
+        bookmarks = {node.get(w("name")) for node in body.iter(w("bookmarkStart"))}
+
+        self.assertTrue(anchors)
+        self.assertEqual(len(anchors), len(set(anchors)))
+        for anchor in anchors:
+            self.assertIn(anchor, bookmarks)
+
+    def test_the_block_says_what_was_matched(self):
+        """What the per-severity split buys. A control grades its findings differently because
+        a different query matched, and `ControlQuery.short_description` is already written for
+        a reader - so the block can say what this grade means."""
+        lines = {control: block for _grade, control, block, _after
+                 in control_detail_blocks(self.with_detail())}
+        control = Control.objects.get(control_id="PAN-MGT-007")
+        wanted = set(ControlQuery.objects.filter(control=control)
+                     .exclude(short_description="")
+                     .values_list("short_description", flat=True))
+
+        matched = lines[control.name]["What was matched"]
+        self.assertTrue(wanted, "the fixture's control has no query sentence to print")
+        for sentence in wanted:
+            self.assertIn(sentence, matched)
 
     def test_the_table_carries_the_control_id_and_the_three_catalogue_lines(self):
         """The id is in the table because a client who follows one of these up quotes it - and
-        because the catalogue's validator refuses a line that names the control's own id, the
+        because the catalog's validator refuses a line that names the control's own id, the
         row above having said it already."""
         blocks = {control: lines for _subject, control, lines, _after
                   in control_detail_blocks(self.with_detail())}
@@ -1303,58 +1364,48 @@ class ControlDetailTests(_SeededEstate):
         control = Control.objects.get(control_id="PAN-MGT-007")
 
         findings = measured.count([control.control_id])
-        objects = measured.distinct_subjects([control.control_id])
+        objects = len(measured.subjects_by_severity[(control.control_id, "low")])
         # The SINGULAR at one object: the seeded estate has one banner, and
-        # "1, across 1 login banners" was the first version of this line.
-        noun = "login banner" if objects == 1 else "login banners"
-        self.assertEqual(lines[control.name]["Findings"],
-                         f"{findings}, across {objects} {noun}")
+        # "1 finding on 1 login banners" was the first version of this line.
+        self.assertEqual(findings, objects, "a finding is one control failing on one object")
+        self.assertRegex(lines[control.name]["Findings"],
+                         rf"^{findings} finding(s)?(, \d+ places? to edit)?$")
         self.assertEqual(lines[control.name]["Severity"], "Low")
 
     def test_the_blocks_run_worst_first(self):
         """The section's own first line says so, and a reader who scans it is reading the order
-        rather than the grades."""
+        rather than the grades. One list, so one claim."""
         detail = health_check.read_control_detail(health_check.measure())
 
-        headings = [controls[0].worst for _name, controls in detail]
-        self.assertEqual([SEVERITY_RANK[severity] for severity in headings],
-                         sorted((SEVERITY_RANK[severity] for severity in headings),
-                                reverse=True))
-        for name, controls in detail:
-            ranks = [SEVERITY_RANK[one.worst] for one in controls]
-            with self.subTest(name):
-                self.assertEqual(ranks, sorted(ranks, reverse=True))
+        ranks = [SEVERITY_RANK[one.severity] for one in detail]
+        self.assertEqual(ranks, sorted(ranks, reverse=True))
 
     def test_a_control_that_found_nothing_has_no_block(self):
-        """The same call the observation table makes: a heading over nothing reads as a section
-        somebody forgot to fill in."""
+        """A heading over nothing reads as a section somebody forgot to fill in."""
         detail = health_check.read_control_detail(health_check.measure())
 
         self.assertTrue(detail)
-        for name, controls in detail:
-            self.assertTrue(controls, f"{name} has a heading and no controls")
-            for one in controls:
-                self.assertTrue(one.findings)
+        for one in detail:
+            self.assertTrue(one.findings)
 
     def test_the_section_sits_just_before_the_recommendations(self):
-        """Where Jason asked for it, which is also where it belongs: the observations say what
-        was found, this says it control by control, and the recommendations follow from both."""
+        """Where Jason asked for it, which is also where it belongs: the summary says what was
+        found, this says it control by control, and the recommendations follow from both."""
         headings = heading_texts(document_xml(self.with_detail()).find(w("body")))
 
-        self.assertLess(heading_at(headings, "Control Detail"),
+        self.assertLess(heading_at(headings, "Detailed Findings and Recommendations"),
                         heading_at(headings, "High-Level Recommendations"))
-        self.assertGreater(heading_at(headings, "Control Detail"),
-                           heading_at(headings, "Review and Analysis of Firewall(s)"))
+        self.assertGreater(heading_at(headings, "Detailed Findings and Recommendations"),
+                           heading_at(headings, "Summary of Findings and Recommendations"))
 
     def test_a_catalogue_line_nobody_wrote_is_marked_rather_than_left_blank(self):
-        """The catalogue's validator requires all four of an active control, so this is a
+        """The catalog's validator requires all four of an active control, so this is a
         control somebody added through the UI - and an empty cell under a client's heading is
         worse than a placeholder saying who has to write it."""
         Control.objects.filter(control_id="PAN-MGT-007").update(
             what_it_checks="", where_to_confirm="")
 
-        content, reports = build_health_check_document(today=dt.date(2026, 11, 5),
-                                                       control_detail=True)
+        content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
 
         text = all_text(content)
         self.assertIn("[MANUAL: write the what it checks line for PAN-MGT-007", text)
@@ -1365,12 +1416,11 @@ class ControlDetailTests(_SeededEstate):
         """One build, and the three structural rules the rest of the document is held to:
         every row spans its grid, the first row repeats over a page break, and every run and
         every paragraph mark names Optiv's own typeface."""
-        content, reports = build_health_check_document(today=dt.date(2026, 11, 5),
-                                                       control_detail=True)
+        content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
         body = document_xml(content).find(w("body"))
 
-        self.assertTrue(any(line.startswith("Control Detail:") and "under" in line
-                            for line in reports))
+        self.assertTrue(any(line.startswith("Detailed Findings and Recommendations:")
+                            and "over" in line for line in reports))
         self.assertEqual(unnamed_runs(body), [])
         self.assertEqual(unnamed_marks(body), [])
         for table in body.iter(w("tbl")):
@@ -1385,50 +1435,123 @@ class ControlDetailTests(_SeededEstate):
             self.assertIsNotNone(table.find(w("tr")).find(w("trPr")).find(w("tblHeader")))
 
 
+class SummaryRowTests(SimpleTestCase):
+    """The summary table, over blocks handed to it - so its claims are pinned where they are
+    written rather than only where a fixture happens to produce them."""
+
+    def block(self, severity, findings, **overrides):
+        fields = dict(
+            control=Control(control_id="PAN-CRT-002", name="Certificate Key Strength Minimums",
+                            short_remediation="Reissue the keys below the floor."),
+            severity=severity, findings=findings, objects=findings,
+            object_nouns=("certificates", "certificate"),
+            reach=((("pan-fw-111",), findings),), others=0, matched=(),
+            places=findings, subject="Certificate",
+            anchor=f"_Ref2000{severity[:1]}")
+        fields.update(overrides)
+        return health_check.ControlDetail(**fields)
+
+    def test_a_control_graded_two_ways_is_two_rows_carrying_their_own_counts(self):
+        """Jason, 2026-11-09: *"If there are 10000 medium and 1 critical, that would be a
+        misrepresentation of the facts."* One row carrying the worse grade and both counts says
+        the wrong thing about ten thousand of them."""
+        rows = health_check.summary_of_findings_rows(
+            [self.block("critical", 1), self.block("medium", 10_000)])[0][1:]
+
+        cells = [[_text_of_cell(cell) for cell in row] for row in rows]
+        self.assertEqual([cell[3] for cell in cells], ["Critical", "Medium"])
+        self.assertIn("1 finding, 1 place to edit", cells[0][1])
+        self.assertIn("10,000 findings, 10,000 places to edit", cells[1][1])
+
+    def test_the_recommendation_repeats_on_each_of_a_controls_rows(self):
+        """Jason, 2026-11-09, asked which way and answered it: *"leave it"*. 61 of the lab's
+        264 rows repeat the row above them this way, and the alternative - a blank cell on the
+        second and third - costs a reader skimming one severity band the remedy for what they
+        are looking at."""
+        rows = health_check.summary_of_findings_rows(
+            [self.block("critical", 1), self.block("medium", 2)])[0][1:]
+
+        remedies = [_text_of_cell(row[2]) for row in rows]
+        self.assertEqual(remedies, ["Reissue the keys below the floor."] * 2)
+
+    def test_every_row_links_to_its_own_block(self):
+        rows = health_check.summary_of_findings_rows(
+            [self.block("critical", 1), self.block("medium", 2)])[0][1:]
+
+        anchors = [paragraph.find(w("hyperlink")).get(w("anchor"))
+                   for row in rows for paragraph in row[1].paragraphs
+                   if paragraph.find(w("hyperlink")) is not None]
+        self.assertEqual(anchors, ["_Ref2000c", "_Ref2000m"])
+
+
 class DetailPhraseTests(SimpleTestCase):
-    """The three measured lines of a Control Detail table, which are sentences built out of
-    counts - so each is pinned where it is written rather than only on the built document."""
+    """The measured lines of a detail block, which are sentences built out of counts - so each
+    is pinned where it is written rather than only on the built document."""
 
     def detail(self, **overrides) -> health_check.ControlDetail:
         fields = dict(
             control=Control(control_id="PAN-AAA-001", name="LDAP Server Profiles Require SSL"),
-            graded=(("critical", 4),), findings=4, objects=4,
+            severity="critical", findings=4, objects=4,
             object_nouns=("AAA server profiles", "AAA server profile"),
-            reach=((("pan-fw-111",), 4),), others=0)
+            reach=((("pan-fw-111",), 4),), others=0, matched=(),
+            places=4, subject="AAA Server Profile")
         fields.update(overrides)
         return health_check.ControlDetail(**fields)
 
-    def test_one_severity_is_named_and_two_are_both_named(self):
-        self.assertEqual(health_check.severity_phrase((("critical", 4),)), "Critical")
-        self.assertEqual(health_check.severity_phrase((("critical", 1), ("high", 1))),
-                         "Critical, and High")
-        self.assertEqual(
-            health_check.severity_phrase((("critical", 1), ("high", 1), ("medium", 2))),
-            "Critical, High, and Medium")
-
-    def test_the_findings_line_counts_the_objects_once_each(self):
+    def test_the_findings_line_counts_the_findings_and_the_edits(self):
+        """Jason, 2026-11-09: *"Remediation one object may clear multiple findings. That's the
+        number I'm looking for."* The first version printed the findings count beside the count
+        of objects the findings are ABOUT, which is the same number by construction."""
         self.assertEqual(health_check.findings_phrase(self.detail()),
-                         "4, across 4 AAA server profiles")
+                         "4 findings, 4 places to edit")
 
-    def test_two_gradings_of_one_control_are_counted_apart(self):
-        """PAN-CRT-002 grades a key below half its floor Critical and anything else off it
-        High. A single total would hide that the worse of them is one certificate."""
-        detail = self.detail(graded=(("critical", 1), ("high", 1)), findings=2, objects=2,
-                             object_nouns=("certificates", "certificate"))
+    def test_one_edit_clearing_many_findings_is_the_point_of_the_line(self):
+        """Measured on the lab: PAN-VLN-003 raised 1,067 findings, one per rule, and all of
+        them are cleared by editing sixteen vulnerability protection profiles."""
+        detail = self.detail(findings=1_067, objects=1_067, places=16)
 
         self.assertEqual(health_check.findings_phrase(detail),
-                         "1 critical, 1 high, across 2 certificates")
+                         "1,067 findings, 16 places to edit")
+
+    def test_one_of_each_is_singular_twice(self):
+        detail = self.detail(findings=1, objects=1, places=1)
+
+        self.assertEqual(health_check.findings_phrase(detail),
+                         "1 finding, 1 place to edit")
+
+    def test_a_control_the_remediation_surface_has_no_row_for_says_only_the_findings(self):
+        """8 of the lab's 264 blocks - the ones whose subject is the review rather than the
+        estate. A zero there would read as "nothing to do"."""
+        detail = self.detail(places=0)
+
+        self.assertEqual(health_check.findings_phrase(detail), "4 findings")
 
     def test_the_noun_is_the_registry_s_own_word_for_a_client(self):
         """Printed as `FindingKind.client_plural` carries it, with no pluralizer over it. The
         kind this reads is the one that forced the field: `plural_noun` over its label put
         "12 password complexities" under a heading reading Minimum Password Complexity."""
         kind, = (k for k in FINDING_KINDS if k.label == "password complexity")
-        detail = self.detail(graded=(("medium", 14),), findings=14, objects=12,
+        detail = self.detail(severity="medium", findings=14, objects=12, places=12,
                              object_nouns=(kind.client_plural, kind.client_singular))
 
         self.assertEqual(health_check.findings_phrase(detail),
-                         "14, across 12 password complexity settings")
+                         "14 findings, 12 places to edit")
+
+    def test_what_was_matched_is_the_querys_own_sentence(self):
+        """`ControlQuery.short_description` is written for a reader, so the block prints it
+        rather than describing the query in words of ours."""
+        detail = self.detail(matched=("Profiles that let malware through on a decoder.",))
+
+        self.assertEqual(health_check.matched_phrase(detail),
+                         "Profiles that let malware through on a decoder.")
+
+    def test_a_query_nobody_described_is_marked_rather_than_left_blank(self):
+        """48 of the lab's 579 queries carry no sentence, and an empty row under a client's
+        heading is worse than a placeholder saying who has to write it."""
+        matched = health_check.matched_phrase(self.detail(matched=()))
+
+        self.assertIn("[MANUAL: write a short_description for the PAN-AAA-001 critical query",
+                      matched)
 
     def test_a_noun_that_is_already_plural_is_left_alone(self):
         """Measured over all 75 finding kinds 2026-11-06: seven of their labels already end in
@@ -1437,8 +1560,8 @@ class DetailPhraseTests(SimpleTestCase):
         self.assertEqual(health_check.plural_noun(8, "logging settings"), "logging settings")
         self.assertEqual(health_check.plural_noun(2, "rulebase device match"),
                          "rulebase device matches")
-        self.assertEqual(health_check.plural_noun(2, "licence inventory"),
-                         "licence inventories")
+        self.assertEqual(health_check.plural_noun(2, "license inventory"),
+                         "license inventories")
         self.assertEqual(health_check.plural_noun(1, "logging settings"), "logging settings")
 
     def test_an_ha_pair_is_named_once_and_the_rest_are_counted(self):
@@ -1448,6 +1571,12 @@ class DetailPhraseTests(SimpleTestCase):
 
         self.assertEqual(health_check.firewalls_phrase(detail),
                          "fw-core-tpa-a/b (6), pan-fw-111 (2), and 3 other firewalls")
+
+    def test_one_other_firewall_is_singular(self):
+        detail = self.detail(reach=((("pan-fw-111",), 9),), others=1)
+
+        self.assertEqual(health_check.firewalls_phrase(detail),
+                         "pan-fw-111 (9), and 1 other firewall")
 
     def test_a_finding_no_snapshot_attributes_says_so_rather_than_nothing(self):
         """Every one of the lab's 17,555 findings resolves to a firewall, so this is the
@@ -1483,25 +1612,13 @@ class NumberTests(SimpleTestCase):
         self.assertNotIn("4647", line)
 
 
-class BandTests(_SeededEstate):
-    """The subject headings, which Jason asked to be shaded."""
+class CellPropertyTests(_SeededEstate):
+    """`w:tcPr`, whose children Word reads as a SEQUENCE rather than a set.
 
-    def test_a_subject_heading_carries_optivs_own_band_colour(self):
-        """`accent5`, which is the grey Optiv's table style paints its own emphasis row with -
-        named as the theme colour as well as the literal, so a reissued template carries it."""
-        root = document_xml(self.built())
-
-        shaded = [cell for cell in root.iter(w("tc"))
-                  if cell.find(w("tcPr")) is not None
-                  and cell.find(w("tcPr")).find(w("shd")) is not None]
-
-        self.assertTrue(shaded)
-        for cell in shaded:
-            shading = cell.find(w("tcPr")).find(w("shd"))
-            with self.subTest(_text(cell)):
-                self.assertEqual(shading.get(w("fill")), "CCCCCC")
-                self.assertEqual(shading.get(w("themeFill")), "accent5")
-                self.assertEqual(shading.get(w("val")), "clear")
+    This was `BandTests`, over the shaded subject headings of the observation table. That table
+    went on 2026-11-09 and nothing this generator writes is shaded any more - but the ordering
+    rule it caught applies to every cell, so the test it was really carrying stays.
+    """
 
     def test_the_shading_sits_where_the_schema_wants_it(self):
         """`w:tcPr` is a sequence: `shd` comes after `gridSpan` and before `vAlign`. Out of
@@ -1517,7 +1634,7 @@ class BandTests(_SeededEstate):
 
 
 class ReachTests(SimpleTestCase):
-    """The second column of the observation table: which firewalls carry a control's findings.
+    """The Firewalls line of a detail block: which firewalls carry a control's findings.
 
     Jason, 2026-11-06: *"present counts by firewall instead of subject ... If the number of
     firewalls exceeds 5, then state something like and 'n' others"*, and *"the five named
@@ -1546,32 +1663,6 @@ class ReachTests(SimpleTestCase):
         reach, _ = health_check.worst_affected(counts)
 
         self.assertEqual([name for name, _ in reach], [("a",), ("b",)])
-
-    def test_an_ha_pair_is_one_line_naming_both(self):
-        """One configuration on two appliances, fixed once. Counting it against each member
-        would double the row's own total and read as two jobs.
-
-        Named by `remediation.firewall_label`, which writes the shared stem once - the same
-        spelling the remediation pages give the same pair (Jason, 2026-11-06)."""
-        row = health_check.SubjectRow(
-            "Decryption Profile Negotiable Primitives", "high", 4,
-            ((("fw-core-tpa-a", "fw-core-tpa-b"), 3), (("PA-VM",), 1)), 0)
-
-        lines = health_check.subject_detail(row)
-
-        self.assertEqual(lines, ["4 findings:",
-                                 "fw-core-tpa-a/b (3)",
-                                 "PA-VM (1)"])
-
-    def test_the_remainder_is_said_in_the_last_line(self):
-        row = health_check.SubjectRow("Any", "low", 99, ((("a",), 9),), 7)
-
-        self.assertEqual(health_check.subject_detail(row)[-1], "and 7 other firewalls")
-
-    def test_one_other_firewall_is_singular(self):
-        row = health_check.SubjectRow("Any", "low", 99, ((("a",), 9),), 1)
-
-        self.assertEqual(health_check.subject_detail(row)[-1], "and 1 other firewall")
 
 
 class ScaffoldTests(SimpleTestCase):

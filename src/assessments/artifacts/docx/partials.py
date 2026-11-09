@@ -10,7 +10,7 @@ and what a test can assert the output references. Naming the display name would 
 translation between what this module says and what the file contains.
 
 WIDTHS AND SPANS ARE MEASURED OFF THE TEMPLATE. Every table in Optiv's body uses
-`Optiv (Light Grey Borders)` and states its own grid, and the two shapes that matter here were
+`Optiv (Light Gray Borders)` and states its own grid, and the two shapes that matter here were
 measured on `PAN Health Check Deliverable Template 2026 (1).dotx` (2026-11-05):
 
     the observation tables   tblW 5000 pct   grid 3408 / 5227 / 1589   cells 1667 / 2556 / 777
@@ -147,7 +147,7 @@ def rating_style(severity: str) -> str:
     """The `Rating - <Severity>` style for a severity value, or KeyError naming the value.
 
     Deliberately not `.get(...)` with a fallback: a severity this does not know about is a
-    catalogue change, and grading it Informational - which is what a fallback would do - would
+    catalog change, and grading it Informational - which is what a fallback would do - would
     print a pass over a finding.
     """
     return RATING_STYLES[severity]
@@ -341,7 +341,7 @@ def table_of_contents(elements: list) -> int:
             text = f"Appendix {chr(ord('A') + appendices)}: {text}"
             appendices += 1
         name = f"_Toc{BOOKMARK_BASE + len(entries)}"
-        _bookmark(element, name, BOOKMARK_BASE + len(entries))
+        bookmark(element, name, BOOKMARK_BASE + len(entries))
         entries.append(_toc_entry(level, text, name))
     if not entries:
         return 0
@@ -394,8 +394,14 @@ def _carry_field_runs(field, first, last) -> None:
     last.append(runs[-1])
 
 
-def _bookmark(paragraph_element, name: str, number: int) -> None:
-    """Wrap a heading's content in the bookmark its contents entry links to."""
+#: Where the bookmarks a SUMMARY ROW links to start numbering, clear of `BOOKMARK_BASE` and
+#: of anything Word allocates for itself. `_Ref` is the prefix Word uses for a cross-reference,
+#: and like `_Toc` it is hidden from the Bookmark dialog.
+REFERENCE_BASE = 20_000
+
+
+def bookmark(paragraph_element, name: str, number: int) -> None:
+    """Wrap a heading's content in a bookmark, which is what a link elsewhere points at."""
     start = OxmlElement("w:bookmarkStart")
     start.set(qn("w:id"), str(number))
     start.set(qn("w:name"), name)
@@ -451,14 +457,30 @@ def text_cell(text: str, *, width=None, style: str = TABLE_TEXT, bold: bool = Fa
                 shading=shading)
 
 
-#: The grey Optiv's own table style paints its emphasis row with - `accent5`, measured on the
-#: scaffold 2026-11-06. Named as the THEME colour as well as the literal, so a reissued template
-#: that restyles its palette carries this with it rather than leaving one grey behind.
-BAND_SHADING = ("CCCCCC", "accent5")
+def link_paragraph(style: str, text: str, anchor: str, *, tight: bool = False):
+    """One paragraph whose whole text links to a bookmark in this document.
+
+    NOT STYLED AS A HYPERLINK. The `Hyperlink` character style is blue and underlined, which on
+    a summary table reading down a page of control names would paint every row. Word's own
+    table of contents does the same thing - the entries are links and look like text - and the
+    reader finds them the way they find those, by the cursor.
+    """
+    element = paragraph(style, tight=tight)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("w:anchor"), anchor)
+    link.append(_run(text, size=BODY_SIZE if style in UNSIZED_STYLES else None))
+    element.append(link)
+    return element
+
+
+def link_cell(text: str, anchor: str, *, width=None, style: str = TABLE_TEXT,
+              tight: bool = False) -> Cell:
+    """A cell whose text is a link to `anchor` - see `link_paragraph`."""
+    return Cell(paragraphs=[link_paragraph(style, text, anchor, tight=tight)], width=width)
 
 
 def rating_cell(severity: str | None, label: str, *, width=None) -> Cell:
-    """The severity cell, in its own `Rating - <Severity>` style, centred as the template centres
+    """The severity cell, in its own `Rating - <Severity>` style, centered as the template centers
     it - or, for an area nothing assessed, an EMPTY `Table - Text` cell.
 
     Jason's ruling retires `No Deviation`, so there is no grade left that means "we looked and

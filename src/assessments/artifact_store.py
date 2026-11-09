@@ -115,31 +115,23 @@ def builder_for(kind):
 def build_arguments(artifact: GeneratedArtifact) -> dict:
     """What the builder is called with, for a row that carries a choice about its own content.
 
-    ONE KIND HAS ONE, 2026-11-06: the health check document's Control Detail section is some
-    forty pages and the build is asked for it rather than assuming it (see
-    `health_check.build_health_check_document`). The two workbooks have nothing to decide, so
-    they are called with no arguments, exactly as before - which is why this is a function of
-    the row and not a fourth entry in `BUILDERS`.
+    NO KIND HAS ONE TODAY. The health check document's detail section was optional until
+    2026-11-09, when it became the only place the counts break out and the choice stopped being
+    one - see `health_check.build_health_check_document`. Kept rather than deleted because the
+    next deliverable to carry a choice will want it, and because `fill_artifact` calling the
+    builder with `**build_arguments(artifact)` is one line either way.
     """
-    if artifact.kind == GeneratedArtifact.Kind.HEALTH_CHECK:
-        return {"control_detail": artifact.control_detail}
     return {}
 
 
-def open_workbook_build(kind=GeneratedArtifact.Kind.WORKBOOK, *,
-                        control_detail: bool = False) -> GeneratedArtifact:
-    """The row, BUILDING, before the thread starts - so the page it redirects to can show it.
-
-    `control_detail` is recorded here because the thread is given a pk and reads the rest back:
-    the view knows what the engineer ticked and the thread does not.
-    """
+def open_workbook_build(kind=GeneratedArtifact.Kind.WORKBOOK) -> GeneratedArtifact:
+    """The row, BUILDING, before the thread starts - so the page it redirects to can show it."""
     _name, name = BUILDERS[kind]
     return GeneratedArtifact.objects.create(
         kind=kind,
         status=GeneratedArtifact.Status.BUILDING,
         assessment_run=findings_run_of_record(),
         filename=name(get_application_environment()),
-        control_detail=control_detail,
     )
 
 

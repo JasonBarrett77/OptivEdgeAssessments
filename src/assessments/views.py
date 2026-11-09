@@ -1034,7 +1034,6 @@ CONTENT_TYPES = {
 #: The checkbox beside Build Health Check Document. Named in one place because the template's
 #: `name=` and the view's `request.POST` lookup are the same string, and a typo in either would
 #: silently build the shorter document for ever.
-CONTROL_DETAIL_FIELD = "control_detail"
 
 
 class WorkbookBuildView(View):
@@ -1138,18 +1137,6 @@ class HealthCheckBuildView(WorkbookBuildView):
     noun = "health check document"
     parts = "sections"
 
-    def build_options(self, request) -> dict:
-        """Whether this build carries the Control Detail section.
-
-        READ AS A TICKED BOX, which is how a browser sends one: an unticked checkbox sends
-        nothing at all, so absence means "without it". The box on the downloads page is ticked
-        by default (Jason, 2026-11-06: *"an option on the downloads page to include/exclude.
-        Include by default."*), and the generator's own default is OFF - so the engineer gets
-        the section unless they clear the box, and anything posting this form without the field
-        gets the shorter document rather than forty pages it did not ask for.
-        """
-        return {"control_detail": CONTROL_DETAIL_FIELD in request.POST}
-
 
 class DownloadsView(TemplateView):
     """Every built deliverable, kept until somebody deletes it (Jason, 2026-10-14)."""
@@ -1174,9 +1161,6 @@ class DownloadsView(TemplateView):
             })
         context["rows"] = rows
         context["building"] = artifact_store.build_in_progress()
-        # The checkbox's own `name=`, from the one place it is spelled - see
-        # `CONTROL_DETAIL_FIELD`.
-        context["control_detail_field"] = CONTROL_DETAIL_FIELD
         return context
 
 
@@ -1357,7 +1341,7 @@ class RemediationGroupView(TemplateView):
          "globalprotect-portal", "password-complexity",
          "globalprotect-portal-authentication", "logging-and-reporting", "management-ssh",
          "ssl-tls-service-profile", "authentication-settings", "content-update-schedule",
-         "globalprotect-coverage", "virtual-router", "dhcp-interface", "service-route", "certificate", "certificate-profile", "ssl-decryption-exclusion", "password-profile", "authentication-sequence", "login-banner", "management-tls", "ntp", "dns", "snmp", "system-identity", "master-key", "session-settings", "wildfire-settings", "iot-security", "installed-content", "licences", "alarm-settings", "log-server-target", "forward-proxy-signing", "management-plane-addressing", "operational-mode", "user-id-agent", "user-id-discovery", "update-server",
+         "globalprotect-coverage", "virtual-router", "dhcp-interface", "service-route", "certificate", "certificate-profile", "ssl-decryption-exclusion", "password-profile", "authentication-sequence", "login-banner", "management-tls", "ntp", "dns", "snmp", "system-identity", "master-key", "session-settings", "wildfire-settings", "iot-security", "installed-content", "licenses", "alarm-settings", "log-server-target", "forward-proxy-signing", "management-plane-addressing", "operational-mode", "user-id-agent", "user-id-discovery", "update-server",
          "high-availability", "panorama-settings",
          # Site-to-site VPN, 2026-11-04. Four objects, four pages, all Network.
          "ipsec-tunnel", "ike-gateway", "ike-crypto-profile", "ipsec-crypto-profile"),
@@ -1459,7 +1443,7 @@ def findings_href_for(config_object) -> str:
 
 
 def findings_domain_category(domain) -> str:
-    """The PAN-OS category a domain belongs to - the same answer the workbook's tab colour uses."""
+    """The PAN-OS category a domain belongs to - the same answer the workbook's tab color uses."""
     spec = domain.spec
     # `spec.category` first, for a tab whose subject is not on the configuration rail - see
     # `DeviceSettingSheet.category`. The app and the workbook have to answer this the same
@@ -1513,7 +1497,7 @@ class ConfigurationObjectView(TemplateView):
     query before it is a control. Both surfaces stay; each object links to the other.
 
     Every object routes here for now. The frame is being built before the views that fill it, so
-    that the ORGANISATION - which category an object is in, which rail group, in what order - is
+    that the ORGANIZATION - which category an object is in, which rail group, in what order - is
     reviewable while it is still cheap to move things. A rail that is wrong after fifteen views
     are attached to it is fifteen rewrites; a rail that is wrong today is one tuple.
 

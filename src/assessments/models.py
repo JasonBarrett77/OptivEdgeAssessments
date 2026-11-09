@@ -346,7 +346,7 @@ class Control(models.Model):
         #: control stated twice over, not a two-model control. `integrations.LicenceEntitlement`
         #: holds the per-licence rows and gets NO type here: no assertion record of this domain
         #: names that subject, so a type over it would be a search surface no control asks for.
-        LICENCE_INVENTORY = "licence_inventory", "Licence Inventory"
+        LICENCE_INVENTORY = "licence_inventory", "License Inventory"
         #: One appliance's log-database alarm mechanism - the singleton node under
         #: `deviceconfig/setting/management/common-criteria-alarm-generation`. PAN-PLT-006's
         #: first half only. Its second half, dataplane utilisation, is discharged
@@ -1088,7 +1088,7 @@ class Control(models.Model):
         "integrations.GlobalProtectPortalClientAuthRow": "GlobalProtect Portal Client Authentication",
         "integrations.GlobalProtectEnforcementPoint": "GlobalProtect Enforcement Point",
         "integrations.FirewallContentStreams": "Firewall Content Streams",
-        "integrations.LicenceInventory": "Licence Inventory",
+        "integrations.LicenceInventory": "License Inventory",
         "integrations.LogAlarmSettings": "Log Database Alarms",
         "integrations.ContentUpdateSchedule": "Content Update Schedule",
         "integrations.CustomUrlCategory": "Custom URL Category",
@@ -2467,7 +2467,7 @@ class PanoramaRegistrationFinding(ObjectFindingBase):
 
     WHAT NO ROW OF THIS MODEL CAN SAY, and no firewall can. The management appliance's own half of
     the handshake - whether it accepts only customer-issued certificates, and whether it checks
-    each firewall against an authorisation list - lives on `secure-conn-server` on the station,
+    each firewall against an authorization list - lives on `secure-conn-server` on the station,
     which `rules.md` puts out of assessment scope. A row on the hardened side of every column
     here still does not say the channel is authenticated.
     """
@@ -3368,17 +3368,6 @@ class GeneratedArtifact(models.Model):
         FAILED = "failed", "Failed"
 
     kind = models.CharField(max_length=32, choices=Kind.choices)
-    #: Whether a HEALTH_CHECK build was asked for its Control Detail section - one block per
-    #: control that raised a finding, which on the lab is 203 blocks and some forty pages.
-    #: Jason, 2026-11-06: a parameter on the generator, and a checkbox on the downloads page
-    #: ticked by default.
-    #:
-    #: KEPT ON THE ROW rather than handed to the thread, for two reasons. The build runs on a
-    #: thread that is given a pk and reads everything else back, so this is how the choice
-    #: reaches it at all; and two documents built on one day share a filename, so without this
-    #: nothing on the downloads page would say which of them is the long one. Always False on
-    #: the two workbooks, which have no such section.
-    control_detail = models.BooleanField(default=False)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.BUILDING)
     #: The findings run the file was built FROM. SET_NULL rather than CASCADE: a reseed
     #: discards runs, and a kept deliverable must not vanish with them - it becomes stale, and
@@ -3563,8 +3552,8 @@ class LldpGlobalFinding(ObjectFindingBase):
     NO CONTROL PRODUCES ONE OF THESE TODAY, and that is recorded rather than accidental.
     PAN-NET-003's second half asserts over this subject and its first half over `Interface`;
     `_CONTROL_TYPE_TARGET_MODEL` is one-to-one and `ControlQuery.clean()` refuses a query whose
-    model differs from its control's target, so one catalogue control cannot hold both. The
-    per-interface half took the id. Splitting PAN-NET-003 into two catalogue ids changes what a
+    model differs from its control's target, so one catalog control cannot hold both. The
+    per-interface half took the id. Splitting PAN-NET-003 into two catalog ids changes what a
     customer's report contains and is Jason's decision; this model exists so that the half he
     may decide to build has somewhere to land, and so that nothing silently narrows the report
     when it does.
@@ -3945,7 +3934,7 @@ class SaasApplicationPolicyPostureFinding(ObjectFindingBase):
     `control_type` resolves to the URL-filtering posture, `Control.save()` derives one
     `target_model` from the type, and `ControlQuery.clean()` refuses a query on another model -
     so the attribute-driven half of PAN-SAS-004 produces no finding anywhere. Splitting that
-    control into two catalogue ids is a product decision; the stage 8 artifact for
+    control into two catalog ids is a product decision; the stage 8 artifact for
     `saas-security` records it under `subjects_in_two_models`.
 
     A DISABLED RULE COUNTS toward every verdict this model carries, which the normalizer that
@@ -4011,10 +4000,10 @@ class CloudAppEngineFinding(ObjectFindingBase):
 
     THE FINDING RESTS ON AN OPERATIONAL READ AND NOT ON THE CONFIGURATION, which is the whole
     point of this subject. The configured `disable` key is absent on every lab appliance, so a
-    control reading it alone passes all four - while the engine itself reports a failed licence
+    control reading it alone passes all four - while the engine itself reports a failed license
     check, a failed cloud connection and a missing device certificate on every one of them.
 
-    AND THE CONTROL IS SILENT WHERE THE LICENCE IS THE REASON, by design: an appliance with no
+    AND THE CONTROL IS SILENT WHERE THE LICENSE IS THE REASON, by design: an appliance with no
     subscription was never what this half of PAN-SAS-005 was about, and its other half - whether
     the adoption decision is on the record - is an engineer's answer rather than a configuration
     read, so no query exists for it. The absence of a finding here is therefore not a statement
@@ -4066,14 +4055,14 @@ class CloudAppEngineFindingControlQuery(FindingControlQueryBase):
 class DeviceIdentificationFinding(ObjectFindingBase):
     """A finding against one appliance's device-identification service state. PAN-IOT-001, -003.
 
-    THREE UNRELATED INSTRUMENTS LAND ON ONE ROW and two controls assert over it: the licence
+    THREE UNRELATED INSTRUMENTS LAND ON ONE ROW and two controls assert over it: the license
     table (is the entitlement in force), the edge-service configuration node (is the firewall
     wired to the service at all) and `show system info`'s classification-data keys (is the
     installed data current). They share a row because all three are device-wide, which is the
     merge `integrations.DeviceIdentificationState` argues in its own docstring.
 
     `subject_name` IS THE HOSTNAME, because the row is a conclusion about the appliance and has
-    no entry name of its own - the licence table's entries have no identity a finding would
+    no entry name of its own - the license table's entries have no identity a finding would
     print, and the edge node is a singleton container.
 
     WHAT NO FINDING HERE PROVES. Two of the three readings are operational replies that carry
@@ -4150,7 +4139,7 @@ class ZoneFinding(ObjectFindingBase):
     the finding reports is that identification in the zone is NARROWED - never that the list
     fails to cover the equipment. A member may be a literal address, a CIDR, an address object
     or an address GROUP, and nothing on the firewall says what is plugged in, so coverage is a
-    reviewer's judgement and the finding names the members for them to check.
+    reviewer's judgment and the finding names the members for them to check.
     """
 
     assessment_run = models.ForeignKey(
@@ -4292,7 +4281,7 @@ class DataFilteringPostureFinding(ObjectFindingBase):
     file, a database dump or an image passes this mechanism unexamined. The verdict column's own
     note in stage 5 carries the whole of it.
 
-    AND IT DOES NOT MEAN THE ORGANISATION HAS NO DATA-LOSS PROTECTION. Stage 3 deliberately
+    AND IT DOES NOT MEAN THE ORGANIZATION HAS NO DATA-LOSS PROTECTION. Stage 3 deliberately
     declined to make the licensing question an applicability clause, "because the suppressing form
     would convert an unanswered licensing question into silence": an Enterprise DLP subscription
     supersedes pattern-based data filtering where licensed, and the control's own evidence source
@@ -4453,7 +4442,7 @@ class GlobalProtectPortalClientAuthFinding(ObjectFindingBase):
     THE PORTAL'S FACT IS CARRIED ONTO THE ROW AND THE WALK IS UPWARD. Whether a client certificate
     can be demanded of anybody is a leaf on the PARENT - `portal-config/certificate-profile` - and
     the and/or switch beside it says nothing without it. `certificate_profile_bound` is that fact,
-    written onto the row at normalisation; the row's `portal` FK is the to-ONE upward relation
+    written onto the row at normalization; the row's `portal` FK is the to-ONE upward relation
     standing ruling 6 permits, and it is why one severity separates two rows whose own switch
     values are identical.
 
@@ -4632,13 +4621,13 @@ class FirewallContentStreamsFinding(ObjectFindingBase):
     version is current needs the publication date of the newest AVAILABLE release, which the
     appliance does not hold and no collector fetches; stage 5 records that in `not_stored`. So this
     reports the appliance's own reported release date against the windows stage 3 named, and the
-    half that needs the vendor's catalogue is absent rather than guessed.
+    half that needs the vendor's catalog is absent rather than guessed.
 
     TWO SPELLINGS OF "NEVER INSTALLED" AND BOTH ARE TRUTHY. The four content streams answer `0`
     and the URL filtering stream answers `0000.00.00.000`, so a truthiness test reports an
     uninstalled stream as installed and a numeric comparison ranks `0` as the lowest version
     rather than as no version. Only a comparison against the literals is right, and the
-    normaliser's `NEVER_INSTALLED_VERSIONS` is where it lives.
+    normalizer's `NEVER_INSTALLED_VERSIONS` is where it lives.
 
     WHAT NO FINDING HERE CAN SAY, and both are stage 3 halves stage 5 could not place:
 
@@ -4650,7 +4639,7 @@ class FirewallContentStreamsFinding(ObjectFindingBase):
       two fail in opposite directions and nothing in this row reaches across appliances.
 
     AND THE ENTITLEMENT GATE IS DELIBERATELY ABSENT RATHER THAN LOST. Stage 3 scopes each stream to
-    "where the organisation has ever held the entitlement that delivers it", which is a fact about
+    "where the organization has ever held the entitlement that delivers it", which is a fact about
     `integrations.LicenceInventory` - another model, so no query of this control can carry it. The
     absence errs in the safe direction and stage 5 says why: A LAPSED ENTITLEMENT DOES NOT SUPPRESS
     THE STREAM AND IS NOT AN EXEMPTION, because the vendor keeps part of it flowing at a slower
@@ -4704,9 +4693,9 @@ class FirewallContentStreamsFindingControlQuery(FindingControlQueryBase):
 class LicenceInventoryFinding(ObjectFindingBase):
     """A finding against one appliance's entitlement set. PAN-PLT-004, BOTH of its halves.
 
-    THE ROW IS A CONCLUSION ABOUT THE LICENCE TABLE AND NOT ONE LICENCE, which is what lets one
+    THE ROW IS A CONCLUSION ABOUT THE LICENSE TABLE AND NOT ONE LICENSE, which is what lets one
     control report an entitlement that is MISSING. `integrations.LicenceEntitlement` holds the
-    per-licence rows and carries no control: an absent subscription has no row of its own to be
+    per-license rows and carries no control: an absent subscription has no row of its own to be
     reported on, and the commonest failing state in this estate is exactly that.
 
     BOTH OF THIS CONTROL'S ASSERTION RECORDS LAND ON THIS MODEL, so the control has no silent half
@@ -4722,22 +4711,22 @@ class LicenceInventoryFinding(ObjectFindingBase):
     that partition its column's failing set, each carrying that record's own assertion clause. The
     union is the record, because the column holds exactly one of five tokens and four of them fail.
 
-    THE EMPTY LICENCE ELEMENT IS THE TRAP THIS MODEL EXISTS TO REPORT HONESTLY. `request license
+    THE EMPTY LICENSE ELEMENT IS THE TRAP THIS MODEL EXISTS TO REPORT HONESTLY. `request license
     info` answers `{"licenses": null}` on both PA-5220s in this estate: the element is PRESENT and
     EMPTY, `bool(result)` is true while `bool(result["licenses"])` is false, and
-    `result["licenses"]["entry"]` raises. That is NOT "no licences are needed" - it is UNKNOWN, and
+    `result["licenses"]["entry"]` raises. That is NOT "no licenses are needed" - it is UNKNOWN, and
     `no_licence_rows_returned` reports it as what it is. A customer told their entitlements are fine
     on the strength of a null element has been told they are safe on the strength of nothing.
 
-    HOW A SUPPORT ENTITLEMENT IS RECOGNISED, AND WHICH WAY THE ERROR RUNS. The normaliser matches a
+    HOW A SUPPORT ENTITLEMENT IS RECOGNIZED, AND WHICH WAY THE ERROR RUNS. The normalizer matches a
     word-boundary `support` in the feature name, which is the same test stage 6 made independently.
     A name containing `support` that is not a support entitlement would be read as one and move an
     appliance off `absent_from_inventory` and onto a pass - the UNSAFE direction - and it is
     recorded here rather than hidden because no appliance in this estate holds a support row, so
     neither reading is exercised today.
 
-    WHAT NO FINDING HERE CAN SAY. Whether the organisation ever HELD an entitlement it no longer
-    holds: the reply lists what is present, so a subscription cancelled last year is
+    WHAT NO FINDING HERE CAN SAY. Whether the organization ever HELD an entitlement it no longer
+    holds: the reply lists what is present, so a subscription canceled last year is
     indistinguishable from one never bought. And an unreadable expiry date lands on
     `active_inside_90_days`, a finding at the lowest graded band, because the vendor's own `expired`
     flag is read first and what an unreadable date leaves open is only HOW SOON a live entitlement
@@ -4765,7 +4754,7 @@ class LicenceInventoryFinding(ObjectFindingBase):
         ]
 
     def __str__(self) -> str:
-        return f"{self.control.control_id} on licence inventory {self.subject_name}"
+        return f"{self.control.control_id} on license inventory {self.subject_name}"
 
 
 class LicenceInventoryFindingControlQuery(FindingControlQueryBase):
@@ -4818,13 +4807,13 @@ class LogAlarmSettingsFinding(ObjectFindingBase):
 
     AND WHAT A CLEAN ROW DOES NOT MEAN. `alarm_generation_enabled_known` is the column that says
     whether the master switch was in the node at all, and it is a separate fact from the node
-    answering: the first version of the normaliser read them as one and stored "known" beside a
+    answering: the first version of the normalizer read them as one and stored "known" beside a
     null on both PA-5220s, which is the exact circularity a companion column exists to prevent.
 
     THE OTHER HALF OF PAN-PLT-006 IS NOT A SILENT HALF AND THE DISTINCTION MATTERS. Its second
     assertion record - sustained dataplane load - is discharged `engineer_answers` by stage 5 and
     owes NO query, because there is no configuration node anywhere on the firewall holding a
-    dataplane CPU or session-utilisation threshold, so "sustained" has no stored definition and the
+    dataplane CPU or session-utilization threshold, so "sustained" has no stored definition and the
     vendor's own monitoring procedure puts the comparison on the SNMP manager. That is a measurable
     expression nobody can write, not a model this control could not reach.
     """
@@ -4890,7 +4879,7 @@ class ContentUpdateScheduleFinding(ObjectFindingBase):
 
     THE EMPTY STRING IS A STATE OF EVERY RECURRENCE AND ACTION COLUMN AND IT FIRES, which is the
     one thing a reader of a clause here must not get wrong. An appliance whose
-    `deviceconfig/system` node arrived empty was not usefully read, and the normaliser writes
+    `deviceconfig/system` node arrived empty was not usefully read, and the normalizer writes
     `""` to all ten columns rather than `none` - because `none` would say "we read it and nothing
     is scheduled" about a reply nobody received. `""` is not `daily`, so every negated equality
     in this domain catches it with no companion clause; `update_schedule_collected` is what tells
@@ -5275,7 +5264,7 @@ class GlobalProtectGatewayFinding(ObjectFindingBase):
     requirement each time - the tunnel interface in a virtual router, `local-address` needing
     `ip/ipv4`, the vsys half needing `remote-user-tunnel`, a unique local address refused at the
     write. It declared the restatements it could not grade instead of inventing them. So every
-    column these controls clause on rests on a normaliser proved against constructed shapes, and
+    column these controls clause on rests on a normalizer proved against constructed shapes, and
     nothing here has been seen to fire.
 
     ONE DIALOG, TWO SUBTREES. Network > GlobalProtect > Gateways writes a vsys-scoped entry AND a
@@ -5355,7 +5344,7 @@ class GlobalProtectGatewayClientAuthFinding(ObjectFindingBase):
 
     NOT THE PORTAL'S CLIENT-AUTH TABLE. `client-auth` is a leaf name both GlobalProtect objects
     carry under different parents, and `GlobalProtectPortalClientAuthFinding` above is the other
-    one. The two subjects are not interchangeable and neither are their normalisers.
+    one. The two subjects are not interchangeable and neither are their normalizers.
 
     THE ROW IS THE SUBJECT AND THE GATEWAY IS NOT, because the commonest real defect on this
     control is PER PLATFORM: a Windows row pointed at a strong identity service and an `Any` row
@@ -5830,9 +5819,9 @@ class DecryptionRulebaseCoverageFindingControlQuery(FindingControlQueryBase):
 
 
 class SslDecryptionExclusionFinding(ObjectFindingBase):
-    """A finding against one SSL decryption exclusion the organisation added itself. PAN-DEC-004.
+    """A finding against one SSL decryption exclusion the organization added itself. PAN-DEC-004.
 
-    THE ORGANISATION'S OWN ENTRIES AND NOT THE VENDOR'S. The read behind this subject returns
+    THE ORGANIZATION'S OWN ENTRIES AND NOT THE VENDOR'S. The read behind this subject returns
     `ssl-decrypt/ssl-exclude-cert` at the appliance's shared scope and at each vsys; the vendor's
     330 or 385 entries live at `/config/predefined/ssl-exclude-cert`, are a separate object, and are
     invisible to it. The web interface renders BOTH collections in ONE grid distinguished only by a
@@ -5900,25 +5889,25 @@ class SslDecryptionVendorExclusionOptOutFinding(ObjectFindingBase):
     """A finding against one appliance's departures from the VENDOR's SSL exclusion list.
 
     NO SHIPPED CONTROL PRODUCES ONE OF THESE, which is a recorded state rather than dead code.
-    PAN-DEC-004's two assertion records name two models - the organisation's own exclusions and
+    PAN-DEC-004's two assertion records name two models - the organization's own exclusions and
     these departures from the vendor's list - and `Control` maps one type to one model while
     `ControlQuery.clean()` refuses a query whose model differs from its control's target, so one
-    catalogue id cannot hold both halves. The exclusion half took the id, because the control's own
+    catalog id cannot hold both halves. The exclusion half took the id, because the control's own
     severity and its minimum value are stage 3's record 0 while this is the
-    `preferred_gap_severity` half at low. Splitting PAN-DEC-004 into two catalogue ids changes what
+    `preferred_gap_severity` half at low. Splitting PAN-DEC-004 into two catalog ids changes what
     a customer's report contains and is Jason's decision.
 
     AND NO ESTATE CAN MAKE IT FIRE TODAY, which is the sharper reason to register it rather than
     build a control for it now. The one clean assertion is that no switched-off entry is left on the
     list after the vendor stopped shipping it, and that is a SET DIFFERENCE whose right-hand side -
-    the vendor's own catalogue - is invisible to `action=get` and to the merged configuration: the
+    the vendor's own catalog - is invisible to `action=get` and to the merged configuration: the
     config read a collector naturally reaches for answers a well-formed, TRUTHY, EMPTY count
     envelope (`{"@total-count": "0", "@count": "0"}`) for a populated vendor list on every appliance
     measured. Only the `show predefined` operational read supplies it, nothing issues that read on a
     collection run, and `stale_disabled_vendor_exclusion_count` is therefore zero on every row in
     every estate. Stage 5 took that concession deliberately and declared the column's unknown as
     reading compliant, with the reasons written out; stage 7 filed the missing
-    `predefined_list_collected` companion as a gap. The model's own normaliser returns that fact
+    `predefined_list_collected` companion as a gap. The model's own normalizer returns that fact
     where no column can carry it.
 
     `subject_scope` IS ABSENT AND THAT IS CORRECT: the node is a single shared-scoped member list
@@ -6112,7 +6101,7 @@ class ManagementPlaneAddressingFinding(ObjectFindingBase):
 
     WHAT NO FINDING HERE CAN SAY, and it is the control's own gap rather than this model's. The
     firewall holds the address, the mask and whether a route leaves the segment, and NOTHING
-    about whether the networks those reach are ones the organisation controls. So the graded
+    about whether the networks those reach are ones the organization controls. So the graded
     column reports the configuration's CONTRIBUTION to exposure and a finding is not a statement
     that the plane is reachable. The remediation the control carries is a reachability test,
     which is a person's work.
@@ -6328,7 +6317,7 @@ class PolicyRuleSettingsFinding(ObjectFindingBase):
     nullable boolean whose implicit value stage 4 left UNMEASURED, the restatement clauses it
     `is not false` so that NULL reports, and the key is absent on every appliance in the lab - so
     the control as written reports every appliance on the strength of a reading nobody took. The
-    model exists so the question is in the catalogue with its reason, and generates no findings by
+    model exists so the question is in the catalog with its reason, and generates no findings by
     design, which is this project's recorded convention for exactly that state.
 
     WHAT WOULD BRING IT BACK IS NOT A SCREEN. There is no UI control for the key: the vendor's

@@ -239,42 +239,27 @@ class HealthCheckBuildTests(_MediaRoot):
         self.assertIn("A health check document is already being built",
                       str(list(get_messages(response.wsgi_request))[-1]))
 
-    def test_the_control_detail_box_is_on_the_page_and_ticked(self):
-        """Jason, 2026-11-06: *"an option on the downloads page to include/exclude. Include by
-        default."* The section is some forty pages, so it is the one build choice this page
-        offers."""
+    def test_the_page_offers_no_build_choices(self):
+        """There was one: a checkbox for the Control Detail section, ticked by default (Jason,
+        2026-11-06). The section stopped being optional on 2026-11-09 - it is where the counts
+        break out, so a document without it has a summary pointing into nothing - and the box,
+        the field on the row and the badge beside the filename went with it."""
         page = self.client.get(reverse("assessment_downloads"))
 
-        self.assertContains(page, 'name="control_detail"')
-        self.assertContains(page, "checked")
-        self.assertContains(page, "Control detail")
+        self.assertNotContains(page, 'name="control_detail"')
+        self.assertNotContains(page, "Control detail")
+        self.assertNotContains(page, "data-artifact-control-detail")
 
-    def test_a_ticked_box_is_recorded_on_the_row(self):
-        """Recorded rather than handed to the thread: the thread is given a pk and reads the
-        rest back, and two documents built on one day share a filename."""
-        with mock.patch("assessments.views.threading.Thread"):
-            self.client.post(reverse("assessment_health_check_build"),
-                             {"control_detail": "1"}, follow=True)
-
-        self.assertTrue(GeneratedArtifact.objects.get().control_detail)
-
-    def test_a_box_nobody_ticked_sends_nothing_and_leaves_the_section_out(self):
-        """Which is how a browser sends a cleared checkbox: it sends no field at all. Anything
-        posting this form without it gets the shorter document rather than forty pages."""
-        with mock.patch("assessments.views.threading.Thread"):
-            self.client.post(reverse("assessment_health_check_build"), follow=True)
-
-        self.assertFalse(GeneratedArtifact.objects.get().control_detail)
-
-    def test_the_builder_is_called_with_the_choice_on_the_row(self):
-        artifact = artifact_store.open_workbook_build(
-            GeneratedArtifact.Kind.HEALTH_CHECK, control_detail=True)
+    def test_the_builder_is_called_with_no_arguments(self):
+        """`build_arguments` is kept for the next deliverable that carries a choice; no kind
+        has one today."""
+        artifact = artifact_store.open_workbook_build(GeneratedArtifact.Kind.HEALTH_CHECK)
 
         with mock.patch("assessments.artifact_store.build_health_check_document",
                         return_value=(b"PK-document", [])) as document:
             artifact_store.fill_workbook(artifact)
 
-        document.assert_called_once_with(control_detail=True)
+        document.assert_called_once_with()
 
     def test_a_workbook_is_still_built_with_no_arguments_at_all(self):
         """The two spreadsheets have no section to decide about, and a keyword they do not take
@@ -284,24 +269,6 @@ class HealthCheckBuildTests(_MediaRoot):
         self.assertEqual(
             artifact_store.build_arguments(artifact_store.open_workbook_build(
                 GeneratedArtifact.Kind.REMEDIATION)), {})
-
-    def test_the_row_says_which_document_carries_the_section(self):
-        """Two builds on one day share a filename, so without this nothing on the page would
-        say which of them is the long one."""
-        artifact_store.fill_workbook(artifact_store.open_workbook_build(
-            GeneratedArtifact.Kind.HEALTH_CHECK, control_detail=True))
-
-        page = self.client.get(reverse("assessment_downloads"))
-
-        self.assertContains(page, "data-artifact-control-detail")
-
-    def test_a_document_built_without_it_carries_no_such_tag(self):
-        artifact_store.fill_workbook(artifact_store.open_workbook_build(
-            GeneratedArtifact.Kind.HEALTH_CHECK))
-
-        page = self.client.get(reverse("assessment_downloads"))
-
-        self.assertNotContains(page, "data-artifact-control-detail")
 
     def test_a_docx_is_served_as_a_word_document_and_not_as_a_spreadsheet(self):
         """It was one constant for every kind until 2026-11-05. A .docx served as

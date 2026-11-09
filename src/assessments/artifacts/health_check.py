@@ -33,7 +33,7 @@ something they discover on page nine.
 
 THE RATING SCALE. Jason, 2026-11-05: *"We are not going to use 'No Deviation' for now. that can
 be replaced with Informational."* The template grades `D-1`..`D-5`; with D-5 retired the scale is
-1:1 with the catalogue's five severities, so the `D-n` codes are dropped and the severity words
+1:1 with the catalog's five severities, so the `D-n` codes are dropped and the severity words
 used - which is also why the template already ships the unused `Rating - Informational` style.
 `Table 1: Risk Ratings` keeps the template's four descriptions and carries a NEW sentence for
 Informational, because the one the template ships for D-5 ("Meets or exceeds ... pose no risk")
@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from django.db.models import Max
 
@@ -54,7 +54,7 @@ from assessments import finding_registry
 from assessments import remediation as surface
 from assessments.control_queries import SEVERITY_RANK
 from assessments.environment import get_application_environment
-from assessments.models import Control
+from assessments.models import Control, FindingControlQueryBase
 
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, DecryptionRulebaseVerdict, DeviceGroup, FieldProvenance,
@@ -132,16 +132,16 @@ RECOMMENDED_SEVERITIES = ("critical", "high", "medium")
 #: document look abandoned rather than honest; the business benefit is asked for ONCE, above
 #: each table, where a consultant can answer it in a sentence per row if they want to.
 BENEFIT_NOTE = ("optionally add the business benefit of each change below - the measured reach "
-                "is generated, but what {shortname} gains from it is a judgement")
+                "is generated, but what {shortname} gains from it is a judgment")
 
 
 def plural_noun(count: int, singular: str) -> str:
-    """`2 licence inventories`, not `2 licence inventorys`.
+    """`2 license inventories`, not `2 license inventorys`.
 
     `layout.plural` appends a bare `s`, which is right for every heading the workbooks use
     because those are words somebody chose. These nouns are `FindingKind.label` - the registry's
     own word for whatever a finding is about - and a few of the seventy-five do not take a bare
-    `s`: measured on the lab, `licence inventory` became "licence inventorys".
+    `s`: measured on the lab, `license inventory` became "license inventorys".
 
     A LABEL THAT ALREADY ENDS IN `s` IS LEFT ALONE. Measured over all 75 kinds 2026-11-06, every
     one of them is already plural or a mass noun - `logging settings`, `session settings`,
@@ -367,7 +367,7 @@ def control_line(control, measured: Measured) -> str:
 
 
 # --------------------------------------------------------------------------------------------
-# The subjects: what was assessed, grouped by what a client calls the object
+# What a client calls the object, and how far a control's findings reach
 # --------------------------------------------------------------------------------------------
 
 #: The common name for the controls that report on OUR OWN collection rather than on the
@@ -380,38 +380,6 @@ COVERAGE_SUBJECT = "Assessment Coverage"
 
 #: How many firewalls a row names before it stops naming them.
 FIREWALLS_NAMED = 5
-
-
-@dataclass(frozen=True)
-class SubjectRow:
-    """One row of an observation table: one control at one severity."""
-
-    control_name: str
-    severity: str
-    findings: int
-    #: `(firewalls, findings)` worst affected first - an HA pair is one entry naming both.
-    reach: tuple
-    #: How many more firewalls carry this finding than the row names.
-    others: int
-
-
-@dataclass(frozen=True)
-class Subject:
-    """One object kind as a client names it, with every control that reports on it.
-
-    DERIVED, NOT MAPPED. Jason, 2026-11-06: *"We should seek to minimize any statically set data
-    and instead generate the data from the control and finding information."* The grouping is
-    `FindingKind.common_name`, joined to the control by `control_type` - a join measured total on
-    2026-11-06, 75 kinds against 75 distinct control types, every active control resolving. So a
-    control added to the catalogue appears under its object with no edit here, and a finding kind
-    added to the registry brings its own heading. The 594-line Area mapping this replaced had
-    three guards whose whole job was to notice when somebody forgot.
-    """
-
-    name: str
-    rows: tuple
-    #: The worst severity any of its controls raised, or None where every one of them passed.
-    worst: str | None
 
 
 def group_controls_by_subject() -> dict:
@@ -442,77 +410,6 @@ def group_controls_by_subject() -> dict:
     return grouped
 
 
-def read_subjects(measured: Measured) -> tuple[list, str]:
-    """Every active control, grouped under the common name of the object it reports on."""
-    grouped = group_controls_by_subject()
-
-    subjects = []
-    for name, members in grouped.items():
-        rows = []
-        for control, kind in members:
-            severities = measured.by_severity[control.control_id]
-            present = [severity for severity in WORST_FIRST if severities[severity]]
-            if not present:
-                # NO FINDINGS, NO ROW (Jason, 2026-11-06). An earlier draft gave every control
-                # a row so the table read as a record of the review; on the lab that was 12
-                # rows saying only that nothing was wrong.
-                continue
-            for severity in present:
-                reach, others = worst_affected(
-                    measured.firewalls[(control.control_id, severity)])
-                rows.append(SubjectRow(control.name, severity, severities[severity],
-                                       reach, others))
-        if not rows:
-            # Every control on this object was satisfied, so the heading would stand over
-            # nothing.
-            continue
-        # WORST FIRST WITHIN THE HEADING, by the ROW's severity rather than the control's
-        # (Jason, 2026-11-06). A control with findings at three severities has three rows, and
-        # ordering by the control's worst scattered the Highs below a Medium belonging to a
-        # worse control - so the column a reader scans did not run downhill.
-        rows.sort(key=lambda row: (-SEVERITY_RANK[row.severity], -row.findings,
-                                   row.control_name))
-        worst = measured.worst([control.control_id for control, _ in members])
-        subjects.append(Subject(name=name, rows=tuple(rows), worst=worst))
-
-    subjects.sort(key=lambda subject: (-SEVERITY_RANK[subject.worst] if subject.worst else 1,
-                                       subject.name))
-    graded = sum(1 for subject in subjects if subject.worst)
-    return subjects, (f"Subjects: {len(subjects)} object kinds from "
-                      f"{sum(len(s.rows) for s in subjects)} rows, {graded} with findings")
-
-
-def subject_rows(subjects: list) -> list:
-    """`Subject | Finding | Rating`, with the subject's name as a row spanning all three.
-
-    Jason, 2026-11-06: *"The subject should be a header row that spans the columns ... Below the
-    header, there should be a row for each control ... If a control has findings of different
-    severities, each finding + severity will get its own row."*
-    """
-    rows = [[_spanning("PAN Firewall", style=p.TABLE_HEADING)]]
-    for subject in subjects:
-        rows.append([_spanning(subject.name, bold=True, shading=p.BAND_SHADING)])
-        for row in subject.rows:
-            rows.append([
-                p.text_cell(row.control_name, width=OBSERVATION_WIDTHS[0]),
-                p.Cell(paragraphs=[p.paragraph(p.TABLE_TEXT, line, tight=True)
-                                   for line in subject_detail(row)],
-                       width=OBSERVATION_WIDTHS[1]),
-                p.rating_cell(row.severity or "informational",
-                              Control.Severity(row.severity).label if row.severity
-                              else "Informational",
-                              width=OBSERVATION_WIDTHS[2]),
-            ])
-    return rows
-
-
-def _spanning(text: str, *, bold: bool = False, style: str = None, shading: tuple = None):
-    cell = p.text_cell(text, width=(5000, "pct"), bold=bold, shading=shading,
-                       **({"style": style} if style else {}))
-    cell.span = 3
-    return cell
-
-
 def worst_affected(counts: Counter) -> tuple:
     """The `FIREWALLS_NAMED` firewalls carrying the most of it, and how many more there are.
 
@@ -523,27 +420,8 @@ def worst_affected(counts: Counter) -> tuple:
     return tuple(ranked[:FIREWALLS_NAMED]), max(0, len(ranked) - FIREWALLS_NAMED)
 
 
-def subject_detail(row: SubjectRow) -> list:
-    """What one row SAYS: how many findings, and which firewalls carry them.
-
-    ONE LINE PER FIREWALL, not a sentence listing them - Jason, 2026-11-06: *"Separate the
-    values by new line"*. A row runs to seven lines at most: the count, five firewalls and the
-    remainder.
-
-    An HA pair is named by `remediation.firewall_label`, which writes the shared stem once -
-    `fw-core-tpa-a/b` - and is what the remediation pages already call the same pair. One
-    spelling across both surfaces, and a third of the column back.
-    """
-    lines = [f"{tally(row.findings)} {plural(row.findings, 'finding')}:"]
-    for firewalls, count in row.reach:
-        lines.append(f"{surface.firewall_label(firewalls)} ({tally(count)})")
-    if row.others:
-        lines.append(f"and {tally(row.others)} other {plural(row.others, 'firewall')}")
-    return lines
-
-
 # --------------------------------------------------------------------------------------------
-# Control Detail: one block per control that raised a finding
+# Detailed Findings and Recommendations: one block per control and severity
 # --------------------------------------------------------------------------------------------
 
 #: What the Firewalls line says when nothing names a firewall for a control's findings. Every
@@ -565,11 +443,22 @@ DETAIL_LINES = (
 
 @dataclass(frozen=True)
 class ControlDetail:
-    """One control that raised a finding, as its own block of the Control Detail section."""
+    """One control at ONE SEVERITY: a row of the summary table and the block it links to.
+
+    PER CONTROL AND SEVERITY, NOT PER CONTROL. Jason, 2026-11-09: *"If there are 10000 medium
+    and 1 critical, that would be a misrepresentation of the facts"* - a single row carrying
+    one grade and both counts says the wrong thing about 10,000 of them. And a control grades
+    its findings differently because a DIFFERENT QUERY matched: *"this allows us to be more
+    specific about the query/parameters that caused the finding too, which is nice"*, which is
+    what `matched` carries.
+
+    156 of the lab's 203 controls fire at one severity only, so the split costs 61 extra blocks
+    on 264 - and buys the summary and the detail the SAME ORDER and a link from each row to its
+    own block.
+    """
 
     control: Control
-    #: `(severity, findings)` worst-first, for the severities that actually fired.
-    graded: tuple
+    severity: str
     findings: int
     #: How many distinct objects those findings are about, and what a client calls them -
     #: the registry's own `(plural, singular)`, printed as they stand.
@@ -579,51 +468,65 @@ class ControlDetail:
     reach: tuple
     #: How many more firewalls carry the findings than the line names.
     others: int
+    #: The client sentences of the control queries that matched at this severity.
+    matched: tuple
+    #: How many PLACES AN ENGINEER OPENS to clear these findings - the remediation surface's
+    #: own rows. 0 where that surface has no row for this control.
+    places: int
+    #: What a client calls the object - the heading this block used to sit under.
+    subject: str
+    #: The bookmark its summary row links to, assigned in document order.
+    anchor: str = ""
 
-    @property
-    def worst(self) -> str:
-        return self.graded[0][0]
 
+def remediation_places() -> dict:
+    """(control id, severity) -> how many places an engineer opens to clear it.
 
-def severity_phrase(graded: tuple) -> str:
-    """`Critical`, or `Critical, and High` where one control graded its findings both ways."""
-    labels = [Control.Severity(severity).label for severity, _count in graded]
-    if len(labels) == 1:
-        return labels[0]
-    return f"{', '.join(labels[:-1])}, and {labels[-1]}"
+    THE NUMBER A CLIENT PLANS WITH. Jason, 2026-11-09: *"Remediation one object may clear
+    multiple findings. That's the number I'm looking for."* A finding is a control failing on
+    an object, but the object an engineer OPENS is often something else and often shared:
+    PAN-VLN-003 raised 1,067 findings on the lab - one per rule - and all of them are cleared
+    by editing sixteen vulnerability protection profiles.
+
+    READ OFF THE REMEDIATION SURFACE RATHER THAN RECOMPUTED, because that surface is what the
+    engineer will actually work from: its rows ARE the edits, and `severity_by_control` on each
+    row says which control graded it and how. A second definition of "things to fix" that
+    disagreed with the remediation pages would be worse than none.
+
+    THE WORD IS `place`, which is the Benefit column's own - *"1,083 places to edit"* - and
+    not the remediation group's label. Six of the thirty-four labels are not count nouns, and
+    pluralizing them printed `forward proxy signings` and `portal authentications` at a client.
+    One vocabulary across the document beats a noun that is right most of the time.
+    """
+    places = defaultdict(int)
+    for group in surface.REMEDIATION_GROUPS:
+        for row in surface.stored_group_rows(group):
+            for control_id in row.get("controls", ()):
+                severity = (row.get("severity_by_control") or {}).get(control_id)
+                if severity:
+                    places[(control_id, severity)] += 1
+    return dict(places)
 
 
 def findings_phrase(detail: ControlDetail) -> str:
-    """`4, across 4 AAA server profiles` - and the count per severity where there are two.
+    """`1,027 findings, 24 places to edit` - the impact, and the work.
 
-    SPLIT BY SEVERITY RATHER THAN TOTALLED, for the reason the observation table gives one row
-    per control and severity: two gradings of one control are two different readings of the same
-    check - PAN-CRT-002 grades a key below half its floor Critical and anything else off it
-    High - and a single total hides that the worse of them is one certificate.
+    TWO NUMBERS THAT GENUINELY DIFFER, which the first version of this line did not have. It
+    printed the findings count and the count of objects the findings are ABOUT, and those are
+    the same number by construction - a finding is one control failing on one object, measured
+    0 of 264 blocks apart on the lab. Jason spot-checked the built document and said so:
+    *"Either thats circumstance or a defect."* The second number he wanted is the REMEDIATION
+    count, which is a different thing and smaller on 77 of the 264: *"Remediation one object
+    may clear multiple findings."*
 
-    The object count is the DISTINCT objects, not the findings: sixteen controls report on the
-    security rulebase, and a rule that fails several of them is one rule to open.
-
-    THE NOUN IS THE REGISTRY'S CLIENT PLURAL AND IS NOT PLURALIZED HERE. `plural_noun` over
-    `FindingKind.label` was the first version of this line and it printed the registry's own
-    vocabulary at a client - "across 12 password complexities" under a heading reading Minimum
-    Password Complexity. No pluralizer gets from one to the other, so each kind carries the
-    word, and this prints it.
-
-    AND THE REGISTRY CARRIES BOTH NUMBERS, because the count can be one: 11 of the lab's 203
-    control blocks are about a single object, and six of them read "1, across 1 AAA server
-    profiles" when the plural was printed unconditionally. `client_singular` is the client's
-    word for one of them where `label` is not it - see the registry's comment on the field -
-    so neither the grammar nor the register has to give.
+    THE SECOND HALF IS DROPPED WHERE THE REMEDIATION SURFACE HAS NO ROW - 8 blocks on the lab,
+    the ones whose subject is the review rather than the estate - rather than printing a zero
+    that would read as "nothing to do".
     """
-    plural, singular = detail.object_nouns
-    objects = (f"across {tally(detail.objects)} "
-               f"{singular if detail.objects == 1 else plural}")
-    if len(detail.graded) == 1:
-        return f"{tally(detail.findings)}, {objects}"
-    counts = ", ".join(f"{tally(count)} {Control.Severity(severity).label.lower()}"
-                       for severity, count in detail.graded)
-    return f"{counts}, {objects}"
+    if not detail.places:
+        return f"{tally(detail.findings)} {plural(detail.findings, 'finding')}"
+    return (f"{tally(detail.findings)} {plural(detail.findings, 'finding')}, "
+            f"{tally(detail.places)} {plural(detail.places, 'place')} to edit")
 
 
 def firewalls_phrase(detail: ControlDetail) -> str:
@@ -638,52 +541,106 @@ def firewalls_phrase(detail: ControlDetail) -> str:
     return named
 
 
-def read_control_detail(measured: Measured) -> list:
-    """`(object name, the controls under it)`, in the order the observation tables use.
+def matched_phrase(detail: ControlDetail) -> str:
+    """What the control actually looked for to grade these findings this way.
 
-    THE SAME HEADINGS AND THE SAME ORDER as the observation tables, off the same join, so a
-    reader who finds a row up there finds its block down here under the same name and in the
-    same place. Only the controls that RAISED a finding are in it, which the section's own
-    first line says: on the lab that is 203 of the 216 active controls.
+    THE QUERIES' OWN CLIENT SENTENCES. `ControlQuery.short_description` is written for a reader
+    - *"Rules whose antivirus profile lets malware through on a decoder or an application
+    exception."* - and a finding records which query matched it, so a block at one severity can
+    say what that severity means rather than leaving the reader to infer it from the grade.
+
+    SEVERAL WHERE SEVERAL MATCHED, joined rather than listed: a control with two queries at one
+    grade is two readings of the same check, and the pair is one sentence's worth of thought.
     """
+    if not detail.matched:
+        return manual(f"write a short_description for the {detail.control.control_id} "
+                      f"{Control.Severity(detail.severity).label.lower()} query, for the client "
+                      f"who reads this section")
+    return " ".join(detail.matched)
+
+
+def query_sentences() -> dict:
+    """(control id, severity) -> the client sentences of the queries that graded it that way.
+
+    ONE DISTINCT QUERY PER FINDING KIND rather than a walk over the findings. Every kind has a
+    `FindingControlQueryBase` join beside it recording which query matched which finding, and
+    the three columns this needs - control, severity, sentence - have at most a few hundred
+    distinct combinations across the estate, against 17,555 findings on the lab.
+    """
+    found = defaultdict(list)
+    for kind in finding_registry.FINDING_KINDS:
+        for related in kind.model._meta.related_objects:
+            model = related.related_model
+            if not issubclass(model, FindingControlQueryBase):
+                continue
+            rows = model.objects.values_list(
+                "control_query__control__control_id",
+                f"{related.field.name}__severity",
+                "control_query__short_description").distinct()
+            for control_id, severity, sentence in rows:
+                if sentence and sentence not in found[(control_id, severity)]:
+                    found[(control_id, severity)].append(sentence)
+    return found
+
+
+def read_control_detail(measured: Measured, places: dict | None = None) -> list:
+    """Every control and severity that raised a finding, WORST FIRST - one entry per block.
+
+    ONE ORDER FOR BOTH SURFACES. Jason, 2026-11-09: *"The detail re-orders to match, and the
+    summary is a doc link to the detail."* The summary table and the detail section walk this
+    same list, so row 12 is block 12 and the link cannot point at the wrong thing.
+
+    Only the controls that RAISED a finding are in it, which the section's own first line says:
+    on the lab that is 203 of the 216 active controls, over 264 blocks.
+    """
+    subjects = {control.control_id: name
+                for name, members in group_controls_by_subject().items()
+                for control, _kind in members}
+    sentences = query_sentences()
+    # PASSED IN BY `build`, which already pays for the remediation tables through `read_groups`;
+    # computed here for a caller that has none, which is every test of this function.
+    places = remediation_places() if places is None else places
     detail = []
     for name, members in group_controls_by_subject().items():
-        controls = []
         for control, _kind in members:
             severities = measured.by_severity[control.control_id]
-            graded = tuple((severity, severities[severity]) for severity in WORST_FIRST
-                           if severities[severity])
-            if not graded:
-                continue
-            # THE UNION OVER THE CONTROL'S SEVERITIES. `measured.firewalls` is keyed by control
-            # AND severity because the observation table's rows are; one block covers the whole
-            # control, so a firewall carrying a Critical and a High of it is named once with
-            # both counted.
-            carried = Counter()
-            for severity, _count in graded:
-                carried.update(measured.firewalls[(control.control_id, severity)])
-            reach, others = worst_affected(carried)
-            controls.append(ControlDetail(
-                control=control,
-                graded=graded,
-                findings=sum(count for _severity, count in graded),
-                objects=len(measured.subjects[control.control_id]),
-                object_nouns=measured.subject_nouns[control.control_id],
-                reach=reach,
-                others=others))
-        if not controls:
-            # Every control on this object was satisfied, so the heading would stand over
-            # nothing - the same call `read_subjects` makes about the table.
-            continue
-        controls.sort(key=lambda one: (-SEVERITY_RANK[one.worst], -one.findings,
-                                       one.control.name))
-        detail.append((name, tuple(controls)))
-    detail.sort(key=lambda entry: (-SEVERITY_RANK[entry[1][0].worst], entry[0]))
-    return detail
+            for severity in WORST_FIRST:
+                if not severities[severity]:
+                    continue
+                reach, others = worst_affected(
+                    measured.firewalls[(control.control_id, severity)])
+                detail.append(ControlDetail(
+                    control=control,
+                    severity=severity,
+                    findings=severities[severity],
+                    objects=len(measured.subjects_by_severity[
+                        (control.control_id, severity)]),
+                    object_nouns=measured.subject_nouns[control.control_id],
+                    reach=reach,
+                    others=others,
+                    matched=tuple(sentences.get((control.control_id, severity), ())),
+                    places=places.get((control.control_id, severity), 0),
+                    subject=subjects[control.control_id]))
+    detail.sort(key=lambda one: (-SEVERITY_RANK[one.severity], -one.findings,
+                                 one.control.name))
+    return [replace(one, anchor=f"_Ref{p.REFERENCE_BASE + index}")
+            for index, one in enumerate(detail)]
+
+
+def split_coverage(detail: list) -> tuple[list, list]:
+    """The estate's blocks and the review's own, which get a section each.
+
+    Jason, 2026-11-06: *"Assessment Coverage should probably be a separate sub section"*, and
+    again on 2026-11-09 when the observation table that carried it was dropped. These controls
+    report on what THIS REVIEW could not read, not on anything a firewall is doing, and under
+    the estate's heading they would be read as a finding against it.
+    """
+    return ([one for one in detail if one.subject != COVERAGE_SUBJECT],
+            [one for one in detail if one.subject == COVERAGE_SUBJECT])
 
 
 def control_detail_rows(detail: ControlDetail) -> list:
-    """`Control` and `Severity` on one row, then `Findings`, `Firewalls`, and the catalogue's
+    """`Control` and `Severity` on one row, then `Findings`, `Firewalls`, and the catalog's
     three lines.
 
     THE ID AND THE GRADE SHARE THE FIRST ROW, Jason 2026-11-06: *"Control id and severity can
@@ -691,22 +648,24 @@ def control_detail_rows(detail: ControlDetail) -> list:
     which control this is, and the table is six rows rather than seven.
 
     THE CONTROL ID IS IN THE TABLE because a client who follows one of these up quotes it -
-    which is also why the catalogue's validator refuses a line that names the control's own id,
+    which is also why the catalog's validator refuses a line that names the control's own id,
     the row above having said it already.
 
-    A LINE THE CATALOGUE DOES NOT CARRY IS A MARKED PLACEHOLDER, not an empty cell and not the
+    A LINE THE CATALOG DOES NOT CARRY IS A MARKED PLACEHOLDER, not an empty cell and not the
     engineer-facing field beside it: the same call `priority_rows` makes for a control with no
-    `short_remediation`. The catalogue's own validator requires all four of an active control,
+    `short_remediation`. The catalog's own validator requires all four of an active control,
     so a placeholder here is a control somebody added through the UI, and `manual_placeholders`
     counts it into the build's report.
     """
     rows = [[p.text_cell("Control", width=DETAIL_PAIR_WIDTHS[0], bold=True),
              p.text_cell(detail.control.control_id, width=DETAIL_PAIR_WIDTHS[1]),
              p.text_cell("Severity", width=DETAIL_PAIR_WIDTHS[2], bold=True),
-             p.text_cell(severity_phrase(detail.graded), width=DETAIL_PAIR_WIDTHS[3])]]
+             p.text_cell(Control.Severity(detail.severity).label,
+                         width=DETAIL_PAIR_WIDTHS[3])]]
     lines = [
         ("Findings", findings_phrase(detail)),
         ("Firewalls", firewalls_phrase(detail)),
+        ("What was matched", matched_phrase(detail)),
     ]
     for name, label in DETAIL_LINES:
         lines.append((label, getattr(detail.control, name) or detail_placeholder(
@@ -717,25 +676,31 @@ def control_detail_rows(detail: ControlDetail) -> list:
 
 
 def _detail_value(text: str):
-    """The value cell of a labelled row, covering the three columns the first row splits."""
+    """The value cell of a labeled row, covering the three columns the first row splits."""
     cell = p.text_cell(text, width=DETAIL_WIDTHS[1])
     cell.span = 3
     return cell
 
 
 def detail_placeholder(name: str, control_id: str) -> str:
-    """What stands in for a catalogue line nobody has written, naming the field to write."""
+    """What stands in for a catalog line nobody has written, naming the field to write."""
     return manual(f"write the {name.replace('_', ' ')} line for {control_id}, for the client "
                   f"who reads this section")
 
 
 def write_control_detail(detail: list) -> tuple[list, list]:
-    """One block per control: a Heading 3 under its object's Heading 2, the table, and the one
-    line that sits outside it.
+    """Detailed Findings and Recommendations: one block per control and severity, worst first.
 
-    REAL HEADINGS, not a shaded band (Jason, 2026-11-06). Heading 2 for the object and Heading 3
+    THE SEVERITY IS THE HEADING AND THE CONTROL SITS UNDER IT, which is the order the summary
+    table is in - Jason, 2026-11-09: *"The detail re-orders to match, and the summary is a doc
+    link to the detail."* A control that fires at three grades appears three times, under three
+    headings, which is the truth about it: three different queries matched and each is a
+    different reading of the same check.
+
+    REAL HEADINGS, not a shaded band (Jason, 2026-11-06). Heading 2 for the grade and Heading 3
     for the control, so both reach the table of contents and Word's navigation pane - which is
-    how a reader gets to one control in forty pages.
+    how a reader gets to one control in forty pages. Each Heading 3 also carries the BOOKMARK
+    its summary row links to.
 
     NO TABLE CAPTIONS. Every other table in this document is captioned and numbered; two
     hundred more would be two hundred `Table n: ...` entries in a list of tables that has
@@ -743,34 +708,71 @@ def write_control_detail(detail: list) -> tuple[list, list]:
     reader was sent to.
     """
     elements = [
-        p.paragraph(p.HEADING_1, "Control Detail"),
+        p.paragraph(p.HEADING_1, "Detailed Findings and Recommendations"),
         p.paragraph(p.NORMAL,
-                    "Each control that raised a finding, worst first: what it checks, why it "
-                    "matters, and what to change. A control that raised no finding is not "
-                    "listed."),
+                    "Every control that raised a finding, worst first: what was matched, how "
+                    "far it reaches, why it matters and what to change. A control graded at "
+                    "more than one severity appears once for each. A control that raised no "
+                    "finding is not listed."),
     ]
-    blocks = unwritten = 0
-    for name, controls in detail:
-        elements.append(p.paragraph(p.HEADING_2, name))
-        for one in controls:
-            blocks += 1
-            elements.append(p.paragraph(p.HEADING_3, one.control.name))
-            elements.append(p.table(control_detail_rows(one), DETAIL_GRID, width=FIXED_WIDTH))
-            elements.append(p.paragraph(p.NORMAL, ""))
-            # THE ONE LINE OUTSIDE THE TABLE, and the only one of the four allowed to carry a
-            # screen path - `Device > Server Profiles > LDAP` - because a path is what it is.
-            elements.append(p.lead_paragraph(
-                p.NORMAL, "Where to confirm it.",
-                one.control.where_to_confirm
-                or detail_placeholder("where_to_confirm", one.control.control_id)))
-            unwritten += sum(1 for line, _label in DETAIL_LINES
-                             if not getattr(one.control, line))
-            unwritten += 0 if one.control.where_to_confirm else 1
-    report = (f"Control Detail: {blocks} {plural(blocks, 'control')} under {len(detail)} "
-              f"object {plural(len(detail), 'heading')}")
+    unwritten = _write_blocks(elements, detail, heading=True)
+    report = (f"Detailed Findings and Recommendations: {len(detail)} "
+              f"{plural(len(detail), 'block')} over "
+              f"{len({one.control.control_id for one in detail})} controls")
     if unwritten:
         report += f", {unwritten} lines marked MANUAL for a consultant to write"
     return elements, [report]
+
+
+def write_coverage(detail: list) -> tuple[list, list]:
+    """Assessment Coverage: the same blocks, for the controls that report on the REVIEW.
+
+    A SECTION OF ITS OWN, Jason 2026-11-06 and again 2026-11-09. Every row here records
+    configuration this assessment could not read - under the estate's heading each one would be
+    read as a finding against a firewall, which is the opposite of what it says.
+    """
+    if not detail:
+        return [], []
+    elements = [
+        p.paragraph(p.HEADING_1, COVERAGE_SUBJECT),
+        p.paragraph(p.NORMAL,
+                    "These blocks are about the review rather than about the estate: each one "
+                    "records configuration this assessment could not read, and what it would "
+                    "take to close the gap. They carry a severity because an unread setting is "
+                    "an ungraded one, not a setting known to be right."),
+    ]
+    unwritten = _write_blocks(elements, detail, heading=True)
+    report = f"{COVERAGE_SUBJECT}: {len(detail)} {plural(len(detail), 'block')}"
+    if unwritten:
+        report += f", {unwritten} lines marked MANUAL for a consultant to write"
+    return elements, [report]
+
+
+def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
+    """The blocks themselves, grouped under their severity. Returns the MANUAL lines written."""
+    unwritten = 0
+    grade = None
+    for one in detail:
+        if heading and one.severity != grade:
+            grade = one.severity
+            elements.append(p.paragraph(p.HEADING_2,
+                                        Control.Severity(grade).label))
+        title = p.paragraph(p.HEADING_3, one.control.name)
+        p.bookmark(title, one.anchor, int(one.anchor.removeprefix("_Ref")))
+        elements.append(title)
+        elements.append(p.table(control_detail_rows(one), DETAIL_GRID, width=FIXED_WIDTH))
+        elements.append(p.paragraph(p.NORMAL, ""))
+        # THE ONE LINE OUTSIDE THE TABLE, and the only one of the four allowed to carry a
+        # screen path - `Device > Server Profiles > LDAP` - because a path is what it is.
+        elements.append(p.lead_paragraph(
+            p.NORMAL, "Where to confirm it.",
+            one.control.where_to_confirm
+            or detail_placeholder("where_to_confirm", one.control.control_id)))
+        unwritten += sum(1 for line, _label in DETAIL_LINES
+                         if not getattr(one.control, line))
+        unwritten += 0 if one.control.where_to_confirm else 1
+        unwritten += 0 if one.matched else 1
+    return unwritten
 
 
 # --------------------------------------------------------------------------------------------
@@ -1000,7 +1002,7 @@ def write_contents() -> list:
 
 
 def write_executive_summary(engagement: Engagement, captions: p.CaptionCounters,
-                            groups: list) -> tuple[list, str]:
+                            detail: list) -> tuple[list, str]:
     """FIXED prose, then the one GENERATED table an executive reads."""
     elements = [
         p.paragraph(p.HEADING_1, "Executive Summary"),
@@ -1024,7 +1026,7 @@ def write_executive_summary(engagement: Engagement, captions: p.CaptionCounters,
                     "Closing (Documentation and review of findings and recommendations)"),
         p.paragraph(p.HEADING_2, "Summary of Findings and Recommendations"),
     ]
-    rows, report = summary_of_findings_rows(groups)
+    rows, report = summary_of_findings_rows(detail)
     elements.append(captions.table("Summary of Findings and Recommendations"))
     elements.append(p.table(rows, SUMMARY_GRID, width=(5000, "pct")))
     elements.append(p.paragraph(p.NORMAL, ""))
@@ -1036,27 +1038,31 @@ def write_executive_summary(engagement: Engagement, captions: p.CaptionCounters,
     return elements, report
 
 
-def summary_of_findings_rows(groups: list) -> tuple[list, str]:
-    """`# | Finding/Observation | Recommendation | Importance`, one row per remediation group.
+def summary_of_findings_rows(detail: list) -> tuple[list, str]:
+    """`# | Finding/Observation | Recommendation | Importance`, one row per control and severity.
 
     The template's comment on this table: *"Tie these to the Recommendations section of this
     document. Order the findings by priority, if applicable."*
 
-    ONE ROW PER REMEDIATION GROUP, not one per control. 203 of the catalogue's 218 controls have
-    findings on the lab, and that is not an executive summary. A remediation group is one object
-    kind and one body of work - `Antivirus profile`, `Security rule` - which is the unit somebody
-    schedules, and the surface already computes what a row needs. The Recommendation cell is the
-    group's worst control's `Control.remediation`, which the catalogue already writes
-    client-facing (see `sheets.controls`).
+    ONE ROW PER BLOCK OF THE DETAIL SECTION, in the same order, each one a link to its block.
+    This table used to be one row per REMEDIATION GROUP named after the group's worst control,
+    which put `Source/Destination Address Breadth Bounded. 75,664 findings.` on a client's
+    page when that control's own findings were 5,428 and the other 70,236 belonged to the
+    fifteen other controls of the Security rule group (Jason, 2026-11-09). A row now counts
+    exactly what it names.
 
-    ORDERED BY WORST SEVERITY, THEN BY FINDING COUNT DESCENDING. "Order the findings by
-    priority" with the volume as the tie-break, so the biggest piece of work at each grade comes
-    first.
+    AND IT IS SPLIT BY SEVERITY. Jason, 2026-11-09: *"If there are 10000 medium and 1 critical,
+    that would be a misrepresentation of the facts."* A control graded both ways is two rows
+    carrying their own counts, not one row carrying the worse grade and both.
 
-    IT IS COMPLETE, and on the lab that is 69 rows - one per remediation group with findings.
-    Flagged for Jason: he may want it capped, or restricted to critical and high. Capping it here would be a policy decision
-    nobody has made, and a summary that silently stopped at twenty would be worse than a long
-    one.
+    THE RECOMMENDATION REPEATS ON EACH OF A CONTROL'S ROWS, and that was the call rather than
+    an oversight (Jason, 2026-11-09: *"leave it"*). 61 of the lab's 264 rows repeat the row
+    above them this way, and the alternative - a blank cell on the second and third - costs a
+    reader skimming one severity band the remedy for what they are looking at.
+
+    IT IS COMPLETE, and on the lab that is 264 rows over 203 controls, about eleven pages. That
+    is what a comprehensive catalog earns: *"Yes it will be long, but that's simply because
+    we have a very comprehensive set of controls."*
     """
     rows = [[
         p.text_cell("#", width=SUMMARY_WIDTHS[0], style=p.TABLE_HEADING),
@@ -1064,19 +1070,21 @@ def summary_of_findings_rows(groups: list) -> tuple[list, str]:
         p.text_cell("Recommendation", width=SUMMARY_WIDTHS[2], style=p.TABLE_HEADING),
         p.text_cell("Importance", width=SUMMARY_WIDTHS[3], style=p.TABLE_HEADING),
     ]]
-    ranked = sorted(
-        groups, key=lambda summary: (-SEVERITY_RANK[summary.worst], -summary.findings,
-                                     summary.label))
-    for number, summary in enumerate(ranked, start=1):
+    for number, one in enumerate(detail, start=1):
         rows.append([
             # A LITERAL NUMBER in `Table - Text` rather than the template's own
             # `Table - List Number 1`. That style is a numbered list, so a cell holding the text
             # "7" under it renders "7. 7"; the numbers are known at build time for the same
             # reason the captions are literal.
             p.text_cell(str(number), width=SUMMARY_WIDTHS[0]),
-            p.text_cell(summary.observation, width=SUMMARY_WIDTHS[1]),
-            p.text_cell(summary.recommendation, width=SUMMARY_WIDTHS[2]),
-            p.rating_cell(summary.worst, Control.Severity(summary.worst).label,
+            p.Cell(paragraphs=[
+                p.link_paragraph(p.TABLE_TEXT, one.control.name, one.anchor, tight=True),
+                p.paragraph(p.TABLE_TEXT, findings_phrase(one), tight=True)],
+                width=SUMMARY_WIDTHS[1]),
+            p.text_cell(one.control.short_remediation or manual(
+                f"write a short_remediation for {one.control.control_id} - one imperative "
+                f"sentence, 100 characters or fewer"), width=SUMMARY_WIDTHS[2]),
+            p.rating_cell(one.severity, Control.Severity(one.severity).label,
                           width=SUMMARY_WIDTHS[3]),
         ])
     if len(rows) == 1:
@@ -1095,15 +1103,17 @@ def summary_of_findings_rows(groups: list) -> tuple[list, str]:
         else:
             rows.append([
                 p.text_cell("—", width=SUMMARY_WIDTHS[0]),
-                p.text_cell("No controls are active in this deployment's catalogue, so nothing "
-                            "has been assessed and there is nothing to summarise.",
+                p.text_cell("No controls are active in this deployment's catalog, so nothing "
+                            "has been assessed and there is nothing to summarize.",
                             width=SUMMARY_WIDTHS[1]),
-                p.text_cell("Apply a controls catalogue and run findings.",
+                p.text_cell("Apply a controls catalog and run findings.",
                             width=SUMMARY_WIDTHS[2]),
                 p.rating_cell(None, "Not assessed", width=SUMMARY_WIDTHS[3]),
             ])
-    return rows, (f"Summary of Findings and Recommendations: {len(ranked)} rows, one per "
-                  f"remediation group with findings")
+    return rows, (f"Summary of Findings and Recommendations: {len(detail)} "
+                  f"{plural(len(detail), 'row')} over "
+                  f"{len({one.control.control_id for one in detail})} controls, each linked to "
+                  f"its block")
 
 
 @dataclass
@@ -1359,7 +1369,7 @@ def risk_rating_rows() -> list:
 # The health check itself: the two observation tables and the rule-class tables
 # --------------------------------------------------------------------------------------------
 
-def write_health_check(engagement: Engagement, measured: Measured, subjects: list,
+def write_health_check(engagement: Engagement,
                        captions: p.CaptionCounters) -> tuple[list, list]:
     elements = [
         p.paragraph(p.HEADING_1, fill("[Shortname] Firewall Health Check", engagement)),
@@ -1375,46 +1385,24 @@ def write_health_check(engagement: Engagement, measured: Measured, subjects: lis
                     "Based on the review and discussions with the Network team, the review "
                     "results are summarized in the table below."),
         p.paragraph(p.NORMAL,
-                    "These results pertain to the global network and security environment. A "
-                    "specific review of the currently installed firewall policies is presented "
-                    "in the next section."),
+                    "These results pertain to the global network and security environment. "
+                    "Every control that raised a finding is set out in Detailed Findings and "
+                    "Recommendations, in the order the summary table lists them."),
         captions.table("Process Observations"),
         p.table(process_observation_rows(), OBSERVATION_GRID, width=(5000, "pct")),
     ]
     reports = ["Process Observations: 5 placeholder rows, all interview findings"]
 
-    # NO PANORAMA SECTION. Every control in the catalogue reads a firewall's own
-    # configuration and every rule it graded was a firewall rule, so the section had a
-    # heading, two paragraphs explaining why it was empty, and nothing else. Jason,
-    # 2026-11-06: *"All of the controls and findings in OEA today are firewall-oriented"*,
-    # and then *"we can just drop the panorama section"*. What Panorama holds is still in
-    # the document: the containers table under Approach/Methodology names every device
-    # group and template, and the remediation pages name the one each fix is made in.
-    elements.append(p.paragraph(p.HEADING_2, "PAN Firewall(s)"))
-    elements.append(p.paragraph(p.HEADING_3, "Review and Analysis of Firewall(s)"))
-    elements.append(p.paragraph(p.NORMAL,
-                                "Optiv was able to perform a review of the PAN firewall(s) "
-                                "environment."))
-    estate = [subject for subject in subjects if subject.name != COVERAGE_SUBJECT]
-    elements.append(captions.table("Firewall Observations"))
-    elements.append(p.table(subject_rows(estate), OBSERVATION_GRID, width=(5000, "pct")))
-    reports.append(f"Firewall Observations: {len(estate)} subjects, "
-                   f"{sum(len(subject.rows) for subject in estate)} rows")
-    coverage = [subject for subject in subjects if subject.name == COVERAGE_SUBJECT]
-    if coverage:
-        # A SECTION OF ITS OWN. These controls report on what THIS REVIEW could not read, not on
-        # anything a firewall is doing, and under either device heading they would be read as a
-        # finding against the estate.
-        elements.append(p.paragraph(p.HEADING_2, COVERAGE_SUBJECT))
-        elements.append(p.paragraph(p.NORMAL,
-            "These rows are about the review rather than about the estate: each one records "
-            "configuration this assessment could not read, and what it would take to close the "
-            "gap. They carry a severity because an unread setting is an ungraded one, not "
-            "because the firewall is doing anything wrong."))
-        elements.append(captions.table("Assessment Coverage"))
-        elements.append(p.table(subject_rows(coverage), OBSERVATION_GRID, width=(5000, "pct")))
-        reports.append(f"Assessment Coverage: "
-                       f"{sum(len(subject.rows) for subject in coverage)} rows")
+    # NO PANORAMA SECTION, AND SINCE 2026-11-09 NO FIREWALL ONE EITHER. Every control in the
+    # catalogue reads a firewall's own configuration and every rule it graded was a firewall
+    # rule, so the Panorama section had a heading, two paragraphs explaining why it was empty,
+    # and nothing else - Jason, 2026-11-06: *"we can just drop the panorama section"*. The
+    # firewall section went the same way three days later: what stood under it was the Firewall
+    # Observations table, which printed, per control and severity, the count and the firewalls
+    # that every Detailed Findings block already prints. Jason, 2026-11-09: *"it goes. It was a
+    # bit awkward anyway"*. What Panorama holds is still in the document - the containers table
+    # under Approach/Methodology names every device group and template, and the remediation
+    # pages name the one each fix is made in.
     return elements, reports
 
 
@@ -1585,7 +1573,7 @@ def priority_rows(groups: list) -> list:
 def benefit_risk_rows(selected: list) -> list:
     """`Recommendation | Benefit | Risk`.
 
-    The Risk column is `Control.rationale` - the catalogue's own one-sentence statement of why
+    The Risk column is `Control.rationale` - the catalog's own one-sentence statement of why
     the finding matters, written client-facing - carried as a bullet the way the template carries
     it. The Benefit column carries the measured reach of the change; see `BENEFIT_NOTE`.
     """
@@ -1665,7 +1653,7 @@ def device_rows(engagement: Engagement) -> tuple[list, str]:
     review. Its own cells say `Not collected` rather than carrying a firewall's values - see
     `health_check_areas` for why there are none.
 
-    `URL Filtering` is read off the licence inventory and `SSL Decryption` off the decryption
+    `URL Filtering` is read off the license inventory and `SSL Decryption` off the decryption
     rulebase verdict, because those are the two questions the column headings ask: whether the
     subscription is held, and whether decryption is actually in force.
     """
@@ -1748,7 +1736,7 @@ def url_filtering_cell(inventory) -> str:
     if held:
         return "Licensed: " + ", ".join(held)
     if not inventory.entitlement_features_held:
-        return "No licence rows returned"
+        return "No license rows returned"
     return "Not licensed"
 
 
@@ -1837,7 +1825,7 @@ def check_every_finding_reached_the_spine(measured: Measured) -> None:
     other way round. It used to ask whether every finding's control had been mapped into an
     Area by hand; with the headings derived from `FindingKind.common_name` the only way to fail
     is a finding against a control whose type no finding kind claims - which `read_subjects`
-    refuses outright - or against a control the catalogue no longer holds.
+    refuses outright - or against a control the catalog no longer holds.
     """
     kinds = {kind.control_type: kind for kind in finding_registry.FINDING_KINDS}
     named = {control.control_id
@@ -1853,23 +1841,19 @@ def check_every_finding_reached_the_spine(measured: Measured) -> None:
             f"({', '.join(sorted(missed))}), so they would not appear in it at all.")
 
 
-def build_health_check_document(*, today: dt.date | None = None, revision: str = "1.0",
-                               control_detail: bool = False) -> tuple[bytes, list[str]]:
+def build_health_check_document(*, today: dt.date | None = None,
+                               revision: str = "1.0") -> tuple[bytes, list[str]]:
     """The document as bytes, and the line each section reports about itself.
 
     Bytes and no path, for the reason `build_workbook` gives: "the caller decides whether that is
     a download, a stored artifact or a test."
 
-    `control_detail` ADDS THE CONTROL DETAIL SECTION, and defaults to OFF. Jason, 2026-11-06:
-    *"I want to insert an optional section just before the 'recommendations' section. This
-    section will provide more detail on each control that has a finding."* 203 of the 216 active
-    controls raised a finding on the lab, so that section is some forty pages and about doubles
-    the document - which is why it is asked for rather than assumed. Asked for by a PARAMETER
-    and not by a severity floor (P554a, 2026-11-06): whether a client wants to follow controls
-    up one at a time is a decision about the engagement, not a property of the findings, and a
-    floor would answer a question nobody asked by printing a quarter of them. The downloads
-    page's own checkbox is ticked by default, so the engineer gets it unless they say otherwise
-    and a caller that says nothing gets the shorter document.
+    THE DETAIL IS NO LONGER OPTIONAL. It was a parameter defaulting to OFF, on the reading
+    that forty pages of control blocks about doubles the document and a client might not want
+    them. That reading died with the Firewall Observations table: the counts a reader needs now
+    break out in the detail and nowhere else, so a build without it ships a summary whose rows
+    link into empty space. Jason, 2026-11-09: *"Control Detail is no longer optional. We can
+    remove that code entirely."*
 
     `revision` IS A PARAMETER AND NOTHING SUPPLIES IT YET. It goes on the cover and into the
     Version Control table, and nothing in the estate holds a document revision - there is no
@@ -1888,31 +1872,29 @@ def build_health_check_document(*, today: dt.date | None = None, revision: str =
     captions = p.CaptionCounters()
     groups, groups_report = read_groups(measured)
     containers, containers_report = read_containers()
-    subjects, subjects_report = read_subjects(measured)
+    estate, coverage = split_coverage(read_control_detail(measured, remediation_places()))
 
-    elements, reports = [], [*scope_lines, groups_report, containers_report, subjects_report]
+    elements, reports = [], [*scope_lines, groups_report, containers_report]
     elements.extend(write_contents())
     #: Where the contents line goes in the report - ahead of the sections, as on the page. Its
     #: count is not known until they have all been written.
     contents = len(reports)
     for section in (
-        lambda: write_executive_summary(engagement, captions, groups),
+        lambda: write_executive_summary(engagement, captions, estate),
         lambda: write_project_overview(engagement, containers, captions),
     ):
         produced, report = section()
         elements.extend(produced)
         reports.append(report)
 
-    produced, section_reports = write_health_check(engagement, measured, subjects, captions)
+    produced, section_reports = write_health_check(engagement, captions)
     elements.extend(produced)
     reports.extend(section_reports)
 
-    if control_detail:
-        produced, section_reports = write_control_detail(read_control_detail(measured))
+    for section in (lambda: write_control_detail(estate), lambda: write_coverage(coverage)):
+        produced, section_reports = section()
         elements.extend(produced)
         reports.extend(section_reports)
-    else:
-        reports.append("Control Detail: left out - this build did not ask for it")
 
     produced, section_reports = write_recommendations(engagement, groups, captions)
     elements.extend(produced)
