@@ -32,7 +32,7 @@ that reads from outside like a compliant estate.
     filters it with an inverted `__isnull` on the column because a property cannot appear in a
     WHERE clause".
   * `permits_high_risk_application` is `null=True` where FALSE WOULD MEAN CHECKED AND CLEAN, and
-    the normaliser writes NULL on every row in the estate - `/config/predefined/application` is a
+    the normalizer writes NULL on every row in the estate - `/config/predefined/application` is a
     read no collector issues. `eq true` therefore matches nothing today, which is honest and is
     PAN-POL-006's whole condition; `eq false` would ALSO match nothing, and a reader who expects
     it to mean "checked and found clean" would be reading a column that has never been checked.

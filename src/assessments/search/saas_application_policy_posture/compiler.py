@@ -25,7 +25,7 @@ converts either placement into a threshold-shaped query breaks it.
 `deny` IS NOT THE ONLY REFUSAL, which is why the baseline reads the verdict and not the action.
 The `action` leaf's value set is six, measured identically on all four lab appliances with
 `@default='yes'` on `allow`, and `drop`, `reset-client`, `reset-server` and `reset-both` are all
-denials in this control's sense while none of them is the string `deny` that the catalogue's own
+denials in this control's sense while none of them is the string `deny` that the catalog's own
 set command writes. A query matching the literal would report a compliant partition as failing.
 
 PAN-SAS-004's SECOND RECORD ASSERTS ON THIS MODEL AND PAN-SAS-004 CANNOT TARGET IT.

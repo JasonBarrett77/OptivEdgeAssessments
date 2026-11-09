@@ -11,7 +11,7 @@ the grain at which every column has exactly one value.
 
 WHAT IS SHOWN AS STORED. `vsys_display_name` is printed as collected. Panorama invents it when a
 vsys has no label, so "vsys6 / vsys6" is not a defect in the sheet, and a display name can even
-name a different slot (the lab's vsys8 is labelled "vsys1"). Key on the Vsys column.
+name a different slot (the lab's vsys8 is labeled "vsys1"). Key on the Vsys column.
 
 WHAT IT REFUSES TO DO. Write a sheet that omits an in-scope enforcement point or one of its
 nodes.

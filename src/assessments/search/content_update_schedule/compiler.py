@@ -20,7 +20,7 @@ The columns are stored and presented; they are not queried.
 
 THE EMPTY STRING IS A REACHABLE STATE OF ALL TEN TEXT COLUMNS, AND `is_empty` IS THE ONLY
 OPERATOR IN THIS LANGUAGE THAT REACHES IT POSITIVELY. An appliance whose `deviceconfig/system`
-node arrived empty holds `""` on every recurrence and action column - the normaliser writes it
+node arrived empty holds `""` on every recurrence and action column - the normalizer writes it
 rather than `none`, because `none` would say "we read it and nothing is scheduled" about a reply
 nobody received. The text filter's `eq` arm REFUSES an empty value outright (`not
 value.strip()`), so a query that must name that state positively has to use `is_empty`, whose arm
@@ -29,14 +29,14 @@ negates selects only rows holding the named token.
 
 THIS IS WHY THE COLUMNS ARE REGISTERED AS TEXT AND NOT THROUGH A CHOICE COMPILER. A compiler
 reading its members off a `choices` list could not express the empty state at all, and these
-columns carry no `choices`: the normaliser writes the device's own branch name, and a cadence a
+columns carry no `choices`: the normalizer writes the device's own branch name, and a cadence a
 later PAN-OS build adds should REPORT rather than be refused here. The cost is named rather than
-hidden - a misspelled token in a catalogue payload compiles and matches nothing - and what limits
+hidden - a misspelled token in a catalog payload compiles and matches nothing - and what limits
 it is that every baseline in this domain is a negated equality, so a typo in a calibration loses
 a RANK and never a finding.
 
 AND ONE ASYMMETRY BETWEEN THE TWO COLUMN FAMILIES, because it decides what a partition over them
-can claim. The RECURRENCE columns are closed: the normaliser collapses any branch name outside
+can claim. The RECURRENCE columns are closed: the normalizer collapses any branch name outside
 the measured set to `none`, so a recurrence column holds a measured member, `none`, or `""` and
 nothing else. The ACTION columns are NOT closed in the same way: the leaf's value is passed
 through verbatim with only a falsy fallback to `none`, so a third action token the grammar might

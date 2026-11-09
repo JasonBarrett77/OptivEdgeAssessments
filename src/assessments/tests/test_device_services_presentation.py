@@ -1,4 +1,4 @@
-"""The five `device-services` findings tabs, and every cell on them that was a judgement.
+"""The five `device-services` findings tabs, and every cell on them that was a judgment.
 
 Stage 9 of the OptivEdgeProbe pipeline, domain `device-services`, 2026-11-03. Nothing obliges a
 stage 9 run to add a test file; a new tab that nothing asserts on is a tab the next refactor can
@@ -15,10 +15,10 @@ table.rows:` iterates nothing and passes. That has already shipped once, in
 `test_platform_lifecycle_presentation`. The helper makes it impossible here, and it is called in
 the tests that need rows rather than in `setUp`, so the heading tests do not pay a finding run.
 
-THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALISED, and that is deliberate: the
-normalisers are stage 7's and have their own tests, the stage 6 payloads live in another
+THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALIZED, and that is deliberate: the
+normalizers are stage 7's and have their own tests, the stage 6 payloads live in another
 repository and are gitignored, and what this file is about is what a ROW SAYS once the columns
-hold known values. Every value below is the one the committed normalisers produced for the
+hold known values. Every value below is the one the committed normalizers produced for the
 appliance named beside it when this run built the domain's estate from its stage 6 artifact
 through `print_findings_table`, transcribed by hand.
 
@@ -142,7 +142,7 @@ class DeviceServicesPresentationTests(TestCase):
 
         THE FOUR PROVENANCE ROWS ARE THE STORED KEYS NO CONTROL CLAUSES ON, which is the whole of
         why this tab needs a sheet-level provenance cell (P451, the `saas-security` shape): the
-        normaliser calls `write_node_row` WITH a provenance list and every field in it is a key
+        normalizer calls `write_node_row` WITH a provenance list and every field in it is a key
         the clause columns are computed FROM, so the default cell never reads one and prints
         "Not recorded" about a column the model declares derived.
         """
@@ -258,7 +258,7 @@ class DeviceServicesPresentationTests(TestCase):
         provenance cell: it is stored, is not derived, carries no `FieldProvenance` row, and this
         model carries no `__entry__` row either, so the fourth case's usual remedy does not
         exist here. `ServiceRoute` is seeded with NO provenance rows at all, which is what the
-        normalisers do."""
+        normalizers do."""
         device_local = scope == "device-local"
         return ServiceRoute.objects.create(
             scope=scope, vsys_name=vsys_name,
@@ -409,8 +409,11 @@ class DeviceServicesPresentationTests(TestCase):
 
         route = self.cells(self.table("service-routes"), "PAN-SVC-006", "pan-fw-201")
         self.assertEqual(route["Firewall-wide path posture"], "No path set for a sensitive service")
+        # `customized` IS OptivEdgeIntegrations' OWN CHOICES LABEL - see
+        # `integrations.models.device_services` - which the 2026-11-09 spelling sweep did not
+        # reach. Asserted as the code spells it rather than as the deliverable should.
         self.assertEqual(route["Virtual system path posture"],
-                         "Neither inheritance nor a customised path recorded")
+                         "Neither inheritance nor a customized path recorded")
         # The subject lambda, not a `value_reader`: an identity column can call the display
         # method without paying the reader's price.
         self.assertEqual(route["Scope"], "The firewall-wide paths")
@@ -452,7 +455,7 @@ class DeviceServicesPresentationTests(TestCase):
         ACROSS rows and never meet in one cell.
 
         The default prints "Not recorded" somewhere on every row of all five tabs, about columns
-        the models declare derived (P451, the `saas-security` shape): these normalisers call
+        the models declare derived (P451, the `saas-security` shape): these normalizers call
         `write_node_row` WITH a provenance list and every field in it is a stored key the clause
         columns are computed FROM rather than a field a control clauses on.
         """
@@ -551,7 +554,7 @@ class DeviceServicesPresentationTests(TestCase):
     def test_every_row_marks_something_as_the_value_at_fault(self):
         """`implicated` marks the fields the MATCHED queries assert on, read from
         `ControlQuery.asserted_fields`, and falls back to every tested field only where that list
-        is empty. Measured over the shipped catalogue 2026-11-03: all 33 PAN-SVC queries carry
+        is empty. Measured over the shipped catalog 2026-11-03: all 33 PAN-SVC queries carry
         `asserted_fields`, so no row on these tabs takes the fallback - and no row is unmarked,
         which is the thing a non-empty `hidden_fields` would have cost."""
         self.everything()
@@ -672,7 +675,7 @@ class DeviceServicesPresentationTests(TestCase):
         self.assertEqual(device_local[4], "No path set for a sensitive service")
         vsys = next(r for r in rows if r[1] == "One virtual system's own set")
         self.assertEqual(vsys[2], "vsys1")
-        self.assertEqual(vsys[4], "Neither inheritance nor a customised path recorded")
+        self.assertEqual(vsys[4], "Neither inheritance nor a customized path recorded")
 
     # ------------------------------------------------------------------ the description
 
@@ -681,7 +684,7 @@ class DeviceServicesPresentationTests(TestCase):
         synchronized is not assessed - that is live device state, not configuration", while
         PAN-SVC-001's third and fourth calibrations clause on `synched_to_a_configured_server`
         and `time_source_in_force`, one of them graded `high`, and both are drawn columns on this
-        tab. The catalogue says which half was wrong, in its own words: PAN-SVC-001's description
+        tab. The catalog says which half was wrong, in its own words: PAN-SVC-001's description
         carries "AND SYNCHRONIZATION IS NOW ASSESSED, which this paragraph said it was not until
         2026-11-01"."""
         description = DOMAIN_BY_SLUG["ntp"].spec.description

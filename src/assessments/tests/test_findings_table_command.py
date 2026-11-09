@@ -62,7 +62,7 @@ class ReadBackGrammarTests(SimpleTestCase):
 
     def test_a_null_value_is_an_empty_tag_and_not_a_null_leaf(self):
         """`<action><block/></action>`. This is the rule that makes PAN-OS choice nodes come out
-        right without a schema, and getting it wrong hands the normaliser a null it reads as
+        right without a schema, and getting it wrong hands the normalizer a null it reads as
         absent."""
         # stage6-zone-dos-protection.json, oep-zdp6-r01 and oep-zdp6-z01
         entry = entry_from_read_back([
@@ -115,7 +115,7 @@ class ReadBackGrammarTests(SimpleTestCase):
     def test_a_declared_choice_node_takes_its_value_as_a_child_tag(self):
         """The one construct the grammar cannot derive. stage6-url-filtering.json spells
         `credential-enforcement/mode` with the value `"ip-user"`, but the device holds
-        `<mode><ip-user/></mode>`, so without this the normaliser reads the mode as absent."""
+        `<mode><ip-user/></mode>`, so without this the normalizer reads the mode as absent."""
         entry = entry_from_read_back(
             [{"key": "credential-enforcement/mode", "value": "ip-user"},
              {"key": "credential-enforcement/log-severity", "value": "informational"}],
@@ -198,7 +198,7 @@ class XpathPlacementTests(SimpleTestCase):
 
 class DeviceNameTests(SimpleTestCase):
     def test_the_entry_name_is_read_off_the_xpath_not_the_label(self):
-        """In stage6-ipsec-crypto.json twenty-eight of thirty-one subjects are labelled
+        """In stage6-ipsec-crypto.json twenty-eight of thirty-one subjects are labeled
         differently from the entry they name. Each thrown-away seeder hard-coded the ones it
         needed; the xpath carries all of them."""
         subject = _subject(
@@ -220,7 +220,7 @@ class DeviceNameTests(SimpleTestCase):
         self.assertEqual(vsys_names_from_stage6(stage6), {SERIAL: {"vsys3"}})
         only_device_local = {"domain": "d", "subjects": {
             "b": _subject(f"{DEVICE}/deviceconfig/setting/session", [])}}
-        # An appliance with no enforcement point is an appliance nothing normalises, because
+        # An appliance with no enforcement point is an appliance nothing normalizes, because
         # every in-scope selector in flows.py reads through the points.
         self.assertEqual(vsys_names_from_stage6(only_device_local), {SERIAL: {"vsys1"}})
 
@@ -242,7 +242,7 @@ class BaseEstateTests(TestCase):
     def test_trap_one_every_enforcement_point_is_in_scope(self):
         """`in_scope` DEFAULTS FALSE, and `flows.get_in_scope_appliances`,
         `get_in_scope_appliance_groups` and `get_in_scope_enforcement_points` ALL select through
-        `filter(in_scope=True)`. Leave it default and the whole command normalises nothing and
+        `filter(in_scope=True)`. Leave it default and the whole command normalizes nothing and
         reports a clean estate - which cost one run a wrong row count it read as a finding."""
         from optivedge_integrations.integrations.platforms.pan_os.flows import (
             get_in_scope_appliance_groups, get_in_scope_appliances,
@@ -416,7 +416,7 @@ class XpathSlashInNameTests(SimpleTestCase):
 class SupplementalNormalizerTests(SimpleTestCase):
     """`_estate.SUPPLEMENTAL_NORMALIZERS` against the flow it claims to supplement.
 
-    The list is a claim about `flows.py` - that these normalisers are unreachable from it - and
+    The list is a claim about `flows.py` - that these normalizers are unreachable from it - and
     a claim about another repository goes stale silently. The first version of the list was read
     off a naming convention, found two of the seven, and left `ipsec-crypto` with every subject
     model empty and 64 reconciliation mismatches. So the claim is checked rather than asserted.
@@ -445,7 +445,7 @@ class SupplementalNormalizerTests(SimpleTestCase):
             self.assertEqual(first, grain, f"{name} takes {first}, not {grain}")
 
     def test_none_of_them_is_reachable_from_the_flow(self):
-        """If one becomes reachable, running it here would normalise the same subtree twice. The
+        """If one becomes reachable, running it here would normalize the same subtree twice. The
         passes replace wholesale rather than upsert, so a double run is not harmful - but the
         list would then be claiming something false, and the next entry added on that basis
         would be wrong."""

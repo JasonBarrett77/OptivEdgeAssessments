@@ -7,9 +7,9 @@ NO SHIPPED CONTROL QUERIES THIS MODEL TODAY, and that is a recorded state rather
 oversight. PAN-NET-003's assertions name TWO subjects - the per-interface announcement and this
 device-wide enable - and `Control._CONTROL_TYPE_TARGET_MODEL` is one-to-one while
 `ControlQuery.clean()` refuses a query whose model differs from its control's target, so one
-catalogue control cannot hold both. The per-interface half took the control id, because seven of
+catalog control cannot hold both. The per-interface half took the control id, because seven of
 the ten expectations stage 6 wrote for PAN-NET-003 are on it and all of its graded severities
-are. Splitting PAN-NET-003 into two catalogue ids changes what a customer's report contains and
+are. Splitting PAN-NET-003 into two catalog ids changes what a customer's report contains and
 is Jason's decision, not a run's; this package exists so that the query is writable the moment
 he makes it. See `pipeline/artifacts/stage8-network-hardening.json`,
 `diff.subjects_in_two_models`.

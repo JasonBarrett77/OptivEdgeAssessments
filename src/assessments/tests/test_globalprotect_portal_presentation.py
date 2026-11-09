@@ -1,7 +1,7 @@
 """The three globalprotect-portal findings tabs and the three rail items, pinned. Stage 9.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and
 a new tab nothing asserts on is one the next refactor can break silently.
 
   - THE FOUR `value_readers`, which are the single largest thing this stage changed about what a
@@ -509,10 +509,13 @@ class GlobalProtectPortalTabTestCase(TestCase):
         self.assertEqual("4", cells["Portals"])
         self.assertEqual("1 app(s), 0 group(s), published by 1 portal(s)",
                          cells["Clientless definitions"])
-        # The licence cell is what "No" in the applicability column actually covers: this estate
+        # The license cell is what "No" in the applicability column actually covers: this estate
         # was never asked, which is NOT the same as licensed.
-        self.assertEqual("The appliance reported no licences at all, or was never asked "
-                         "(0 licence entries read)", cells["GlobalProtect licence"])
+        # `no licenses` IS OptivEdgeIntegrations' OWN CHOICES LABEL, which the 2026-11-09
+        # spelling sweep did not reach - see `integrations.models.globalprotect`. The second
+        # half of the sentence is this repo's and was swept.
+        self.assertEqual("The appliance reported no licenses at all, or was never asked "
+                         "(0 license entries read)", cells["GlobalProtect license"])
         self.assertEqual("No", cells["Licensing rules GlobalProtect out"])
 
     # ------------------------------------------------------------------ marks

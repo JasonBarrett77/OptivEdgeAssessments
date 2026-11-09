@@ -4,7 +4,7 @@ marked, and the cells that say more than a field holds.
 WHY THIS FILE EXISTS. The stage 9 run of the `device-id-iot` domain built all three tabs and read
 all 13 rows, and the things it could not settle were report content - what the derived columns are
 headed, and what a cell should say where the shared `display_value` has no word for the state.
-Nothing in this repo held any of those, so each was a judgement the next change could undo in
+Nothing in this repo held any of those, so each was a judgment the next change could undo in
 silence. Three of them are not cosmetic:
 
   - AN EMPTY DEVICE-ID ADDRESS LIST IS THE VENDOR'S `any`, NOT A BLANK. Stage 4 measured the grid
@@ -23,7 +23,7 @@ silence. Three of them are not cosmetic:
     all, so PAN-IOT-003's applicability clause narrowed the row OUT of the graded comparison;
     `(none)` in a column of day counts reads as a value somebody failed to fill in.
 
-AND ONE THING THAT IS NOT A JUDGEMENT BUT A DEFECT, pinned so that fixing it shows up as a test
+AND ONE THING THAT IS NOT A JUDGMENT BUT A DEFECT, pinned so that fixing it shows up as a test
 change rather than silently: `integrations.Zone` tracks no per-field provenance, so the Provenance
 cell on the Security Zones tab cannot say whether a zone is local or pushed from a template. The
 test below asserts the honest sentence it prints instead. If Zone ever becomes a `ProvenancedMixin`
@@ -411,13 +411,13 @@ class BothContentInstrumentsAreOnTheRow(DeviceIdTabTestCase):
         self.assertEqual("2024-07-22T16:20:06PDT", current_build)
 
     def test_the_licence_companion_separates_not_entitled_from_never_asked(self):
-        """On an appliance holding no licences the whole reply is `{'licenses': None}`, which is
+        """On an appliance holding no licenses the whole reply is `{'licenses': None}`, which is
         exactly what a collector that never issued the command produces. Both lab appliances
         ANSWERED, so the companion reads Yes on both and the subscription column carries the
         finding on its own."""
         for appliance in ("fw-core-tpa-a", "pan-fw-111"):
             self.assertEqual("Yes", self.cell("iot-security", "PAN-IOT-001", appliance,
-                                              "Licence listing answered"), appliance)
+                                              "License listing answered"), appliance)
             self.assertEqual("No", self.cell("iot-security", "PAN-IOT-001", appliance,
                                              "IoT Security subscription in force"), appliance)
 

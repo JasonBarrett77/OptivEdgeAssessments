@@ -13,11 +13,11 @@ THREE THINGS THE SENTENCE IS NOT ALLOWED TO SAY:
 * THAT THE ACTION IS `deny` OR IS NOT. The `action` leaf's value set is six and `drop`,
   `reset-client`, `reset-server` and `reset-both` are all denials in this control's sense while
   none of them is the string `deny`. So the sentence reports the token it read and calls it a
-  refusal or a permission, never the literal the catalogue's set command happens to write.
+  refusal or a permission, never the literal the catalog's set command happens to write.
 * THAT THE FUNCTION APPLICATIONS WERE ENUMERATED. The population comes from the predefined
-  application catalogue, which is delivered by content updates and which this pipeline has not
+  application catalog, which is delivered by content updates and which this pipeline has not
   enumerated - 5,164 entries on one lab build and 5,166 on another. So any count of rules naming
-  a function child application is a LOWER BOUND, and where the catalogue was never collected both
+  a function child application is a LOWER BOUND, and where the catalog was never collected both
   columns hold their firing defaults and the sentence says nobody enumerated them.
 * THAT A REFUSAL IS IN FORCE. A DISABLED RULE COUNTS toward this verdict - the normalizer that
   writes it records that decision and records that it is probably wrong - so where the verdict
@@ -74,9 +74,9 @@ def _function_apps(obj) -> list[str]:
                 "cloud application, so there is no action to read and nothing distinguishes "
                 "browsing an application from moving data into it. That is an absence rather "
                 "than a value, and it is the state the control is most often failed by. The "
-                "population comes from the predefined application catalogue, which content "
+                "population comes from the predefined application catalog, which content "
                 "updates deliver and which this assessment has not enumerated - so if that "
-                "catalogue was never collected, this reads the same as a rulebase nobody walked"]
+                "catalog was never collected, this reads the same as a rulebase nobody walked"]
     prose = ACTION_PROSE.get(
         obj.effective_action_for_function_apps,
         f"carries the action `{obj.effective_action_for_function_apps}`, which no ordering in "
@@ -87,7 +87,7 @@ def _function_apps(obj) -> list[str]:
     if obj.effective_action_for_function_apps == SaasApplicationPolicyPosture.ACTION_ALLOW:
         detail += (" - so the rulebase shows the granularity somebody intended and enforces the "
                    "opposite of it, which is worse than not naming the functions at all")
-    detail += (". The count is a LOWER BOUND over a catalogue delivered by content updates and "
+    detail += (". The count is a LOWER BOUND over a catalog delivered by content updates and "
                "not enumerated here")
     return [detail]
 
@@ -109,7 +109,7 @@ def _attribute_selection(obj) -> list[str]:
                 "cloud service that appears after the policy was written")
     if obj.cloud_app_filter_count and not obj.cloud_app_selection_excludes_approved:
         parts.append(
-            "no such selection carves the organisation's own approved applications out of "
+            "no such selection carves the organization's own approved applications out of "
             "itself - neither by naming them in the filter's exclusion list nor by selecting on "
             "the approval marking - so it catches the approved applications too")
     return parts

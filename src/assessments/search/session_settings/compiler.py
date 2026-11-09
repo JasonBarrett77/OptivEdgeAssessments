@@ -29,7 +29,7 @@ field against the model.
 
 `ipv6_firewalling` GETS NO SUCH FIELD AND CANNOT. It is NON-nullable - the vendor default is
 measured, so an absent key stores true - and a virtual `*_known` field needs a null to detect.
-Only a companion column or a changed default would close it, and both are the normaliser's to
+Only a companion column or a changed default would close it, and both are the normalizer's to
 decide rather than this stage's. PAN-NET-005's declared second query is therefore recorded in the
 stage 8 artifact as one that could not be compiled, and the consequence stands and is reported:
 that control cannot separate "we asked and the device says it is on" from "we never asked".

@@ -1,7 +1,7 @@
 """The two User-ID tabs, and the two shared tabs this domain added a column to.
 
 Written by the stage 9 run of OptivEdgeProbe's `user-id` domain, 2026-11-02. What it pins is the
-part of those tabs that is a JUDGEMENT rather than a derivation: the cell wordings, which cell a
+part of those tabs that is a JUDGMENT rather than a derivation: the cell wordings, which cell a
 row marks as the thing to fix, and the two readings the shared renderer could not have given.
 The squareness checks every spec already gets are in `test_configuration_queries`; nothing here
 repeats them.
@@ -156,7 +156,7 @@ class NoHeadingIsSilentlyRaw(UserIdTabTestCase):
                 self.assertNotIn("_", header, f"{slug} heads a column {header!r}")
 
     def test_the_two_shared_tabs_head_this_domains_column_in_words(self):
-        """Both were built by other domains and neither labelled the field this one brings."""
+        """Both were built by other domains and neither labeled the field this one brings."""
         self.assertIn("Enable User Identification", self.table("security-zones").headers)
         self.assertIn("Listener state measured on this surface",
                       self.table("management-interfaces").headers)

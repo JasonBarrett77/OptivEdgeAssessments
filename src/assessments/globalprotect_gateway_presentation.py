@@ -24,9 +24,9 @@ unexercised. Measured here on 2026-11-02 with the committed seeder
 (`print_findings_table --stage6 ... --stage8 ...`): the real estate builds three
 `GlobalProtectEnforcementPoint` rows and ZERO rows of each of this module's first three models,
 and it reconciles against stage 8's diff at 0 mismatches. So the emptiness is the lab's and the
-artifact's honesty, NOT a defect in the normalisers - both gateway normalisers are wired into
+artifact's honesty, NOT a defect in the normalizers - both gateway normalizers are wired into
 `flows.py` and run - and the rows these three tabs were designed against were built by hand from
-the vendor's own payload grammar. The wordings below are therefore judgements about shapes, not
+the vendor's own payload grammar. The wordings below are therefore judgments about shapes, not
 reports about a customer's firewall.
 
 EVERY HEADING IN THIS MODULE IS A PROPOSAL (P399). Jason takes the heading pass once across many
@@ -236,7 +236,7 @@ def _switch(value) -> str:
     """A vendor yes/no switch in a SUBJECT column, where NULL means the key was not carried.
 
     `display_value` prints `(none)` for a null boolean, which reads as "no value" - and on all
-    three of the switches this is used for, the normaliser has ALREADY ACTED on the absence, so
+    three of the switches this is used for, the normalizer has ALREADY ACTED on the absence, so
     "no value" is the one thing the cell does not mean:
 
       * `no-direct-access-to-local-network` null is COUNTED AS AN OPEN PATH by
@@ -276,7 +276,7 @@ def _login_lifetime_as_entered(gw) -> str:
     """What was typed on the screen, in the unit it was typed in.
 
     THE WHOLE HAZARD ON THIS FIELD IS A LIMIT SET IN ONE UNIT AND READ THROUGH ANOTHER UNIT'S LEAF,
-    which is stage 5's own words for it, and the graded column beside this one is normalised to
+    which is stage 5's own words for it, and the graded column beside this one is normalized to
     hours. So a gateway whose login lifetime reads 720 hours under `Login Lifetime` is a gateway
     somebody set to 30 days, and an assessor sent to the screen will not find "720" anywhere on it.
     This cell is what they will find.
@@ -291,7 +291,7 @@ def _login_lifetime_as_entered(gw) -> str:
 
 def _cookie_lifetime_as_entered(cfg) -> str:
     """As above, for the reconnection cookie. The vendor's own ranges are "1-72 hours, 1-52 weeks,
-    or 1-365 days" (Help 11.2 p.1051), so three unit branches reach one normalised column and the
+    or 1-365 days" (Help 11.2 p.1051), so three unit branches reach one normalized column and the
     entered pair is the only cell that says which branch held the value."""
     if cfg.cookie_lifetime_as_entered is None:
         return NONE

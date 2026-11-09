@@ -378,7 +378,7 @@ class CertificateDomainControlTests(TestCase):
         """One graded rank below the baseline tier, on a certificate this library cannot create.
 
         The corpus allows SHA-1 "only for internal legacy with a documented expiry", which is an
-        organisational exception this cannot see - so a SHA-1 finding may legitimately be closed
+        organizational exception this cannot see - so a SHA-1 finding may legitimately be closed
         as accepted and an MD5 one should not be, and the severity is where that difference is
         carried. The PEM is a captured artifact shared with `test_certificate_controls`:
         `cryptography` 50 refuses to SIGN with SHA-1 while still parsing it, which is exactly the
@@ -408,7 +408,7 @@ class CertificateDomainControlTests(TestCase):
         MD5-signed certificate has been captured off the lab to embed. What is asserted is the
         SEVERITY DERIVATION - that the SHA-1 calibration does not match an MD5 row, so the
         baseline tier survives - which is a property of the queries and not of the decoder. The
-        decoder's own behaviour on md5 is covered by `signature_hash_is_weak` in Integrations.
+        decoder's own behavior on md5 is covered by `signature_hash_is_weak` in Integrations.
         """
         self._appliance("fw-md5", [
             {"@name": "pretend-md5", "public-key": make_pem(

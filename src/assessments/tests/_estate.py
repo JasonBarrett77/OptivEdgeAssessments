@@ -1,4 +1,4 @@
-"""Build a domain's SUBJECT estate from its stage 6 artifact, through the committed normalisers.
+"""Build a domain's SUBJECT estate from its stage 6 artifact, through the committed normalizers.
 
 `_seed.py` beside this does the Controls and ControlQueries half. Nothing did the subject half,
 and five stage 9 runs - `ike-crypto`, `ipsec-crypto`, `device-id-iot`, `zone-dos-protection`,
@@ -37,10 +37,10 @@ per domain in `CHOICE_NODES` below - see that comment.
 THE THREE TRAPS, all three handled in `build_base_estate` and each marked there:
 
     1. `EnforcementPoint.in_scope` DEFAULTS FALSE. This is worse than "the shared-scope
-       normalisers filter on it": `flows.get_in_scope_appliances`,
+       normalizers filter on it": `flows.get_in_scope_appliances`,
        `get_in_scope_appliance_groups` and `get_in_scope_enforcement_points` ALL select through
        `enforcement_points.filter(in_scope=True)`, so a hand-seeded estate that leaves it
-       default normalises nothing whatsoever and every report tab reads clean. One run lost a
+       default normalizes nothing whatsoever and every report tab reads clean. One run lost a
        row count to this and read it as a real finding.
     2. `EnforcementNode` rows are REQUIRED or the workbook refuses to build, on a tab belonging
        to no domain under test. `snapshots.choose_local_appliance` also walks them.
@@ -189,7 +189,7 @@ def _place(entry: dict[str, Any], key: str, value: Any) -> None:
 
 
 def entry_from_read_back(read_back, *, choice_nodes=()) -> dict[str, Any]:
-    """One subject's `verified.read_back` as the PAN-OS entry dict the normalisers read."""
+    """One subject's `verified.read_back` as the PAN-OS entry dict the normalizers read."""
     entry: dict[str, Any] = {}
     for pair in read_back or []:
         key, value = pair["key"], pair.get("value")
@@ -309,7 +309,7 @@ class PayloadSet:
         """The named vsys entry of the device, created if the subjects did not create it.
 
         `common.merged_vsys_entry` matches the point's `vsys_name` against the payload and
-        answers {} when it is absent, which every vsys-grain normaliser then reads as an empty
+        answers {} when it is absent, which every vsys-grain normalizer then reads as an empty
         virtual system. That is indistinguishable from a real one with nothing in it.
         """
         device = self.merged["config"]["devices"]["entry"][0]
@@ -352,7 +352,7 @@ def _merge_into(target: dict[str, Any], entry: dict[str, Any]) -> None:
     ORDER was deciding what the estate contained. It no longer decides anything: a dict merges
     into a dict, and an `entry` list merges BY `@name` so the same named entry addressed twice
     is one dict rather than two. Where the two genuinely disagree about a leaf the later value
-    still wins, which is the old behaviour narrowed to the leaf it is about.
+    still wins, which is the old behavior narrowed to the leaf it is about.
     """
     for key, value in entry.items():
         if key == "@name" and target.get("@name") and value != target.get("@name"):
@@ -386,7 +386,7 @@ def device_name_of(subject) -> str | None:
 
     `predefined-default` is stored as `default`; `zz-urlfilt-shared` as `zz_urlfilt_shared`;
     `pushed-cat-ab0826-3` as `optivlib_uc_ab0826_3`. In stage6-ipsec-crypto.json TWENTY-EIGHT of
-    the thirty-one subjects are labelled differently from the entry they name. Every thrown-away
+    the thirty-one subjects are labeled differently from the entry they name. Every thrown-away
     seeder hard-coded the ones it happened to need as if-statements in its reconciler. The xpath
     already carries the mapping, so this reads it off and the mapping is complete by
     construction.
@@ -438,7 +438,7 @@ def payloads_from_stage6(stage6, *, choice_nodes=()) -> dict[str, PayloadSet]:
         # EVERY serial gets a payload, even one whose subjects are all absences: the device
         # entry has to exist or the appliance pass raises for every domain. The vsys entries go
         # in for the same reason one level down - a point whose vsys is not in the payload
-        # normalises nothing and reads as an empty virtual system rather than an unread one.
+        # normalizes nothing and reads as an empty virtual system rather than an unread one.
         payloads = out.setdefault(serial, PayloadSet(device_name))
         for vsys in sorted(vsys_names[serial]):
             payloads.ensure_vsys(vsys)
@@ -471,8 +471,8 @@ def vsys_names_from_stage6(stage6) -> dict[str, set[str]]:
     """{serial: {vsys_name}} - which enforcement points this estate needs.
 
     A serial whose subjects are all device-local still gets `vsys1`: the point-grain
-    normalisers are selected through `in_scope=True` enforcement points, so an appliance with
-    none of them is an appliance nothing normalises.
+    normalizers are selected through `in_scope=True` enforcement points, so an appliance with
+    none of them is an appliance nothing normalizes.
     """
     out: dict[str, set[str]] = {}
     for subject in (stage6.get("subjects") or {}).values():
@@ -589,7 +589,7 @@ AUX_URL_CATEGORIES: dict[str, tuple[str, ...]] = {
 
 
 def run_supplemental_normalizers(station) -> list[tuple[str, str]]:
-    """The normalisers `renormalize_in_scope_configuration` leaves out. Returns failures.
+    """The normalizers `renormalize_in_scope_configuration` leaves out. Returns failures.
 
     Each gets its own try/except, which is the convention every pass in `flows.py` follows and
     for its reason: one subtree failing must not silently remove another's rows.
@@ -668,7 +668,7 @@ def build_base_estate(stage6, *, panorama_managed: bool = True):
             device_entry_name_from_stage6(stage6))
 
         # TRAP 3: `source_snapshot` is NOT NULL on both subject models, so the snapshot has to
-        # exist before anything normalises - and the merged one is what every reader anchors to.
+        # exist before anything normalizes - and the merged one is what every reader anchors to.
         Snapshot.objects.create(
             management_station=station, appliance=appliance,
             source_type="show_merged_config", collected_at=now, payload=payload_set.merged)
@@ -687,7 +687,7 @@ def build_base_estate(stage6, *, panorama_managed: bool = True):
 
         for vsys in sorted(vsys_names.get(serial) or {"vsys1"}):
             # TRAP 1: `in_scope` DEFAULTS FALSE, and all three of `flows.py`'s in-scope
-            # selectors read through it. Default it and this whole command normalises nothing
+            # selectors read through it. Default it and this whole command normalizes nothing
             # and reports a clean estate.
             point = EnforcementPoint.objects.create(
                 management_station=station, appliance_group=group, appliance=appliance,

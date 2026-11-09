@@ -6,7 +6,7 @@
   Seven controls: PAN-DEC-002, -003, -005, -006, -007, -008, -010.
 - `integrations.DecryptionRulebaseVerdict` - one virtual system's whole decryption rulebase as a
   conclusion over all of its rules. PAN-DEC-001 and -009.
-- `integrations.SslDecryptionExclusion` - one exclusion the organisation added itself, in one
+- `integrations.SslDecryptionExclusion` - one exclusion the organization added itself, in one
   scope of one appliance. PAN-DEC-004's first record.
 
 A FOURTH MODEL EXISTS AND GETS NOTHING HERE, said rather than left to arithmetic.
@@ -17,10 +17,10 @@ and none against this one. So it is owed no rail item (`AWAITING_PRESENTATION`'s
 `query_results_url`, and a model no query names has nothing to resolve) and no tab
 (`check_every_finding_reached_a_tab` is about findings that exist, and none can). Its generator's
 own docstring carries the three reasons - one control type maps to one target model so the two
-halves cannot share a catalogue id; `probe.relation_between` finds no relation to walk in either
+halves cannot share a catalog id; `probe.relation_between` finds no relation to walk in either
 direction; and no estate can make it fire, because the vendor's own exclusion list answers a
 truthy EMPTY envelope to `action=get` and only `show predefined` returns the 330 or 385 entries,
-which nothing issues on a collection run. Splitting PAN-DEC-004 into two catalogue ids is Jason's
+which nothing issues on a collection run. Splitting PAN-DEC-004 into two catalog ids is Jason's
 decision and is recorded in that docstring.
 
 EVERY HEADING IN THIS MODULE IS A PROPOSAL (P399). Jason takes the heading pass once across many

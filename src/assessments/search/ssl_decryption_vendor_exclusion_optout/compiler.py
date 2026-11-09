@@ -12,13 +12,13 @@ records name two models, a control has exactly one `target_model`, and
 `probe.relation_between SslDecryptionExclusion SslDecryptionVendorExclusionOptOut` finds NO RELATION
 IN EITHER DIRECTION - six paths through shared ancestors, every one to-many and every one leaving a
 scope field unconstrained, which is a WRONG ROW rather than an understated severity. So one half
-ships and this one is silent until somebody splits the catalogue id. It is registered now because
+ships and this one is silent until somebody splits the catalog id. It is registered now because
 `test_every_control_type_targets_a_registered_model` requires it of the type, and because the half
 reports the moment a control exists.
 
 AND NO ESTATE CAN MAKE IT FIRE TODAY, which is the sharper fact. The one clean assertion is that no
 switched-off entry is left on the list after the vendor stopped shipping it, and that is a SET
-DIFFERENCE whose right-hand side - the vendor's own catalogue - is invisible to `action=get` and to
+DIFFERENCE whose right-hand side - the vendor's own catalog - is invisible to `action=get` and to
 the merged configuration. Measured on all four lab appliances: the config read a collector naturally
 reaches for answers a well-formed, TRUTHY, EMPTY count envelope
 (`{"@total-count": "0", "@count": "0"}`) for a populated vendor list, while `action=show` at the same

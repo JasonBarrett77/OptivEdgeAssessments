@@ -1,8 +1,8 @@
-"""The three `logging` findings tabs, and the cells on them that were judgements.
+"""The three `logging` findings tabs, and the cells on them that were judgments.
 
 Stage 9 of the OptivEdgeProbe pipeline, domain `logging`, 2026-11-03. Nothing obliges a stage 9
 run to add a test file; a new tab that nothing asserts on is a tab the next refactor can silently
-break, and every judgement this run made about a cell is pinned here.
+break, and every judgment this run made about a cell is pinned here.
 
 EVERY TABLE IN THIS FILE GOES THROUGH `self.table()`, WHICH CALLS THE FINDING RUN AND THEN
 ASSERTS THE TABLE IS NON-EMPTY. `build_findings_table` LOADS a domain's findings rather than
@@ -12,8 +12,8 @@ out right because they derive from the controls, and every assertion written `fo
 table.rows:` iterates nothing and passes. That has already shipped once, in
 `test_platform_lifecycle_presentation`. The helper makes it impossible here.
 
-THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALISED, and that is deliberate: the
-normalisers are stage 7's and have their own tests, the stage 6 payloads live in another
+THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALIZED, and that is deliberate: the
+normalizers are stage 7's and have their own tests, the stage 6 payloads live in another
 repository and are gitignored, and what this file is about is what a ROW SAYS once the columns
 hold known values. Each payload value below is the one the stage 6 artifact recorded for the
 subject named beside it, transcribed by hand.
@@ -100,7 +100,7 @@ class LoggingPresentationTests(TestCase):
 
         The two STORED keys carry real `FieldProvenance` rows, which is what the provenance cell
         is about: `require_audit_comment` is a key an administrator wrote (`local`), and
-        `log_on_high_dp_load` was ABSENT and the normaliser recorded it as a vendor implicit
+        `log_on_high_dp_load` was ABSENT and the normalizer recorded it as a vendor implicit
         (`pan_os_default`) - which is neither written by anyone nor derived by us, and is the
         third answer a two-way branch would have got wrong.
         """
@@ -142,7 +142,7 @@ class LoggingPresentationTests(TestCase):
 
         `transport` carries a real per-field row because it is a STORED key and whether it was
         absent is what PAN-LOG-002 is about; `kind` deliberately carries NONE, because the
-        normaliser takes the kind from the config subtree the profile was read at rather than
+        normalizer takes the kind from the config subtree the profile was read at rather than
         from any key of the entry - which is the shape that makes a branching provenance cell
         print "Not recorded" about it.
         """
@@ -298,7 +298,7 @@ class LoggingPresentationTests(TestCase):
 
     def test_the_vsys_tabs_provenance_cell_is_the_honest_constant(self):
         """Both clause fields are declared derived and the model carries no `choices`, so a
-        labelling reader would be FATAL and the sheet-level cell is the only remedy left. The
+        labeling reader would be FATAL and the sheet-level cell is the only remedy left. The
         DEFAULT reads "Not recorded" on every row, which is false about a computed column."""
         self.vsys()
         table = self.table("log-forwarding")
@@ -317,7 +317,7 @@ class LoggingPresentationTests(TestCase):
     def test_the_server_tab_keeps_the_defaults_answer_and_a_branch_would_state_a_falsehood(self):
         """THE FOURTH BRANCH. The two-grep rule says MIXED clause fields must branch on
         `provenance_of`, and here that is wrong: `kind` is a STORED clause field with no
-        `FieldProvenance` row of its own, because the normaliser takes it from the config subtree
+        `FieldProvenance` row of its own, because the normalizer takes it from the config subtree
         rather than from a key - so a cell printing what `provenance_of` recorded prints
         "Not recorded" about a column whose location is simply the object's.
 
@@ -420,7 +420,7 @@ class LoggingPresentationTests(TestCase):
 
     def test_every_stated_condition_still_reads_in_django_field_names(self):
         """A RECORDED DEFECT, NOT A PREFERENCE. `render_node` consults `setting_labels` nowhere,
-        so a tab with every heading labelled still prints its firing conditions in field names -
+        so a tab with every heading labeled still prints its firing conditions in field names -
         the same value named two ways on one row. Nothing a sheet declares changes it. Pinned so
         that the day it IS fixed, this test fails and says so."""
         self.posture()

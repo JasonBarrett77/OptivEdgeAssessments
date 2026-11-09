@@ -11,7 +11,7 @@ FindingBase, which is what makes registering it non-optional - forgetting fails 
 than silently narrowing a report.
 
 This deliberately does not replace the typed models with one generic Finding. Typed foreign
-keys give cascade behaviour, per-object indexes and queries that read like the domain; the
+keys give cascade behavior, per-object indexes and queries that read like the domain; the
 cost was never the models, it was that nothing enumerated them.
 """
 
@@ -353,9 +353,13 @@ FINDING_KINDS: tuple[FindingKind, ...] = (
     # has no kind: no assertion record of this domain names that subject, and an absent
     # subscription has no row of its own to be reported on.
     FindingKind(m.LicenceInventoryFinding, "licence_inventory",
-                m.Control.ControlType.LICENCE_INVENTORY, "licence inventory", "Licenses",
-                "license inventories",
-                "license inventory"),
+                # ITS PLURAL IS DERIVABLE AGAIN. The label read `licence inventory` and the
+                # client plural `license inventories` - the spelling was the whole of the
+                # difference, which is why this kind was in the chosen list. The 2026-11-09
+                # sweep made the label American too, so `plural_noun` now gets there on its own
+                # and the singular belongs to `label` again.
+                m.Control.ControlType.LICENCE_INVENTORY, "license inventory", "Licenses",
+                "license inventories"),
     # The label names the MECHANISM rather than the node's leaves, because the control grades one
     # ordered verdict over them: stage 3's ordering - "on with no threshold" being worse than "on
     # with thresholds and no route" - is not expressible as a conjunction of the leaves.

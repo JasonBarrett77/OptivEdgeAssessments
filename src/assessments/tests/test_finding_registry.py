@@ -135,7 +135,7 @@ class FindingRegistryTests(TestCase):
         "SNMP", "system identity", "management resolver set", "management service path set",
         "high availability", "panorama registration", "global LLDP setting",
         "tunnel inspection coverage", "sanctioned application marking", "App-ID Cloud Engine",
-        "device identification", "rulebase device match", "licence inventory",
+        "device identification", "rulebase device match",
         "GlobalProtect portal authentication row", "GlobalProtect enforcement point",
         "log database alarm mechanism", "User-ID collector", "User-ID discovery bound",
         "forward-proxy signing designation", "GlobalProtect gateway authentication row",

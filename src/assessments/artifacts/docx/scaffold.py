@@ -227,7 +227,7 @@ def check_styles(styles: dict) -> None:
     cell that lost its style is a critical finding rendered as body text, on a page a client
     reads.
 
-    THE TYPE IS CHECKED TOO. `Optiv (Light Grey Borders)` is a TABLE style and the rest are
+    THE TYPE IS CHECKED TOO. `Optiv (Light Gray Borders)` is a TABLE style and the rest are
     PARAGRAPH styles, and a `w:pStyle` naming a table style is not an error Word reports - it
     ignores it, which is the silent fallback again.
     """

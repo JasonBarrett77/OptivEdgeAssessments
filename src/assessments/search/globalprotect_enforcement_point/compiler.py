@@ -51,7 +51,7 @@ grain, which stage 8 may not add, or a second control id, which a build run may 
 
 NO is-null OPERATOR EXISTS IN THIS LANGUAGE and none is invented here. Every boolean registered
 below is non-nullable with FALSE as both the default and the firing side, and the counts are
-non-nullable with 0 as the default - so a vsys nobody has normalised reports rather than reading as
+non-nullable with 0 as the default - so a vsys nobody has normalized reports rather than reading as
 a clean estate.
 """
 

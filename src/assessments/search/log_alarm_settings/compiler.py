@@ -6,7 +6,7 @@ common-criteria-alarm-generation` - no entry name, no vsys axis, one row per app
 `alarm_mechanism_state` IS ONE ORDERED VERDICT AND NOT A CONJUNCTION OF THE LEAVES, and that is
 stage 3's ordering rather than a convenience: "on but with no threshold recorded" is WORSE than
 "on with thresholds and no notification route", and a clause list - one conjunction, no OR - says
-nothing about which of two failures is worse. The normaliser resolves the master switch, the
+nothing about which of two failures is worse. The normalizer resolves the master switch, the
 threshold count and the two notification routes into one token and the control asserts a negated
 equality against the single passing one.
 
@@ -31,19 +31,19 @@ register; `log_db_alarm_threshold_lowest` is NOT registered, and that is the rea
 
 WHAT IS DELIBERATELY NOT REGISTERED BEYOND THAT: `alarm_settings_node_present`,
 `alarm_generation_enabled`, `cli_alarm_notification_enabled`, `web_alarm_notification_enabled`
-and `alarm_notification_route_present`. All five are inputs the normaliser already resolved into
+and `alarm_notification_route_present`. All five are inputs the normalizer already resolved into
 the verdict, no clause or grading axis of this domain names any of them, and a clause on one would
 re-derive an ordering the verdict already carries.
 
 WHY THE STATE COLUMNS ARE REGISTERED AS TEXT AND NOT THROUGH `build_choice_compiler`, which
 raises on a value outside the column's own `choices` and is the form this repository otherwise
 prefers. THE EMPTY STRING IS A REACHABLE STATE OF `content_currency_state` AND IS NOT IN ITS
-CHOICE LIST: the normaliser returns it for an appliance whose `show system info` never answered
+CHOICE LIST: the normalizer returns it for an appliance whose `show system info` never answered
 while its merged configuration did, and it is deliberate - a token there would be a verdict over
 a reply nobody received. A choice compiler reading its members off `choices` could not express a
 query for that state at all, and the text compiler's `is_empty` arm, which ORs an `__isnull`
 term, is the only operator in this language that reaches it. The cost is named rather than
-hidden: a MISSPELLED token in a catalogue payload compiles here and matches nothing, where the
+hidden: a MISSPELLED token in a catalog payload compiles here and matches nothing, where the
 raising form would refuse it. The baseline's negated equality is what limits the damage - it
 fires on every value that is not the passing token, misspelled calibrations included - so a
 typo loses a RANK and never a finding.

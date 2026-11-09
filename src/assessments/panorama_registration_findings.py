@@ -53,7 +53,7 @@ from optivedge_integrations.integrations.models import PanoramaRegistration
 #: Said on every row of this control, whichever half fired. The half no firewall can answer.
 STATION_HALF = ("the management appliance's own half of this is UNANSWERED and no firewall can "
                 "answer it: whether it accepts only customer-issued certificates, and whether it "
-                "checks each firewall against an authorisation list, are switches on the station")
+                "checks each firewall against an authorization list, are switches on the station")
 
 #: Said wherever the pair applicability decided the row. Not a caveat on the measurement - a
 #: statement that the predicate was defaulted rather than read.

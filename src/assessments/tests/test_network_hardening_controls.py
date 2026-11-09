@@ -154,7 +154,7 @@ class SearchLayerFactsTests(NetworkHardeningBase):
     def test_there_is_no_known_field_for_the_non_nullable_boolean(self):
         """A virtual `*_known` field needs a null to detect, and `ipv6_firewalling` has none.
         So the gap PAN-NET-005 reports is not closeable from this stage: it needs a companion
-        column or a changed default, and both are the normaliser's."""
+        column or a changed default, and both are the normalizer's."""
         from assessments.search.session_settings.compiler import FIELD_OPERATOR_REGISTRY
         self.assertIn("rematch_known", FIELD_OPERATOR_REGISTRY)
         self.assertNotIn("ipv6_firewalling_known", FIELD_OPERATOR_REGISTRY)
@@ -591,7 +591,7 @@ class NetworkHardeningRegistrationTests(TestCase):
         """A recorded state, not an oversight. PAN-NET-003 asserts over `Interface` AND
         `PanOsLldpGlobalSettings`; `_CONTROL_TYPE_TARGET_MODEL` is one-to-one and
         `ControlQuery.clean()` refuses a query whose model differs from its control's target, so
-        one catalogue control cannot hold both halves. Splitting the catalogue id changes what a
+        one catalog control cannot hold both halves. Splitting the catalog id changes what a
         customer's report contains and is not a run's decision.
 
         This test exists so that the half Jason may decide to build is found by someone looking

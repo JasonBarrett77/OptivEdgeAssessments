@@ -1,8 +1,8 @@
-"""How the three platform-lifecycle tabs read: the cells whose wording is a judgement.
+"""How the three platform-lifecycle tabs read: the cells whose wording is a judgment.
 
 Written by the stage 9 run of OptivEdgeProbe's `platform-lifecycle` domain, 2026-11-02, for
 PAN-PLT-002, PAN-PLT-004 and PAN-PLT-006 over three models - the appliance's installed content
-streams, a verdict over its whole licence table, and its log-database alarm mechanism. All
+streams, a verdict over its whole license table, and its log-database alarm mechanism. All
 three are device-wide singletons with no entry name and no vsys, so a row IS one firewall.
 
 THE DOMAIN'S OTHER THREE CONTROLS GET NOTHING HERE, and that is the correct state rather than an
@@ -291,14 +291,14 @@ LICENCE_INVENTORY_EVIDENCE = (
     # unlicensed appliance produces AND the shape a licensed one would produce with every row
     # stripped, so it means unknown. Without the display call this cell would print
     # `null_licenses_element` to a customer.
-    ("Licence table read", 22, True,
+    ("License table read", 22, True,
      lambda s, _p: (s.get_licence_inventory_read_display()
                     if s.licence_inventory_read else "Not computed"),
      "licence_inventory_read"),
     # ZERO HERE IS TWO DIFFERENT DEVICE STATES - a present-and-empty `licenses` element and a
     # read that never ran - told apart by the column above and never by this one, which is the
     # model's own warning. So the zero is printed in words.
-    ("Licence rows returned", 20, False, _count("licence_row_count", "None returned"),
+    ("License rows returned", 20, False, _count("licence_row_count", "None returned"),
      "licence_row_count"),
     # COUNTED OFF THE VENDOR'S OWN `expired` FLAG and never off a date comparison: `expires`
     # holds the literal `Never` on every licence in the measured estate, which no date parser

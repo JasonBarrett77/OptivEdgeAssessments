@@ -1,6 +1,6 @@
 """Build a pipeline domain's estate from its stage 6 artifact, reconcile it against stage 8's
 diff, and print the findings table it produces - in a throwaway database, through the committed
-normalisers.
+normalizers.
 
 WHY THIS IS A COMMAND AND NOT A SCRIPT. Five stage 9 runs each wrote and threw away their own
 seeder - `ike-crypto`, `ipsec-crypto`, `device-id-iot`, `zone-dos-protection`, `url-filtering` -
@@ -49,7 +49,7 @@ is what makes it domain-independent. The limits are real and named in
     and `ipsec-crypto` do. A domain whose stage 6 records subjects any other way is not covered
     and this command will say so rather than seed a partial estate.
   * CONFIGURATION THE DEVICE HOLDS BUT STAGE 6 DID NOT RECORD AS A SUBJECT is not built. Where a
-    verdict depends on it - the url category catalogue is the known case - it is declared in
+    verdict depends on it - the url category catalog is the known case - it is declared in
     `_estate.AUX_URL_CATEGORIES` and is a RECONSTRUCTION, not a measurement.
   * CHOICE NODES spelled as a text value need one line per domain in `_estate.CHOICE_NODES`,
     because stage 6 artifacts disagree about how to spell them and nothing pins it down.
@@ -58,7 +58,7 @@ is what makes it domain-independent. The limits are real and named in
     census and `reconcile`'s pass-1 matching consult it. Before the sheets exist the census
     answers from stage 8's `catalog.target_model` and SAYS SO, and pass-1 cannot match at all -
     so every verdict falls to pass 2, whose order is arbitrary and whose attribution a reader
-    then has to check subject by subject. `globalprotect-portal` separated five such artefacts
+    then has to check subject by subject. `globalprotect-portal` separated five such artifacts
     from one real disagreement by hand. So: run it to CHECK THE ESTATE, write the rail, the
     domains and the sheets, then run it again and read the RECONCILIATION.
 
@@ -244,14 +244,14 @@ class Command(BaseCommand):
         return mismatches
 
     def _normalize(self, station) -> None:
-        """Through the COMMITTED normalisers, in the committed order, with no device involved.
+        """Through the COMMITTED normalizers, in the committed order, with no device involved.
 
         `renormalize_in_scope_configuration` is the one entry point that re-runs every
-        normaliser against already-collected snapshots "without contacting the device at all",
-        as its own docstring puts it. Calling it rather than a per-domain list of normalisers is
+        normalizer against already-collected snapshots "without contacting the device at all",
+        as its own docstring puts it. Calling it rather than a per-domain list of normalizers is
         what stops this command needing a per-domain list AND what keeps the ordering
         obligations - which that function documents at length and which matter, several
-        normalisers reading rows a previous one wrote - out of this file entirely.
+        normalizers reading rows a previous one wrote - out of this file entirely.
         """
         from optivedge_integrations.integrations.platforms.pan_os.flows import (
             renormalize_in_scope_configuration)
@@ -273,10 +273,10 @@ class Command(BaseCommand):
         # stays because the list is the place the next omission gets recorded.
         for name, error in run_supplemental_normalizers(station):
             failures.append(("supplemental", name, error))
-        self.stdout.write("### NORMALISED through the committed pipeline (no device contacted)")
+        self.stdout.write("### NORMALIZED through the committed pipeline (no device contacted)")
         if SUPPLEMENTAL_NORMALIZERS:
             self.stdout.write(
-                f"    plus {len(SUPPLEMENTAL_NORMALIZERS)} normaliser(s) the flow omits: "
+                f"    plus {len(SUPPLEMENTAL_NORMALIZERS)} normalizer(s) the flow omits: "
                 f"{', '.join(name for _grain, name in SUPPLEMENTAL_NORMALIZERS)}")
         if failures:
             # Each normaliser has its own try/except upstream, so one failing does not stop the
@@ -284,14 +284,14 @@ class Command(BaseCommand):
             # own normaliser is in this list cannot be trusted above, and reconciliation is what
             # turns that into a non-zero exit.
             self.stdout.write(self.style.WARNING(
-                f"    {len(failures)} normaliser(s) reported a failure:"))
+                f"    {len(failures)} normalizer(s) reported a failure:"))
             for attribute, kind, error in failures:
                 self.stdout.write(f"      {attribute} {kind}: {error}")
         else:
-            self.stdout.write("    every normaliser completed")
+            self.stdout.write("    every normalizer completed")
 
     def _subject_rows(self, controls, stage8=None) -> dict[str, int]:
-        """A census of the subject rows the normalisers actually wrote, per model.
+        """A census of the subject rows the normalizers actually wrote, per model.
 
         Printed because a row count is the first thing that tells a reader whether the estate
         came out at all - and because a silently empty one is precisely what trap 1 produces.

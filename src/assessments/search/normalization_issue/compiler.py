@@ -16,7 +16,7 @@ nothing. The existing `search/security_rules/fields/scalar_choice.py` resolves t
 against the choice map and, on no match, returns `.none()` silently - so a clause naming a value
 that is not a member is indistinguishable from a clause that matched no rows, and an operator who
 mistypes `sever` for `severity`'s value gets a clean estate. Measured 2026-10-28: that compiler
-has exactly one call site (`config_source`), so the behaviour is narrow, but it is the wrong
+has exactly one call site (`config_source`), so the behavior is narrow, but it is the wrong
 default for a package whose entire subject is "something we could not interpret".
 """
 

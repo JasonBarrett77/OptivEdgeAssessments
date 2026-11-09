@@ -13,7 +13,7 @@ worse to read in order to make them shorter.
 DELIBERATELY NO GROUPED-HEADER SUPPORT, though two pages have grouped headers. It was built,
 then measured against the markup it would have to reproduce, and removed: Device Configuration
 and Management Interfaces make per-group alignment choices (the administrative-services group
-centres, the NTP group does not), and their group borders are not even consistent with each
+centers, the NTP group does not), and their group borders are not even consistent with each
 other - the five-column sky run has no `border-r` on its last cell where the two-column emerald
 run does. A spec could only reproduce that by growing a knob whose sole job is to preserve an
 inconsistency. Those two keep their hand-written headers; if a third grouped page appears, that

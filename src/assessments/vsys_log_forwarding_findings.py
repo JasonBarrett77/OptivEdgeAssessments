@@ -73,7 +73,7 @@ def _offbox_gaps(obj) -> list[str]:
             f"base account of what crossed the firewall and what was found in it")
     if unranked:
         parts.append(
-            f"and {', '.join(unranked)} are log types the catalogue has not ranked, so this "
+            f"and {', '.join(unranked)} are log types the catalog has not ranked, so this "
             f"finding reports them as missing without claiming how much it matters")
     parts.append(
         "e-mail and SNMP-trap destinations do NOT count as off-box here - they notify rather "

@@ -132,7 +132,7 @@ class QueryDestinationTests(TestCase):
         become false. Repointing it at another `AWAITING_PRESENTATION` model would only move the
         same breakage to that domain's stage 9 run.
 
-        A monitor profile cannot stop being the example. It is stored and normalised and NO
+        A monitor profile cannot stop being the example. It is stored and normalized and NO
         SHIPPED QUERY NAMES IT, so by the rail's own rule - written into
         `configuration_navigation` beside the Network Profiles entry it is the counter-example to
         - it has not earned an item and should not be given one. A model with no page because
@@ -238,7 +238,7 @@ class ControlDetailLinkTests(TestCase):
         `test_a_model_no_page_presents_gets_no_link` above, which carries the full argument. Both
         held `integrations.Zone` until 2026-11-02, when stage 9 of `device-id-iot` gave Zone a
         rail item and both went red. `integrations.MonitorProfile` is the durable stand-in: it is
-        stored and normalised and no shipped query names it, so by the rail's own rule it has not
+        stored and normalized and no shipped query names it, so by the rail's own rule it has not
         earned a page and cannot stop being the example."""
         control = self._control("PAN-SVC-010")
         control.queries.update(canonical_query={

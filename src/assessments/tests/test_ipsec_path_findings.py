@@ -13,7 +13,7 @@ silence because each one makes a row report where the obvious reading would pass
 
   - an unresolvable binding FAILS - no IKE gateway, no IKE crypto profile named, or an IPSec
     crypto profile left at `default` - and it fails through the baseline queries the nine controls
-    already shipped, with nothing added to the catalogue;
+    already shipped, with nothing added to the catalog;
   - the `disabled` flag is not read at all, on tunnel or gateway;
   - an orphan IKE gateway is listed with no tunnel against it and is graded on the IKE side only.
 
@@ -192,7 +192,7 @@ class AnUnresolvableBindingFailsTests(IpsecPathTestCase):
     the default value is 'default'. We can't know what the 'default' value means, so we should
     assume that it fails if it is default, unspecified, or otherwise unknown."*
 
-    AND NOTHING WAS ADDED TO THE CATALOGUE TO MAKE IT FAIL, which is checked here rather than
+    AND NOTHING WAS ADDED TO THE CATALOG TO MAKE IT FAIL, which is checked here rather than
     assumed: every one of the nine baselines is a negated equality or a false verdict boolean, and
     an unresolved path stores a blank in every value column and leaves every verdict false.
     """

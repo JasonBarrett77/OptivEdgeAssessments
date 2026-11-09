@@ -6,7 +6,7 @@ Two levels, both taken from the PAN-OS web interface rather than invented here:
   CONFIG_OBJECTS  one entry per object we can show, carrying WHERE PAN-OS keeps it
 
 An engineer auditing a firewall already knows where an object lives in the vendor's UI. Making
-them learn a second organisation to find the same object here is a cost with no return, so the
+them learn a second organization to find the same object here is a cost with no return, so the
 rail mirrors the product: same categories, same left-hand rail, same labels, same order. When a
 grouping here looks wrong, the question to ask is what PAN-OS does, not what would be tidy.
 

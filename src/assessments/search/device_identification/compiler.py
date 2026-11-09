@@ -1,11 +1,11 @@
 """Canonical search compiler for one appliance's device-identification state. PAN-IOT-001, -003.
 
 ONE ROW PER APPLIANCE, because all three instruments behind this model are device-wide: the
-licence table and `show system info` are operational commands with no xpath at any scope, and
+license table and `show system info` are operational commands with no xpath at any scope, and
 `deviceconfig/setting/iot/edge` is a device-wide singleton. So the owner is the appliance
 directly, there is no enforcement point in the lookup path, and there is one lookup per field
 with no either-owner branch. On an HA pair this yields two rows for what an operator thinks of
-as one firewall and the two can legitimately differ, because a licence is per serial.
+as one firewall and the two can legitimately differ, because a license is per serial.
 
 TWO CONTROLS SHARE THIS MODEL AND ASSERT ON DISJOINT COLUMNS. PAN-IOT-001 asserts on the
 entitlement (`device_id_licensed`) and the wiring (`edge_service_address`); PAN-IOT-003 on the

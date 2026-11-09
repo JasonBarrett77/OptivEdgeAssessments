@@ -21,7 +21,7 @@ place rather than letting it read as coverage.
 
 EVERY RULE STAGE 6 WROTE IS `disabled: yes` and this domain's derivation counts a disabled rule.
 The normalizer that writes these verdicts records that decision and records that it is probably
-wrong; these tests pin the behaviour the estate was graded against, not a judgement about it.
+wrong; these tests pin the behavior the estate was graded against, not a judgment about it.
 """
 
 from __future__ import annotations
@@ -531,7 +531,7 @@ class FunctionApplicationTests(SaasControlTestCase):
         self.assertNotIn("NO RULE OF THIS PARTITION NAMES", summary)
 
     def test_the_count_is_reported_as_a_lower_bound(self):
-        """Which applications have function children is a property of the vendor's catalogue,
+        """Which applications have function children is a property of the vendor's catalog,
         delivered by content updates, and this pipeline has not enumerated it."""
         self.whole_lab()
         self.assertIn("LOWER BOUND", self.summary("PAN-SAS-003", "fw-core-tpa-b", "vsys7"))
@@ -606,7 +606,7 @@ class ConsumerStorageCategoryTests(SaasControlTestCase):
         other model, so the second record cannot have a query on this control at all - and the
         finding model for its subject exists and is never written by it.
 
-        Splitting the control into two catalogue ids is a product decision and not this stage's.
+        Splitting the control into two catalog ids is a product decision and not this stage's.
         If it is ever made, this test fails and that is the signal to update it.
         """
         self.whole_lab()
@@ -655,7 +655,7 @@ class CloudAppEngineTests(SaasControlTestCase):
 
 
 class LicensedCloudAppEngineTests(SaasControlTestCase):
-    """The same lab with the licence check PASSING, which is the proof the gate is an exclusion.
+    """The same lab with the license check PASSING, which is the proof the gate is an exclusion.
 
     Without this, "no finding on any appliance" and "a control that can never fire" are the same
     observation - and the second is the thing a reader must be able to rule out. The reply here
@@ -674,8 +674,8 @@ class LicensedCloudAppEngineTests(SaasControlTestCase):
         })
 
     def test_the_finding_names_the_condition_and_not_the_symptom(self):
-        """The device certificate is a SECOND precondition and it is not in the licence listing at
-        all, so a remediation reading only the licence would buy a subscription and still have no
+        """The device certificate is a SECOND precondition and it is not in the license listing at
+        all, so a remediation reading only the license would buy a subscription and still have no
         engine."""
         self.whole_lab()
         summary = self.summary("PAN-SAS-005", "", "pan-fw-111")
@@ -709,7 +709,7 @@ class SaasCatalogShapeTests(TestCase):
 
     def test_every_saas_query_names_the_fields_it_asserts_on(self):
         """EMPTY `asserted_fields` IS SILENT. `tested_fields()` falls back to every clause, so the
-        finding colours the cells that SCOPED the object as well as the one that failed - and a
+        finding colors the cells that SCOPED the object as well as the one that failed - and a
         reader is pointed at the setting that made the row qualify."""
         for control_id, spec in sorted(self.specs().items()):
             for query in spec["queries"]:

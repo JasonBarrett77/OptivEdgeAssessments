@@ -52,7 +52,7 @@ The contract's two greps, answered PER FIELD over the 23 clause fields (not once
 AND THE DEFAULT CELL IS WRONG ON ALL FIVE TABS, which the greps alone do not predict and which
 is the `saas-security` shape (P451) rather than the `updates` one. Measured on built rows:
 NOT ONE of the 23 clause fields has a `FieldProvenance` row except `community_is_default` and
-`addressing_mode`. The rows these normalisers DO write belong to the stored keys the columns are
+`addressing_mode`. The rows these normalizers DO write belong to the stored keys the columns are
 computed FROM - `primary_server`, `secondary_server`, `primary_auth_type`, `secondary_auth_type`,
 `hostname`, `timezone`, `primary_resolver_address` - and no control clauses on any of them. So
 `write_node_row` was called WITH a provenance list and none of its fields is one a control tests,
@@ -94,7 +94,7 @@ pan-fw-1085 the recovered word would be "PAN-OS default", which is a state neith
 SO THE PRICE RULE'S EXEMPTION IS LOAD-BEARING HERE, and this is the first domain where refusing
 the reader was not an option: a reader on a measured payload key costs that key's provenance row
 IN THE PER-FIELD CELLS, and a sheet-level `provenance_cell` buys it back. It is NOT a general
-licence - the per-field `Template` column and the `source_columns` still go through
+license - the per-field `Template` column and the `source_columns` still go through
 `remediation_of` and still lose it, so what is recovered is the Provenance cell and not every
 surface. `addressing_mode`'s Template cell is the price this domain pays and it is paid knowingly:
 the field is a local key on three of the four appliances and a vendor implicit on the fourth, and
@@ -163,7 +163,7 @@ def provenance_cell(subject, provenance_of, fields) -> str:
 
     TWO THINGS THE GREPS DO NOT PREDICT, both measured above. First, the default prints
     "Not recorded" somewhere on EVERY ONE of these rows, about columns the model declares derived
-    - the `saas-security` shape (P451): these normalisers call `write_node_row` WITH a provenance
+    - the `saas-security` shape (P451): these normalizers call `write_node_row` WITH a provenance
     list, and every field in it is a stored key the columns are computed FROM rather than a field
     a control clauses on, so the cell never reads one. Second, on the PAN-SVC-005 row the default
     is not merely noisy but reaches `Local` and then prints "Not recorded" beside it, so the one

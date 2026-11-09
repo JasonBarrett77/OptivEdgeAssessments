@@ -5,7 +5,7 @@ remediation view in the current workbook artifact"*, and 2026-11-05: *"Remediati
 artifact, separate from the existing Findings artifact. However, the existing findings (detail)
 artifact is an excellent example of features and formatting."* So `workbook.build_workbook` and
 every sheet it writes are untouched, and everything shared lives in `layout` and is imported by
-both: one palette, one header block, one table idiom, one set of tab colours.
+both: one palette, one header block, one table idiom, one set of tab colors.
 
 WHY THE TWO ARE SEPARATE FILES AND NOT TWO VIEWS OF ONE. They answer different questions, and a
 reader opening one is not part-way through the other: the findings workbook says what is wrong,

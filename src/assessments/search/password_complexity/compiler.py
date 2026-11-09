@@ -7,7 +7,7 @@ Every numeric field treats 0 as a SENTINEL rather than as a small number - no mi
 history, and on `expiration_period` a password that never expires. A control asking "is the
 minimum at least 12" therefore cannot be `lt 12` alone; the corpus queries are written as
 `lt <required>` precisely because 0 is included in that and is the worst case, which is the
-behaviour the thirteen PAN-AUTH controls already rely on.
+behavior the thirteen PAN-AUTH controls already rely on.
 """
 
 from __future__ import annotations

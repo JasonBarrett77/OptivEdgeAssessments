@@ -103,7 +103,7 @@ def build_ml_model_compiler(field_name, column):
     second - which is the literal the corpus names for its minimum and its preferred alike.
 
     Answered from the model rows, which carry one entry per model the CONTENT release knows
-    about - catalogued from the predefined profile rather than from a hardcoded list, because
+    about - catalogd from the predefined profile rather than from a hardcoded list, because
     controls.json says those names come from content and must be enumerated per version.
 
     A model the profile's config never mentions is DISABLED, and has a row saying so. Without

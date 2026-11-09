@@ -1,7 +1,7 @@
 """Compiler for the `category` decryption-rule search field.
 
 AN ABSENT KEY MEANS EVERY URL CATEGORY, so the empty state is the most permissive one and the
-normaliser materialises `any` for it - which is what makes `includes 'any'` reach the rule nobody
+normalizer materialises `any` for it - which is what makes `includes 'any'` reach the rule nobody
 bounded as well as the rule somebody set to `any` on purpose. Measured by stage 4 on a committed
 rule carrying only its six mandatory keys: `show running decryption-policy` printed `category any`,
 and the positive control moved and moved back.

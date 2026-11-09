@@ -668,7 +668,7 @@ DEVICE_IDENTIFICATION_SETTING_LABELS = {
     # field. This is the companion that separates "not entitled" from "never asked" - on an
     # appliance holding no licences the whole reply is `{'licenses': None}`, which is exactly what
     # a collector that never issued the command produces.
-    "licence_read_taken": "Licence listing answered",
+    "licence_read_taken": "License listing answered",
     # `deviceconfig/setting/iot/edge/address`. No vendor label either: stage 4 could reach no
     # oracle for this node, and Device > IoT Security has no route in the UI map.
     "edge_service_address": "Edge service address",
@@ -1189,8 +1189,8 @@ def _ml_action(row) -> str:
     `mlav-engine-filebased-enabled` node renders every model as `disable (for all protocols)` in
     the UI. Jason, 2026-11-03: *"In the case of blank, use the default action, which should have
     been normalized, and I think its disable."* Right on the value; the blank is deliberate
-    rather than un-normalised - OEI keeps it to record that the config says nothing - and this
-    reads the constant rather than the word, so a normaliser that starts writing the action
+    rather than un-normalized - OEI keeps it to record that the config says nothing - and this
+    reads the constant rather than the word, so a normalizer that starts writing the action
     cannot make the cell disagree with it.
     """
     from optivedge_integrations.integrations.models.policy.security_profiles import (
@@ -1946,7 +1946,7 @@ CLIENT_AUTH_SUBJECT = APPLIANCE + SCOPE + (
 ENFORCEMENT_POINT_SUBJECT = APPLIANCE + SCOPE + (
     ("Portals", 9, False, globalprotect_portal.point_portal_count),
     ("Clientless definitions", 26, True, globalprotect_portal.point_clientless_definitions),
-    ("GlobalProtect licence", 26, True, globalprotect_portal.point_licence),
+    ("GlobalProtect license", 26, True, globalprotect_portal.point_licence),
 )
 
 # THE THREE GLOBALPROTECT-GATEWAY TABS, 2026-11-02, for PAN-GPG-001 to -004, -006 and -007. Three
@@ -2517,7 +2517,7 @@ SPECS = (
          "SUBSCRIPTION IS THE PREMISE AND THE OTHER TWO REST ON IT - a zone with device "
          "identification switched on identifies nothing without the service behind it, so a "
          "finding here makes every Device-ID finding elsewhere in this report a smaller "
-         "question. THREE UNRELATED INSTRUMENTS LAND ON ONE ROW: a licence listing, an "
+         "question. THREE UNRELATED INSTRUMENTS LAND ON ONE ROW: a license listing, an "
          "operational reading of the installed content, and one configuration node. Each is "
          "reported with the companion column that says whether it was answered at all, because "
          "an appliance holding no subscription and an appliance nobody asked produce the same "
@@ -2597,7 +2597,7 @@ SPECS = (
          "whether it reads user SESSIONS from those servers, and how long a learned "
          "address-to-user mapping is allowed to live. THREE CONTROLS REPORT ON ONE NODE here, so "
          "a row may carry several findings about one agent. A ROW EXISTS FOR EVERY VIRTUAL SYSTEM "
-         "WHETHER THE NODE DOES OR NOT, and that is the point rather than an artefact: the "
+         "WHETHER THE NODE DOES OR NOT, and that is the point rather than an artifact: the "
          "vendor's implicit values apply to an unconfigured agent exactly as they do to a "
          "configured one, so a vsys nobody has set up is assessed on what the device actually "
          "does. WHAT THAT COSTS IS WORTH READING ONCE: a compliant row here may be reporting a "
@@ -2639,7 +2639,7 @@ SPECS = (
          "grades below the unbounded state for that reason: the vendor's implicit exclude-all "
          "rule then stops user mapping entirely, so the firewall is not over-reaching, it is not "
          "working. THE RANGES ARE PRINTED AND NOT JUDGED: whether an included range holds the "
-         "organisation's own staff is a question for the engineer, and nothing on the firewall "
+         "organization's own staff is a question for the engineer, and nothing on the firewall "
          "answers it.",
          title="User-ID Discovery", subject=USER_ID_DISCOVERY_SUBJECT,
          setting_labels=USER_ID_DISCOVERY_SETTING_LABELS,
@@ -2759,8 +2759,8 @@ SPECS = (
          "tab. WHAT THIS TAB CANNOT SAY is whether the applications published are ones somebody "
          "REVIEWED, which is the engineer's half of the control, nor whether the transport floor "
          "those browser sessions negotiate is acceptable - that is per portal, and stage 8 "
-         "records it as the half it did not build. A LICENCE ROW READING `No` IN THE LICENSING "
-         "COLUMN COVERS TWO STATES, licensed and never asked, and the GlobalProtect licence cell "
+         "records it as the half it did not build. A LICENSE ROW READING `No` IN THE LICENSING "
+         "COLUMN COVERS TWO STATES, licensed and never asked, and the GlobalProtect license cell "
          "beside it is the only place they are told apart.",
          title="GlobalProtect Coverage", subject=ENFORCEMENT_POINT_SUBJECT,
          # TWO DOMAINS' LABELS ON ONE TAB, which is what a shared sheet costs and is why the merge
@@ -2808,7 +2808,7 @@ SPECS = (
          "that build a tunnel to it. A gateway is the service that actually carries remote-user "
          "traffic, so the controls here are about the transport: whether the profile it presents "
          "states a protocol floor at all, whether it builds an inspected tunnel, whether that "
-         "tunnel runs over the transport and the algorithm the organisation chose, and how long a "
+         "tunnel runs over the transport and the algorithm the organization chose, and how long a "
          "session and an idle session are allowed to last. THE ROW IS ONE GATEWAY ON ONE APPLIANCE, "
          "so an HA pair draws two rows for one configuration and the Appliance and HA role columns "
          "are what tell them apart. EVERY ROW ON THIS TAB IS DRAWN FROM A GATEWAY THAT EXISTS - and "
@@ -3042,7 +3042,7 @@ SPECS = (
     # --- decryption-policy, 2026-11-02 -------------------------------------------------------
     spec(T.DECRYPTION_POLICY_RULE,
          "Each decryption rule that leaves a session encrypted, and what it exempts. A rule here "
-         "is not a defence that is weak - it is traffic the whole inspection stack downstream "
+         "is not a defense that is weak - it is traffic the whole inspection stack downstream "
          "never sees, and every control on this tab is about how MUCH traffic one exemption "
          "covers: whether it is keyed on any criterion at all, whether it says why it exists, "
          "whether the population it exempts is a set of people somebody can review, and whether "
@@ -3135,7 +3135,7 @@ SPECS = (
                                  "enforcement_point__appliance_group"),
          subject_prefetch=("enforcement_point__appliance_group__appliances",)),
     spec(T.SSL_DECRYPTION_EXCLUSION,
-         "Each SSL decryption exclusion THE ORGANISATION ADDED ITSELF, and whether it says why. "
+         "Each SSL decryption exclusion THE ORGANIZATION ADDED ITSELF, and whether it says why. "
          "An exclusion keeps every session to or from the named server encrypted, so it is a "
          "standing hole in inspection that only the reason written on it can justify - and the "
          "device checks neither that a reason exists nor that it is still true. BOTH WRITABLE "
@@ -3909,7 +3909,7 @@ SPECS = (
          "profile object itself is another domain's subject. READ THE `Profiles read` COLUMN "
          "FIRST: both verdicts are false when the answer is no AND when nobody looked, and that "
          "column is the only thing on the row that tells those apart. WHAT A ROW HERE CANNOT "
-         "SAY: whether the organisation's own approved applications are CARVED OUT of a "
+         "SAY: whether the organization's own approved applications are CARVED OUT of a "
          "restricted category. No object on the firewall expresses that exception, so the "
          "restriction half is all this tab reports and a partition that blocks a category "
          "wholesale reads the same as one that blocks it with the right exemptions.",
@@ -4234,10 +4234,10 @@ SPECS = (
          "WORST STATE IT FINDS AND A NEVER-INSTALLED STREAM IS CLASSIFIED FIRST, which is worth "
          "knowing when a row reads \"A stream was never installed\" and another stream on the same "
          "row is also behind its window: the reason given is the strongest one, not the only one. "
-         "WHAT A ROW HERE CANNOT SAY: whether the organisation ever bought the subscription that "
+         "WHAT A ROW HERE CANNOT SAY: whether the organization ever bought the subscription that "
          "delivers a stream. A never-installed WildFire stream on an appliance that holds no "
          "WildFire entitlement reports at the same severity as one on an appliance that does, "
-         "because no column of this subject can hold a fact about the licence table - and the "
+         "because no column of this subject can hold a fact about the license table - and the "
          "vendor keeps part of a stream flowing at a slower cadence after an entitlement expires, "
          "so a lapsed subscription is deliberately NOT an exemption. Stage 8 raised that as a "
          "question for a person rather than settling it. AND A STREAM WITH NO PUBLICATION DATE "
@@ -4260,15 +4260,15 @@ SPECS = (
          "columns of one model, and they are different consequences rather than two tiers of one: a "
          "lapsed SUBSCRIPTION stops the protection it delivers, and a lapsed SUPPORT entitlement "
          "stops the firewall obtaining software at all, which blocks the remedy for anything else "
-         "found here. A finding names the APPLIANCE and not a licence, because the commonest "
-         "failing state is an entitlement that is MISSING and a missing entitlement has no licence "
+         "found here. A finding names the APPLIANCE and not a license, because the commonest "
+         "failing state is an entitlement that is MISSING and a missing entitlement has no license "
          "row to live on. WHAT A ROW HERE CANNOT SAY: whether the appliance was MEANT to carry its "
          "own support entitlement. Nothing on a firewall says whether it is a production device or "
          "a spare, a lab or an RMA unit that deliberately has none, so an absent support row is "
          "reported at high severity on every appliance - and on the measured estate that is every "
          "appliance, with nobody able to say whether `request license info` lists support "
          "entitlements on these platforms at all. Stage 8 raised that as a question for a person. "
-         "AND AN UNREADABLE LICENCE TABLE IS NOT AN EMPTY ONE: `request license info` answers a "
+         "AND AN UNREADABLE LICENSE TABLE IS NOT AN EMPTY ONE: `request license info` answers a "
          "present-and-empty element on both PA-5220s, which is the same shape an unlicensed "
          "appliance returns and the same shape a read that never ran would leave, so it is reported "
          "rather than passed.",
@@ -4297,7 +4297,7 @@ SPECS = (
          "pass would be a customer told they are safe on the strength of nothing. WHAT A CLEAN ROW "
          "HERE DOES NOT COVER: this control\'s other half, sustained dataplane load, is reported "
          "NOWHERE in this report. No configuration node on the firewall holds a dataplane CPU or "
-         "session-utilisation threshold and the vendor\'s own monitoring procedure puts the "
+         "session-utilization threshold and the vendor\'s own monitoring procedure puts the "
          "comparison on an off-box SNMP manager, so stage 5 discharged that half to an engineer\'s "
          "question. AND THE THRESHOLD\'S DENOMINATOR IS NOT SETTLED: the vendor describes the same "
          "percentage as a share of available disk space on one page of this screen\'s section and of "
@@ -4465,12 +4465,12 @@ SPECS = (
          "otherwise be indistinguishable from 'this peer was never normalized'. WHAT A ROW HERE "
          "CANNOT SAY: whether the protocol is on firewall-wide. LLDP has a device-wide switch at "
          "`network/lldp/enable` which stage 5 assessed as a SECOND record of PAN-NET-003, and "
-         "the shipped catalogue carries no query for it - so an interface row reporting what a "
+         "the shipped catalog carries no query for it - so an interface row reporting what a "
          "port announces cannot tell a reader whether anything is announced at all. THAT SWITCH "
          "IS READABLE FROM NO SURFACE IN THIS APPLICATION: nothing can fire over its model, so it "
          "has no findings tab, and a rail item is a promise of a findings page - see "
          "`configuration_navigation.py`, 'Network > LLDP IS DELIBERATELY ABSENT FROM THIS RAIL'. "
-         "Closing it is one catalogue entry, which stage 8 already compiled. "
+         "Closing it is one catalog entry, which stage 8 already compiled. "
          "AND THE PROVENANCE COLUMN READS 'Not recorded' ON EVERY "
          "ROW, which is a true statement and not a gap: `integrations.Interface` is the one "
          "subject model in this report that carries no provenance records at all, so nothing "
@@ -4513,7 +4513,7 @@ SPECS = (
     # the row, which is the better case of P436 and not an escape from it. `Matched queries`
     # names which group fired.
     spec(T.SESSION_SETTINGS,
-         "Two device-wide session behaviours that decide whether a policy change actually "
+         "Two device-wide session behaviors that decide whether a policy change actually "
          "reaches traffic already in flight, and whether IPv6 traffic is inspected at all. A "
          "finding names the APPLIANCE because both nodes are under `deviceconfig/setting`, which "
          "is device-wide rather than vsys-scoped, so an HA pair draws TWO rows for one real "

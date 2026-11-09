@@ -272,7 +272,7 @@ def _update_token(value) -> str:
       * AND THE MAP WOULD BE PARTIAL WHERE IT MATTERS MOST. The vendor's action list is Download
         Only / Download and Install / Download and SCP; `none` and the empty string are not on it,
         and those two are exactly the states these controls exist to tell apart. Stage 8's second
-        `needs_human` records that the action leaf passes an unrecognised token through verbatim,
+        `needs_human` records that the action leaf passes an unrecognized token through verbatim,
         so a map would also silently rename a state a later PAN-OS really holds.
 
     The English goes in the HEADINGS instead, where `setting_labels` and `query_fields` do reach -
@@ -356,7 +356,7 @@ def _action(value) -> str:
 def _url_action(value) -> str:
     """A url-filtering profile's weakest Site Access action over a named category set.
 
-    NULL IS NOT "none" HERE. The column is null exactly when the category catalogue was never
+    NULL IS NOT "none" HERE. The column is null exactly when the category catalog was never
     read, so the set has no members to rank - which is a fact about the collection and not about
     the profile. `(none)`, which the shared findings renderer can say, would read as an action.
     """
@@ -367,7 +367,7 @@ def _worst_category(value, collected) -> str:
     """The worst-ranked category on a verdict's failing side, with the TWO NULLS separated.
 
     `worst_reachable_unlogged_category` and `worst_credential_permissive_category` are both null
-    for two unrelated reasons - the catalogue was never read, or the failing set is EMPTY and the
+    for two unrelated reasons - the catalog was never read, or the failing set is EMPTY and the
     profile passes - and the stored value cannot tell them apart. The companion column
     `category_catalogue_collected` is the only thing that can, so this reads it. Printing one
     word for both would put "nobody looked" and "nothing is wrong" in the same cell.
@@ -1232,12 +1232,12 @@ RESULTS = {
             "Appliance": "hostname",
             "Serial": "serial_number",
             "IoT Security subscription in force": "device_id_licensed",
-            "Licence listing answered": "licence_read_taken",
+            "License listing answered": "licence_read_taken",
             "Edge service address": "edge_service_address",
             "Content release date reported": "device_dictionary_release_date_known",
             "Content age (days)": "device_dictionary_age_days"},
         columns=("Appliance", "Serial", "IoT Security subscription in force",
-                 "Licence listing answered", "Edge service address",
+                 "License listing answered", "Edge service address",
                  "Device dictionary version", "Content release date (as written)",
                  "Content release date reported", "Content age (days)",
                  "Classification data build", "Classification data built"),
@@ -2290,11 +2290,11 @@ RESULTS = {
     "licenses": ResultsSpec(
         query_fields={
             "Appliance": "hostname", "Serial": "serial_number",
-            "Licence table read": "licence_inventory_read",
+            "License table read": "licence_inventory_read",
             "Rows returned": "licence_row_count",
             "Subscription entitlements": "entitlement_state",
             "Support entitlement": "support_entitlement_state"},
-        columns=("Appliance", "Serial", "Licence table read", "Rows returned",
+        columns=("Appliance", "Serial", "License table read", "Rows returned",
                  "Subscription entitlements", "Support entitlement", "Expired", "Within 30 days",
                  "Features held"),
         base_queryset=_ordered(LicenceInventory, "appliance__hostname"),
@@ -3061,16 +3061,16 @@ RESULTS = {
                       "Clientless app groups": "clientless_app_group_count",
                       "Portals publishing": "portals_publishing_clientless_apps",
                       "Clientless VPN surface": "clientless_vpn_feature_state",
-                      "GlobalProtect Portal licence": "globalprotect_portal_licensed",
+                      "GlobalProtect Portal license": "globalprotect_portal_licensed",
                       "Licensing rules GlobalProtect out": "licence_excludes_globalprotect",
-                      "Licence entries read": "licence_entry_count",
-                      "Licence reply collected": "licence_reply_collected",
+                      "License entries read": "licence_entry_count",
+                      "License reply collected": "licence_reply_collected",
                       "HIP objects testing client version":
                           "hip_objects_testing_client_version"},
         columns=("Appliance", "Vsys", "Portals", "Clientless apps", "Clientless app groups",
                  "Portals publishing", "Clientless VPN surface",
-                 "GlobalProtect Portal licence", "Licensing rules GlobalProtect out",
-                 "Licence reply collected", "Licence entries read",
+                 "GlobalProtect Portal license", "Licensing rules GlobalProtect out",
+                 "License reply collected", "License entries read",
                  "HIP objects testing client version"),
         base_queryset=_ordered(
             GlobalProtectEnforcementPoint, "appliance__hostname", "vsys_name"),
@@ -3142,8 +3142,8 @@ RESULTS = {
                       "Inactivity Logout (minutes)": "inactivity_logout_minutes",
                       "Idle bound read": "inactivity_logout_known",
                       "Block login for quarantined devices": "block_quarantined_devices",
-                      "GlobalProtect licence": "globalprotect_gateway_licensed",
-                      "Licence state read": "licence_state_known"},
+                      "GlobalProtect license": "globalprotect_gateway_licensed",
+                      "License state read": "licence_state_known"},
         columns=("Appliance", "Vsys", "Gateway", "SSL/TLS Service Profile",
                  "TLS floor on that profile", "Bound profile states a floor", "Tunnel Mode",
                  "Enable IPSec", "Transport half read", "GlobalProtect IPSec Crypto",
@@ -3151,7 +3151,7 @@ RESULTS = {
                  "Certificate is a second factor", "Login Lifetime as entered",
                  "Login Lifetime (hours)", "Login bound read", "Inactivity Logout (minutes)",
                  "Idle bound read", "Block login for quarantined devices",
-                 "Exclude video applications", "GlobalProtect licence", "Licence state read"),
+                 "Exclude video applications", "GlobalProtect license", "License state read"),
         base_queryset=_ordered(
             GlobalProtectGateway, "appliance__hostname", "vsys_name", "name"),
         row=lambda g: (

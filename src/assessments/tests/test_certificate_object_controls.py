@@ -168,7 +168,7 @@ class CertificateObjectControlTests(TestCase):
         """Both mean no revocation checking, so both must report.
 
         The measured default is what makes this correct rather than convenient: absent is
-        DISABLED, so writing `no` changes nothing about behaviour and must not change the
+        DISABLED, so writing `no` changes nothing about behavior and must not change the
         verdict either.
         """
         self._appliance("fw-explicit", shared={"certificate-profile": {"entry": [
@@ -324,7 +324,7 @@ class WeakTlsAlgorithmControlTests(CertificateObjectControlTests):
         THE QUESTION IS WHICH OF TWO TRUE THINGS THE CELL SHOULD SAY. The configuration says sha1
         is enabled, because an absent key means enabled. The wire says it is off, because a
         1.3-only range excludes it and the device refuses the write inside that range. The
-        normaliser now records the wire; the old design recorded the configuration.
+        normalizer now records the wire; the old design recorded the configuration.
 
         Both readings exclude the profile, so THE CUSTOMER OUTCOME IS IDENTICAL - the second
         assertion is unchanged and is the one that matters. To restore the old design, drop

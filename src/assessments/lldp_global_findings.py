@@ -4,9 +4,9 @@ NO SHIPPED CONTROL PRODUCES ONE OF THESE, so this generator writes nothing today
 recorded state rather than dead code left behind. PAN-NET-003's assertions name two subjects -
 the per-interface announcement and this device-wide enable - and `Control` maps one type to one
 model while `ControlQuery.clean()` refuses a query whose model differs from its control's target,
-so one catalogue control cannot hold both halves. The per-interface half took the id, because
+so one catalog control cannot hold both halves. The per-interface half took the id, because
 seven of the ten expectations stage 6 wrote are on it and all of its graded severities are.
-Splitting PAN-NET-003 into two catalogue ids changes what a customer's report contains and is
+Splitting PAN-NET-003 into two catalog ids changes what a customer's report contains and is
 Jason's decision.
 
 The generator is registered anyway, for the reason `finding_run.GENERATORS` exists at all: the

@@ -9,7 +9,7 @@ content, because the five differ by an order of magnitude in what they cost.
 is an absence that WAS read - no branch element under `recurring`, or an explicit `<none/>` - and
 says this appliance retrieves nothing for this content type until a person installs by hand. `""`
 is an absence NOBODY READ: the appliance's `deviceconfig/system` node came back empty, the
-normaliser writes the empty string to all ten columns rather than `none`, and
+normalizer writes the empty string to all ten columns rather than `none`, and
 `update_schedule_collected` is false. Both fire, and they carry different remediations: the first
 is a schedule to create, the second is a collection to fix. A generator that printed "no
 schedule" for both would tell a customer their firewall is misconfigured on the strength of a

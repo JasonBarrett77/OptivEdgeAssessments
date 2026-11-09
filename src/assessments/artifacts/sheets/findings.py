@@ -757,7 +757,7 @@ def build_rows(spec, findings, controls, settings, tested=None):
             answer here, and an empty tuple produces exactly that: `remediation_of` falls through
             to `entry_row`, the object's own entry row, which is the right fallback because the
             location of an unprovenanced field is the location of the object. For the 21 models
-            that do declare the attribute, behaviour is byte-identical.
+            that do declare the attribute, behavior is byte-identical.
             """
             row = provenance.get((_ct, _pk, field))
             if row is None and field in getattr(_model, "DERIVED_FIELDS", ()):

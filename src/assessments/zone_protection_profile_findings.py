@@ -28,13 +28,13 @@ module's:
 - WHETHER THE NON-SYN REFUSAL IS UNDER A VENDOR-REQUIRED EXCEPTION. Three vendor documents say to
   disable it on a zone that controls the security policy for traffic a tunnel inspection rule
   opens, when session rematch is on - and the predicate needs three facts no column of this
-  subject holds, the third of which is a judgement rather than a value. Same treatment:
+  subject holds, the third of which is a judgment rather than a value. Same treatment:
   fire, and say the exception was not excluded.
 
 THE RATES ARE NOT ASSERTED ANYWHERE AND THE SENTENCES SAY SO. Stage 5 discharges both rate halves
 onto a question for a person - the zone's measured average and peak new-connection rates over a
 full business week - because the vendor's own formulas are expressed in terms of them and stage 4
-refused to licence the documented defaults: it measured them from the dataplane ONLY for a flood
+refused to license the documented defaults: it measured them from the dataplane ONLY for a flood
 type whose enable had been set, the numbers differ by ACTION BRANCH, and for one flood type they
 differ by firmware model across nine values. A clause comparing against the documented numbers
 would pass a profile holding the vendor's own figures and fail one holding the right ones. And a
@@ -128,7 +128,7 @@ def _volumetric_flood_gap(obj) -> list[str]:
         f"AT LEAST ONE VOLUMETRIC FLOOD TYPE IS NOT PROTECTED on this profile: {which}",
         "each of the four is an independent leaf with its own response branch and its own three "
         "rates, so switching one on protects against one flood - which is why this is asserted "
-        "four ways and not one. The catalogue row carries a path for only the datagram flood, so "
+        "four ways and not one. The catalog row carries a path for only the datagram flood, so "
         "a reading taken from the row alone audits a QUARTER of this control",
         "THE STREAM-CONTROL TRANSPORT'S INITIATION FLOOD IS NOT INCLUDED and must not be read "
         "into the other-IP arm: the vendor excludes it from that branch by its own definition, it "
@@ -150,7 +150,7 @@ def _scan_detection_gap(obj) -> list[str]:
         parts.append(
             "RECONNAISSANCE DETECTION IS NOT CONFIGURED FOR EVERY SCAN TYPE THIS PROFILE CAN "
             f"CARRY - no entry exists for {', '.join(missing)} - so those scans are not detected "
-            "at all. THE DEVICE OFFERS FOUR SCAN TYPES AND THE CATALOGUE ROW NAMES THREE, so an "
+            "at all. THE DEVICE OFFERS FOUR SCAN TYPES AND THE CATALOG ROW NAMES THREE, so an "
             "audit taken from the row leaves the IP protocol scan entirely unexamined")
     if weakest:
         parts.append(
@@ -261,7 +261,7 @@ def _non_syn_reject(obj) -> list[str]:
     elif configured == "no":
         parts.append(
             "NON-SYN TCP IS EXPLICITLY ACCEPTED on this profile, so the firewall will build a "
-            "session from a packet whose connection opening it never saw - which the catalogue "
+            "session from a packet whose connection opening it never saw - which the catalog "
             "row's own notes call a material degradation of TCP state security requiring a formal "
             "exception")
     else:
@@ -275,7 +275,7 @@ def _non_syn_reject(obj) -> list[str]:
         "on a firewall where session rematch is enabled. Establishing that needs three facts no "
         "column of this profile holds - whether a tunnel inspection policy exists, whether "
         "rematch is on, and WHICH zones control that policy's rules - and the third is a "
-        "judgement rather than a value, so the exception is yours to apply")
+        "judgment rather than a value, so the exception is yours to apply")
     parts.append(
         "AND THE VENDOR'S OWN TEXT POINTS BOTH WAYS ON THIS FIELD, which is recorded rather than "
         "resolved: the same page that explains why permitting non-SYN TCP breaks file blocking "
@@ -294,7 +294,7 @@ def _packet_drop_gap(obj) -> list[str]:
         "happens only between a migration and the pass that recomputes them")
     return [
         f"AT LEAST ONE OF THE PACKET DROPS THIS CONTROL ASSERTS IS OFF on this profile: {which}",
-        "these four are the drops the catalogue row's description names, and they are NOT the "
+        "these four are the drops the catalog row's description names, and they are NOT the "
         "same list as its longer prose, which adds the Record Route and network-layer Timestamp "
         "option drops. No vendor hardening line asks for those two, so they are not asserted here "
         "and are not part of this finding either way",

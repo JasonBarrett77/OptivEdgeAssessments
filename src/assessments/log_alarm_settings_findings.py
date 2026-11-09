@@ -31,7 +31,7 @@ against another; a later control that does must measure that value first.
 AND THE OTHER HALF OF PAN-PLT-006 IS NOT REPORTED ANYWHERE, which a reader of this row must not
 mistake for a pass. Its second assertion record - a dataplane under sustained load - is discharged
 `engineer_answers` by stage 5 and owes no query, because there is no configuration node anywhere on
-the firewall holding a dataplane CPU or session-utilisation threshold, so "sustained" has no stored
+the firewall holding a dataplane CPU or session-utilization threshold, so "sustained" has no stored
 definition and the vendor's own monitoring procedure puts the comparison on the SNMP manager. That
 is a measurable expression nobody can write, not a model this control failed to reach.
 """

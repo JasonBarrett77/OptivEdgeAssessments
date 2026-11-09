@@ -33,7 +33,7 @@ unbounded" would be a claim about a configuration nobody read.
 WHAT THIS CONTROL CANNOT SAY, and it is the reason the finding prints the members. Whether an
 include list that EXISTS actually bounds discovery to the right subnets is site-specific: stage 3
 records the ranks and the vendor's own guidance, and nothing on the firewall says which subnets
-carry the organisation's user population. So an in-force include list passes here and the members
+carry the organization's user population. So an in-force include list passes here and the members
 are printed for a reviewer to confirm against the site's addressing.
 """
 

@@ -87,7 +87,7 @@ class SeededCatalogTextTests(TestCase):
 
     def test_no_short_recommendation_reads_like_an_instruction_to_an_engineer(self):
         """The rule, over the shipped payload: one sentence, 100 characters or fewer, no
-        command, no UI path, no control id. `schemas` refuses a catalogue that breaks it; this
+        command, no UI path, no control id. `schemas` refuses a catalog that breaks it; this
         says so about the one that ships, so a bad line cannot reach a client even if the
         refusal is ever loosened.
         """
@@ -174,7 +174,7 @@ class SeededCatalogTextTests(TestCase):
         self.assertEqual(validated["controls"][0]["short_remediation"], "")
 
     def test_it_survives_a_round_trip_through_the_exporter(self):
-        """A catalogue exported from the live controls and validated again must not lose it -
+        """A catalog exported from the live controls and validated again must not lose it -
         which is how a reissue is made, and losing it there would put the full remediation back
         in the document with nothing failing."""
         seed_catalogs_if_empty()
@@ -235,7 +235,7 @@ class SeededCatalogTextTests(TestCase):
         """The rule over the shipped payload: inside its cap, ending in a full stop, no
         command, no mention of the control's own id, nothing in the first person.
         `where_to_confirm` is the one field allowed a UI path, because a screen path is what it
-        is for. `schemas` refuses a catalogue that breaks this; the test says so about the one
+        is for. `schemas` refuses a catalog that breaks this; the test says so about the one
         that ships.
         """
         offenders = {}

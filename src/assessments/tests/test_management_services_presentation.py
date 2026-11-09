@@ -1,5 +1,5 @@
 """The `management-services` domain's eight findings tabs, and every cell on them that was a
-judgement.
+judgment.
 
 Stage 9 of the OptivEdgeProbe pipeline, domain `management-services`, 2026-11-03 - run 28 of 28,
 and the run that empties `AWAITING_PRESENTATION`. SIX of the eight tabs already existed, which no
@@ -15,10 +15,10 @@ iterates nothing and passes. That has already shipped once, in
 `test_platform_lifecycle_presentation`. The helper makes it impossible here, and it is called in
 the tests that need rows rather than in `setUp`, so the heading tests do not pay a finding run.
 
-THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALISED, which is the house pattern and is
-deliberate: the normalisers are stage 7's and have their own tests, and the stage 6 payloads live
+THE SUBJECT ROWS ARE WRITTEN DIRECTLY RATHER THAN NORMALIZED, which is the house pattern and is
+deliberate: the normalizers are stage 7's and have their own tests, and the stage 6 payloads live
 in another repository and are gitignored. EVERY VALUE AND EVERY PROVENANCE TYPE BELOW IS THE ONE
-THE COMMITTED NORMALISERS PRODUCED for the appliance named beside it when this run built the
+THE COMMITTED NORMALIZERS PRODUCED for the appliance named beside it when this run built the
 domain's estate from `stage6-management-services.json`, transcribed by hand.
 
 AND THAT ESTATE COULD NOT BE BUILT BY THE COMMITTED SEEDER, which is why the values are transcribed
@@ -171,7 +171,7 @@ class ManagementServicesPresentationTests(TestCase):
         """THE ROW THAT ARGUED AGAINST ITS OWN FINDING, before this run's reader branch.
 
         Stage 6 records NO addressing subject for this appliance at all - only
-        `server-verification`, an absent `type` node and `service` - so the normaliser resolves the
+        `server-verification`, an absent `type` node and `service` - so the normalizer resolves the
         allocation mode to the measured default `static`, stores no address and no gateway, and
         `address_is_globally_routable("")` answers True, which is the default that FIRES. The
         posture therefore resolves to `routable_address` and the cell asserted a globally routable
@@ -240,7 +240,7 @@ class ManagementServicesPresentationTests(TestCase):
     def mode_never_read(self, hostname="pan-fw-1085"):
         """No operational read was taken, so the mode is empty and the verdict fires.
 
-        NO `FieldProvenance` ROW OF ANY KIND, and that is the normaliser's deliberate choice rather
+        NO `FieldProvenance` ROW OF ANY KIND, and that is the normalizer's deliberate choice rather
         than an omission in this fixture: `management_plane.py` passes `provenance=()` and explains
         that `classify_prov_type`'s fallthrough would label a runtime reading `local`, "defined on
         this device", which is the one thing it is not.
@@ -436,8 +436,8 @@ class ManagementServicesPresentationTests(TestCase):
         database field name to a customer.
 
         SEVEN OF THE FOURTEEN WERE NOT THIS DOMAIN'S COLUMNS: `certificate_trust` is PAN-CRT-006's
-        and six belong to the five PAN-MCR controls. They are labelled anyway, on run 26's
-        precedent - labelling a column changes nothing about its control - and each owning domain
+        and six belong to the five PAN-MCR controls. They are labeled anyway, on run 26's
+        precedent - labeling a column changes nothing about its control - and each owning domain
         inherits the words and may replace them.
 
         It checks against the MODEL's own field names rather than against a spelling heuristic,
@@ -567,7 +567,7 @@ class ManagementServicesPresentationTests(TestCase):
     def test_an_unread_operational_mode_is_not_an_empty_one(self):
         """`display_value` has exactly three answers and renders the empty string `(empty)`, which
         reads as "the appliance answered with nothing" over a row where no operational read was
-        taken at all. The normaliser says the opposite in terms: "EMPTY MEANS THE READ WAS NOT
+        taken at all. The normalizer says the opposite in terms: "EMPTY MEANS THE READ WAS NOT
         TAKEN and never that the field was absent from a reply that arrived".
 
         THE TWO COLUMNS ARE A PAIR AND THE PAIR IS THE POINT: a single boolean collapses "not in an
@@ -587,7 +587,7 @@ class ManagementServicesPresentationTests(TestCase):
     def test_the_mark_is_on_the_value_at_fault_and_the_calibration_adds_the_second(self):
         """`build_rows` marks the fields the MATCHED queries assert on, from
         `ControlQuery.asserted_fields`, and falls back to EVERY tested field where that list is
-        empty. Measured over the whole shipped catalogue 2026-11-03: 578 queries, 12 with no
+        empty. Measured over the whole shipped catalog 2026-11-03: 578 queries, 12 with no
         `asserted_fields`, and PAN-MGT is at ZERO - so the marks on these rows are correct exactly
         insofar as that census says, and it says they are.
 
@@ -628,7 +628,7 @@ class ManagementServicesPresentationTests(TestCase):
         declares no floor" over a row where NOTHING IS BOUND - and PAN-MGT-010's own calibrations
         distinguish those two states as separate queries, `No transport-security configuration
         bound` and `Bound floor could not be resolved`. A cell that cannot tell them apart loses a
-        distinction the catalogue already makes."""
+        distinction the catalog already makes."""
         self.tls_binding_unbound()
         self.ssh_defaults()
         row = self.cells(self.table("management-crypto"), "PAN-MGT-010", "pan-fw-1085")

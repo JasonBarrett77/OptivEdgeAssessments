@@ -60,7 +60,7 @@ def _validate_short_remediation(control_payload: dict, control_id: str, is_activ
     the thing it replaced was `remediation`, which on 96 of the 218 controls opens with a CLI
     command or a UI path. A control added tomorrow with no short line, or with its full
     remediation pasted in, would put that straight back in front of a client. Refusing the
-    CATALOGUE is what makes that impossible, rather than a test that a new control's author has
+    CATALOG is what makes that impossible, rather than a test that a new control's author has
     to know to run.
 
     An INACTIVE control is exempt: it is graded by nothing, so it reaches no document.

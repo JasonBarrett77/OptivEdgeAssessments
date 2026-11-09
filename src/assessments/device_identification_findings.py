@@ -69,7 +69,7 @@ def _entitlement(obj) -> list[str]:
     if not obj.licence_read_taken:
         # The honest arm. Do NOT report a missing subscription here: nobody asked.
         return [
-            "NOBODY ASKED WHETHER THIS APPLIANCE IS ENTITLED: the licence listing was never "
+            "NOBODY ASKED WHETHER THIS APPLIANCE IS ENTITLED: the license listing was never "
             "taken for it, so this is not a reading that the subscription is absent. The two "
             "are indistinguishable in the reply - an appliance holding nothing licensed answers "
             "exactly what an appliance nobody asked answers - and this column is the only thing "
@@ -77,7 +77,7 @@ def _entitlement(obj) -> list[str]:
         ]
     return [
         "no in-force entitlement for the vendor's device-identification service was found on "
-        "this appliance: the licence listing was taken and carries no unexpired row for that "
+        "this appliance: the license listing was taken and carries no unexpired row for that "
         "feature. The vendor returns NO ROW for an entitlement an appliance does not hold, so "
         "this is the absence of a row rather than a row reporting `expired`",
         "the match that establishes this is against a candidate set of feature names and NOT "

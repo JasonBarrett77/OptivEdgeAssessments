@@ -263,7 +263,7 @@ class AdvertisedOperatorTests(TestCase):
         compiler that only checks for a non-empty one advertises it and can never serve it.
 
         Two did - `management_interface` and `interface_management_profile`, both of which took
-        the operator set from `scalar_text` without taking its behaviour. Invisible until the
+        the operator set from `scalar_text` without taking its behavior. Invisible until the
         query builder started rendering the registry, because nothing had ever offered those
         operators to a person.
         """
@@ -744,7 +744,7 @@ class DashboardChipTests(TestCase):
     Rendered by the shared nav partial rather than added to `CATEGORIES`, because it is not a
     category: no objects, no rail, and every derivation over categories treats one as a set of
     objects. The tests are here rather than in `test_navigation` because what they guard is the
-    bar's behaviour on these pages - that the chip is reachable from every object page, and that
+    bar's behavior on these pages - that the chip is reachable from every object page, and that
     exactly one thing in the bar reads as active at a time.
     """
 
@@ -1116,7 +1116,7 @@ class IncludeAnyTests(TestCase):
     def test_the_builder_carries_the_flag_back_out(self):
         """A proxy for the JS: `serialise` builds a fresh clause object, so a key it does not
         name is lost the moment the query is re-applied. Asserted on the template because that
-        is where the round trip lives; the behaviour itself was checked against the lab."""
+        is where the round trip lives; the behavior itself was checked against the lab."""
         from pathlib import Path
 
         import assessments
@@ -1128,7 +1128,7 @@ class IncludeAnyTests(TestCase):
 
     def test_the_builder_offers_the_toggle_only_where_it_means_something(self):
         """Every compiler but the semantic address one carries `include_any` and ignores it, so
-        a toggle on those fields would promise a behaviour they do not have."""
+        a toggle on those fields would promise a behavior they do not have."""
         response = self.client.get(
             reverse("assessment_configuration_object", args=["policies", "security"]))
         offered = set(response.context["include_any_fields"])

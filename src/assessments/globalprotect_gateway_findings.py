@@ -9,7 +9,7 @@ UNEXERCISED and the stage 8 artifact says so in `needs_human`.
 THE DISPATCH DEFAULTS TO `()` AND THAT IS THE POINT OF WRITING IT THAT WAY. Measured across all 28
 generators in this repository that key a dispatch by control id, EIGHTEEN default to a non-empty
 arm tuple - some other control's arms - so a control reusing one of those types has its findings
-described with another control's compliance claims unless it adds its own entry. An unrecognised id
+described with another control's compliance claims unless it adds its own entry. An unrecognized id
 here contributes the subject line and no claim, which is thin rather than wrong, and is what the
 three most recent runs adopted.
 
@@ -29,11 +29,11 @@ what the TLS profile actually states, what the certificate profile actually refu
 sends them there and this sentence names the binding rather than following it. Every value printed
 below is a column of the gateway's own row.
 
-THE LICENCE GOES IN THE WORDING AND NEVER IN A CLAUSE, and that is a decision worth not reversing.
+THE LICENSE GOES IN THE WORDING AND NEVER IN A CLAUSE, and that is a decision worth not reversing.
 `globalprotect_gateway_licensed` is `default=False` and two of the four lab appliances answer the
-licence read with `{'licenses': None}` - truthy, empty, status=success - which is the instrument
+license read with `{'licenses': None}` - truthy, empty, status=success - which is the instrument
 saying nothing rather than saying unlicensed. An applicability clause on it would SUPPRESS these
-controls on exactly the appliances whose licence state is unknown, where an assertion clause would
+controls on exactly the appliances whose license state is unknown, where an assertion clause would
 raise them. `licence_state_known` is what tells the two apart and the arms below print it.
 """
 
@@ -56,15 +56,15 @@ from optivedge_integrations.integrations.models import GlobalProtectGateway
 
 
 def _licence_note(obj) -> list[str]:
-    """Shared by every arm. The licence is a qualifier on the finding and never a suppressor."""
+    """Shared by every arm. The license is a qualifier on the finding and never a suppressor."""
     if not obj.licence_state_known:
-        return ["THE LICENCE QUESTION BEHIND THIS GATEWAY WAS NEVER ANSWERED: the appliance's "
-                "licence reply carried no entries at all, so whether GlobalProtect is licensed "
+        return ["THE LICENSE QUESTION BEHIND THIS GATEWAY WAS NEVER ANSWERED: the appliance's "
+                "license reply carried no entries at all, so whether GlobalProtect is licensed "
                 "here is unknown rather than no. These controls fire on an unknown by design - an "
                 "appliance nobody could read is not an appliance that answered no - and "
                 "suppressing on it would convert an unanswered licensing question into silence"]
     if not obj.globalprotect_gateway_licensed:
-        return ["AND THIS APPLIANCE'S LICENCE LIST CARRIES NO UNEXPIRED GlobalProtect Gateway "
+        return ["AND THIS APPLIANCE'S LICENSE LIST CARRIES NO UNEXPIRED GlobalProtect Gateway "
                 "FEATURE, which the vendor requires before any of this takes effect. Every "
                 "setting named here is configurable on an unlicensed firewall and none of it "
                 "runs, so a configuration read of this gateway looks the same either way"]
@@ -119,7 +119,7 @@ def _transport(obj) -> list[str]:
         parts.append(
             "THIS GATEWAY DOES NOT BUILD A TUNNEL FOR ITS ENDPOINTS - `tunnel-mode` is off - so "
             "the population it serves gets identity and nothing else. Their traffic never reaches "
-            "this firewall, which means every policy, profile and log the organisation has bought "
+            "this firewall, which means every policy, profile and log the organization has bought "
             "applies to the office and not to the people outside it, and no error appears "
             "anywhere. The vendor makes the tunnel OPTIONAL for a gateway that exists only to "
             "identify users already inside the network, and no field on any gateway object "
@@ -201,7 +201,7 @@ def _session_bounds(obj) -> list[str]:
         parts.append(
             f"a login on this gateway lasts up to {obj.login_lifetime_hours} hours before the user "
             f"must authenticate again{as_typed}. Until that expires the tunnel survives everything "
-            f"the organisation might do about the user: disabling the account, revoking the "
+            f"the organization might do about the user: disabling the account, revoking the "
             f"certificate, changing the password, losing the laptop. The product's own untouched "
             f"state is the worst value this setting can hold")
         parts.append(

@@ -12,7 +12,7 @@ it - which is exactly the to-many DOWNWARD relation walk standing ruling 6 refus
 THE WALK THAT RULING 6 DOES PERMIT IS THE ONE THIS MODEL ALREADY CARRIES, and it is why one
 severity separates two rows whose own switch value is identical. `certificate_profile_bound` is
 the PARENT PORTAL'S fact - whether `portal-config/certificate-profile` binds anything at all -
-written onto the row at normalisation. The row's `portal` FK is to-ONE and UPWARD, so the row's
+written onto the row at normalization. The row's `portal` FK is to-ONE and UPWARD, so the row's
 grain survives the join; the reverse accessor `client_auth_rows` is the direction that does not.
 
 `admission_demand` IS ONE COLUMN AND NOT A PREDICATE OVER TWO, which is a stage 5 decision this
@@ -27,7 +27,7 @@ THE VENDOR'S POLARITY IS KEPT ON `user_credential_or_client_cert_required` AND I
 both are required, which is the hardened one - the device's own help string spells it `No (User
 Credentials AND Client Certificate Required)`. A reviewer who clauses `equals yes` believing they
 have selected the hardened rows has selected exactly the permissive ones. No control clauses on it
-here; it is registered so the finding can colour the cell that actually failed, which is the same
+here; it is registered so the finding can color the cell that actually failed, which is the same
 reason `data_filtering_posture` registers the two parts of its conjunction.
 
 WHAT NO QUERY ON THIS MODEL CAN REACH. Whether the first factor is an authentication PROFILE or an

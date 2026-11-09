@@ -5,7 +5,7 @@ two rows for two peers, which the integrations model records as a real differenc
 duplication - the peers have different management addresses and are separately reachable.
 
 ONE COLUMN IS REGISTERED AND FOUR ARE DELIBERATELY NOT, which is the whole of this file's
-judgement. Stage 5 marks five of this subject's six columns `needs_compiler_field`:
+judgment. Stage 5 marks five of this subject's six columns `needs_compiler_field`:
 
     exposure_posture              PAN-MGT-004's assertion clause AND its grading axis  -> HERE
     allocation_mode               named by no clause, no grading and no undetermined    -> not

@@ -8,11 +8,11 @@ says "there is one seeder, and it takes its field list from the same place the i
 IT DOES NOT. It hand-lists them, which is the same defect one layer up, and on 2026-10-28
 `asserted_fields` fell straight into it: the field landed on `ControlQuery`, the importer set it,
 the seeder did not, and so EVERY control test in this repo ran with it empty and took the fallback
-path. The suite passed 840 tests and said nothing about the behaviour the field exists for. It was
+path. The suite passed 840 tests and said nothing about the behavior the field exists for. It was
 found by printing one row by hand.
 
 So this compares the two call sites field by field, from the source, because the drift is between
-two argument lists and not between two behaviours. A field added to one and not the other fails
+two argument lists and not between two behaviors. A field added to one and not the other fails
 here with the name of the field.
 """
 from __future__ import annotations

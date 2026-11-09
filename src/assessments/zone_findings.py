@@ -132,7 +132,7 @@ def _user_identification_on(obj) -> list[str]:
     `integrations.Zone` - the type-to-model map is one-to-one and nothing in the suite asserts
     that, so a duplicate would have passed every gate. Reuse is correct and it is also silent:
     a reused type reuses this module's generator, and `_subject` DEFAULTS to PAN-IOT-002's three
-    arms for any control id it does not recognise. Without this arm and its entry below, a
+    arms for any control id it does not recognize. Without this arm and its entry below, a
     PAN-UID-001 finding would have been described with PAN-IOT-002's claims - device
     identification off, narrowed, lists unread - which are answers to a different question about
     the same zone.
@@ -143,7 +143,7 @@ def _user_identification_on(obj) -> list[str]:
     `build_zone_finding_summary` takes its control id from the FIRST matched query - so a zone
     matched by both controls gets one control's arms arbitrarily. That is not fixed here; it is
     raised in the stage 8 artifact for `user-id` under `needs_human`, because rewriting that loop
-    to serve this control would change PAN-IOT-002's finding prose, which is a catalogue
+    to serve this control would change PAN-IOT-002's finding prose, which is a catalog
     decision rather than a build one.
     """
 
@@ -158,7 +158,7 @@ def _user_identification_on(obj) -> list[str]:
         "question is deliberately not asked as a condition here, for the reason the Device-ID "
         "half above gives: an unanswered question must leave the finding standing rather than "
         "suppress it. So this reports every zone with the switch on, and whether this zone "
-        "carries the organisation's own user population is the reviewer's to confirm",
+        "carries the organization's own user population is the reviewer's to confirm",
     ]
     if obj.include_acl or obj.exclude_acl:
         parts.append(
@@ -184,13 +184,13 @@ def _no_zone_defence(obj) -> list[str]:
     second type for a model that already has one breaks the map in a direction no shipped test
     catches. Reuse is correct and it is also silent: measured at HEAD before this arm existed,
     `_subject(zone, "PAN-ZON-001")` returned PAN-IOT-002's three arms BYTE-IDENTICALLY, so a
-    finding about a zone with no flood or scan defence in force was described as a zone with
+    finding about a zone with no flood or scan defense in force was described as a zone with
     device identification switched off. Two different switches, one sentence.
 
     TRUE FIRES, AND THE COLUMN IS A RESOLUTION RATHER THAN AN EMPTINESS TEST. The attachment leaf
     is a free string with NO referential integrity the configuration expresses - measured - so a
     zone naming a profile that does not exist reads as configured and meters nothing, and the
-    join is case-sensitive and unnormalised. `zone_protection_unresolved` is true for BOTH of
+    join is case-sensitive and unnormalized. `zone_protection_unresolved` is true for BOTH of
     those states, and the sentence says which one it found because the remediations differ: one
     is "attach a profile", the other is "the name you attached reaches nothing".
 
@@ -212,7 +212,7 @@ def _no_zone_defence(obj) -> list[str]:
                  "case-sensitive, so a name differing only in case is also a dangling one")
     else:
         found = ("NO zone protection profile is attached to this zone at all, so none of the "
-                 "flood, reconnaissance and packet-based defences is in force where traffic "
+                 "flood, reconnaissance and packet-based defenses is in force where traffic "
                  "enters")
     return [
         found,

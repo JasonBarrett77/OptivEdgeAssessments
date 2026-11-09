@@ -297,7 +297,7 @@ def band(sheet, row, first_col, last_col, cell_format):
 
 
 def write_title_band(build, sheet, *, title, last_col, tab_colour=None):
-    """Row 0: the title, right across the sheet, and the tab's colour."""
+    """Row 0: the title, right across the sheet, and the tab's color."""
     workbook = build.workbook
     if tab_colour:
         sheet.set_tab_color(tab_colour)
@@ -347,7 +347,7 @@ def write_header_block(build, sheet, *, title, last_col, count_groups, rationale
                        back_link=True, tab_colour=None) -> int:
     """Title band, a counts strip and an optional rationale. Returns the table's header row.
 
-    `count_groups` is a list of groups, each a list of (count, text, colour-or-None). Items in a
+    `count_groups` is a list of groups, each a list of (count, text, color-or-None). Items in a
     group are separated by a dot, groups by a bar. Shared values - client, engagement, run - belong
     on the Summary tab, not here.
     """

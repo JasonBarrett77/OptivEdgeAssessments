@@ -119,7 +119,7 @@ def _tenant_restriction(obj) -> list[str]:
     # NOT a claim about the identifier. The device cannot tell a correct tenant identifier from a
     # plausible wrong one, so the engineer's question carries that half.
     parts.append(
-        "whether an identifier a header does carry is the organisation's OWN account is not "
+        "whether an identifier a header does carry is the organization's OWN account is not "
         "readable from any firewall and is the engineer's answer")
     return parts
 

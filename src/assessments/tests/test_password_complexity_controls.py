@@ -3,7 +3,7 @@
 The subject moved on 2026-09-10 from `DeviceConfigurationProfile` to `PasswordComplexityPolicy`,
 the first cluster cut out of that aggregate. Nothing else about these thirteen changed, which is
 the point: the expectations below were written against the old model and pass unaltered against
-the new one, so the move is a change of address rather than of behaviour.
+the new one, so the move is a change of address rather than of behavior.
 
 Thirteen controls over one object, and the risk is that they look like thirteen copies of the
 same assertion. They are not. Three directions live here:

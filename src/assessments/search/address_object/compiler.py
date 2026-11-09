@@ -15,12 +15,12 @@ direction these controls exist to prevent.
 
 `referenced_by_policy` is what keeps the coverage controls proportionate. An EDL nobody
 references being uncollected is not a finding — it is a list sitting unused in the address
-book. The collection flow only fetches lists that normalised rule refs point at, so the
+book. The collection flow only fetches lists that normalized rule refs point at, so the
 unreferenced ones are expected to be unsized and must not be reported as a gap.
 
 `size_known` AND `collection_attempted` STAY REGISTERED AND NOTHING SHOULD CLAUSE ON THEM. They
 are kept because the shipped PAN-COV-001 baseline rested on both until 2026-10-31, and because
-dropping a registration refuses any catalogue payload that still carries one. Both are TRUE for
+dropping a registration refuses any catalog payload that still carries one. Both are TRUE for
 a list the firewall has never read a byte of: a never-fetched list answers `total-valid 1` with
 the single member `0.0.0.0/32`, which is a syntactically valid address, so
 `resolved_content_source_total` becomes 1 and `num_hosts` becomes 1. `content_was_fetched` is
@@ -32,7 +32,7 @@ out; used here for the two columns a control's whole population turns on. A mist
 `address_type` would make one half of PAN-COV-001 match no row and say nothing, and a mistyped
 `content_shortfall_band` would drop a severity band the same way. `address_type` was registered
 as free text until 2026-10-31, when the name-based half of PAN-COV-001 made it load-bearing; no
-catalogue query had used it before that, and the configuration pages that map to it ask `eq`
+catalog query had used it before that, and the configuration pages that map to it ask `eq`
 with a value read off a row, which is always a member.
 """
 

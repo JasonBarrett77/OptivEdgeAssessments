@@ -23,11 +23,11 @@ and nothing else, which states no compliance at all. That is the defect
 FAILING profile gets a reassuring sentence - and it is checked for rather than assumed absent here.
 
 WHAT NO SENTENCE ON THIS SUBJECT CAN SAY, and it is the half a reader should be told about:
-whether an exemption belongs to one of the organisation's declared classes. Nothing on the firewall
+whether an exemption belongs to one of the organization's declared classes. Nothing on the firewall
 records that - a rule holds its match criteria and its own free text, and the class is a fact about
-the organisation's policy - so PAN-DEC-002's second half is delivered as the INVENTORY of what each
+the organization's policy - so PAN-DEC-002's second half is delivered as the INVENTORY of what each
 exempting rule is keyed on, which is what lets a reader do the classification, rather than as a
-judgement that a particular rule belongs to no class.
+judgment that a particular rule belongs to no class.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def _members(obj, accessor: str) -> str:
     and it is not the same as holding `any` - a criterion nobody collected has no rows, while an
     absent key on a collected rule has `any` MATERIALISED for it where the vendor's default is
     measured. The two read identically on the device and differently here, which is why the
-    normaliser also records the list NODE's own provenance on the rule.
+    normalizer also records the list NODE's own provenance on the rule.
     """
     values = [m.value for m in getattr(obj, accessor).all()]
     return ", ".join(f"`{v}`" for v in values) if values else "nothing this reader could resolve"
@@ -96,9 +96,9 @@ def _keyed_on_nothing(obj) -> list[str]:
         "nothing at all and belongs to no class of exemption anybody could declare",
         "WHAT THIS CONTROL CANNOT TELL YOU IS WHETHER IT BELONGS TO A DECLARED CLASS. Nothing on "
         "the firewall records that: a rule holds its criteria and its own free text, and the "
-        "class is a fact about the organisation's written policy. What is delivered is the "
+        "class is a fact about the organization's written policy. What is delivered is the "
         "inventory of what each exempting rule is keyed on, which is what lets a reader do the "
-        "classification - the judgement that a particular rule belongs to no class should wait "
+        "classification - the judgment that a particular rule belongs to no class should wait "
         "for the class list",
         "THE FIVE SIBLING CONTROLS EACH OWN ONE DECLARED CLASS and defer to this one only for the "
         "wider claim that there is no undeclared sixth: a throughput exemption is PAN-DEC-003's, "

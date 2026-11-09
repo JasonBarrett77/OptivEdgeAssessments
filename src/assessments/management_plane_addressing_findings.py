@@ -5,7 +5,7 @@ Minted by stage 8 of `management-services` on 2026-11-01.
 WHAT THIS CONTROL CAN AND CANNOT ESTABLISH, which the sentence has to carry because the
 alternative reading is a claim nobody measured. The firewall holds the management address, the
 mask and whether a static default route leaves the segment. It holds NOTHING about whether the
-networks those reach are ones the organisation controls. So the graded column reports the
+networks those reach are ones the organization controls. So the graded column reports the
 configuration's CONTRIBUTION to exposure and a finding here is not a statement that the plane is
 reachable from anywhere in particular - stage 5 records the reachability half as not stored at
 all, and the remediation the control carries is a reachability test a person runs.
@@ -86,7 +86,7 @@ def _posture(obj) -> list[str]:
             f"THE MANAGEMENT PLANE OF {_owner(obj)} IS PRIVATELY ADDRESSED "
             f"({obj.management_ip_address or 'no address stored'}) AND CARRIES A STATIC DEFAULT "
             f"ROUTE ({obj.static_default_gateway or 'no gateway stored'}), so it can reach, and "
-            f"be reached through, whatever that route leads to - the catalogue's preferred state "
+            f"be reached through, whatever that route leads to - the catalog's preferred state "
             f"is the absence of the route",
         ]
     if posture == M.POSTURE_PRIVATE_NO_ROUTE:
@@ -98,7 +98,7 @@ def _posture(obj) -> list[str]:
         ]
     return [
         f"the management plane of {_owner(obj)} carries an exposure posture this build does not "
-        f"recognise ({posture!r}), which is itself the finding: a class nobody classified has "
+        f"recognize ({posture!r}), which is itself the finding: a class nobody classified has "
         f"not been shown to be safe",
     ]
 
@@ -107,7 +107,7 @@ def _not_established(obj) -> list[str]:
     """The half the configuration cannot deliver, on every row this control reports."""
     return [
         "WHAT THIS DOES NOT ESTABLISH: nothing on the firewall says whether the networks this "
-        "plane reaches are ones the organisation controls, so this is the configuration's "
+        "plane reaches are ones the organization controls, so this is the configuration's "
         "contribution to exposure and not a demonstration that the plane is reachable - "
         "confirming that is a reachability test rather than a configuration read, and no "
         "remediation here is a change to a management address or to management-plane routing"

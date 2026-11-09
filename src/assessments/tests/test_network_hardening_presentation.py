@@ -2,7 +2,7 @@
 Stage 9, `network-hardening`, 2026-11-03.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and
 a new tab nothing asserts on is one the next refactor can break silently. Five tabs is the
 largest shape this stage has produced, so there is more of that than usual.
 
@@ -189,7 +189,7 @@ class NetworkHardeningModelShapeTests(TestCase):
                       read.__code__.co_names + ("lldp_announced_content",))
 
         self.assertFalse(Interface._meta.get_field("lldp_enabled").choices,
-                         "lldp_enabled gained choices: a labelling reader is now available")
+                         "lldp_enabled gained choices: a labeling reader is now available")
         self.assertFalse(
             hasattr(Interface, "get_lldp_enabled_display"),
             "get_lldp_enabled_display() now exists - but a reader calling it would still have "
@@ -485,7 +485,7 @@ class NetworkHardeningTabTests(NetworkHardeningEstateMixin, TestCase):
     def test_no_heading_on_any_of_the_five_tabs_is_a_raw_django_field_name(self):
         """A heading with no `setting_labels` entry falls back to the raw field name, so declaring
         a column without a label IS choosing to show a customer a database field name. NOTE that
-        labelling every heading does not make a tab clean - the STATED CONDITION above it still
+        labeling every heading does not make a tab clean - the STATED CONDITION above it still
         reads in field names, because `render_node` consults `setting_labels` nowhere."""
         for slug, *_rest in TABS:
             with self.subTest(slug=slug):
@@ -512,7 +512,7 @@ class NetworkHardeningTabTests(NetworkHardeningEstateMixin, TestCase):
         `tested_fields` derives a column for it among the verdict columns - a column that merely
         SCOPES the control sitting where a reader expects a verdict. It is NOT in that query's
         `asserted_fields`, so the 2026-10-28 mark fix should leave it alone; this is the first
-        confirmation of that behaviour on a scope clause."""
+        confirmation of that behavior on a scope clause."""
         table = self.table("virtual-routers")
         protocol = table.headers.index("Protocol")
         self.assertNotIn(protocol, [column for _row, column in table.implicated])
@@ -713,18 +713,18 @@ class NetworkHardeningResultsPageTests(NetworkHardeningEstateMixin, TestCase):
                 self.page(slug)
 
     def test_the_lldp_global_switch_is_reachable_from_no_surface_at_all(self):
-        """THIS DOMAIN'S RECORDED GAP, pinned so that a later run adding the catalogue query can
+        """THIS DOMAIN'S RECORDED GAP, pinned so that a later run adding the catalog query can
         see everything that has to change with it.
 
         Stage 5 assessed `lldp_global_enable` as PAN-NET-003's SECOND assertion record and stage 8
-        compiled a query for it; the shipped catalogue does not carry that query. So the model has
+        compiled a query for it; the shipped catalog does not carry that query. So the model has
         no findings domain - and a rail item is a promise of a findings page, which
         `views.findings_href_for` resolves through `domain_for_model` and both object templates
         require. A rail item was written for it and removed the same day, because it failed
         `test_every_rail_item_offers_the_link` and
         `test_every_object_crosses_to_the_page_that_reports_on_it`.
 
-        WHEN THE CATALOGUE QUERY LANDS, this test should fail - and the things to add are a
+        WHEN THE CATALOG QUERY LANDS, this test should fail - and the things to add are a
         `FindingsDomain` over `T.LLDP_GLOBAL` (its finding kind is already registered), a rail
         item at `Network > LLDP`, and a `ResultsSpec` under its slug."""
         from assessments.artifacts import domains as artifact_domains

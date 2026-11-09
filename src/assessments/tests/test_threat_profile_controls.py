@@ -91,7 +91,7 @@ class ThreatProfileSemanticsTests(TestCase):
 
     def test_a_profile_mentioning_no_detector_fires(self):
         """Every lab profile is in this state: the predefined profiles carry zero entries
-        for this engine, so nothing runs. Without a detector row per catalogued detector
+        for this engine, so nothing runs. Without a detector row per catalogd detector
         there would be nothing to report and it would read as fine."""
         spy = self._profile("none-spy", SPY)
         vln = self._profile("none-vln", VLN)
@@ -130,7 +130,7 @@ class ThreatProfileSemanticsTests(TestCase):
         self.assertEqual(self._not_blocking(profile), set())
 
     def test_each_kind_carries_only_its_own_detectors(self):
-        """Treating the two engines as one catalogue would give a vulnerability profile the
+        """Treating the two engines as one catalog would give a vulnerability profile the
         five C2 detectors and report every one of them as missing."""
         spy = self._profile("spy-bad", SPY)
         vln = self._profile("vln-bad", VLN)

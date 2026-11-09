@@ -7,12 +7,12 @@ finding model may appear in `finding_registry.FINDING_KINDS` exactly once, and
 `control` foreign key and by the arms below.
 
 NO ROW OF THIS SUBJECT EXISTS IN THE MEASURED ESTATE, and this is the model where that costs most.
-Stage 7's own sentence for this stage: every column of this model is a normaliser's output checked
+Stage 7's own sentence for this stage: every column of this model is a normalizer's output checked
 against a fixture, and **the two columns that SUPPRESS on their default -
 `accept_cookie_configured` and `authentication_override_configured` - have no device instance of
 either branch.** Both are PAN-GPG-003's applicability clauses, and an applicability clause that is
 false drops the row out of the control in silence. So the population of that control rests on two
-switches whose behaviour no device reading confirms. Both controls ship UNEXERCISED.
+switches whose behavior no device reading confirms. Both controls ship UNEXERCISED.
 
 THE COOKIE SENTENCE NAMES THE UNIT THE ADMINISTRATOR TYPED AND NOT ONLY THE CONVERTED SPAN. The
 device accepts minutes, hours or days; the grading compares one converted number because a clause
@@ -110,7 +110,7 @@ def _egress(obj) -> list[str]:
             "THE UNINSPECTED-EGRESS INVENTORY FOR THIS ROW HAS NOT BEEN COMPUTED, so the count of "
             "paths leaving the tunnel is not a reading. It is reported because the count's honest "
             "empty value is ZERO, which is indistinguishable from a full tunnel with nothing "
-            "excluded - the most compliant state the field can hold - so a row the normalisation "
+            "excluded - the most compliant state the field can hold - so a row the normalization "
             "pass has not reached would otherwise report itself as the best configuration in the "
             "estate")
         return parts

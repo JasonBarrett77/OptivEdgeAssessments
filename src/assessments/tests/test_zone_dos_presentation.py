@@ -1,7 +1,7 @@
 """The two zone/DoS findings tabs and the three rail items, pinned. Stage 9, `zone-dos-protection`.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically: every
-assertion here is a JUDGEMENT this run made that nothing else in the repository states, and a new
+assertion here is a JUDGMENT this run made that nothing else in the repository states, and a new
 tab nothing asserts on is one the next refactor can break silently.
 
   - the FIFTH rail item over `integrations.SecurityProfile`, and the thing that makes it safe:
@@ -112,7 +112,7 @@ class ZoneDosRailItemTests(TestCase):
         self.assertEqual(["zones"], [o.slug for o in objects_for_model("integrations.Zone")])
 
     def test_every_rail_slug_is_globally_unique(self):
-        """`CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug) and reads as a licence to reuse a
+        """`CONFIG_OBJECTS_BY_KEY` is keyed on (category, slug) and reads as a license to reuse a
         slug across categories - but `RESULTS` is keyed on the SLUG ALONE, so two items sharing
         one would collapse onto a single results spec. The DoS profile and the DoS rulebase are
         the first pair the vendor gives the same label, which is why this is asserted."""
@@ -304,7 +304,7 @@ class ZoneDosFindingsTabTests(TestCase):
                                      f"{heading} declares no field")
 
     def test_the_reference_reach_headings_are_shared_with_one_later_domain(self):
-        """`reference_reach` is asserted by exactly two controls in the catalogue - PAN-ZON-008
+        """`reference_reach` is asserted by exactly two controls in the catalog - PAN-ZON-008
         and PAN-FIL-004, whose domain runs later - so these two headings are the shape that run
         inherits rather than chooses. The companion comes FIRST, which is stage 5's clause order:
         an applicability clause before the assertion it supports."""

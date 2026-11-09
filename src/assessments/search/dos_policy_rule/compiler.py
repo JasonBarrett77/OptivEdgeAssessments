@@ -30,7 +30,7 @@ something the vendor permits deliberately to carve an exception out of a group.
 
 THE THREE ARMS ARE CHILD ELEMENTS AND NOT VALUES OF A LEAF, measured on three builds, with the
 stored shape `action: {'protect': None}`. That changes how the column is FILLED and not what it is
-compared to - it is a normalisation fact and it is recorded here because a later reader of this
+compared to - it is a normalization fact and it is recorded here because a later reader of this
 module expecting a string leaf would be reading a different node. The key is also MANDATORY at
 commit validation, so the column is always present on a committed rule: its unknown case is an
 unreadable rule rather than an absent key.

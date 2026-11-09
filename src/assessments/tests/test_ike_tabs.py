@@ -3,13 +3,13 @@
 WHY THIS FILE EXISTS. The stage 9 run of the `ike-crypto` domain built both tabs and read every
 row, and the three things it could not settle were all report content: what the setting columns are
 headed, whether `gateway_is_active` belongs among them, and which cell carries the value-at-fault
-fill. Nothing in this repo held any of the three, so each was a judgement that the next change
+fill. Nothing in this repo held any of the three, so each was a judgment that the next change
 could undo in silence.
 
-THE ROW THIS FILE IS REALLY ABOUT is PAN-IKE-008 on `oep-ike6-g03`. It used to colour five cells,
+THE ROW THIS FILE IS REALLY ABOUT is PAN-IKE-008 on `oep-ike6-g03`. It used to color five cells,
 one of them `ike_version = ikev2` - which the baseline clause EXCLUDES and the matched query
-REQUIRES, so the row named as the fault the single setting that gateway had right. It now colours
-one. That is the behaviour `ControlQuery.asserted_fields` exists for and this is the only test of
+REQUIRES, so the row named as the fault the single setting that gateway had right. It now colors
+one. That is the behavior `ControlQuery.asserted_fields` exists for and this is the only test of
 it on a real row.
 """
 from __future__ import annotations

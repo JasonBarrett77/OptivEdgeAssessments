@@ -3,7 +3,7 @@
 Stage 9, `decryption-profiles`, 2026-11-02. PAN-DCP-001 to -007.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover tabs and rows generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and a
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and a
 new tab nothing asserts on is one the next refactor can break silently.
 
   - `integrations.SecurityProfile` NOW HAS NINE PAGES. `object_for_canonical_query` keeps every
@@ -35,7 +35,7 @@ new tab nothing asserts on is one the next refactor can break silently.
     subject columns are the only thing that puts them on the row. They are what tells a reader
     WHICH slot is empty, and each of the control's two verdicts covers two failing states.
   - the explorer `row` lambdas over real rows. The shipped check asserts a row is the same LENGTH
-    as its columns and cannot see what a cell says - and the cells here that are judgements are
+    as its columns and cannot see what a cell says - and the cells here that are judgments are
     exactly the ones a length check cannot reach: the compliant member of a graded column, an
     unresolvable protocol ceiling, and an empty designation slot.
 """

@@ -10,7 +10,7 @@ that a version is current needs the publication date of the newest AVAILABLE rel
 appliance does not hold and no collector fetches; stage 5 records it in `not_stored`. So every
 sentence below is about the appliance's OWN reported release date against the windows stage 3
 named - fourteen days minimum and seven preferred for applications and threats, seven and one for
-the malware stream - and the half that needs the vendor's catalogue is absent rather than guessed.
+the malware stream - and the half that needs the vendor's catalog is absent rather than guessed.
 
 TWO SPELLINGS OF "NEVER INSTALLED" AND BOTH ARE TRUTHY, which the sentence spells out rather than
 leaving to a reader who may go on to write a clause by hand: the four content streams answer `0`
@@ -28,7 +28,7 @@ here:
   uniformly a month stale satisfies that test and fails this one; an estate spread across two
   releases published inside a week fails that one and satisfies this.
 * THAT AN UNLICENSED STREAM IS EXEMPT. Stage 3 scopes each stream to an entitlement the
-  organisation has held, which is a fact on another model, so no query here carries it - and stage
+  organization has held, which is a fact on another model, so no query here carries it - and stage
   5 is explicit that a LAPSED ENTITLEMENT DOES NOT SUPPRESS THE STREAM: the vendor keeps part of it
   flowing at a slower cadence after expiry. The absence over-reports on an appliance never licensed
   for a stream and under-reports nothing.
@@ -173,7 +173,7 @@ def _currency(obj) -> list[str]:
     parts.append(
         "AND A LAPSED SUBSCRIPTION IS NOT AN EXEMPTION FROM THIS FINDING. The vendor keeps part of "
         "a content stream flowing at a slower cadence after an entitlement expires, so a stream "
-        "behind its window on an appliance whose licence ran out is still a finding here. Whether "
+        "behind its window on an appliance whose license ran out is still a finding here. Whether "
         "the entitlement is live is PAN-PLT-004's subject and is reported on its own row")
     return parts
 

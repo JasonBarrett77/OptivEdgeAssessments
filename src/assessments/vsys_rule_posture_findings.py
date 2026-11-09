@@ -105,7 +105,7 @@ def _hostile_lists(obj) -> list[str]:
     return [f"{_where(obj)} HAS NO STANDING RULE BLOCKING KNOWN-HOSTILE ADDRESS LISTS in "
             f"{direction}. WHAT THIS CHECKED is whether a blocking rule above the permits names "
             f"an EXTERNAL DYNAMIC LIST on that side, which is WIDER than the control asks: the "
-            f"vendor's own predefined lists cannot be recognised from configuration today - no "
+            f"vendor's own predefined lists cannot be recognized from configuration today - no "
             f"slug is published for any of them and the configurable list object has no "
             f"predefined branch - so a list the customer maintains satisfies this and the "
             f"vendor's is not distinguished"]

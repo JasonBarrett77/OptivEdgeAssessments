@@ -70,17 +70,17 @@ def _nothing_opens_outbound_web(obj) -> list[str]:
         found = (
             "THE OUTBOUND WEB DISPOSITION OF THIS ENFORCEMENT POINT READS "
             f"`{disposition or 'as nothing this reader could resolve'}` while its "
-            "session-opening verdict is false, which is a combination the normaliser does not "
+            "session-opening verdict is false, which is a combination the normalizer does not "
             "produce - read the rulebase itself before acting on this row")
     return [
         found,
         "EVERY CONTENT INSPECTION THE FIREWALL IS CONFIGURED TO PERFORM RUNS INSIDE A SESSION "
         "SOMEBODY OPENED. Malware, exploit, command-and-control, web-category and file-type "
         "inspection all read the inside of a TLS session, so where nothing opens one the whole "
-        "inspection stack reports clean about traffic it never saw - and the organisation is told "
+        "inspection stack reports clean about traffic it never saw - and the organization is told "
         "it is protected on the strength of nothing",
         "WHICH EGRESS PATHS THIS APPLIANCE CARRIES AND WHERE OPENING THEM IS LAWFUL IS NOT A FACT "
-        "THE FIREWALL HOLDS. An appliance that only fronts services the organisation publishes, "
+        "THE FIREWALL HOLDS. An appliance that only fronts services the organization publishes, "
         "or only terminates site-to-site tunnels, has no outbound web traffic to open and this "
         "row is not a defect on it. What is delivered is what the policy as written does; the "
         "path list and the jurisdictions are the engineer's answer",
@@ -90,18 +90,18 @@ def _nothing_opens_outbound_web(obj) -> list[str]:
         "above it before concluding either is empty",
         "`decrypt-and-forward` IS DELIBERATELY NOT A FAILING STATE HERE. That action opens the "
         "session, so it meets this assertion; that it also copies the opened session to an "
-        "external chain is a separate exposure the catalogue asserts nowhere, and stage 3 put it "
+        "external chain is a separate exposure the catalog asserts nowhere, and stage 3 put it "
         "in its own uncovered list rather than reporting it as a coverage failure of this control",
     ]
 
 
 def _no_inbound_inspection(obj) -> list[str]:
-    """PAN-DEC-009: nothing inspects inbound TLS toward the organisation's own servers."""
+    """PAN-DEC-009: nothing inspects inbound TLS toward the organization's own servers."""
     return [
         "NO SSL INBOUND INSPECTION RULE IS IN FORCE ON THIS ENFORCEMENT POINT. It holds "
         f"{obj.rule_count} in-force decryption rule(s) and none of them is on the "
         "ssl-inbound-inspection branch, so exploit attempts arriving inside TLS toward the "
-        "organisation's own published servers are not visible to threat prevention at all",
+        "organization's own published servers are not visible to threat prevention at all",
         "THE COMMONEST FAILING STATE IS THAT NO SUCH RULE EXISTS, which is why this finding names "
         "the virtual system: a comparison over rule rows cannot report a row that is not there. "
         "The remediation is to add a rule and import the server's certificate and private key",

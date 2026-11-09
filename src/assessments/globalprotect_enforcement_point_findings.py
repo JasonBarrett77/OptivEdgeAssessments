@@ -42,7 +42,7 @@ TWO THINGS NO SENTENCE HERE MAY CLAIM:
   suppress the control on every multi-vsys appliance including the ones where the feature is
   perfectly supported.
 * THAT AN UNLICENSED APPLIANCE WAS CHECKED. The applicability clause suppresses this control only
-  where a POPULATED licence list carries no GlobalProtect feature - a definite no. On two
+  where a POPULATED license list carries no GlobalProtect feature - a definite no. On two
   appliances of this estate the reply is `{'licenses': None}`, truthy and empty, so the answer is
   UNKNOWN rather than no and the control fires. Suppressing on an unknown reads as careful and does
   the opposite.
@@ -140,14 +140,14 @@ def _clientless_vpn(obj) -> list[str]:
         "not cover this node. Read the floor on each publishing portal by hand")
     if not obj.licence_reply_collected:
         parts.append(
-            "THE LICENCE QUESTION BEHIND THIS ROW WAS NEVER ASKED: no licence reply was obtained "
+            "THE LICENSE QUESTION BEHIND THIS ROW WAS NEVER ASKED: no license reply was obtained "
             "from this appliance at all, so whether GlobalProtect is licensed here is unknown "
             "rather than answered. The control fires on an unknown by design - an appliance that "
             "was never asked is not an appliance that answered no")
     elif obj.globalprotect_portal_licensed == "unknown":
         parts.append(
-            f"THE LICENCE ANSWER IS UNKNOWN RATHER THAN YES OR NO: the appliance reported "
-            f"{obj.licence_entry_count} licence entr(ies), so the list is not populated enough to "
+            f"THE LICENSE ANSWER IS UNKNOWN RATHER THAN YES OR NO: the appliance reported "
+            f"{obj.licence_entry_count} license entr(ies), so the list is not populated enough to "
             f"settle whether GlobalProtect is licensed. The control fires rather than suppressing, "
             f"because suppressing on an unknown would convert an unanswered licensing question "
             f"into silence")
@@ -159,7 +159,7 @@ def _posture_pipeline(obj) -> list[str]:
 
     ADDED 2026-11-01 BY THE `globalprotect-gateway` STAGE 8 RUN, additively. PAN-GPP-006's entry
     below, `_clientless_vpn` above and the summary builder are untouched: changing any of them
-    would alter a shipped control's finding prose, which is a catalogue decision and not this
+    would alter a shipped control's finding prose, which is a catalog decision and not this
     run's. This arm exists because the dispatch below DEFAULTS to `(_clientless_vpn,)` - one
     particular control's arms - so without an entry of its own PAN-GPG-005's finding would be
     described with PAN-GPP-006's clientless-VPN claims about a different switch entirely.
@@ -178,7 +178,7 @@ def _posture_pipeline(obj) -> list[str]:
         "POSTURE DECIDES NOTHING ON THIS VIRTUAL SYSTEM: what is collected from endpoints is not "
         "referenced by the rules that decide what a connected endpoint may reach, so a "
         "non-compliant endpoint is given exactly the access a compliant one gets. The whole "
-        "posture apparatus then costs licence, agent and administrative effort and changes no "
+        "posture apparatus then costs license, agent and administrative effort and changes no "
         "outcome, while every screen and every report shows posture enforcement switched on"]
     objects, profiles, rules = (obj.hip_object_count, obj.hip_profile_count,
                                 obj.rules_referencing_a_hip_profile_count)

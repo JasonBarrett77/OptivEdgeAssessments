@@ -50,7 +50,7 @@ A NULL IS UNREACHABLE BY THE ONE ABSENCE OPERATOR THIS LANGUAGE OFFERS, and that
 fields. `is_empty` compiles to `filter(field="")`, so the text compiler below ORs an `__isnull`
 term into it - which is what makes `clientless_vpn_min_version`, a nullable column, answerable at
 all. The booleans are non-nullable with FALSE as the default and FALSE as the firing side, so a
-portal nobody has normalised reports rather than reading as a clean estate.
+portal nobody has normalized reports rather than reading as a clean estate.
 """
 
 from __future__ import annotations

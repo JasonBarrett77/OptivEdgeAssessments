@@ -6,7 +6,7 @@ and formatting."*
 
 So these tests check two things: that the file carries the features the findings workbook has -
 a Summary first, a tab per group in the Summary's order, a real table with an autofilter and a
-frozen header, tab colours by PAN-OS category - and that building it changes nothing about the
+frozen header, tab colors by PAN-OS category - and that building it changes nothing about the
 findings workbook, which remains the detailed findings artifact.
 """
 

@@ -39,7 +39,7 @@ model carrying the quantifier at this grain, which stage 8 may not add.
 
 NO is-null OPERATOR EXISTS IN THIS LANGUAGE and none is invented here. Every column this compiler
 registers is a non-nullable boolean whose default is the FIRING side - false - so an enforcement
-point nobody has normalised reports rather than reading as a clean estate, which is the same
+point nobody has normalized reports rather than reading as a clean estate, which is the same
 property `rulebase_device_match` relies on in the other direction.
 """
 

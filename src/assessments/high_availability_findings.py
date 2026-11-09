@@ -139,7 +139,7 @@ def _redundant_peer(obj) -> list[str]:
                 "so a hardware or software fault here is an outage of everything behind it "
                 "rather than a failover. WHETHER IT OUGHT TO BE IN A PAIR IS NOT READ FROM THE "
                 "CONFIGURATION - nothing in a firewall's own configuration distinguishes a "
-                "branch office from a data-centre perimeter - so this is reported for a person "
+                "branch office from a data-center perimeter - so this is reported for a person "
                 "to decide rather than suppressed"]
     if not obj.ha_runtime_state_collected:
         return ["high availability is switched on and the relationship was NOT SHOWN to be "

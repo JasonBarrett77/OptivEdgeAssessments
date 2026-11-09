@@ -56,7 +56,7 @@ def build_boolean_compiler(field_name, lookup_field):
 
     Every field registered here before it was text, two of them read through the join. `eq` is
     the only operator a boolean can carry, and the value is type-checked rather than coerced:
-    `eq "false"` on a boolean column is a catalogue payload bug, and Python reads the non-empty
+    `eq "false"` on a boolean column is a catalog payload bug, and Python reads the non-empty
     string as TRUE and matches the opposite rows in silence.
     """
 

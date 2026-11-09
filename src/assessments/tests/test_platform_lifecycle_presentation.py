@@ -2,7 +2,7 @@
 Stage 9, `platform-lifecycle`, 2026-11-02.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states,
+every assertion here is a JUDGMENT this run made that nothing else in the repository states,
 and a new tab nothing asserts on is one the next refactor can break silently.
 
   - THE FOUR `choices` LABELS, EVERY MEMBER OF EVERY VOCABULARY. This is the first domain where
@@ -131,7 +131,7 @@ class PlatformLifecycleRailTests(TestCase):
 class PlatformLifecycleDomainTests(TestCase):
     def test_three_domains_are_registered_in_generator_order(self):
         """Entitlement, then content, then alarm - `finding_run.GENERATORS`' own order and its
-        stated reason: a reader meets "this appliance's licence table could not be read" before
+        stated reason: a reader meets "this appliance's license table could not be read" before
         "its antivirus stream was never installed", because the first explains the second."""
         slugs = [d.slug for d in __import__(
             "assessments.artifacts.domains", fromlist=["DOMAINS"]).DOMAINS]
@@ -209,7 +209,9 @@ class ChoicesLabelTests(TestCase):
             "expiring_within_30_days": "An entitlement expires within 30 days",
             "active_inside_90_days": "All active, inside 90 days",
             "active_beyond_90_days": "All active, beyond 90 days",
-            "no_licence_rows_returned": "No licence rows returned",
+            # The KEY stays as it is stored - it is a database value, not a word a client
+            # reads - and only the label was swept. See the integrations migration 0123.
+            "no_licence_rows_returned": "No license rows returned",
             "inventory_not_collected": "Inventory not collected",
         }
         for value, label in expected.items():
@@ -364,7 +366,7 @@ class OverriddenCellTests(TestCase):
 
     def test_a_count_of_zero_is_said_in_words(self):
         """The findings tabs' own rule: a bare zero in a reference column reads as "not counted"
-        exactly where it means "counted, and the answer was none". On the licence row count the
+        exactly where it means "counted, and the answer was none". On the license row count the
         zero is TWO device states - a present-and-empty element and a read that never ran - told
         apart by the cell before it and never by this one."""
         read = self.read(_objects.LICENCE_INVENTORY_SUBJECT, "licence_row_count")
@@ -407,7 +409,7 @@ class PlatformLifecycleEstateMixin:
             threat_version="9161-10297", threat_release_date="2026/10/20 01:27:15 GMT",
             wildfire_version="0", url_filtering_version="20261028.20125",
             device_dictionary_version="82-406", release_date_reported=True)
-        licences = LicenceInventory.objects.create(
+        licenses = LicenceInventory.objects.create(
             management_station=station, appliance=appliance, source_snapshot=snapshot,
             licence_inventory_read="rows_returned", licence_row_count=3,
             entitlement_state="active_beyond_90_days",
@@ -422,7 +424,7 @@ class PlatformLifecycleEstateMixin:
             cli_alarm_notification_enabled=False, web_alarm_notification_enabled=False,
             alarm_notification_route_present=False,
             alarm_mechanism_state="on_with_thresholds_no_route")
-        return streams, licences, alarms
+        return streams, licenses, alarms
 
 
 class PlatformLifecycleResultsRowTests(PlatformLifecycleEstateMixin, TestCase):
@@ -431,7 +433,7 @@ class PlatformLifecycleResultsRowTests(PlatformLifecycleEstateMixin, TestCase):
 
     def setUp(self):
         self.station, self.appliance, self.point, self.snapshot = self.build_estate()
-        self.streams, self.licences, self.alarms = self.build_rows(
+        self.streams, self.licenses, self.alarms = self.build_rows(
             self.station, self.appliance, self.snapshot)
 
     def row_for(self, slug, obj):
@@ -451,8 +453,8 @@ class PlatformLifecycleResultsRowTests(PlatformLifecycleEstateMixin, TestCase):
         self.assertEqual("20261028.20125", cells["URL filtering"])
 
     def test_the_licence_page_prints_both_verdicts_as_english(self):
-        cells = self.row_for("licenses", self.licences)
-        self.assertEqual("Rows returned", cells["Licence table read"])
+        cells = self.row_for("licenses", self.licenses)
+        self.assertEqual("Rows returned", cells["License table read"])
         self.assertEqual("3 rows", cells["Rows returned"])
         self.assertEqual("All active, beyond 90 days", cells["Subscription entitlements"])
         self.assertEqual("Absent from the inventory", cells["Support entitlement"])
@@ -526,7 +528,7 @@ class PlatformLifecycleTabTests(PlatformLifecycleEstateMixin, TestCase):
         """THE ONE TAB HERE WHERE THE ORDER IS NOT FORCED. `tested_fields` takes the baseline's
         clauses first - `entitlement_state` - and then every other active query's in
         ALPHABETICAL ORDER OF THE QUERY'S NAME, so `support_entitlement_state` arrives from "No
-        support entitlement appears in the licence table", which sorts fourth of the nine
+        support entitlement appears in the license table", which sorts fourth of the nine
         calibrations. Renaming that query to sort before the three "An entitlement ..." ones
         would silently swap two customer-facing columns and nothing would fail."""
         headers = self.headers_of("licence_inventory")

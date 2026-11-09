@@ -1,8 +1,8 @@
 """Canonical search compiler for one appliance's entitlement set. PAN-PLT-004, both halves.
 
-THE ROW IS A CONCLUSION ABOUT THE LICENCE TABLE AND NOT ONE LICENCE, which is what lets one
+THE ROW IS A CONCLUSION ABOUT THE LICENSE TABLE AND NOT ONE LICENSE, which is what lets one
 control report an entitlement that is MISSING. `integrations.LicenceEntitlement` carries the
-per-licence rows and has no compiler and no control type: no assertion record of this domain names
+per-license rows and has no compiler and no control type: no assertion record of this domain names
 that subject, and an absent subscription has no row of its own to be queried.
 
 TWO STATE COLUMNS AND NOT ONE, because PAN-PLT-004 is stated as two assertion records over this
@@ -22,19 +22,19 @@ all, and the FEATURE NAMES reach a reader through the finding's own sentence rat
 query. Stage 5 marks that column `not_searchable` for the same reason.
 
 WHAT IS DELIBERATELY NOT REGISTERED BEYOND THAT: `expired_entitlement_count` and
-`expiring_within_30_days_count`. Both are inputs the normaliser already resolved into
+`expiring_within_30_days_count`. Both are inputs the normalizer already resolved into
 `entitlement_state`, no clause or grading axis of this domain names either, and a clause on a
 count would re-derive a verdict this model publishes.
 
 WHY THE STATE COLUMNS ARE REGISTERED AS TEXT AND NOT THROUGH `build_choice_compiler`, which
 raises on a value outside the column's own `choices` and is the form this repository otherwise
 prefers. THE EMPTY STRING IS A REACHABLE STATE OF `content_currency_state` AND IS NOT IN ITS
-CHOICE LIST: the normaliser returns it for an appliance whose `show system info` never answered
+CHOICE LIST: the normalizer returns it for an appliance whose `show system info` never answered
 while its merged configuration did, and it is deliberate - a token there would be a verdict over
 a reply nobody received. A choice compiler reading its members off `choices` could not express a
 query for that state at all, and the text compiler's `is_empty` arm, which ORs an `__isnull`
 term, is the only operator in this language that reaches it. The cost is named rather than
-hidden: a MISSPELLED token in a catalogue payload compiles here and matches nothing, where the
+hidden: a MISSPELLED token in a catalog payload compiles here and matches nothing, where the
 raising form would refuse it. The baseline's negated equality is what limits the damage - it
 fires on every value that is not the passing token, misspelled calibrations included - so a
 typo loses a RANK and never a finding.

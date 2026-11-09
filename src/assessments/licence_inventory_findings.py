@@ -3,13 +3,13 @@
 THE FINDING NAMES WHICH HALF FAILED AND WHETHER THE TABLE WAS READABLE AT ALL, because the two
 columns this control grades carry different remediations and the unreadable case is neither of
 them. A lapsed protection subscription stops a content stream; a lapsed support entitlement stops
-software updates and the vendor's help during an incident; an empty licence element stops the
+software updates and the vendor's help during an incident; an empty license element stops the
 question being answerable.
 
-THE EMPTY LICENCE ELEMENT IS THIS DOMAIN'S TRAP AND THE SENTENCE REFUSES TO SMOOTH IT OVER.
+THE EMPTY LICENSE ELEMENT IS THIS DOMAIN'S TRAP AND THE SENTENCE REFUSES TO SMOOTH IT OVER.
 `request license info` answers `{"licenses": null}` on both PA-5220s in this estate: the element is
 PRESENT and EMPTY, `bool(result)` is true while `bool(result["licenses"])` is false, and
-`result["licenses"]["entry"]` raises outright. That is NOT "no licences are needed" and it is not
+`result["licenses"]["entry"]` raises outright. That is NOT "no licenses are needed" and it is not
 "the read failed" either - it is a reply that carried no inventory, and `no_licence_rows_returned`
 reports it as that. A customer told their entitlements are fine on the strength of a null element
 has been told they are safe on the strength of nothing.
@@ -21,7 +21,7 @@ measured - and it is a FINDING rather than a pass, because an absent row cannot 
 a subscription nobody bought, and stage 3's rank 1 consequence is software updates gone until
 renewal.
 
-HOW A SUPPORT ENTITLEMENT IS RECOGNISED, AND WHICH WAY THE ERROR RUNS. The normaliser matches a
+HOW A SUPPORT ENTITLEMENT IS RECOGNIZED, AND WHICH WAY THE ERROR RUNS. The normalizer matches a
 word-boundary `support` in the feature name - the same test stage 6 made independently, and it
 found nothing on either licensed appliance. A feature name containing `support` that is NOT a
 support entitlement would be read as one and move an appliance off a finding and onto a pass, which
@@ -30,9 +30,9 @@ reading.
 
 TWO THINGS NO SENTENCE HERE MAY CLAIM:
 
-* THAT AN ENTITLEMENT THE ORGANISATION ONCE HELD IS VISIBLE. The reply lists what is present, so a
-  subscription cancelled last year is indistinguishable from one never bought.
-* THAT AN UNREADABLE EXPIRY IS SAFE. A live licence whose `expires` string no candidate format
+* THAT AN ENTITLEMENT THE ORGANIZATION ONCE HELD IS VISIBLE. The reply lists what is present, so a
+  subscription canceled last year is indistinguishable from one never bought.
+* THAT AN UNREADABLE EXPIRY IS SAFE. A live license whose `expires` string no candidate format
   parses lands on the lowest graded band rather than on the passing token, deliberately: the
   vendor's own `expired` flag is read first and covers the failure that matters, so what an
   unreadable date leaves open is only HOW SOON a live entitlement lapses. `Never` is a real answer
@@ -58,19 +58,19 @@ from optivedge_integrations.integrations.models import LicenceInventory
 
 
 def _read_state(obj) -> str:
-    """What the licence reply was, in a reader's words. Three shapes and only one is an answer."""
+    """What the license reply was, in a reader's words. Three shapes and only one is an answer."""
     read = obj.licence_inventory_read or ""
     if read == "rows_returned":
-        return (f"the licence table answered with {obj.licence_row_count} "
+        return (f"the license table answered with {obj.licence_row_count} "
                 f"row{'s' if obj.licence_row_count != 1 else ''}")
     if read == "null_licenses_element":
-        return ("the licence table answered with an EMPTY `licenses` element - present and "
+        return ("the license table answered with an EMPTY `licenses` element - present and "
                 "holding nothing, which is the shape both PA-5220s in this estate return and is "
                 "not the same as the read failing")
     if read == "not_collected":
-        return ("the licence table was NEVER READ on this appliance, so nothing below is a "
+        return ("the license table was NEVER READ on this appliance, so nothing below is a "
                 "measurement of what it is entitled to")
-    return f"the licence table's read state reads `{read or '(empty)'}`, which has no sentence here"
+    return f"the license table's read state reads `{read or '(empty)'}`, which has no sentence here"
 
 
 def _entitlements(obj) -> list[str]:
@@ -104,7 +104,7 @@ def _entitlements(obj) -> list[str]:
     elif state == "no_licence_rows_returned":
         parts.append(
             "SO NO ENTITLEMENT COULD BE CHECKED, and this is reported as a finding rather than as "
-            "a pass because the direction of the error decides it: the answer is not `no licences "
+            "a pass because the direction of the error decides it: the answer is not `no licenses "
             "are needed`, it is UNKNOWN. It is reported at the control's own severity because the "
             "entitlement that might have lapsed is unknown too")
     elif state == "inventory_not_collected":
@@ -130,11 +130,11 @@ def _support(obj) -> list[str]:
     parts = []
     if state == "absent_from_inventory":
         parts.append(
-            "NO SUPPORT ENTITLEMENT APPEARS IN THIS APPLIANCE'S LICENCE TABLE AT ALL, and an "
+            "NO SUPPORT ENTITLEMENT APPEARS IN THIS APPLIANCE'S LICENSE TABLE AT ALL, and an "
             "absence is reported rather than passed over because it cannot be told apart from a "
             "subscription nobody bought. Without one there are no software updates - so a "
             "vulnerability in PAN-OS itself cannot be patched until the entitlement is renewed - "
-            "and no vendor assistance during an incident. HOW THIS IS RECOGNISED, because the "
+            "and no vendor assistance during an incident. HOW THIS IS RECOGNIZED, because the "
             "error runs the unsafe way: a support entitlement is a feature name carrying the word "
             "`support`, so a feature named that way which is NOT one would read as present and "
             "turn this finding into a pass")
@@ -149,7 +149,7 @@ def _support(obj) -> list[str]:
             "stopped yet, which is why this is graded below the control's own severity")
     elif state == "inventory_not_collected":
         parts.append(
-            "the licence table was never read, so whether a support entitlement exists is UNKNOWN "
+            "the license table was never read, so whether a support entitlement exists is UNKNOWN "
             "rather than absent - and an unknown fires, at the control's own severity, because the "
             "entitlement that might be missing is the one that delivers software updates")
     else:
@@ -172,8 +172,8 @@ def _both_halves(obj) -> list[str]:
     if not parts:
         return []
     parts.append(
-        "WHAT THIS ROW CANNOT SAY: whether this organisation ever HELD an entitlement it no longer "
-        "holds. `request license info` lists what is present, so a subscription cancelled last "
+        "WHAT THIS ROW CANNOT SAY: whether this organization ever HELD an entitlement it no longer "
+        "holds. `request license info` lists what is present, so a subscription canceled last "
         "year and one never bought are the same absence here, and only the customer's purchase "
         "record separates them")
     return parts
@@ -188,7 +188,7 @@ PARTS_BY_CONTROL = {
 
 
 def _subject(obj, control_id: str) -> str:
-    parts = [f"licence inventory on {obj.appliance} (serial {obj.appliance.serial_number})"]
+    parts = [f"license inventory on {obj.appliance} (serial {obj.appliance.serial_number})"]
     for build in PARTS_BY_CONTROL.get(control_id, (_both_halves,)):
         parts.extend(build(obj))
     return "; ".join(parts)
@@ -203,7 +203,7 @@ def build_licence_inventory_finding_summary(obj, matched_queries) -> str:
 
 
 SPEC = ObjectFindingSpec(
-    label="licence inventory",
+    label="license inventory",
     control_type=Control.ControlType.LICENCE_INVENTORY,
     finding_model=LicenceInventoryFinding,
     link_model=LicenceInventoryFindingControlQuery,

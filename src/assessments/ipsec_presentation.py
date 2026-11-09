@@ -284,9 +284,9 @@ def monitor_action(tunnel) -> str:
     """What the monitoring WOULD DO when probing fails - the action of the profile it names.
 
     THE PROFILE IS A DIFFERENT OBJECT AND IT HAS NO TAB OF ITS OWN. `MonitorProfile` is stored
-    and normalised and no shipped query names it, so it earns no rail entry and no findings tab -
+    and normalized and no shipped query names it, so it earns no rail entry and no findings tab -
     and this cell is the only place in the whole report where its content reaches a reader. The
-    resolution is the normaliser's, on the same appliance, and includes the named profile's own
+    resolution is the normalizer's, on the same appliance, and includes the named profile's own
     materialised default where it stores no action.
 
     THREE DIFFERENT STATES STORE THE EMPTY STRING and they need opposite remediations, so the cell

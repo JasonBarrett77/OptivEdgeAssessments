@@ -16,7 +16,7 @@ that state at all. Measured and recorded by the `platform-lifecycle` run, 2026-1
 `reference/consumer-repo-notes.md`.
 
 The cost of the text builder has to be stated rather than discovered: a MISSPELLED value in a
-catalogue payload compiles against a text field and matches nothing, where the raising form would
+catalog payload compiles against a text field and matches nothing, where the raising form would
 have refused it. What limits the damage here is the shape of this control - see below.
 
 THE ASSERTION OVER THIS SUBJECT IS INVERTED, AND THAT IS WHAT MAKES THE UNKNOWN FIRE. Stage 5

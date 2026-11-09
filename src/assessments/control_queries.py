@@ -783,7 +783,7 @@ def evaluate_decryption_rulebase_coverage_control_queries(queryset, control):
 
 
 def evaluate_ssl_decryption_exclusion_control_queries(queryset, control):
-    """One SSL decryption exclusion the organisation added itself. PAN-DEC-004's first record.
+    """One SSL decryption exclusion the organization added itself. PAN-DEC-004's first record.
 
     THE SECOND RECORD IS SILENT AND NOT ROUTED ELSEWHERE. It asserts over
     `integrations.SslDecryptionVendorExclusionOptOut`, a control has exactly one `target_model`,
@@ -804,7 +804,7 @@ def evaluate_ssl_decryption_vendor_exclusion_optout_control_queries(queryset, co
     NO SHIPPED CONTROL REACHES THIS HELPER, the same recorded state
     `evaluate_lldp_global_control_queries` carries. It is registered so that the half of
     PAN-DEC-004 somebody may decide to split out reports the moment a control exists, rather than
-    leaving a model and a normaliser nothing can read. The generator's docstring says why no estate
+    leaving a model and a normalizer nothing can read. The generator's docstring says why no estate
     can make that half fire today.
     """
     return evaluate_queryset_control_queries(

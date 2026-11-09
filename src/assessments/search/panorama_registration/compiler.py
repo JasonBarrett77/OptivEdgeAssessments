@@ -28,7 +28,7 @@ THE CERTIFICATE NAME AND TYPE ARE NOT REGISTERED EITHER. `client_certificate_nam
 certificate object no subject of this domain models, so an unresolvable name is indistinguishable
 from a resolvable one here; the verdict column already treats an unresolvable name as "the
 firewall presents no customer certificate". Leaving the two unregistered also keeps the cell a
-finding colours on the verdict rather than on a name a reader would read as the fault.
+finding colors on the verdict rather than on a name a reader would read as the fault.
 """
 
 from __future__ import annotations

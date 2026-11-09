@@ -328,7 +328,7 @@ GENERATORS = (
     # antivirus stream was never installed", because the first is a candidate explanation for the
     # second - and meets both before the alarm node, which is about the device noticing its own
     # storage rather than about protection.
-    ("licence inventory", T.LICENCE_INVENTORY, generate_licence_inventory_findings),
+    ("license inventory", T.LICENCE_INVENTORY, generate_licence_inventory_findings),
     # `updates`, placed BEFORE the content streams it explains and after the licence inventory
     # that entitles them - this tuple's own ordering rule is cause before symptom. The schedule
     # is the CONFIGURED CAUSE of stale content and PAN-PLT-002's streams are the RUNTIME

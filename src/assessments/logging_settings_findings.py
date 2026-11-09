@@ -12,7 +12,7 @@ wrong on most of them and was not even their subject.
 PAN-MGT-011's SENTENCE IS UNCHANGED, BYTE FOR BYTE, in its own arm. It belongs to another
 domain, the reconciliation rule for a shipped control is to change nothing outside the domain
 being built, and its prose is correct for what it asserts. Refactoring shared code is allowed;
-changing that control's behaviour is not. Measured before and after:
+changing that control's behavior is not. Measured before and after:
 
     pan-fw-201 does not log when the data plane is under high load - the setting is off, which
     is its default. Matched control query: Baseline.
@@ -65,7 +65,7 @@ def _appliance(obj) -> str:
 
 
 def _gap_list(value) -> list[str]:
-    """The tokens of a comma-joined gap column, in the order the normaliser wrote them."""
+    """The tokens of a comma-joined gap column, in the order the normalizer wrote them."""
     return [token for token in str(value or "").split(",") if token]
 
 

@@ -1,10 +1,10 @@
 """The three decryption-policy findings tabs and the three rail items, pinned. Stage 9.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and
 a new tab nothing asserts on is one the next refactor can break silently.
 
-  - THE FIVE `value_readers`, which are not an optimisation: `category`, `source`, `destination`,
+  - THE FIVE `value_readers`, which are not an optimization: `category`, `source`, `destination`,
     `source_user` and `service` are clause fields of shipped PAN-DEC queries and none of them is a
     field of `DecryptionPolicyRule`, so `tested_fields` RAISES and the tab cannot be built at all
     without them. A refactor that drops one does not degrade a cell; it takes the tab out.
@@ -274,7 +274,7 @@ class DecryptionRailTests(TestCase):
         self.assertNotIn("PAN-DEC", cr.AWAITING_PRESENTATION)
 
     def test_the_vendor_optout_model_is_given_no_page_at_all(self):
-        """PAN-DEC-004's SECOND assertion record names it and no catalogue id can hold both
+        """PAN-DEC-004's SECOND assertion record names it and no catalog id can hold both
         halves, so NO shipped query names this model - which is why it is owed nothing here
         rather than why it was forgotten. Asserted so that adding a control for it fails this
         test and sends somebody to build the page."""
@@ -433,7 +433,7 @@ class DecryptionRuleRowTests(DecryptionPolicyTabTestCase):
     """The rule tab: the five readers, and the rows that argue against themselves."""
 
     def test_the_five_criteria_reach_their_cells_through_the_readers(self):
-        """Not an optimisation. None of the five is a field of the model, so `tested_fields`
+        """Not an optimization. None of the five is a field of the model, so `tested_fields`
         raises without a reader and this tab does not exist."""
         for heading, expected in (("URL Category", "any"),
                                   ("Destination Address", "any"),

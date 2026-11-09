@@ -79,7 +79,7 @@ def _action_does_not_protect(obj) -> list[str]:
         "at. The position is not part of the row's identity, because a rule keeps its name across "
         "a move",
         "WHETHER THIS RULE'S PROFILE COUNTS PER DEVICE OR PER MATCHED GROUP IS NOT ASSERTED HERE. "
-        "That property is a field of the PROFILE and not of this rule, and the catalogue row "
+        "That property is a field of the PROFILE and not of this rule, and the catalog row "
         "points at the rule's own aggregate slot instead - so a reading taken from the row reports "
         "the preferred state as absent on a rule that satisfies it",
         "AND A RULE MAY BE SWITCHED OFF WITHOUT THIS FINDING KNOWING. No implicit was measured for "

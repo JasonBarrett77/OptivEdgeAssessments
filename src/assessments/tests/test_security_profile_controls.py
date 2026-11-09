@@ -108,7 +108,7 @@ class _LabFixture(TestCase):
         for every assertion and sets this column True in the same loop, so rows-without-the-flag
         exists only in a fixture. Leaving it False made the four PAN-VLN controls' coverage
         companion query - "Rule never assessed for vulnerability inspection" - fire on every
-        rule in this file, which is correct behaviour against an unreachable fixture.
+        rule in this file, which is correct behavior against an unreachable fixture.
 
         `verdict_written=False` is available for the one test that is ABOUT that state.
         """

@@ -5,7 +5,7 @@ The polarity difference between the two management planes is already resolved up
 plane's `disable-telnet: yes` or a profile's absent `telnet` key. Nothing here needs to
 know which plane a surface belongs to.
 
-`administrative` is this layer's judgement and deliberately does not live in
+`administrative` is this layer's judgment and deliberately does not live in
 OptivEdgeIntegrations. Whether a service constitutes administrative access is an assessment
 question, not a collection one - the collector's job ends at recording that `ping` is on.
 """

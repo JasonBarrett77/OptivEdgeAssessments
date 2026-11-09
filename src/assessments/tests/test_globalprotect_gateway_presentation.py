@@ -20,7 +20,7 @@ PROPERTY rather than the prose where the property is what matters - that a polar
 way round, that two cells do not read alike, that an em dash means "no such branch" and never "no".
 Jason takes the heading pass once across many domains; a test pinning a heading he has not seen yet
 would make his pass fail the suite. Where a literal string IS asserted, it is because the cell's
-content is the finding - the three em-dash cells and the licence pair.
+content is the finding - the three em-dash cells and the license pair.
 """
 from __future__ import annotations
 
@@ -185,7 +185,7 @@ class GatewayPresentationShapeTests(TestCase):
 
 
 class GatewayValueReaderTests(TestCase):
-    """The readers, over real rows. These are the cells that were judgements."""
+    """The readers, over real rows. These are the cells that were judgments."""
 
     @classmethod
     def setUpTestData(cls):
@@ -415,8 +415,8 @@ class GatewayResultsPageRowTests(TestCase):
         four measured appliances answer `{'licenses': None}` - "the instrument saying nothing rather
         than saying unlicensed". So the two states must not read alike."""
         spec = cr.RESULTS["globalprotect-gateways"]
-        licensed = spec.columns.index("GlobalProtect licence")
-        known = spec.columns.index("Licence state read")
+        licensed = spec.columns.index("GlobalProtect license")
+        known = spec.columns.index("License state read")
         self.assertEqual(("yes", "yes"),
                          (spec.row(self.hardened)[licensed], spec.row(self.hardened)[known]))
         self.assertEqual(("no", "no"),

@@ -47,7 +47,7 @@ they are asked.
 THE PER-CONTROL DISPATCH IS KEYED WITH NO DEFAULT, which is the convention the `user-id` run
 established after measuring the alternative: a dispatch whose fallback is some control's own arms
 describes a DIFFERENT control's finding with those claims. One control uses this model today; an
-unrecognised id contributes the subject line and no claim, which is thin rather than wrong.
+unrecognized id contributes the subject line and no claim, which is thin rather than wrong.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def _filled(obj, slots) -> list[tuple[str, str]]:
 
 
 def _trust_designation(obj) -> list[str]:
-    """PAN-DCP-006[0]: the trusted-site signing authority is one the organisation issued."""
+    """PAN-DCP-006[0]: the trusted-site signing authority is one the organization issued."""
     if obj.forward_trust_is_designated_local_ca:
         return []
     filled = _filled(obj, _TRUST_SLOTS)
@@ -98,7 +98,7 @@ def _trust_designation(obj) -> list[str]:
             "wrongly",
         ]
     return [
-        "THE DESIGNATED FORWARD-TRUST AUTHORITY IS NOT ONE THE ORGANISATION ISSUED AND CONTROLS: "
+        "THE DESIGNATED FORWARD-TRUST AUTHORITY IS NOT ONE THE ORGANIZATION ISSUED AND CONTROLS: "
         + "; ".join(f"{label} names `{name}`" for label, name in filled)
         + ". The stored verdict is that at least one designated slot does not resolve to a "
           "self-signed certificate authority this appliance holds, and the quantifier is that "

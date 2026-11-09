@@ -22,7 +22,7 @@ DESIGN. `COLUMNS`, `VALUE_READERS` and `FIELD_BY_COLUMN` are hand-kept here whil
 Rules tab derives its setting columns from the controls' own clauses, and the guard in `fold()`
 below is a hand-kept copy of `findings.check_every_tested_field_is_presented`. On 2026-11-01 the
 same EIGHTEEN columns had to be added in both places, in the same order, from the same headings -
-and only the headings are actually shared. A control added to the catalogue brings its column to
+and only the headings are actually shared. A control added to the catalog brings its column to
 the other tab by itself and raises here until somebody types it. Inside this module they had to
 go in FOUR places, which is why `SETTING_FIELDS` below exists: the first version of this change
 appended the last two to each list separately and put one of them eleven columns away from where

@@ -5,7 +5,7 @@ needs and the reason that operator had to work at all: it was advertised by two 
 served by neither until the query builder started offering it.
 
 `text` can be paragraphs, and `contains` over it is the useful question - whether the banner
-says "authorized use only", whether it names the organisation - which is why the banner is
+says "authorized use only", whether it names the organization - which is why the banner is
 stored whole rather than reduced to a length.
 """
 

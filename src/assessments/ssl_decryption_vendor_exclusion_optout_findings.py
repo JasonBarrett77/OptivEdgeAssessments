@@ -7,27 +7,27 @@ behind `finding_registry` twice without anything failing, and a finding model wh
 added later is exactly the shape that slipped.
 
 WHY NO CONTROL TARGETS IT. PAN-DEC-004's two assertion records name two subjects - the exclusions
-the organisation added itself, and these departures from the VENDOR's supplied list -
+the organization added itself, and these departures from the VENDOR's supplied list -
 `_CONTROL_TYPE_TARGET_MODEL` maps one type to one model, and `ControlQuery.clean()` refuses a query
-whose model differs from its control's target, so one catalogue id cannot hold both halves. The
-exclusion half took the id: the catalogue row's own severity is medium and its `minimum_value_descr`
+whose model differs from its control's target, so one catalog id cannot hold both halves. The
+exclusion half took the id: the catalog row's own severity is medium and its `minimum_value_descr`
 is about the local list, which is stage 3's record 0, while this is the `preferred_gap_severity`
 half at low. And there is no walk between the two models to reach this half through -
 `probe.relation_between SslDecryptionExclusion SslDecryptionVendorExclusionOptOut` finds NO RELATION
 IN EITHER DIRECTION: six paths through shared ancestors, every one to-many and every one leaving a
 scope field unconstrained, which is a WRONG ROW rather than an understated severity. Splitting
-PAN-DEC-004 into two catalogue ids changes what a customer's report contains and is Jason's
+PAN-DEC-004 into two catalog ids changes what a customer's report contains and is Jason's
 decision.
 
 AND NO ESTATE CAN MAKE THIS HALF FIRE TODAY, which is the sharper reason not to invent a control for
 it now. The one clean assertion is that no switched-off entry is left on the list after the vendor
-stopped shipping it, and that is a SET DIFFERENCE whose right-hand side - the vendor's own catalogue
+stopped shipping it, and that is a SET DIFFERENCE whose right-hand side - the vendor's own catalog
 - is invisible to `action=get` and to the merged configuration. Measured on all four lab appliances:
 the config read a collector naturally reaches for answers a well-formed, TRUTHY, EMPTY count
 envelope (`{"@total-count": "0", "@count": "0"}`) for a populated vendor list, `action=show` at the
 same xpath denies the node exists, and only the `show predefined` OPERATIONAL read returns the 330
 or 385 entries. Nothing issues that read on a collection run, so
-`stale_disabled_vendor_exclusion_count` is zero on every row in every estate - and the normaliser
+`stale_disabled_vendor_exclusion_count` is zero on every row in every estate - and the normalizer
 does not even compute the difference when the snapshot is absent, because a `set()` right-hand side
 would make every switched-off entry look stale, which is the loudest possible false finding on
 exactly the appliances that are fine.
@@ -76,7 +76,7 @@ def _stale_departures(obj) -> list[str]:
         f"{obj.stale_disabled_vendor_exclusion_count} of the "
         f"{obj.disabled_vendor_exclusion_count} vendor-supplied SSL decryption exclusion(s) "
         "switched off on this appliance NAME SERVERS THE VENDOR NO LONGER SHIPS AN ENTRY FOR, so "
-        "they are enforcing a judgement about a product the vendor has since reassessed and "
+        "they are enforcing a judgment about a product the vendor has since reassessed and "
         "nothing will remove them automatically",
         "SWITCHING ONE OFF IS A HARDENING ACT AND NOT A WEAKENING ONE, which is the direction the "
         "obvious reading gets backwards: the vendor's own screen says the option effectively "
@@ -87,13 +87,13 @@ def _stale_departures(obj) -> list[str]:
         "OFF stays on the list after a content update stops defining it, while a switched-ON one "
         "is removed automatically - so this count grows silently and only on the entries an "
         "administrator made a decision about",
-        "WHETHER EACH DEPARTURE WAS DELIBERATE IS THE ORGANISATION'S ANSWER AND NO COLUMN HOLDS "
+        "WHETHER EACH DEPARTURE WAS DELIBERATE IS THE ORGANIZATION'S ANSWER AND NO COLUMN HOLDS "
         "IT. The list records the departure and nothing about the reason for it; what is "
         "delivered is which entries are switched off and which of those the vendor no longer "
         "ships",
         "AND A ZERO ON THIS COUNT MEANS TWO THINGS THAT CANNOT BE TOLD APART FROM THE ROW: that "
-        "no departure is stale, and that the vendor's own catalogue was never read. Only the "
-        "`show predefined ssl-exclude-cert` operational read supplies that catalogue - the config "
+        "no departure is stale, and that the vendor's own catalog was never read. Only the "
+        "`show predefined ssl-exclude-cert` operational read supplies that catalog - the config "
         "read a collector reaches for answers a truthy, EMPTY count envelope for a populated list "
         "on every appliance measured - and nothing issues it on a collection run, so today it is "
         "the second reading on every row in every estate",

@@ -29,7 +29,7 @@ AND THE COMPARISON IS CASE-INSENSITIVE, WHICH MATTERS IN ONE DIRECTION ONLY. `eq
 `iexact`. The device answered lowercase `normal` on all four lab appliances through both
 operational reads, and stage 5's grading places the token as `normal`, so the two agree. The
 OTHER mode's spelling is UNMEASURED - `ApplianceOperationalMode.APPROVED_MODE` is the
-catalogue's `FIPS-CC`, no appliance in this estate runs it, and neither available instrument can
+catalog's `FIPS-CC`, no appliance in this estate runs it, and neither available instrument can
 enumerate it because `action=complete` needs an xpath and there is none. No query rests on that
 spelling today: stage 5 grades `FIPS-CC` as `no_finding`, which compiles to no query at all. The
 day a control asserts the approved mode positively, that spelling is the first thing to measure.
@@ -77,7 +77,7 @@ def build_text_compiler(field_name, lookup_field):
 def build_boolean_compiler(field_name, lookup_field):
     """`eq` is the only operator a boolean can carry, and the value is type-checked.
 
-    Not coerced: `eq "false"` on a boolean column is a catalogue payload bug, and Python reads
+    Not coerced: `eq "false"` on a boolean column is a catalog payload bug, and Python reads
     the non-empty string as TRUE and matches the opposite rows in silence.
     """
 

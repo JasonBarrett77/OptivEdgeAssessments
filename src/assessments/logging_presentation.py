@@ -13,7 +13,7 @@ has had. `Logging and Reporting Settings` existed for PAN-MGT-011 alone - one se
 `log_on_high_dp_load`, with NO `setting_labels` at all, so that heading was a raw Django field
 name on a shipped tab. Adding eight controls to it adds ten more columns, and every one of them
 would have been raw too. So the label map here covers ELEVEN clause fields and not ten: the
-eleventh is PAN-MGT-011's own, labelled here deliberately rather than left bare for the
+eleventh is PAN-MGT-011's own, labeled here deliberately rather than left bare for the
 `management-services` run to find. The column is not this domain's; the tab a customer reads is.
 
 EVERY HEADING BELOW IS A PROPOSAL (P399) and each is sourced to the vendor's own words where the
@@ -56,7 +56,7 @@ def provenance_cell(subject, provenance_of, fields) -> str:
     never meet in one cell: PAN-LOG-001's row covers two derived columns and reads "Derived",
     PAN-LOG-007's covers `require_audit_comment` - a key an administrator wrote - and reads
     "Local", and PAN-MGT-011's covers `log_on_high_dp_load`, ABSENT on all three measured
-    appliances and recorded by the normaliser as a VENDOR IMPLICIT, which reads "PAN-OS default":
+    appliances and recorded by the normalizer as a VENDOR IMPLICIT, which reads "PAN-OS default":
     neither written by anyone nor derived by us. A constant string would be false on two of those
     three rows, and a two-way derived-or-local branch would have printed one of those two words
     over a state that is neither.

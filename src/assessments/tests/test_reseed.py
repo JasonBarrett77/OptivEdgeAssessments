@@ -112,7 +112,7 @@ class ReseedTests(TestCase):
 class TargetModelMappingTests(TestCase):
     """Every ControlType must map to a target model.
 
-    `Control.save()` DERIVES target_model from _CONTROL_TYPE_TARGET_MODEL for any recognised
+    `Control.save()` DERIVES target_model from _CONTROL_TYPE_TARGET_MODEL for any recognized
     type, so a type added to the enum and forgotten in the map has its target_model wiped to
     "" on every save. Evaluation still works - the finding generators fall back to a
     constant - so the only symptom is a catalog reporting MODIFIED immediately after being

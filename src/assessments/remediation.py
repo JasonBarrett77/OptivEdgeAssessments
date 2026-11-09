@@ -552,11 +552,11 @@ REMEDIATION_GROUPS = (
         control_ids=("PAN-PLT-002",),
         subject_type=Control.ControlType.FIREWALL_CONTENT_STREAMS,
         one_pass=True,
-        summary=("Appliances enforcing with content too old to recognise current threats, on one row per appliance."),
+        summary=("Appliances enforcing with content too old to recognize current threats, on one row per appliance."),
     ),
     RemediationGroup(
-        slug="licences",
-        label="Licences",
+        slug="licenses",
+        label="Licenses",
         control_ids=("PAN-PLT-004",),
         subject_type=Control.ControlType.LICENCE_INVENTORY,
         one_pass=True,
@@ -871,7 +871,7 @@ def _point_label(point) -> str:
     """An enforcement point as an engineer knows it: the firewalls, then the virtual system.
 
     NOT the appliance group's name. That is `ha-pair-013201001085-013201001475` - this
-    application's own bookkeeping, built from two serials, and nothing a customer would recognise.
+    application's own bookkeeping, built from two serials, and nothing a customer would recognize.
     """
     group = point.appliance_group
     hosts = sorted(appliance.hostname for appliance in group.appliances.all()) if group else []
@@ -1313,7 +1313,7 @@ def _path_substitution(control):
     """`(foreign key, domain slug, absence name)` for a path-keyed control, else None.
 
     THE CONTROL'S TYPE IS CHECKED AND NOT ONLY ITS ID, which is what keeps this honest while a
-    catalogue re-seed is outstanding: the same nine ids existed for weeks keyed on the two
+    catalog re-seed is outstanding: the same nine ids existed for weeks keyed on the two
     crypto profile models, and a control still seeded that way reports ON the profile - its
     finding's subject already IS the object. Matching on the id alone fired the substitution on
     those findings and asked a profile for a foreign key it does not have, which turned every
@@ -1701,7 +1701,7 @@ def remediation_controls() -> list[dict]:
 def _summary_of(control) -> str:
     """The control's description in one line, which is the line it already opens with.
 
-    A catalogue description runs from 1KB to 8.5KB - the whole argument for the control, its
+    A catalog description runs from 1KB to 8.5KB - the whole argument for the control, its
     severity bands, what the vendor says - and the index wants the sentence, not the argument.
     Measured over these fifty: every one opens with a single sentence naming what is wrong, 65
     to 221 characters, and the rest is separated from it by a blank line. So this takes the

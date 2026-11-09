@@ -26,7 +26,7 @@ widens SEVEN fields at once, because seven of this package's field modules share
 with no `null=True`; `vsys_name` and `vsys_display_name` reach `EnforcementPoint`'s own
 non-nullable columns). So `""` is the only absent value any of them can hold and an `__isnull`
 branch beside it would match nothing extra. Where a column is `null=True` and the
-normaliser writes NULL for the absent case, this shape compiles, passes every gate and matches
+normalizer writes NULL for the absent case, this shape compiles, passes every gate and matches
 nothing on the exact population it was written for - so a nullable column needs the
 `__isnull`-OR form instead. The operator set is imported from `device_configuration` rather than
 restated so that the query builder offers the same three everywhere.

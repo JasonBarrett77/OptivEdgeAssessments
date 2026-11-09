@@ -2,7 +2,7 @@
 Stage 9, `updates`, 2026-11-03.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover a tab generically: every
-assertion here is a JUDGEMENT this run made that nothing else in the repository states, and a new
+assertion here is a JUDGMENT this run made that nothing else in the repository states, and a new
 tab nothing asserts on is one the next refactor can break in silence.
 
   - THE COLUMN ORDER, read off the built table rather than derived from stage 5. Nothing gates it.
@@ -34,7 +34,7 @@ tab nothing asserts on is one the next refactor can break in silence.
     them read in English, and a future run that adds a value map must confront this test.
 
   - THE PROVENANCE CELL (P451), AND WHICH FIX ACTUALLY DOES IT. Measured on built rows both ways.
-    The normaliser hands `write_node_row` a provenance list naming only the two threshold fields,
+    The normalizer hands `write_node_row` a provenance list naming only the two threshold fields,
     neither of which any control clauses on, and writes no `__entry__` row - so with no sheet-level
     `provenance_cell` every row printed "Not recorded" once per tested field, which means "nothing
     tracks that field" about a value this assessment derives on purpose. Declaring the fields in
@@ -473,7 +473,7 @@ class ContentUpdateScheduleTabTests(ContentUpdateScheduleEstate):
         from WHICH BRANCH ELEMENT EXISTS - derived deliberately and by a documented rule. The
         sheet's `provenance_cell` is what answers it: declaring the fields in `DERIVED_FIELDS`
         does not, because `remediation_accessor` discards the synthesised DERIVED row and falls
-        back to an `__entry__` row this normaliser never writes."""
+        back to an `__entry__` row this normalizer never writes."""
         table = self.table()
         for row in table.rows:
             self.assertEqual("Derived", self.cell(table, row, "Provenance"))
@@ -542,7 +542,7 @@ class ContentUpdateScheduleTabTests(ContentUpdateScheduleEstate):
     def test_the_stated_condition_reads_in_raw_field_names_while_the_headings_do_not(self):
         """MEASURED, AND THE REASON THE VALUE CELLS ARE NOT TRANSLATED EITHER. `render_node`
         consults `setting_labels` nowhere, so the condition says `av_recurrence` under a heading
-        reading "Antivirus recurrence". Labelling every heading does NOT make the tab clean, and
+        reading "Antivirus recurrence". Labeling every heading does NOT make the tab clean, and
         a run reporting one off a heading grep would be reporting half the row."""
         table = self.table()
         conditions = {self.cell(table, r, "Fires when (failing condition)") for r in table.rows}

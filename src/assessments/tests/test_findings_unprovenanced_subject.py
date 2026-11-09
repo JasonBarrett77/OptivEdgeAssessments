@@ -83,7 +83,7 @@ class UnprovenancedSubjectFindingsTests(TestCase):
         self.zone = Zone.objects.get(name="oep-zon-z1")
 
         self.run = AssessmentRun.objects.create(
-            name="Zone defence", status=AssessmentRun.Status.RUNNING, started_at=now)
+            name="Zone defense", status=AssessmentRun.Status.RUNNING, started_at=now)
         seed_controls(["PAN-ZON-001"])
         generate_zone_findings(self.run)
         self.spec = DOMAIN_BY_SLUG["security-zones"].spec

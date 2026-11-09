@@ -19,7 +19,7 @@ this project has never established for any customer.
 
 THE OTHER MODE'S SPELLING IS UNMEASURED and the sentence never claims it. The device answered
 lowercase `normal` on all four lab appliances through both operational reads;
-`ApplianceOperationalMode.APPROVED_MODE` is the catalogue's `FIPS-CC`, no appliance in this
+`ApplianceOperationalMode.APPROVED_MODE` is the catalog's `FIPS-CC`, no appliance in this
 estate runs it, and neither available instrument can enumerate it - `action=complete` needs an
 xpath and there is none. No query rests on that spelling, because stage 5 grades the approved
 mode `no_finding`, which compiles to no query.

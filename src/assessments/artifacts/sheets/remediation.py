@@ -3,7 +3,7 @@
 Jason, 2026-11-05: *"Remediation needs its own artifact, separate from the existing Findings
 artifact. However, the existing findings (detail) artifact is an excellent example of features
 and formatting."* So everything a findings tab does is done here by the SAME code - the title
-band, the counts strip, the tab colour by PAN-OS category, the real Excel table with its
+band, the counts strip, the tab color by PAN-OS category, the real Excel table with its
 autofilter and frozen header, the column widths measured from the values, the clipped row for a
 cell holding more lines than fit, and the amber on the value that caused the finding. None of it
 is reimplemented; `artifacts.layout` is imported, and the existing workbook is untouched.
@@ -17,7 +17,7 @@ WHAT THE COLUMNS ARE, and why they are not quite the page's. The page draws Find
 Control ID and Control name as four columns of one line per control, read across as a sentence.
 A spreadsheet is for sorting and filtering, and four columns of stacked lines filter on nothing,
 so the row's own total and its worst severity are single values here - the shape a findings tab's
-Severity column has, and the one the conditional fill can colour - and the per-control detail is
+Severity column has, and the one the conditional fill can color - and the per-control detail is
 one cell holding Jason's own sentence per line: *"3 findings of medium severity for control id
 PAN-IOT-002 with control name Device-ID Enabled on IoT-Hosting Zones"*.
 

@@ -69,7 +69,7 @@ def referenced_columns(node, found=None):
     """Every model field a WHERE tree touches, including through subqueries.
 
     A JSON lookup appears as a KeyTransform whose `lhs` chain terminates at the JSONField, so
-    walking the chain finds the column by name without having to recognise JSON syntax in any
+    walking the chain finds the column by name without having to recognize JSON syntax in any
     particular database dialect.
     """
     found = set() if found is None else found

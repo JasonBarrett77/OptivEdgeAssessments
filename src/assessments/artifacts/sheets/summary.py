@@ -9,7 +9,7 @@ are what the other sheets report about themselves (`common.SheetInfo`). xlsxwrit
 to any worksheet until the workbook closes, so tab order and write order are independent.
 
 Nothing on this tab is typed by hand except labels. Totals are the other sheets' own counts, so
-the Summary cannot disagree with the tabs it summarises.
+the Summary cannot disagree with the tabs it summarizes.
 """
 from __future__ import annotations
 
@@ -129,10 +129,10 @@ def first_column_width(infos, engagement) -> int:
 def write_block_heading(workbook, sheet, row, text):
     """The heading row above a table: the category name, and nothing else.
 
-    Two colour treatments were tried on 2026-09-18 and both reverted - the row filled with the
-    category's tab colour ("I don't like that, its too busy"), then the word in that colour. The
+    Two color treatments were tried on 2026-09-18 and both reverted - the row filled with the
+    category's tab color ("I don't like that, its too busy"), then the word in that color. The
     page already carries the title, the counts strip and five table headers; the categories read
-    as structure without being coloured, and the tab strip is where the colours belong.
+    as structure without being coloured, and the tab strip is where the colors belong.
     """
     heading = workbook.add_format({"bold": True, "font_size": BLOCK_FONT_SIZE,
                                    "font_color": TITLE_FILL, "indent": BLOCK_INDENT,

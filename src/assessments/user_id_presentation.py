@@ -1,4 +1,4 @@
-"""How the User-ID tabs read: the cells whose wording is a judgement.
+"""How the User-ID tabs read: the cells whose wording is a judgment.
 
 Written by the stage 9 run of OptivEdgeProbe's `user-id` domain, 2026-11-02, for PAN-UID-001 to
 -006 over four models - two created for this domain (the per-vsys collector settings node and the
@@ -152,7 +152,7 @@ def include_networks(bound) -> str:
 
     NOT RESOLVED AND NOT JUDGED, and the cell says so by printing nothing it was not given: these
     are the ranges a finding prints for an engineer to qualify against which of them hold the
-    organisation's own staff. A member may be any CIDR the device accepted.
+    organization's own staff. A member may be any CIDR the device accepted.
 
     THE EMPTY CASE IS NOT A BLANK, for the reason the model's own docstring gives: an empty list
     on an unrecomputed row "would render as `no ranges configured`, which is wrong on a bounded

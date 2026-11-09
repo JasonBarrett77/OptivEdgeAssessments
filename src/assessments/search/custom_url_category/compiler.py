@@ -20,7 +20,7 @@ reachable because the type key is MANDATORY AT COMMIT VALIDATION on the device -
 two platforms established that, `Validation Error: ... is missing 'type'` - so a row holding "" is
 never a device state; it is a row written before the recompute, or one whose entry came from a
 view that carried no type leaf. The cost of the text builder has to be stated rather than
-discovered: a MISSPELLED value in a catalogue payload compiles against a text field and matches
+discovered: a MISSPELLED value in a catalog payload compiles against a text field and matches
 nothing, where the raising form would have refused it. What limits the damage here is the shape
 the control takes anyway - the baseline asserts `is_used eq false` and carries no type clause, so
 a misspelled calibration loses a RANK and never a finding.

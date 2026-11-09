@@ -47,7 +47,7 @@ def build_boolean_compiler(field_name, lookup_field):
     field registered here before it was either text on the surface or a membership test over the
     `services` child rows, so there was no boolean builder to reuse. `eq` is the only operator a
     boolean can carry, and the value is type-checked rather than coerced: `eq "false"` on a
-    boolean column is a catalogue payload bug, and Python would read the non-empty string as
+    boolean column is a catalog payload bug, and Python would read the non-empty string as
     TRUE and match the opposite rows in silence.
     """
 

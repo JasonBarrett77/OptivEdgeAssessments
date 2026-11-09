@@ -24,7 +24,7 @@ engineer SCANS; the eighteen derived setting columns after them are what the PAN
 actually assert on - the port count, the logging pair, the duplicate verdict and the check behind
 it, the hit-count age and whether it can be believed, the schedule pair, the two site-inspection
 columns, the description and the open-zone count. They are derived from the controls' own clauses,
-so a control added to the catalogue brings its column with it; only the HEADINGS are typed, in
+so a control added to the catalog brings its column with it; only the HEADINGS are typed, in
 `SETTING_LABELS`, and every one of those is a proposal.
 
 WHAT IS NOT HERE YET. The collapse by provenance + subject Jason described: 205 of this run's 390

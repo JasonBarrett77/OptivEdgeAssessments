@@ -144,7 +144,7 @@ def _login_page(obj) -> list[str]:
         parts.append(
             f"the portal serves a browser an imported response page, `{value}` - so the login "
             f"surface is present and decorated rather than absent. The page being the "
-            f"organisation's own does not reduce what it is: an unauthenticated credential prompt "
+            f"organization's own does not reduce what it is: an unauthenticated credential prompt "
             f"that answers whether a username is real")
     if not obj.mandatory_keys_present:
         parts.append(
@@ -192,7 +192,7 @@ def _agent_upgrade(obj) -> list[str]:
         label = UPGRADE_LABELS.get(value, value)
         if value == "disabled":
             parts.append(
-                f"the first agent configuration an endpoint matches sets the upgrade behaviour to "
+                f"the first agent configuration an endpoint matches sets the upgrade behavior to "
                 f"`{label}`, so nothing will move an endpoint matching it and the superseded app "
                 f"is permanent until somebody edits the portal. The vendor prescribes exactly this "
                 f"state TEMPORARILY on every configuration but one during a staged rollout, which "
@@ -200,12 +200,12 @@ def _agent_upgrade(obj) -> list[str]:
                 f"being held back on purpose before reporting it as neglect")
         elif value == "manual":
             parts.append(
-                f"the first agent configuration an endpoint matches sets the upgrade behaviour to "
+                f"the first agent configuration an endpoint matches sets the upgrade behavior to "
                 f"`{label}`: an upgrade is possible and nothing initiates it, so convergence "
                 f"depends on individual users deciding to look")
         else:
             parts.append(
-                f"the first agent configuration an endpoint matches sets the upgrade behaviour to "
+                f"the first agent configuration an endpoint matches sets the upgrade behavior to "
                 f"`{label}` - the fifth value the vendor's dictionary permits, which upgrades "
                 f"automatically but waits until the endpoint is connected internally to the "
                 f"corporate network. WHETHER IT CONVERGES DEPENDS ON HOW OFTEN THIS POPULATION IS "
@@ -264,7 +264,7 @@ def _saved_credentials(obj) -> list[str]:
                 f"release - `save-user-credentials` is `{value}`, `{label}`. What gates it is a "
                 f"check this firewall cannot see and that whoever holds the device may be able to "
                 f"satisfy, so the credential is on the device and the control over it is not the "
-                f"firewall's. THE CATALOGUE'S OWN NOTES LABEL THIS VALUE THE OTHER WAY ROUND - "
+                f"firewall's. THE CATALOG'S OWN NOTES LABEL THIS VALUE THE OTHER WAY ROUND - "
                 f"`Yes with User Fingerprint` - which points at a weaker reading than the device "
                 f"and the vendor agree on")
         else:

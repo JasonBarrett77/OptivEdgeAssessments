@@ -18,7 +18,7 @@ positive ones:
     to a control whose whole evidence the key suppresses.
   * PAN-POL-013's first record asks `rule_hit_count_enabled is not true`. That implicit HAS since
     been measured - an absent key asserts counting is ON, read off the Policy Rule Hit Count
-    checkbox on two appliances in opposite key states - so the normaliser now stores TRUE for an
+    checkbox on two appliances in opposite key states - so the normalizer now stores TRUE for an
     absent key and the clause passes it correctly. That record is not built as a control by this
     domain: PAN-POL-013 reaches the per-rule age instead, and this column is registered because
     stage 5 names it in an `expression` record and the owed-field check is computed over those.

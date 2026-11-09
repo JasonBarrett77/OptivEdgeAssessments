@@ -2,7 +2,7 @@
 Stage 9, `ha-panorama`, 2026-11-03.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and
 a new tab nothing asserts on is one the next refactor can break silently.
 
   - THE PROVENANCE CELL BRANCHES, AND IT IS THE FIRST ONE THAT DOES. Every `provenance_cell`
@@ -16,7 +16,7 @@ a new tab nothing asserts on is one the next refactor can break silently.
 
   - AND THE OTHER HALF OF THE `choices` RULE, which ships a 500 rather than a wrong word (P462).
     NEITHER MODEL DECLARES `choices=` ON ANY FIELD, so `get_<field>_display()` does not exist on
-    any of them and a labelling `ValueReader` would raise `AttributeError` at TEMPLATE RENDER -
+    any of them and a labeling `ValueReader` would raise `AttributeError` at TEMPLATE RENDER -
     past `django check` and past all three cross-domain gates. The test asserts the attribute's
     absence on every clause field of both models, which is the guard against a later run copying
     the reader pattern across from a domain where it is mandatory.
@@ -34,7 +34,7 @@ a new tab nothing asserts on is one the next refactor can break silently.
     silently reorders a customer-facing column. PAN-HAP-002 is the one that depends on it, and
     the order puts the "did anybody look" column BETWEEN the assertion and the graded verdict.
 
-  - THE TWO COLUMNS THIS RUN REFUSED TO DRAW, which is a judgement no gate can see:
+  - THE TWO COLUMNS THIS RUN REFUSED TO DRAW, which is a judgment no gate can see:
     `link_monitoring_enabled` and `path_monitoring_enabled` read `Yes` when their keys are
     ABSENT, by the device's own answer, so on the PAN-HAP-004 row they would be two reassuring
     cells beside a verdict saying this firewall monitors nothing.
@@ -220,7 +220,7 @@ class NoChoicesReaderTests(TestCase):
                 with self.subTest(model=model.__name__, field=field.name):
                     self.assertFalse(field.choices,
                                      f"{model.__name__}.{field.name} now declares choices, so a "
-                                     f"labelling ValueReader became available - see P457/P462")
+                                     f"labeling ValueReader became available - see P457/P462")
 
     def test_get_display_does_not_exist_on_any_presented_field(self):
         """`get_<field>_display()` exists ONLY on a field that declares `choices`; on the
@@ -257,7 +257,7 @@ class HaPanoramaEstateMixin:
     fixture. `flows.get_in_scope_appliances` (flows.py:503-527) takes
     `enforcement_point.appliance` when set and `continue`s without ever consulting the point's
     nodes, so ONE point with a NULL `appliance` and TWO `EnforcementNode`s is what makes both
-    members normalise - measured 2026-11-03 as 1.0 rows per configuration against 2.0.
+    members normalize - measured 2026-11-03 as 1.0 rows per configuration against 2.0.
     """
 
     #: fw-core-tpa-a's measured state, 2026-10-26 to 2026-10-29, from stage 6 subject hap6-01.
@@ -380,10 +380,10 @@ class HaPanoramaEstateMixin:
 
     @classmethod
     def write_provenance(cls, ha, panorama):
-        """The rows the committed normalisers write for the two STORED clause fields.
+        """The rows the committed normalizers write for the two STORED clause fields.
 
         `normalization/high_availability.py` writes fourteen `FieldProvenance` rows and
-        `ha_enabled` is among them; the Panorama normaliser writes one for
+        `ha_enabled` is among them; the Panorama normalizer writes one for
         `panorama_server_secondary`. NEITHER WRITES AN `__entry__` ROW, which is the whole reason
         the default provenance cell reads "Not recorded" - `remediation_accessor` discards a
         DERIVED row on purpose and walks to an entry row that is not there.
@@ -449,8 +449,8 @@ class ProvenanceCellTests(HaPanoramaEstateMixin, TestCase):
     def test_a_third_answer_appeared_that_no_two_way_branch_would_have_printed(self):
         """FOUND ON A BUILT ROW RATHER THAN ANTICIPATED, and it is why this cell reads what was
         RECORDED instead of deciding anything. On an appliance whose second management slot is
-        ABSENT, the normaliser records the implicit as `PAN-OS default` - the key is not there
-        and PAN-OS supplies the behaviour, which is neither something an administrator wrote nor
+        ABSENT, the normalizer records the implicit as `PAN-OS default` - the key is not there
+        and PAN-OS supplies the behavior, which is neither something an administrator wrote nor
         something this assessment derived. A constant "Derived" would have been wrong, and so
         would a two-way derived-or-Local branch."""
         subject = self.panorama["pan-fw-201"]
@@ -466,7 +466,7 @@ class ProvenanceCellTests(HaPanoramaEstateMixin, TestCase):
     def test_an_assumed_default_is_never_called_a_vendor_fact(self):
         """The one rewording `provenance_cells` does, and this cell inherits it rather than
         reimplementing it: `ASSUMED_DEFAULT` prints "Assumed - not measured" and NOT "PAN-OS
-        default", because the value is our inference and printing it as vendor behaviour would
+        default", because the value is our inference and printing it as vendor behavior would
         state something about a customer's firewall that nobody established."""
         subject = self.panorama["fw-core-tpa-a"]
         FieldProvenance.objects.filter(
@@ -490,7 +490,7 @@ class ProvenanceCellTests(HaPanoramaEstateMixin, TestCase):
         """WHY THE HOOK IS NEEDED AT ALL, measured rather than argued. The default cell does not
         read `provenance_of`; it reads `remediation_accessor`, which discards a DERIVED row on
         purpose - "DERIVED counts as no answer" - and walks to the object's `__entry__` row.
-        Neither normaliser writes one, so `provenance_cells` falls through to its `row is None`
+        Neither normalizer writes one, so `provenance_cells` falls through to its `row is None`
         arm and the cell reads "Not recorded", which states that nothing TRACKS the field."""
         from assessments.artifacts.sheets.findings import (
             provenance_cells, remediation_accessor)

@@ -638,7 +638,7 @@ class UnusedProfileControlTests(_AntivirusFixture):
         """THE SECOND HALF, added 2026-10-31. The corpus names antivirus AND WildFire
         analysis profiles; v1 shipped antivirus only.
 
-        That was never a judgement about the second kind. The configuration explorer has one
+        That was never a judgment about the second kind. The configuration explorer has one
         page per profile KIND, a control query is linked to the page whose scope its clauses
         contain, and a query SPANNING two kinds matches neither page - so the resolver refuses
         to guess. The limit is about one QUERY, not about one control: every active query is

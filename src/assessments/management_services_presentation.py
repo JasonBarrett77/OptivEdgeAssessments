@@ -1,7 +1,7 @@
 """Headings, readers and provenance cells for the `management-services` domain's eight tabs.
 
 Stage 9 of `management-services`, 2026-11-03 - run 28 of 28, and the run that empties
-`AWAITING_PRESENTATION`. THIRTEEN controls on the roster, TWELVE in the catalogue (PAN-MGT-005 was
+`AWAITING_PRESENTATION`. THIRTEEN controls on the roster, TWELVE in the catalog (PAN-MGT-005 was
 dropped by a standing ruling of 2026-08-31 and its number is retired), EIGHT models, TEN stage 5
 subjects, and SIX findings tabs that already existed - more than any other domain has inherited.
 Two tabs are new here: `management-addressing` for PAN-MGT-004 and `operational-mode` for
@@ -13,7 +13,7 @@ where the vendor has a word and said to be OURS where it does not. `objects.py` 
 "EVERY HEADING BELOW IS A PROPOSAL ... Jason takes the heading pass once across many domains."
 
 ------------------------------------------------------------------------------------------------
-THE RAW-HEADING CENSUS, measured on built rows with THE WHOLE CATALOGUE SEEDED (217 controls),
+THE RAW-HEADING CENSUS, measured on built rows with THE WHOLE CATALOG SEEDED (217 controls),
 because `setting_columns` derives a column per clause field of the controls PRESENT in the build -
 so a shared tab's denominator is whatever was seeded, and the 12-control measurement of the same
 tabs reports 6 instead of 14.
@@ -23,16 +23,16 @@ tabs reports 6 instead of 14.
     login-banner                        15          2            0       PAN-MGT-007, -008
     update-server                        14          1            0       PAN-MGT-009
     management-crypto                    23         10            0       3 ours, 7 not
-    logging-settings                     27          0            0       run 26 labelled them
-    management-interfaces                18          0            0       `user-id` labelled them
+    logging-settings                     27          0            0       run 26 labeled them
+    management-interfaces                18          0            0       `user-id` labeled them
     ------------------------------------------------------------------------------------
                                         113         14            0
 
 FOURTEEN, which is the count the dispatch brief predicted and which I re-measured rather than
 inherited. SEVEN of the fourteen are NOT this domain's columns - `certificate_trust` belongs to
 PAN-CRT-006 (`certificates`) and six belong to the five PAN-MCR controls (`mgmt-crypto`) - and
-they are labelled here anyway, on run 26's precedent: labelling a column changes nothing about its
-control, and a 23-column tab with ten bare Django field names is worse than one with 23 labelled.
+they are labeled here anyway, on run 26's precedent: labeling a column changes nothing about its
+control, and a 23-column tab with ten bare Django field names is worse than one with 23 labeled.
 Each owning domain inherits the words and may replace them. The brief said "4 yours and 6 not" for
 the crypto tab; measured, it is 3 ours (PAN-MGT-010) and 7 not (6 PAN-MCR + 1 PAN-CRT-006).
 
@@ -82,7 +82,7 @@ that method on a field WITHOUT `choices` raises `AttributeError` at TEMPLATE REN
 
 ONE READER IS WRITTEN ON A FIELD WITH NO `choices`, DELIBERATELY, AND IT DOES NOT CALL THE DISPLAY
 METHOD. `operational_mode` is a `CharField(blank=True)` whose EMPTY VALUE MEANS THE READ WAS NEVER
-TAKEN - the normaliser says so in terms, and that is a different state from any mode a device can
+TAKEN - the normalizer says so in terms, and that is a different state from any mode a device can
 report. `display_value` has exactly three answers and renders it `(empty)`, which reads as "the
 appliance answered with nothing". `OPERATIONAL_MODE_READ` says "no operational read was taken"
 instead. The fatal half of the `choices` rule is specifically about calling
@@ -125,7 +125,7 @@ distinct answers appear across rows and never meet in one cell.
                                                               "PAN-OS default" under both its cell
                                                               and the default, and both are right:
                                                               the key was ABSENT on all three
-                                                              appliances and the normaliser records
+                                                              appliances and the normalizer records
                                                               an absent key as a vendor implicit.
     management-addressing / -004      "Derived"               WRITE A CELL. The single clause field
                                                               `exposure_posture` is derived with no
@@ -305,7 +305,7 @@ def _min_version_read(subject) -> str:
     Those are two different states and PAN-MGT-010'S OWN CALIBRATIONS DISTINGUISH THEM: `No
     transport-security configuration bound` and `Bound floor could not be resolved` are separate
     queries at the same severity, so a reader that cannot tell them apart loses a distinction the
-    catalogue already makes.
+    catalog already makes.
 
     `display_value` has exactly three answers - a value, `(none)` for NULL and `(empty)` for the
     empty string - and none of them can say "this branch does not exist on this subject", which is
@@ -499,7 +499,7 @@ MANAGEMENT_ADDRESSING_SETTING_LABELS = {
 def _exposure_posture_read(subject) -> str:
     """The posture class, saying so where it is the FIRING DEFAULT rather than a classification.
 
-    MANDATORY AND FREE as a labelling reader: `exposure_posture` is
+    MANDATORY AND FREE as a labeling reader: `exposure_posture` is
     `CharField(choices=POSTURE_CHOICES)` and is declared in
     `ManagementPlaneAddressing.DERIVED_FIELDS`, so without a reader the firing cell prints
     `routable_address` to a customer and the reader costs no provenance row.
@@ -548,7 +548,7 @@ def addressing_provenance_cell(subject, provenance_of, fields) -> str:
     says - it predicted "Not recorded" and the build answered "Derived". The correction is the
     useful part: `exposure_posture` is PAN-MGT-004's only clause field, it is declared derived, it
     carries no `FieldProvenance` row, and `ManagementPlaneAddressing` carries NO `__entry__` row
-    either - but it also has a mandatory labelling READER, so `build_rows` takes the reader arm
+    either - but it also has a mandatory labeling READER, so `build_rows` takes the reader arm
     (`findings.py:743-754`), `remediation_accessor` returns no row, and the cell falls back to
     `reader.provenance`, the reader's own prose. Measured on built rows: the default prints
     "Derived" on all three rows, not "Not recorded". WITHOUT the reader it would print

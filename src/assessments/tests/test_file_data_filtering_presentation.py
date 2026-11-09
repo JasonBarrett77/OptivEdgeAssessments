@@ -3,7 +3,7 @@
 Stage 9, `file-data-filtering`, 2026-11-02. PAN-FIL-001 to -004.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover tabs and rows generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and a
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and a
 new tab nothing asserts on is one the next refactor can break silently.
 
   - `integrations.SecurityProfile` NOW HAS SEVEN PAGES and this domain added two of them on one
@@ -12,7 +12,7 @@ new tab nothing asserts on is one the next refactor can break silently.
     that is too LOOSE matches alongside each sibling and pushes ALL SEVEN kinds to None. The five
     pages that already worked are what a wrong scope here breaks, which is why all seven are
     asserted and not just the two that are new.
-  - ONE CONTROL WHOSE QUERIES SPAN TWO PAGES, which nothing in the catalogue had before PAN-FIL-004.
+  - ONE CONTROL WHOSE QUERIES SPAN TWO PAGES, which nothing in the catalog had before PAN-FIL-004.
     Its baseline is file-blocking and its second assertion is data-filtering, so the two queries
     resolve to two different pages while `control_results_url` - keyed on the baseline - lands on
     one of them. Both halves are asserted, because the useful statement is not "it resolves" but
@@ -26,7 +26,7 @@ new tab nothing asserts on is one the next refactor can break silently.
   - the `reference_reach` CELL, which the inherited `setting_labels` comment claims carries the
     model's sentence and which printed the raw choice key until this run added a `ValueReader`.
   - the explorer `row` lambdas over real rows. The shipped check asserts a row is the same LENGTH
-    as its columns and cannot see what a cell says - and the three cells here that are judgements
+    as its columns and cannot see what a cell says - and the three cells here that are judgments
     are exactly the ones a length check cannot reach: a rule carrying no `action` key, a profile no
     rule sets a block threshold on, and a block threshold of 0 whose vendor meaning stage 4 could
     not settle.
@@ -183,7 +183,7 @@ class SecurityProfileRailScopeTests(TestCase):
 
 
 class ControlQueriesSpanningTwoPagesTests(TestCase):
-    """PAN-FIL-004, the first catalogue control whose queries resolve to two different pages."""
+    """PAN-FIL-004, the first catalog control whose queries resolve to two different pages."""
 
     def setUp(self):
         (self.control,) = seed_controls(["PAN-FIL-004"])

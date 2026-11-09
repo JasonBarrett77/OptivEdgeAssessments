@@ -206,7 +206,7 @@ class TemplateCommentTests(TestCase):
     """A broken template comment is not an error. It is CONTENT.
 
     `{# ... #}` is single-line only. Spread it over two and Django stops treating it as a
-    comment and prints it, so a note to the next developer became a paragraph of grey text in
+    comment and prints it, so a note to the next developer became a paragraph of gray text in
     the middle of the configuration rail - twice, once per loop iteration. Nothing failed:
     every test passed, the page returned 200, and it was caught by a person looking at it.
 

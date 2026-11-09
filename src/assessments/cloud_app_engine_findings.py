@@ -2,15 +2,15 @@
 
 THE SENTENCE NAMES THE CONDITION AND NOT THE SYMPTOM, which is the whole reason
 `ace_failure_reason` exists beside the verdict. The device certificate is a SECOND precondition
-and it is not in `request license info` at all, so a remediation that reads only the licence
+and it is not in `request license info` at all, so a remediation that reads only the license
 would buy a subscription and still have no engine.
 
-AND THE LICENCE IS THE ONE REASON THAT PRODUCES NO FINDING. The control's applicability clause is
+AND THE LICENSE IS THE ONE REASON THAT PRODUCES NO FINDING. The control's applicability clause is
 a negated equality against `license_check_failed`: an appliance with no subscription was never
 what this half of the control was about, and it falls to the half that asks whether the adoption
 decision is on the record - which is an engineer's answer and has no query. So the absence of a
 finding on an appliance is not a statement that the engine is healthy, and it is most often a
-statement that the licence check failed.
+statement that the license check failed.
 
 TWO THINGS THE SENTENCE IS NOT ALLOWED TO SAY:
 
@@ -18,7 +18,7 @@ TWO THINGS THE SENTENCE IS NOT ALLOWED TO SAY:
   absent on every lab appliance, and the implicit `false` this consumer stores for that absence
   is AN INFERENCE AND NOT A VENDOR FACT - the key's negated spelling, the vendor's checkbox
   polarity and the device's own help string are all leads, and what the device does with the key
-  absent cannot be measured on an estate whose licence check fails. So the configuration half is
+  absent cannot be measured on an estate whose license check fails. So the configuration half is
   reported only where `ace_failure_reason` is `disabled_by_configuration`.
 * THAT THE ENGINE IS HEALTHY WHERE NOBODY ASKED. `unread` means the operational command was never
   issued, and the verdict is true until a pass asks. The sentence says nobody asked rather than
@@ -52,7 +52,7 @@ from optivedge_integrations.integrations.models import CloudAppEngineSetting
 #: here for an unmapped control only: PAN-SAS-005's applicability clause excludes it.
 REASON_PROSE = {
     CloudAppEngineSetting.REASON_LICENSE_CHECK_FAILED: (
-        "the engine reports its licence check failing, so no cloud application subscription is "
+        "the engine reports its license check failing, so no cloud application subscription is "
         "installed and active on this appliance"),
     CloudAppEngineSetting.REASON_DEVICE_CERTIFICATE_MISSING: (
         "the engine reports the device certificate as not installed, invalid or not pushed to "

@@ -179,7 +179,7 @@ def ikev1_dpd_retry(gateway) -> str:
 
 
 def dead_peer_detection(gateway) -> str:
-    """Both branches, labelled - for a surface with one cell for the pair.
+    """Both branches, labeled - for a surface with one cell for the pair.
 
     The two differ STRUCTURALLY: ikev1/dpd has enable, interval and retry, ikev2/dpd has two
     children, so a line written once for both loses `retry`. Each line is printed only for the

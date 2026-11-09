@@ -1,4 +1,4 @@
-"""Canonical search compiler for one SSL decryption exclusion the organisation added. PAN-DEC-004.
+"""Canonical search compiler for one SSL decryption exclusion the organization added. PAN-DEC-004.
 
 ONE ROW PER NAMED EXCLUSION WITHIN ONE SCOPE OF ONE APPLIANCE. The model inherits
 `ApplianceScopedObject`, so the appliance is a DIRECT foreign key and the lookups need no
@@ -15,7 +15,7 @@ appliance for exactly that reason, and both fire.
 WHAT THIS MODEL DOES NOT HOLD IS THE VENDOR'S 330 OR 385 ENTRIES. They live at
 `/config/predefined/ssl-exclude-cert`, are a separate object, and are invisible to the read this
 model normalizes - while the web interface renders BOTH collections in ONE grid distinguished only
-by a Location column. So a query here reaches the organisation's own exclusions and nothing else,
+by a Location column. So a query here reaches the organization's own exclusions and nothing else,
 which is what PAN-DEC-004's first record asserts over and is the reason `locally added` needs no
 clause: it is what the subject IS.
 

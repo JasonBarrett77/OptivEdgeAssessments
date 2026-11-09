@@ -457,7 +457,7 @@ def point_clientless_definitions(point, _provenance_of) -> str:
 
     ONE CELL AND NOT THREE because the three are read together and never apart: no control clauses
     on any of them, the verdict column is what fires, and three count columns would widen the tab
-    for a reading no row takes separately. Each is labelled in place so the cell is legible without
+    for a reading no row takes separately. Each is labeled in place so the cell is legible without
     a column heading per number.
 
     NODE PRESENCE IS THE WRONG TEST AND A COUNT IS THE RIGHT ONE, which the model's own docstring
@@ -470,10 +470,10 @@ def point_clientless_definitions(point, _provenance_of) -> str:
 
 
 def point_licence(point, _provenance_of) -> str:
-    """What the appliance said about its GlobalProtect Portal licence, in the model's own words.
+    """What the appliance said about its GlobalProtect Portal license, in the model's own words.
 
     WHAT "No" IN THE APPLICABILITY COLUMN ACTUALLY COVERS. `licence_excludes_globalprotect` reads
-    False both where the licence IS installed and where the appliance was never asked, and stage 5
+    False both where the license IS installed and where the appliance was never asked, and stage 5
     built the clause to suppress only on a populated list that lacks the feature - so this cell is
     the only place the two are told apart. The model keeps `unknown` apart from `no` for exactly
     that reason: its own comment records that `{'licenses': None}` arrives with status=success on
@@ -485,12 +485,12 @@ def point_licence(point, _provenance_of) -> str:
     on, and the model's choice labels are three sentences they can. The entry count is appended
     because zero entries is what `unknown` means on the wire.
 
-    THE LICENCE IS DEVICE-WIDE AND THE ROW IS PER VSYS, so this cell repeats across every vsys of
-    one appliance. Stage 5 names that as the reason a licence column is not the row's own grain and
+    THE LICENSE IS DEVICE-WIDE AND THE ROW IS PER VSYS, so this cell repeats across every vsys of
+    one appliance. Stage 5 names that as the reason a license column is not the row's own grain and
     records it rather than hiding it.
     """
     return (f"{point.get_globalprotect_portal_licensed_display()} "
-            f"({point.licence_entry_count} licence entr"
+            f"({point.licence_entry_count} license entr"
             f"{'y' if point.licence_entry_count == 1 else 'ies'} read)")
 
 

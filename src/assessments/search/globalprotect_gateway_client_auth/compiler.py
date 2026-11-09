@@ -5,7 +5,7 @@ NOT THE PORTAL'S CLIENT-AUTH TABLE, and the check is for the NODE rather than th
 `client-auth` is a leaf both GlobalProtect objects carry under different parents:
 `search/globalprotect_portal_client_auth/compiler.py` beside this one reads
 `global-protect-portal/entry/portal-config/client-auth`, and this one reads the collection nested
-inside a GATEWAY entry. The two models are not interchangeable and neither are their normalisers.
+inside a GATEWAY entry. The two models are not interchangeable and neither are their normalizers.
 
 NO ROW OF THIS MODEL EXISTS IN THE MEASURED ESTATE. The collection exists only nested inside a
 gateway entry and no gateway exists anywhere - the merged payload carries no
@@ -48,10 +48,10 @@ THE VENDOR'S OWN SWITCH IS REGISTERED AND READS BACKWARDS, the same trap the por
 `user_credential_or_client_cert_required` true means a password OR a client certificate will do,
 which is the PERMISSIVE state. No control clauses on it here - the derived
 `backend_can_deliver_a_second_factor` is what PAN-GPG-002 asserts - and it is registered so a
-finding can colour the cell that actually failed.
+finding can color the cell that actually failed.
 
 `client_os` IS AN APPLICABILITY CLAUSE AND NOT AN ASSERTION, which is why asserting on it would
-colour the wrong cell. Stage 5 gives it `role: applicability` with the value `X-Auth` negated: rows
+color the wrong cell. Stage 5 gives it `role: applicability` with the value `X-Auth` negated: rows
 serving third-party clients through extended authentication are a different admission path the
 vendor documents separately. It appears in EVERY query of this control - a rank query missing an
 applicability clause widens the control onto objects that never qualified - and it appears in

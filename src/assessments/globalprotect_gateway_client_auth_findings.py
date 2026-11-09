@@ -17,7 +17,7 @@ platform to repoint.
 THE DISPATCH DEFAULTS TO `()`, for the reason the sibling gateway generator records: eighteen of
 this repository's twenty-eight dispatching generators default to some other control's arms, so a
 control reusing such a type has its findings described with claims it never assessed. An
-unrecognised id here contributes the subject line and nothing else.
+unrecognized id here contributes the subject line and nothing else.
 
 PAN-GPG-002 IS ONE CONTROL OVER TWO MODELS AND THIS SENTENCE CARRIES BOTH HALVES, which is unusual
 enough to state. Its first record asserts on the row's own
@@ -33,7 +33,7 @@ AND IT MAY NOT FOLLOW THE AUTHENTICATION NAME INTO THE PROFILE IT POINTS AT.
 asserted model, so where the reader needs to know what the identity service actually demands the
 audit text sends them there. That is also the honest limit: the firewall records WHICH service it
 asks and never what that service demands, so no sentence here can claim a second factor is
-enforced. `authentication_backend_method` is the method name resolved at normalisation, and it
+enforced. `authentication_backend_method` is the method name resolved at normalization, and it
 cannot tell an authentication PROFILE from a SEQUENCE whose last member may be the firewall's own
 local user database.
 """

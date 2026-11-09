@@ -2,7 +2,7 @@
 `saas-security`.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover the tabs generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and
 a new tab nothing asserts on is one the next refactor can break silently.
 
   - THE THREE-WAY `ace_disabled` CELL. The column is nullable and NULL means the configuration
@@ -77,7 +77,7 @@ class SaasRailItemTests(TestCase):
                 self.assertEqual(1, len(items), f"{label} needs exactly one rail item")
 
     def test_every_icon_is_in_the_vendored_set(self):
-        """NOT lucide's catalogue. A name that is not in OptivEdge's own
+        """NOT lucide's catalog. A name that is not in OptivEdge's own
         `templates/components/icons/` raises `FileNotFoundError` AT TEMPLATE RENDER, and because
         the rail draws on every explorer page it takes out every explorer test at once - with no
         test name mentioning an icon. Nineteen files, enumerated by the run that lost 56 errors
@@ -121,7 +121,7 @@ class SaasRailItemTests(TestCase):
 
 
 class SaasSheetShapeTests(TestCase):
-    """The spec-level judgements, none of which needs a database."""
+    """The spec-level judgments, none of which needs a database."""
 
     def test_no_model_field_declares_choices_so_no_reader_may_call_a_display_method(self):
         """`get_<field>_display()` exists ONLY on a field with `choices`. On the booleans and

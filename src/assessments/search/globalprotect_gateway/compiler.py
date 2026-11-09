@@ -17,7 +17,7 @@ crypto binding - which is why PAN-GPG-006's three records cascade the way they d
 the fields below and a reader of the finding has to be told so.
 
 FIVE COLUMNS HERE ARE RESOLVED THROUGH A NAME ONTO ANOTHER MODEL'S ROW, and the resolution happens
-at normalisation because the query grammar has no edge to walk and no second field slot.
+at normalization because the query grammar has no edge to walk and no second field slot.
 `tls_profile_resolves_to_an_explicit_floor` is the two-way disjunction PAN-GPG-001 asserts - the
 bound name reached no row, OR the row it reached states no floor - collapsed into one boolean
 because a clause list is one conjunction with no OR. `client_certificate_is_a_second_factor` is the
@@ -35,13 +35,13 @@ three `_known` companions are registered beside them:
   NULL is a collection failure rather than a device state. Stage 5 calls this column
   `cannot_be_unknown` and that is defensible for exactly this reason, not because the column is
   non-nullable. It is nullable.
-* `ipsec_enabled` - NULL on an absent key, and stage 4 declined to licence either reading of that
+* `ipsec_enabled` - NULL on an absent key, and stage 4 declined to license either reading of that
   absence. `ipsec_enabled_known` is what keeps those rows inside PAN-GPG-006's comparison.
 * `block_quarantined_devices` - NULL on an absent key, same refusal. NO QUERY IN THIS REPOSITORY
   REACHES IT: PAN-GPG-005's third record is the only assertion over it and that control targets
   `integrations.GlobalProtectEnforcementPoint`, with no relation between the two models in either
   direction. It is registered so that the day a control owns it there is a surface, and so a
-  finding can colour the cell; see this module's last paragraph.
+  finding can color the cell; see this module's last paragraph.
 
 THE THREE `_known` COMPANIONS ARE REGISTERED BECAUSE A NULL IS NOT REACHABLE OTHERWISE. There is no
 is-null operator anywhere in this query language and `is_empty` is a TEXT operator with no boolean
@@ -52,7 +52,7 @@ severity its own assertion record declares.
 
 `bound_app_crypto_first_encryption` IS A TEXT FIELD AND NOT A CHOICE FIELD, deliberately. Its
 measured value set is three members - `aes-128-cbc`, `aes-128-gcm`, `aes-256-gcm` - and the column
-is `CharField(max_length=32, blank=True)` whose normaliser returns `""` where the gateway binds no
+is `CharField(max_length=32, blank=True)` whose normalizer returns `""` where the gateway binds no
 profile or the bound name resolves to nothing the collection carries. The empty string is therefore
 a REACHABLE value absent from any `choices` tuple, which is the shape `build_choice_compiler`
 cannot serve: it refuses every value its own `choices` does not list, so it could express no query

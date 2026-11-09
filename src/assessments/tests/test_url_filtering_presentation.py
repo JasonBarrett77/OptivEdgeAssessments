@@ -4,7 +4,7 @@ Stage 9, `url-filtering`, 2026-11-02. PAN-URL-001 to -006 - six controls and 32 
 the largest query count in its batch.
 
 WHAT THIS EXISTS FOR, since the shipped squareness checks already cover tabs and rows generically:
-every assertion here is a JUDGEMENT this run made that nothing else in the repository states, and a
+every assertion here is a JUDGMENT this run made that nothing else in the repository states, and a
 new tab nothing asserts on is one the next refactor can break silently.
 
   - `integrations.SecurityProfile` NOW HAS EIGHT PAGES. `object_for_canonical_query` keeps every
@@ -24,12 +24,12 @@ new tab nothing asserts on is one the next refactor can break silently.
     the raw field name, so an entry deleted there is a database field name on a customer's report
     and nothing else would say so. These columns appear on EVERY kind's row, so the regression
     would also hit domains that never touched this code.
-  - THAT LABELLING THE HEADINGS DOES NOT MAKE THE TAB CLEAN. `Fires when (failing condition)`
+  - THAT LABELING THE HEADINGS DOES NOT MAKE THE TAB CLEAN. `Fires when (failing condition)`
     builds its text from the clause's own FIELD NAME and consults `setting_labels` nowhere, so a
     heading grep is blind to it. Pinned here as the measured state, NOT as an aspiration: shared
     machinery, recorded rather than fixed.
   - the explorer `row` lambdas over real rows. The shipped check asserts a row is the same LENGTH
-    as its columns and cannot see what a cell says - and the cells here that are judgements are
+    as its columns and cannot see what a cell says - and the cells here that are judgments are
     exactly the ones a length check cannot reach: a verdict column that is NULL FOR TWO UNRELATED
     REASONS, a three-state engine flag whose NULL is the firing side, a request-header column whose
     empty string is the PASSING state, and a pushed `type` leaf read as the wrong shape.
@@ -279,11 +279,11 @@ class UrlFilteringEstateTests(TestCase):
     # ---- the explorer pages, over real rows -------------------------------------------------
 
     def test_the_two_reasons_a_worst_category_cell_is_blank_are_different_cells(self):
-        """THE JUDGEMENT THIS PAGE EXISTS TO PIN. `worst_reachable_unlogged_category` is NULL both
-        when the category catalogue was never read and when every reachable category IS logged -
+        """THE JUDGMENT THIS PAGE EXISTS TO PIN. `worst_reachable_unlogged_category` is NULL both
+        when the category catalog was never read and when every reachable category IS logged -
         one is "nobody looked" and the other is "nothing is wrong", and the stored value cannot
         tell them apart. The companion column is the only thing that can. On a real estate the
-        first case is EVERY row, because stage 5 records that the operational catalogue read is
+        first case is EVERY row, because stage 5 records that the operational catalog read is
         issued by no collector, so printing one word for both would make the whole tab reassuring
         on the strength of nothing."""
         never_read = self.profile("p-unread", category_catalogue_collected=False,
@@ -297,7 +297,7 @@ class UrlFilteringEstateTests(TestCase):
                          self.cells("url-filtering", all_logged)["Worst unlogged category"])
 
     def test_a_weakest_action_cell_does_not_read_as_an_action_when_nothing_was_read(self):
-        """`weakest_hostile_category_action` is null EXACTLY when the catalogue was never read, so
+        """`weakest_hostile_category_action` is null EXACTLY when the catalog was never read, so
         the set has no members to rank. `(none)`, which the shared findings renderer can say,
         would read as an action the profile holds."""
         profile = self.profile("p-null", category_catalogue_collected=False,
@@ -470,7 +470,7 @@ class UrlFilteringEstateTests(TestCase):
                 self.assertIn(heading, category_tab.headers)
 
     def test_the_stated_condition_still_speaks_in_field_names(self):
-        """THE DEFECT LABELLING THE HEADINGS DOES NOT FIX, and the reason a heading grep is not
+        """THE DEFECT LABELING THE HEADINGS DOES NOT FIX, and the reason a heading grep is not
         evidence of a clean tab. `render_node` ends by returning
         `f"{node['field']} {op} {display_value(node['value'])}"` and consults `setting_labels`
         NOWHERE, so every `Fires when` cell on this domain's rows prints the raw Django field name

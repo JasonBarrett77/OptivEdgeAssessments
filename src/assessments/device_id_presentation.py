@@ -1,4 +1,4 @@
-"""How the three Device-ID tabs read: the cells whose wording is a judgement.
+"""How the three Device-ID tabs read: the cells whose wording is a judgment.
 
 Written by the stage 9 run of OptivEdgeProbe's `device-id-iot` domain, 2026-11-02, for
 PAN-IOT-001 to -004 over three models and three grains - the appliance's device-identification

@@ -66,7 +66,7 @@ def _per_vsys(obj) -> str:
                      "- the device stores the choice and not the reasoning, and on this screen "
                      "the two are identical")
     elif obj.per_system_path_posture == PerSystemPathPosture.SOME_SERVICES_ONLY:
-        parts.append(f"customises a path for {obj.services_with_a_chosen_path} of the "
+        parts.append(f"customizes a path for {obj.services_with_a_chosen_path} of the "
                      f"{len(obj.services_originated or [])} service(s) attributed to it, so the "
                      f"rest fall back to the firewall-wide set without that being recorded")
     else:

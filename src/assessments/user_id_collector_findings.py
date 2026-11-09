@@ -12,7 +12,7 @@ id it does not know, so a different control reusing the `zone` type has its find
 another control's compliance claims. That is a measured defect in a shipped module - recorded in
 `reference/consumer-repo-notes.md`, 2026-11-01 - and a generator serving three controls from the
 start is exactly where it would recur. So `_PARTS_BY_CONTROL.get(control_id, ())` returns an EMPTY
-tuple: an unrecognised control id contributes the subject line and no claim at all. A missing arm
+tuple: an unrecognized control id contributes the subject line and no claim at all. A missing arm
 then reads as a finding that says what it found and nothing more, which is thin; a defaulted arm
 reads as a confident statement about a setting this control never examined, which is wrong.
 

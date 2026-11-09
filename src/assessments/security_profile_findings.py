@@ -87,9 +87,9 @@ def _url_filtering_gaps(obj) -> list[str]:
     domain's census, 2026-11-01. Guarding the values was not enough for antivirus and it is not
     enough here: the CALLER has to stop asking this kind the threat-rule question.
 
-    EVERY VERDICT READ HERE IS A STORED CONCLUSION over the device's own category catalogue minus
+    EVERY VERDICT READ HERE IS A STORED CONCLUSION over the device's own category catalog minus
     the profile's member lists, so each clause names the WORST member as well as the verdict - a
-    reader has to know which category or header to go and change, and the catalogue is not in the
+    reader has to know which category or header to go and change, and the catalog is not in the
     profile.
 
     `is False` rather than falsy throughout, for the reason the threat-rule clauses give: these

@@ -68,7 +68,7 @@ RESIDUE_PROSE = {
 ANNOUNCED_PROSE = {
     Interface.ANNOUNCED_MANAGEMENT_ADDRESS: (
         "an address of the firewall's own management plane, which is the one thing the rest of "
-        "the hardening programme is about keeping unreachable"),
+        "the hardening program is about keeping unreachable"),
     Interface.ANNOUNCED_SYSTEM_DESCRIPTION: (
         "the software build, which tells whoever owns the next hop which advisories to read"),
     Interface.ANNOUNCED_HOSTNAME_OR_ROLE: (

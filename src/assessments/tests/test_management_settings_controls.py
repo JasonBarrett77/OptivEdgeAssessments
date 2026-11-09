@@ -130,7 +130,7 @@ class ManagementSettingsControlTests(TestCase):
     def test_008_reports_without_a_banner_too(self):
         """The two are independent gaps, reported independently.
 
-        PAN-OS greys acknowledgement out until a banner exists, so remediation is ordered -
+        PAN-OS grays acknowledgement out until a banner exists, so remediation is ordered -
         but an unordered pair of findings is what the assessor is owed, not one standing in
         for the other.
         """

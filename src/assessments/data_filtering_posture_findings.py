@@ -19,14 +19,14 @@ caution added here.
   list measured THIRTEEN members on both lab platforms - office documents, PDFs and HTML. A zip, a
   CSV export, a plain text file, a database dump or an image passes this mechanism unexamined, so
   the sentence names the bound rather than letting a reader supply their own.
-* THAT THE ORGANISATION HAS NO DATA-LOSS PROTECTION. An Enterprise DLP subscription supersedes
+* THAT THE ORGANIZATION HAS NO DATA-LOSS PROTECTION. An Enterprise DLP subscription supersedes
   pattern-based data filtering where licensed, and this control's own evidence source for that is
   another system. Stage 3 deliberately declined to make the licensing question an applicability
   clause, "because the suppressing form would convert an unanswered licensing question into
   silence". So the finding says this firewall's own pattern matching is not in force, and no more.
 
 AND IT DOES NOT SAY WHICH TRAFFIC IS OUTWARD. Which of this firewall's zones and destinations are
-outside the organisation's control is a question the configuration cannot answer - it shows the
+outside the organization's control is a question the configuration cannot answer - it shows the
 zones and what each rule permits, not where a zone goes - so the finding applies to whichever
 rules carry traffic outward, named rather than assumed.
 
@@ -105,7 +105,7 @@ def _not_effective(obj) -> list[str]:
         f"plain text file, a database dump or an image is not examined by it whatever this row "
         f"says")
     parts.append(
-        "AND THIS DOES NOT SAY THE ORGANISATION HAS NO DATA-LOSS PROTECTION. An Enterprise DLP "
+        "AND THIS DOES NOT SAY THE ORGANIZATION HAS NO DATA-LOSS PROTECTION. An Enterprise DLP "
         "subscription supersedes pattern-based data filtering where it is licensed, and a system "
         "off the firewall entirely leaves no evidence here at all - so confirm which of the three "
         "delivers it before reporting this as an absence of control rather than an absence of "

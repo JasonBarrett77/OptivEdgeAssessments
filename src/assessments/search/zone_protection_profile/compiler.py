@@ -24,7 +24,7 @@ for and would let a later clause answer a quarter of the question under the whol
 
 `is_in_force` AND `is_unreferenced` ARE NOT EACH OTHER'S NEGATION, and this is the one thing in
 this module most likely to be mistaken for tidiness. `is_in_force` defaults TRUE - a profile
-nobody has swept is assessed for its contents, because a missed defence reported as present is
+nobody has swept is assessed for its contents, because a missed defense reported as present is
 the error rules.md refuses. `is_unreferenced` defaults FALSE and is gated by
 `attachment_sweep_complete`, because PAN-ZON-008's remediation is a DELETION: a false "nothing
 references this" ends in a profile deleted out from under the zone that was using it, which is
@@ -34,7 +34,7 @@ OPPOSITE SIDES on purpose, and the model's own `clean()` refuses a row where bot
 EVERY `is_empty` HERE TAKES THE BARE `filter(field="")` SHAPE, WHICH IS CORRECT ON THIS MODEL AND
 IS NOT A CONVENTION TO COPY. Measured 2026-11-01 across all 58 shipped compilers: 35 compile
 `is_empty` to `filter(field="")` alone and 22 OR an `__isnull=True` branch beside it, and the
-choice is decided by the column rather than by taste - a `null=True` column whose normaliser
+choice is decided by the column rather than by taste - a `null=True` column whose normalizer
 writes NULL for the absent case is unreachable by the bare shape, so the clause compiles, passes
 every gate and matches nothing on the exact population it was written for. Every text column
 registered below is `null=False` with a blank default, checked field by field, so there is no

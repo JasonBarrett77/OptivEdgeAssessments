@@ -5,7 +5,7 @@ WHY THIS FILE EXISTS. The stage 9 run of the `ipsec-crypto` domain built both ta
 64 rows, and the things it could not settle were all report content - what the derived columns are
 headed, whether the workbook carries the firing condition, and what a cell should say where the
 shared `display_value` has no word for the state. Nothing in this repo held any of those, so each
-was a judgement the next change could undo in silence. Two of them were WRONG when first written
+was a judgment the next change could undo in silence. Two of them were WRONG when first written
 and reading a row is what found them, which is the argument for pinning them here:
 
   - `null` at `esp/encryption` is the CLEARTEXT cipher and the worst member of PAN-IPS-002's
@@ -36,7 +36,7 @@ readback profiles would have no path and no row at all.
 THE FIXTURE IS A SUBSET AND SAYS SO. Six of the lab's sixteen crypto profiles and all four of its
 tunnels, transcribed from `stage6-ipsec-crypto.json`'s `verified.read_back` blocks - which is what
 `type=config&action=show` returned from pan-fw-111 and pan-fw-201 after the commits that created
-them, on 2026-10-27. They are the six that exercise a cell whose wording is a judgement; the whole
+them, on 2026-10-27. They are the six that exercise a cell whose wording is a judgment; the whole
 lab's 108 verdicts are reconciled in OptivEdgeProbe's stage 8 artifact and not here. Everything is
 put on ONE appliance, which no assertion below depends on.
 """
@@ -286,7 +286,7 @@ class EveryRowPointsAtSomething(IpsecTabTestCase):
 
 
 class ACellSaysWhatTheStoredValueCannot(IpsecTabTestCase):
-    """The four readings that are judgements rather than fields, each pinned on the row that
+    """The four readings that are judgments rather than fields, each pinned on the row that
     made it one. `display_value` has three answers - a value, `(none)`, `(empty)` - and it is
     shared by every tab, so these go through the spec's own `value_readers`."""
 
@@ -373,7 +373,7 @@ class ThePointerColumnsSayWhatNoOtherCellCan(IpsecTabTestCase):
         self.assertEqual("oep-ips6-p10", written)
 
     def test_the_monitor_profiles_action_reaches_a_row_through_the_tunnel(self):
-        """`integrations.MonitorProfile` is stored and normalised and NO shipped query names it,
+        """`integrations.MonitorProfile` is stored and normalized and NO shipped query names it,
         so it has no rail item and no findings tab of its own - and this is the only cell in the
         whole report where its content reaches a reader."""
         self.assertEqual("Fail over",

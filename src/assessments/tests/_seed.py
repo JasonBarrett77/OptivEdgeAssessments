@@ -11,7 +11,7 @@ So there is one seeder, and it takes its field list from the same place the impo
 
 AND IT HAND-LISTS THEM ANYWAY, WHICH IS THE SAME DEFECT ONE LAYER UP. `asserted_fields` landed on
 2026-10-28 and was missed here, so every control test in the repo ran with it empty and took the
-fallback path - 840 tests passing said nothing about the behaviour the field exists for. Found by
+fallback path - 840 tests passing said nothing about the behavior the field exists for. Found by
 printing one row by hand. `tests/test_seed_helper.py` now compares the two call sites field by
 field, so the next field cannot be missed the same way.
 """

@@ -3,7 +3,7 @@
 THE SENTENCE HAS TO SAY WHETHER ANYTHING IS RESOLVING AT ALL, because "no resolver chosen" means
 two different things and the remediation differs. On a firewall whose management address is
 LEASED, the appliance is resolving - through whatever address arrived with the lease, chosen by
-whoever runs the DHCP server - and the fix is to name resolvers the organisation picked. On a
+whoever runs the DHCP server - and the fix is to name resolvers the organization picked. On a
 firewall with a FIXED address and no resolver, nothing is resolving and the symptom an engineer
 sees is a firewall that cannot reach an update server by name.
 

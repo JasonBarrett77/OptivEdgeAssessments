@@ -4,8 +4,8 @@ PAN-POL-011, which SHIPS INACTIVE. Minted by stage 8 of `security-policy`, 2026-
 
 WHY THIS MODULE EXISTS FOR A CONTROL THAT DOES NOT FIRE. Jason, 2026-10-31, recorded in stage 5's
 own record for the control: "Let's just leave PAN-POL-011 as disabled or not in use." The
-catalogue entry carries `is_active: false`, which this project's own convention establishes as
-the way a question stays in the catalogue with its reason and generates no findings by design.
+catalog entry carries `is_active: false`, which this project's own convention establishes as
+the way a question stays in the catalog with its reason and generates no findings by design.
 The generator ships with it so that switching the control on is one field and not a build - and
 so that `finding_run.GENERATORS` has the line a test fails without.
 
@@ -25,7 +25,7 @@ other in a vsys of an appliance where the key is absent, then one `validate full
 commit gate, which no collector may issue.
 
 A COVERAGE CONTROL WAS CONSIDERED AND DROPPED on the same day, and the reason belongs here
-because the next reader will think of it: the gap is not a failed normalisation, so it does not
+because the next reader will think of it: the gap is not a failed normalization, so it does not
 fit the shipped `NORMALIZATION` type over `integrations.NormalizationIssue`, and reporting it
 over this model would have cost a companion column in integrations, a migration, a control type,
 a target-model entry, a finding model, a registry entry and a compiler. Holding the control is

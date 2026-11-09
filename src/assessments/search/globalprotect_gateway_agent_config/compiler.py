@@ -19,7 +19,7 @@ instance of either branch.**
 AND THAT MATTERS BECAUSE BOTH ARE APPLICABILITY CLAUSES. An applicability clause that is false
 drops the row out of its control SILENTLY - no finding, no message, nothing distinguishing it from
 a compliant row - so the two switches that decide whether PAN-GPG-003 looks at a row at all are
-exactly the two whose behaviour no device reading confirms. A reader of a PAN-GPG-003 finding
+exactly the two whose behavior no device reading confirms. A reader of a PAN-GPG-003 finding
 should know that the control's population rests on them.
 
 THE COOKIE LIFETIME IS ONE INTEGER CONVERTED FROM THREE UNIT BRANCHES, and the conversion is the
@@ -67,7 +67,7 @@ are `split_tunnel_exclude_access_routes`, `split_tunnel_include_access_routes`,
 them is what PAN-GPG-004 asserts on. The finding's own sentence prints the count.
 
 AND THE COUNT'S HONEST EMPTY VALUE IS ZERO, WHICH IS ALSO ITS BEST VALUE. `default=0`,
-`null=False`: a full tunnel with nothing excluded and a row the normalisation pass never reached
+`null=False`: a full tunnel with nothing excluded and a row the normalization pass never reached
 store the same number, and zero is the most compliant state the field can hold. So without
 `egress_inventory_computed` beside it an unprocessed row would report as the best configuration in
 the estate. The two are different facts with different remediations - one says the posture is
@@ -79,7 +79,7 @@ which a reader of a PAN-GPG-004 finding is entitled to know: an include list of 
 NOT counted, because it routes everything into the tunnel; and a NULL
 `no_direct_access_to_local_network` IS counted, because the key's name is the negation of what it
 permits, so an absence most likely leaves the endpoint's own network open - the firing direction
-that column's `fires` reading requires. Both are in the normaliser's docstring and both are tested;
+that column's `fires` reading requires. Both are in the normalizer's docstring and both are tested;
 the second is mutation-confirmed.
 """
 
