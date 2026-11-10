@@ -53,7 +53,8 @@ from optivedge.models import ApplicationEnvironment
 from django.contrib.contenttypes.models import ContentType
 
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceGroup, FieldProvenance, ManagementStation, Snapshot)
+    Appliance, ApplianceGroup, DeviceGroup, EnforcementPoint, FieldProvenance,
+    ManagementStation, Snapshot)
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 DOCX_MAGIC = b"PK"
@@ -1646,6 +1647,78 @@ class CellPropertyTests(_SeededEstate):
             seen = [child.tag.split("}")[1] for child in properties]
             with self.subTest(seen):
                 self.assertEqual(seen, sorted(seen, key=order.index))
+
+
+class NoFirewallNamedTests(_SeededEstate):
+    """WHY a snapshot resolves to no firewall, which is what decides the repair.
+
+    The six shapes are three different problems: a collection that recorded an appliance or an
+    enforcement point without enough to name it; a scope declaration that leaves a group's
+    members out; and configuration that belongs to no appliance at all. `print_unattributed_
+    findings` prints the counts per shape against the environment whose report disagreed with
+    itself - the lab resolves everything, so these are the only tests that reach the branches.
+    """
+
+    def snapshot(self, **fields) -> int:
+        return Snapshot.objects.create(
+            source_type="show_merged_config", payload={},
+            collected_at=dt.datetime(2026, 11, 5, tzinfo=dt.timezone.utc),
+            **fields).pk
+
+    def reason_for(self, **fields) -> str:
+        snapshot = self.snapshot(**fields)
+        return health_check.why_no_firewall_is_named().get(snapshot)
+
+    def test_a_snapshot_naming_an_appliance_with_a_hostname_resolves(self):
+        """The control case: the seeded estate's own snapshot names a firewall, so it is not in
+        this answer at all."""
+        named = Snapshot.objects.exclude(appliance__hostname="").first()
+
+        self.assertNotIn(named.pk, health_check.why_no_firewall_is_named())
+
+    def test_a_snapshot_naming_nothing(self):
+        self.assertEqual(self.reason_for(), health_check.NAMES_NOTHING)
+
+    def test_a_snapshot_taken_from_the_management_station(self):
+        self.assertEqual(
+            self.reason_for(management_station=ManagementStation.objects.first()),
+            health_check.FROM_THE_MANAGEMENT_STATION)
+
+    def test_an_appliance_with_neither_a_hostname_nor_a_serial_number(self):
+        anonymous = Appliance.objects.create(
+            management_station=ManagementStation.objects.first(), hostname="",
+            serial_number="")
+
+        self.assertEqual(self.reason_for(appliance=anonymous),
+                         health_check.APPLIANCE_WITHOUT_A_NAME)
+
+    def test_an_enforcement_point_belonging_to_no_appliance_group(self):
+        point = EnforcementPoint.objects.create(
+            management_station=ManagementStation.objects.first(), vsys_name="vsys9")
+
+        self.assertEqual(self.reason_for(enforcement_point=point),
+                         health_check.POINT_WITHOUT_A_GROUP)
+
+    def test_an_appliance_group_with_no_member_in_scope(self):
+        empty = ApplianceGroup.objects.create(
+            management_station=ManagementStation.objects.first(), name="g-empty",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+
+        self.assertEqual(self.reason_for(appliance_group=empty),
+                         health_check.GROUP_OUT_OF_SCOPE)
+
+    def test_an_appliance_group_whose_members_have_no_name(self):
+        """In scope and collected from, and still unable to label a pair: `firewall_label`
+        writes hostnames, and these members have none."""
+        station = ManagementStation.objects.first()
+        group = ApplianceGroup.objects.create(
+            management_station=station, name="g-anonymous",
+            group_type=ApplianceGroup.TYPE_HA_PAIR)
+        Appliance.objects.create(management_station=station, appliance_group=group,
+                                 hostname="", serial_number="")
+
+        self.assertEqual(self.reason_for(appliance_group=group),
+                         health_check.GROUP_WITHOUT_A_NAME)
 
 
 class ReconciliationTests(_SeededEstate):

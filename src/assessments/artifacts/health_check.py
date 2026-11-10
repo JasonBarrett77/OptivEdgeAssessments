@@ -318,14 +318,7 @@ def firewalls_by_snapshot() -> dict:
     A snapshot taken from the management station resolves to nothing, which is correct - its 90
     snapshots carry no findings, because no control reads Panorama's own configuration.
     """
-    members = defaultdict(list)
-    # IN SCOPE ONLY, so a pair's label cannot name a firewall this engagement did not assess.
-    # Collection resolves whole groups, so both halves of a pair are normally in scope together.
-    for hostname, serial, group_id in scope.appliances_in_scope().values_list(
-            "hostname", "serial_number", "appliance_group_id"):
-        if group_id:
-            members[group_id].append(hostname or serial)
-
+    members = named_members_in_scope()
     owners = {}
     for snapshot_id, hostname, serial, group_id, point_group_id in Snapshot.objects.values_list(
             "id", "appliance__hostname", "appliance__serial_number",
@@ -337,6 +330,78 @@ def firewalls_by_snapshot() -> dict:
         if group and members.get(group):
             owners[snapshot_id] = tuple(sorted(members[group]))
     return owners
+
+
+def named_members_in_scope() -> dict:
+    """appliance group id -> the names of its members this engagement assessed.
+
+    IN SCOPE ONLY, so a pair's label cannot name a firewall this engagement did not assess.
+    Collection resolves whole groups, so both halves of a pair are normally in scope together.
+    A MEMBER WITH NEITHER A HOSTNAME NOR A SERIAL NUMBER CONTRIBUTES NO NAME, and is skipped
+    rather than appended. It was appended until 2026-11-10 - as the empty string, which made
+    the list truthy, so the snapshot resolved and the Firewalls line printed an entry with no
+    name in front of its count. A group whose members are all nameless now resolves to nothing,
+    and its findings are stated as findings no firewall is named for, which is what they are.
+    `why_no_firewall_is_named` tells that case from a group out of scope.
+    """
+    members = defaultdict(list)
+    for hostname, serial, group_id in scope.appliances_in_scope().values_list(
+            "hostname", "serial_number", "appliance_group_id"):
+        if group_id and (hostname or serial):
+            members[group_id].append(hostname or serial)
+    return members
+
+
+#: The ways a snapshot can resolve to no firewall at all, in the order `why_no_firewall_is_named`
+#: tests them. Each one is a different repair, which is the whole reason for telling them apart:
+#: the first two are collection gaps, the next two are what this engagement declared in scope,
+#: and the last two are configuration no appliance owns.
+APPLIANCE_WITHOUT_A_NAME = "an appliance with no hostname and no serial number"
+POINT_WITHOUT_A_GROUP = "an enforcement point belonging to no appliance group"
+GROUP_OUT_OF_SCOPE = "an appliance group with no member in scope"
+GROUP_WITHOUT_A_NAME = "an appliance group whose members in scope have no hostname or serial"
+FROM_THE_MANAGEMENT_STATION = "taken from the management station rather than from an appliance"
+NAMES_NOTHING = "names nothing at all"
+
+
+def why_no_firewall_is_named() -> dict:
+    """snapshot id -> which of `APPLIANCE_WITHOUT_A_NAME`.. it is, for the snapshots that
+    resolve to no firewall.
+
+    THE DIAGNOSIS BEHIND A ROW THAT USED NOT TO ADD UP. `firewalls_by_snapshot` answers which
+    firewalls a snapshot describes; this answers why it answered nothing, which is what decides
+    whether the gap is a collection defect, a scope definition that leaves a pair's members
+    out, or configuration that genuinely belongs to no appliance. Jason found the arithmetic in
+    production on 2026-11-10; this is how the next reader finds the cause.
+
+    Read-only, and it reads the same three paths `firewalls_by_snapshot` does so the two cannot
+    disagree about which snapshots resolved.
+    """
+    members = named_members_in_scope()
+    in_scope = set(scope.appliances_in_scope().values_list("appliance_group_id", flat=True))
+    reasons = {}
+    for (snapshot_id, hostname, serial, appliance_id, station_id, group_id, point_id,
+         point_group_id) in Snapshot.objects.values_list(
+            "id", "appliance__hostname", "appliance__serial_number", "appliance_id",
+            "management_station_id", "appliance_group_id", "enforcement_point_id",
+            "enforcement_point__appliance_group_id"):
+        if hostname or serial:
+            continue
+        group = point_group_id or group_id
+        if group and members.get(group):
+            continue
+        if group:
+            reasons[snapshot_id] = (GROUP_WITHOUT_A_NAME if group in in_scope
+                                    else GROUP_OUT_OF_SCOPE)
+        elif appliance_id:
+            reasons[snapshot_id] = APPLIANCE_WITHOUT_A_NAME
+        elif point_id:
+            reasons[snapshot_id] = POINT_WITHOUT_A_GROUP
+        elif station_id:
+            reasons[snapshot_id] = FROM_THE_MANAGEMENT_STATION
+        else:
+            reasons[snapshot_id] = NAMES_NOTHING
+    return reasons
 
 
 def measure() -> Measured:
