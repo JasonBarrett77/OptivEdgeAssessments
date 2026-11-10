@@ -261,6 +261,17 @@ class Measured:
     #: configuration and is fixed once, so counting the finding against each member would
     #: double the row's own total and read as two jobs.
     firewalls: dict = field(default_factory=lambda: defaultdict(Counter))
+    #: (control id, severity) -> how many of those findings NO FIREWALL IS NAMED FOR, because
+    #: the snapshot they were read from resolves to none - see `firewalls_by_snapshot`.
+    #:
+    #: COUNTED RATHER THAN DROPPED, so the Firewalls line of a detail block adds up to the
+    #: Findings line beside it. It did not until 2026-11-10, when Jason spot-checked four
+    #: controls in production: *"the PAN-POL-008 Findings count is not adding up with the
+    #: Firewalls counts."* `firewalls` only ever held the findings whose owner resolved, so
+    #: every unresolved one was silently absent from the line and a client was handed two
+    #: numbers that disagree. All 17,555 of the lab's findings resolve, which is why no test
+    #: and no lab build could show it.
+    unnamed: dict = field(default_factory=Counter)
     #: control id -> what a CLIENT calls the things its findings are about, as
     #: `(plural, singular)` - ("security rules", "security rule").
     #:
@@ -340,6 +351,8 @@ def measure() -> Measured:
             owner = owners.get(snapshot_id)
             if owner:
                 measured.firewalls[(control_id, severity)][owner] += 1
+            else:
+                measured.unnamed[(control_id, severity)] += 1
             measured.by_severity[control_id][severity] += 1
             measured.subject_nouns[control_id] = (
                 kind.client_plural, kind.client_singular or kind.label)
@@ -425,11 +438,17 @@ def affected_firewalls(counts: Counter) -> tuple:
 # Detailed Findings and Recommendations: one block per control and severity
 # --------------------------------------------------------------------------------------------
 
-#: What the Firewalls line says when nothing names a firewall for a control's findings. Every
-#: one of the lab's 17,555 findings resolves to one - see `firewalls_by_snapshot` - so this is
-#: the snapshot that was not taken from an appliance, and a blank cell in a client document is
-#: a question rather than an answer.
+#: What the Firewalls line says when nothing names a firewall for ANY of a control's findings.
+#: Every one of the lab's 17,555 findings resolves to one - see `firewalls_by_snapshot` - so
+#: this is the snapshot that was not taken from an appliance, and a blank cell in a client
+#: document is a question rather than an answer.
 NO_FIREWALL_NAMED = "No firewall is named by the configuration these findings were read from."
+
+#: And what it adds when SOME of them resolve and some do not, which is the case that broke the
+#: row's arithmetic in production. Jason, 2026-11-10: *"the PAN-POL-008 Findings count is not
+#: adding up with the Firewalls counts"* - on three other controls he checked it did, because
+#: every one of their findings resolved to a firewall.
+UNNAMED_CLAUSE = "{count} more that the configuration they were read from names no firewall for"
 
 #: The catalogue lines this table prints, and the label each sits under. The order is the
 #: mock-up's, agreed 2026-11-06: what the control examines, what it costs, then what to do.
@@ -468,6 +487,9 @@ class ControlDetail:
     #: `(firewalls, findings)` for EVERY firewall affected, worst first - an HA pair is one
     #: entry naming both.
     reach: tuple
+    #: How many of the findings `reach` does not account for, because the configuration they
+    #: were read from names no firewall. `reach`'s counts plus this is always `findings`.
+    unnamed: int
     #: The client sentences of the control queries that matched at this severity.
     matched: tuple
     #: How many PLACES AN ENGINEER OPENS to clear these findings - the remediation surface's
@@ -538,11 +560,19 @@ def firewalls_phrase(detail: ControlDetail) -> str:
     A control that fires estate-wide names the estate here, which is the point of the line: it
     is the list of appliances somebody has to open, and a client who is handed five of them
     and the word "others" has to come back and ask for the rest.
+
+    AND IT ADDS UP TO THE FINDINGS LINE. Where some of a control's findings resolve to a
+    firewall and some do not, the ones that do not are stated rather than omitted - without
+    that clause the row carries two numbers that disagree, which is what Jason found in
+    production on 2026-11-10.
     """
     if not detail.reach:
         return NO_FIREWALL_NAMED
-    return ", ".join(f"{surface.firewall_label(firewalls)} ({tally(count)})"
-                     for firewalls, count in detail.reach)
+    named = ", ".join(f"{surface.firewall_label(firewalls)} ({tally(count)})"
+                      for firewalls, count in detail.reach)
+    if detail.unnamed:
+        return f"{named}, and {UNNAMED_CLAUSE.format(count=tally(detail.unnamed))}"
+    return named
 
 
 def matched_phrase(detail: ControlDetail) -> str:
@@ -621,6 +651,7 @@ def read_control_detail(measured: Measured, places: dict | None = None) -> list:
                         (control.control_id, severity)]),
                     object_nouns=measured.subject_nouns[control.control_id],
                     reach=reach,
+                    unnamed=measured.unnamed[(control.control_id, severity)],
                     matched=tuple(sentences.get((control.control_id, severity), ())),
                     places=places.get((control.control_id, severity), 0),
                     subject=subjects[control.control_id]))
@@ -724,7 +755,7 @@ def write_control_detail(detail: list) -> tuple[list, list]:
               f"{len({one.control.control_id for one in detail})} controls")
     if unwritten:
         report += f", {unwritten} lines marked MANUAL for a consultant to write"
-    return elements, [report]
+    return elements, [report] + unnamed_report(detail)
 
 
 def write_coverage(detail: list) -> tuple[list, list]:
@@ -748,7 +779,26 @@ def write_coverage(detail: list) -> tuple[list, list]:
     report = f"{COVERAGE_SUBJECT}: {len(detail)} {plural(len(detail), 'block')}"
     if unwritten:
         report += f", {unwritten} lines marked MANUAL for a consultant to write"
-    return elements, [report]
+    return elements, [report] + unnamed_report(detail)
+
+
+def unnamed_report(detail: list) -> list:
+    """The build's own line about findings no firewall is named for, where there are any.
+
+    SILENT ON THE LAB AND ON ANY ESTATE THAT RESOLVES CLEANLY, because a zero here is the
+    normal case - all 17,555 of the lab's findings resolve to an appliance. It exists because
+    the Firewalls line now ACCOUNTS for an unresolved finding instead of dropping it, and a
+    reader of the build report should be told that some of these rows carry that clause before
+    a client asks why. The number to chase is the snapshots, not the findings: a snapshot that
+    names neither an appliance, nor an enforcement point belonging to an appliance group, nor
+    an appliance group with a member in scope, attributes everything read from it to nobody.
+    """
+    total = sum(one.unnamed for one in detail)
+    if not total:
+        return []
+    blocks = sum(1 for one in detail if one.unnamed)
+    return [f"Findings no firewall is named for: {tally(total)} over {blocks} "
+            f"{plural(blocks, 'block')}, named on the Firewalls line of each"]
 
 
 def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:

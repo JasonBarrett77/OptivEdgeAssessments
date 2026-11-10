@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+from dataclasses import replace
 import re
 import zipfile
 from unittest import mock
@@ -52,7 +53,7 @@ from optivedge.models import ApplicationEnvironment
 from django.contrib.contenttypes.models import ContentType
 
 from optivedge_integrations.integrations.models import (
-    Appliance, DeviceGroup, FieldProvenance, ManagementStation)
+    Appliance, DeviceGroup, FieldProvenance, ManagementStation, Snapshot)
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 DOCX_MAGIC = b"PK"
@@ -1445,7 +1446,7 @@ class SummaryRowTests(SimpleTestCase):
                             short_remediation="Reissue the keys below the floor."),
             severity=severity, findings=findings, objects=findings,
             object_nouns=("certificates", "certificate"),
-            reach=((("pan-fw-111",), findings),), matched=(),
+            reach=((("pan-fw-111",), findings),), unnamed=0, matched=(),
             places=findings, subject="Certificate",
             anchor=f"_Ref2000{severity[:1]}")
         fields.update(overrides)
@@ -1493,7 +1494,7 @@ class DetailPhraseTests(SimpleTestCase):
             control=Control(control_id="PAN-AAA-001", name="LDAP Server Profiles Require SSL"),
             severity="critical", findings=4, objects=4,
             object_nouns=("AAA server profiles", "AAA server profile"),
-            reach=((("pan-fw-111",), 4),), matched=(),
+            reach=((("pan-fw-111",), 4),), unnamed=0, matched=(),
             places=4, subject="AAA Server Profile")
         fields.update(overrides)
         return health_check.ControlDetail(**fields)
@@ -1585,8 +1586,19 @@ class DetailPhraseTests(SimpleTestCase):
         """Every one of the lab's 17,555 findings resolves to a firewall, so this is the
         snapshot taken from somewhere that is not an appliance - and a blank cell in a client
         document is a question rather than an answer."""
-        self.assertEqual(health_check.firewalls_phrase(self.detail(reach=())),
+        self.assertEqual(health_check.firewalls_phrase(self.detail(reach=(), unnamed=4)),
                          health_check.NO_FIREWALL_NAMED)
+
+    def test_the_findings_no_firewall_is_named_for_are_counted_not_dropped(self):
+        """THE ROW HAS TO ADD UP. Jason spot-checked four controls in production, 2026-11-10:
+        *"the PAN-POL-008 Findings count is not adding up with the Firewalls counts"* - the
+        line held only the findings whose snapshot resolved to an appliance, so every one that
+        did not was absent from it without a word."""
+        detail = self.detail(findings=1_210, reach=((("pan-fw-111",), 6),), unnamed=1_204)
+
+        self.assertEqual(health_check.firewalls_phrase(detail),
+                         "pan-fw-111 (6), and 1,204 more that the configuration they were "
+                         "read from names no firewall for")
 
 
 class NumberTests(SimpleTestCase):
@@ -1634,6 +1646,71 @@ class CellPropertyTests(_SeededEstate):
             seen = [child.tag.split("}")[1] for child in properties]
             with self.subTest(seen):
                 self.assertEqual(seen, sorted(seen, key=order.index))
+
+
+class ReconciliationTests(_SeededEstate):
+    """The Firewalls line of a block adds up to the Findings line beside it.
+
+    Jason, 2026-11-10, spot-checking four controls in a production report: *"the PAN-POL-008
+    Findings count is not adding up with the Firewalls counts. PAN-POL-002, PAN-AUTH-021 and
+    PAN-AAA-008 appear to be working."* All four are built the same way, so the difference is
+    in the DATA: a finding whose snapshot resolves to no firewall was counted into `findings`
+    and into no firewall's entry, and PAN-POL-008 is the widest of the four - the one most
+    likely to fire on a configuration nothing attributes.
+
+    THE LAB CANNOT SHOW IT. All 17,555 of its findings resolve to an appliance, so the only way
+    to test the arithmetic is to make a snapshot name nobody, which is what the second test
+    does.
+    """
+
+    def blocks(self):
+        return health_check.read_control_detail(health_check.measure(), {})
+
+    def test_every_block_accounts_for_all_of_its_findings(self):
+        detail = self.blocks()
+
+        self.assertTrue(detail)
+        for one in detail:
+            with self.subTest(one.control.control_id, severity=one.severity):
+                self.assertEqual(sum(count for _firewalls, count in one.reach) + one.unnamed,
+                                 one.findings)
+
+    def test_a_snapshot_that_names_no_firewall_is_counted_rather_than_dropped(self):
+        """The production case: the finding is real, the count is right, and the configuration
+        it was read from attributes it to nothing. It belongs ON the line, said plainly."""
+        self.assertEqual(sum(one.unnamed for one in self.blocks()), 0)
+        carrying = {snapshot for kind in FINDING_KINDS
+                    for snapshot in kind.model.objects.values_list("snapshot_id", flat=True)
+                    if snapshot}
+        self.assertTrue(carrying)
+
+        Snapshot.objects.filter(pk=min(carrying)).update(
+            appliance=None, appliance_group=None, enforcement_point=None)
+
+        detail = self.blocks()
+        self.assertTrue(sum(one.unnamed for one in detail))
+        for one in detail:
+            with self.subTest(one.control.control_id, severity=one.severity):
+                self.assertEqual(sum(count for _firewalls, count in one.reach) + one.unnamed,
+                                 one.findings)
+                if one.unnamed and one.reach:
+                    self.assertIn("names no firewall for",
+                                  health_check.firewalls_phrase(one))
+
+    def test_the_build_report_says_how_many_findings_name_no_firewall(self):
+        """A zero is the normal case and says nothing. A number is somebody's next question,
+        and the build should raise it before a client does."""
+        detail = self.blocks()
+        self.assertEqual(health_check.unnamed_report(detail), [])
+
+        counted = [replace(detail[0], unnamed=3), replace(detail[0], unnamed=3)]
+
+        self.assertEqual(health_check.unnamed_report(counted),
+                         ["Findings no firewall is named for: 6 over 2 blocks, named on the "
+                          "Firewalls line of each"])
+        self.assertEqual(health_check.unnamed_report(counted[:1]),
+                         ["Findings no firewall is named for: 3 over 1 block, named on the "
+                          "Firewalls line of each"])
 
 
 class ReachTests(SimpleTestCase):
