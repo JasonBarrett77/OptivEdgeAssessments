@@ -378,8 +378,6 @@ def control_line(control, measured: Measured) -> str:
 COVERAGE_SUBJECT = "Assessment Coverage"
 
 
-#: How many firewalls a row names before it stops naming them.
-FIREWALLS_NAMED = 5
 
 
 def group_controls_by_subject() -> dict:
@@ -410,14 +408,17 @@ def group_controls_by_subject() -> dict:
     return grouped
 
 
-def worst_affected(counts: Counter) -> tuple:
-    """The `FIREWALLS_NAMED` firewalls carrying the most of it, and how many more there are.
+def affected_firewalls(counts: Counter) -> tuple:
+    """EVERY firewall carrying the control's findings at this grade, worst affected first.
 
-    Jason, 2026-11-06: *"the five named should be the worst affected by count"*, and *"If the
-    number of firewalls exceeds 5, then state something like and \'n\' others"*.
+    NOT A TOP FIVE AND A COUNT. It was that until Jason, 2026-11-10: *"Do not truncate the
+    Firewalls list."* The first version named five - *"the five named should be the worst
+    affected by count"*, and *"If the number of firewalls exceeds 5, then state something like
+    and \'n\' others"*, both 2026-11-06 - and an engineer reading the block then knew that
+    three more firewalls needed the same change without knowing which three. The ranking stays,
+    because the worst affected is still what a reader wants first.
     """
-    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    return tuple(ranked[:FIREWALLS_NAMED]), max(0, len(ranked) - FIREWALLS_NAMED)
+    return tuple(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
 # --------------------------------------------------------------------------------------------
@@ -464,10 +465,9 @@ class ControlDetail:
     #: the registry's own `(plural, singular)`, printed as they stand.
     objects: int
     object_nouns: tuple
-    #: `(firewalls, findings)` worst affected first - an HA pair is one entry naming both.
+    #: `(firewalls, findings)` for EVERY firewall affected, worst first - an HA pair is one
+    #: entry naming both.
     reach: tuple
-    #: How many more firewalls carry the findings than the line names.
-    others: int
     #: The client sentences of the control queries that matched at this severity.
     matched: tuple
     #: How many PLACES AN ENGINEER OPENS to clear these findings - the remediation surface's
@@ -530,15 +530,19 @@ def findings_phrase(detail: ControlDetail) -> str:
 
 
 def firewalls_phrase(detail: ControlDetail) -> str:
-    """The worst affected firewalls and what each carries, named as the rest of the document
-    names them: `remediation.firewall_label` writes an HA pair once, as `fw-core-tpa-a/b`."""
+    """EVERY firewall affected and what each carries, worst first, named as the rest of the
+    document names them: `remediation.firewall_label` writes an HA pair once, as
+    `fw-core-tpa-a/b`.
+
+    THE WHOLE LIST, HOWEVER LONG. Jason, 2026-11-10: *"Do not truncate the Firewalls list."*
+    A control that fires estate-wide names the estate here, which is the point of the line: it
+    is the list of appliances somebody has to open, and a client who is handed five of them
+    and the word "others" has to come back and ask for the rest.
+    """
     if not detail.reach:
         return NO_FIREWALL_NAMED
-    named = ", ".join(f"{surface.firewall_label(firewalls)} ({tally(count)})"
-                      for firewalls, count in detail.reach)
-    if detail.others:
-        return f"{named}, and {tally(detail.others)} other {plural(detail.others, 'firewall')}"
-    return named
+    return ", ".join(f"{surface.firewall_label(firewalls)} ({tally(count)})"
+                     for firewalls, count in detail.reach)
 
 
 def matched_phrase(detail: ControlDetail) -> str:
@@ -607,7 +611,7 @@ def read_control_detail(measured: Measured, places: dict | None = None) -> list:
             for severity in WORST_FIRST:
                 if not severities[severity]:
                     continue
-                reach, others = worst_affected(
+                reach = affected_firewalls(
                     measured.firewalls[(control.control_id, severity)])
                 detail.append(ControlDetail(
                     control=control,
@@ -617,7 +621,6 @@ def read_control_detail(measured: Measured, places: dict | None = None) -> list:
                         (control.control_id, severity)]),
                     object_nouns=measured.subject_nouns[control.control_id],
                     reach=reach,
-                    others=others,
                     matched=tuple(sentences.get((control.control_id, severity), ())),
                     places=places.get((control.control_id, severity), 0),
                     subject=subjects[control.control_id]))

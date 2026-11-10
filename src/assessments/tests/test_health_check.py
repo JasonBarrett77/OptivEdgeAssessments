@@ -1445,7 +1445,7 @@ class SummaryRowTests(SimpleTestCase):
                             short_remediation="Reissue the keys below the floor."),
             severity=severity, findings=findings, objects=findings,
             object_nouns=("certificates", "certificate"),
-            reach=((("pan-fw-111",), findings),), others=0, matched=(),
+            reach=((("pan-fw-111",), findings),), matched=(),
             places=findings, subject="Certificate",
             anchor=f"_Ref2000{severity[:1]}")
         fields.update(overrides)
@@ -1493,7 +1493,7 @@ class DetailPhraseTests(SimpleTestCase):
             control=Control(control_id="PAN-AAA-001", name="LDAP Server Profiles Require SSL"),
             severity="critical", findings=4, objects=4,
             object_nouns=("AAA server profiles", "AAA server profile"),
-            reach=((("pan-fw-111",), 4),), others=0, matched=(),
+            reach=((("pan-fw-111",), 4),), matched=(),
             places=4, subject="AAA Server Profile")
         fields.update(overrides)
         return health_check.ControlDetail(**fields)
@@ -1564,25 +1564,28 @@ class DetailPhraseTests(SimpleTestCase):
                          "license inventories")
         self.assertEqual(health_check.plural_noun(1, "logging settings"), "logging settings")
 
-    def test_an_ha_pair_is_named_once_and_the_rest_are_counted(self):
+    def test_an_ha_pair_is_named_once(self):
         detail = self.detail(reach=((("fw-core-tpa-a", "fw-core-tpa-b"), 6),
-                                    (("pan-fw-111",), 2)),
-                             others=3)
+                                    (("pan-fw-111",), 2)))
 
         self.assertEqual(health_check.firewalls_phrase(detail),
-                         "fw-core-tpa-a/b (6), pan-fw-111 (2), and 3 other firewalls")
+                         "fw-core-tpa-a/b (6), pan-fw-111 (2)")
 
-    def test_one_other_firewall_is_singular(self):
-        detail = self.detail(reach=((("pan-fw-111",), 9),), others=1)
+    def test_every_firewall_is_named_however_many_there_are(self):
+        """Jason, 2026-11-10: *"Do not truncate the Firewalls list."* Eight firewalls is eight
+        names, where the first version of this line named five and counted three."""
+        detail = self.detail(reach=tuple(((f"pan-fw-{n}",), 10 - n) for n in range(8)))
 
-        self.assertEqual(health_check.firewalls_phrase(detail),
-                         "pan-fw-111 (9), and 1 other firewall")
+        phrase = health_check.firewalls_phrase(detail)
+
+        self.assertEqual(phrase, ", ".join(f"pan-fw-{n} ({10 - n})" for n in range(8)))
+        self.assertNotIn("other", phrase)
 
     def test_a_finding_no_snapshot_attributes_says_so_rather_than_nothing(self):
         """Every one of the lab's 17,555 findings resolves to a firewall, so this is the
         snapshot taken from somewhere that is not an appliance - and a blank cell in a client
         document is a question rather than an answer."""
-        self.assertEqual(health_check.firewalls_phrase(self.detail(reach=(), others=0)),
+        self.assertEqual(health_check.firewalls_phrase(self.detail(reach=())),
                          health_check.NO_FIREWALL_NAMED)
 
 
@@ -1636,31 +1639,31 @@ class CellPropertyTests(_SeededEstate):
 class ReachTests(SimpleTestCase):
     """The Firewalls line of a detail block: which firewalls carry a control's findings.
 
-    Jason, 2026-11-06: *"present counts by firewall instead of subject ... If the number of
-    firewalls exceeds 5, then state something like and 'n' others"*, and *"the five named
-    should be the worst affected by count"*.
+    Jason, 2026-11-06: *"present counts by firewall instead of subject"*, ranked so that
+    *"the five named should be the worst affected by count"* - and 2026-11-10, *"Do not
+    truncate the Firewalls list."* The ranking survived; the cut-off did not.
     """
 
     def test_the_worst_affected_are_named_first(self):
         counts = collections.Counter({("a",): 3, ("b",): 9, ("c",): 5})
 
-        reach, others = health_check.worst_affected(counts)
+        reach = health_check.affected_firewalls(counts)
 
         self.assertEqual([name for name, _ in reach], [("b",), ("c",), ("a",)])
-        self.assertEqual(others, 0)
 
-    def test_beyond_five_firewalls_the_rest_are_counted_not_named(self):
+    def test_no_firewall_is_dropped_however_many_carry_it(self):
+        """The line is the list of appliances somebody has to open, so eight firewalls is
+        eight entries rather than five and a remainder."""
         counts = collections.Counter({(chr(97 + n),): 10 - n for n in range(8)})
 
-        reach, others = health_check.worst_affected(counts)
+        reach = health_check.affected_firewalls(counts)
 
-        self.assertEqual(len(reach), health_check.FIREWALLS_NAMED)
-        self.assertEqual(others, 3)
+        self.assertEqual([name for name, _ in reach], [(chr(97 + n),) for n in range(8)])
 
     def test_a_tie_is_broken_by_name_so_a_rebuild_does_not_reshuffle(self):
         counts = collections.Counter({("b",): 4, ("a",): 4})
 
-        reach, _ = health_check.worst_affected(counts)
+        reach = health_check.affected_firewalls(counts)
 
         self.assertEqual([name for name, _ in reach], [("a",), ("b",)])
 
