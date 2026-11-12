@@ -1,6 +1,6 @@
 """Which findings the health check can name no firewall for, and why.
 
-WHY THIS EXISTS. The Firewalls line of a Detailed Findings block names every firewall carrying
+WHY THIS EXISTS. The Affected Devices line of a Detailed Findings block names every firewall
 the control's findings at that grade. A finding whose snapshot resolves to no firewall used to
 be absent from that line without a word, so the row's two numbers disagreed - Jason, 2026-11-10,
 spot-checking a production report: *"the PAN-POL-008 Findings count is not adding up with the
@@ -63,8 +63,8 @@ class Command(BaseCommand):
                           f"{len(findings):,} {plural(len(findings), 'snapshot')}")
         if not unattributed:
             self.stdout.write(self.style.SUCCESS(
-                "\nEvery finding resolves to a firewall, so every Firewalls line in the "
-                "document adds up to the Findings line beside it."))
+                "\nEvery finding resolves to a firewall, so every Affected Devices line in "
+                "the document adds up to the Occurrences line beside it."))
             return
 
         reasons = why_no_firewall_is_named()

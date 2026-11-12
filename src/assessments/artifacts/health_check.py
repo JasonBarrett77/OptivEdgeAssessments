@@ -96,10 +96,25 @@ CONTAINER_WIDTHS = tuple((w, "dxa") for w in CONTAINER_GRID)
 #: one value cell covering the other three columns, so what the reader sees under that row is
 #: still a short word on the left and a sentence on the right. The widths still sum to the same
 #: 10224 twips, which is the text width every body table in this template is fixed to.
-DETAIL_GRID = (1800, 1800, 1800, 4824)
+DETAIL_GRID = (1800, 5007, 1440, 1977)
 DETAIL_WIDTHS = ((1800, "dxa"), (8424, "dxa"))
-#: The four cells of that first row: `Control`, the id, `Severity`, the grade.
-DETAIL_PAIR_WIDTHS = tuple((width, "dxa") for width in DETAIL_GRID)
+
+#: The four cells of that first row: the `Control` label, the id, the `Severity` label, and the
+#: GRADE AS THE TEMPLATE'S OWN COLOURED CHIP - `partials.rating_cell`, the same cell the Summary
+#: of Findings table and the Risk Ratings table carry.
+#:
+#: WHICH IS WHY THE GRID IS NOT FOUR EQUAL COLUMNS ANY MORE. A rating cell's colour is the
+#: paragraph's shading, so it fills whatever column it sits in: at the 4824 twips the grade cell
+#: used to have, one block's grade would be a three-inch bar of red. It gets 1977 - the Summary
+#: of Findings table's own rating column, so a reader sees the same chip the same size in both
+#: sections - and the slack goes to the control id beside it. The columns still sum to the
+#: 10224 twips every body table in this template is fixed to, and the labelled rows below are
+#: unchanged: a 1800-twip label and a value spanning the other three.
+#:
+#: THERE ARE NO VERTICAL BORDERS in `OptivLightGreyBorders` - `tblBorders` declares top, bottom
+#: and `insideH` and nothing else - so where one column ends and the next begins is invisible,
+#: and these widths are about where the text and the chip sit rather than about any line.
+DETAIL_PAIR_WIDTHS = ((1800, "dxa"), (5007, "dxa"), (1440, "dxa"), (1977, "dxa"))
 
 #: Severities worst-first, for ordering anything a reader scans.
 WORST_FIRST = sorted(Control.Severity.values, key=lambda value: SEVERITY_RANK[value],
@@ -146,11 +161,11 @@ def plural_noun(count: int, singular: str) -> str:
     A LABEL THAT ALREADY ENDS IN `s` IS LEFT ALONE. Measured over all 75 kinds 2026-11-06, every
     one of them is already plural or a mass noun - `logging settings`, `session settings`,
     `firewall content streams` - so the `es` that English wants after a sibilant produced
-    "logging settingses" in the Control Detail section's own Findings line. Seven labels, seven
+    "logging settingses" in the Control Detail section's own Occurrences line. Seven labels,
     wrong words. The `es` branch stays for the one label it is right for, `rulebase device
     match`, and for the `x`, `z` and `sh` endings no label carries yet.
 
-    NOTHING IN THIS PACKAGE PLURALIZES A LABEL ANY MORE. The Findings line was its one caller
+    NOTHING IN THIS PACKAGE PLURALIZES A LABEL ANY MORE. The Occurrences line was its one
     and it now prints `FindingKind.client_plural`, because 31 of the 75 labels are not the
     client's word for the object in any number. What is left is the rule itself and the
     measurements behind it, which `test_finding_registry` uses to assert that a client plural
@@ -264,8 +279,9 @@ class Measured:
     #: (control id, severity) -> how many of those findings NO FIREWALL IS NAMED FOR, because
     #: the snapshot they were read from resolves to none - see `firewalls_by_snapshot`.
     #:
-    #: COUNTED RATHER THAN DROPPED, so the Firewalls line of a detail block adds up to the
-    #: Findings line beside it. It did not until 2026-11-10, when Jason spot-checked four
+    #: COUNTED RATHER THAN DROPPED, so the Affected Devices line of a detail block adds up to
+    #: the Occurrences line beside it (the two were labelled Firewalls and Findings until
+    #: 2026-11-12). It did not until 2026-11-10, when Jason spot-checked four
     #: controls in production: *"the PAN-POL-008 Findings count is not adding up with the
     #: Firewalls counts."* `firewalls` only ever held the findings whose owner resolved, so
     #: every unresolved one was silently absent from the line and a client was handed two
@@ -339,7 +355,8 @@ def named_members_in_scope() -> dict:
     Collection resolves whole groups, so both halves of a pair are normally in scope together.
     A MEMBER WITH NEITHER A HOSTNAME NOR A SERIAL NUMBER CONTRIBUTES NO NAME, and is skipped
     rather than appended. It was appended until 2026-11-10 - as the empty string, which made
-    the list truthy, so the snapshot resolved and the Firewalls line printed an entry with no
+    the list truthy, so the snapshot resolved and the Affected Devices line printed an entry
+    with no
     name in front of its count. A group whose members are all nameless now resolves to nothing,
     and its findings are stated as findings no firewall is named for, which is what they are.
     `why_no_firewall_is_named` tells that case from a group out of scope.
@@ -503,7 +520,7 @@ def affected_firewalls(counts: Counter) -> tuple:
 # Detailed Findings and Recommendations: one block per control and severity
 # --------------------------------------------------------------------------------------------
 
-#: What the Firewalls line says when nothing names a firewall for ANY of a control's findings.
+#: What the Affected Devices line says when nothing names a firewall for ANY of the findings.
 #: Every one of the lab's 17,555 findings resolves to one - see `firewalls_by_snapshot` - so
 #: this is the snapshot that was not taken from an appliance, and a blank cell in a client
 #: document is a question rather than an answer.
@@ -515,15 +532,47 @@ NO_FIREWALL_NAMED = "No firewall is named by the configuration these findings we
 #: every one of their findings resolved to a firewall.
 UNNAMED_CLAUSE = "{count} more that the configuration they were read from names no firewall for"
 
-#: The catalogue lines this table prints, and the label each sits under. The order is the
-#: mock-up's, agreed 2026-11-06: what the control examines, what it costs, then what to do.
-#: `where_to_confirm` is NOT here: Jason, 2026-11-06, *"Move 'Why it matters.' and 'What to
-#: change' to the table"* - which moved three lines in and left that one outside, as prose.
+#: THE EIGHT LABELS OF A CONTROL DETAIL BLOCK, in the order a reader meets them, and where
+#: each one's text comes from. This is the deliverable's finding block, so the labels are the
+#: ones a client has read in every other assessment report they have been handed rather than
+#: this project's own plain English. Jason, 2026-11-12, asked for terms "common in the industry
+#: or this type of report" and took the set below (P583a):
+#:
+#:   Control            -> Control ID         the value is an identifier, `PAN-POL-008`
+#:   Severity           -> Risk Rating        the template's own caption for the legend that
+#:                                            defines the five grades, Table 1
+#:   What it checks     -> Requirement        what the configuration is supposed to be, which
+#:                                            is what `Evidence` is then measured against
+#:   What was matched   -> Evidence           the standard word, and literally what was observed
+#:   Findings           -> Occurrences        how many times the issue appears
+#:   Firewalls          -> Affected Devices   the usual phrase is `Affected Assets`; these are
+#:                                            devices, and the word covers a Panorama
+#:   Why it matters     -> Risk               the word the recommendation tables already head a
+#:                                            column with, carrying the same catalogue field
+#:   What to change     -> Remediation        standard, and distinct from `Recommendation`,
+#:                                            which the summary table uses for the one-sentence
+#:                                            version of the same thing
+#:
+#: AND THEY RUN IN THE ORDER OF THE ARGUMENT, Jason 2026-11-12 (P584a). They used to open with
+#: `Findings` and `Firewalls` - two counts, before the reader had been told what was checked -
+#: so a block had to be read backwards. It now reads as a case: what the check requires, what
+#: was found, how many, on which devices, why it matters, what to change. The summary row the
+#: reader arrived from has already given them the count.
 DETAIL_LINES = (
-    ("what_it_checks", "What it checks"),
-    ("why_it_matters", "Why it matters"),
-    ("what_to_change", "What to change"),
+    ("what_it_checks", "Requirement"),
+    ("why_it_matters", "Risk"),
+    ("what_to_change", "Remediation"),
 )
+
+#: The bold lead on the `Remediation` cell's first paragraph - the screen path to the setting.
+#:
+#: IT WAS A PARAGRAPH OF PROSE UNDER THE TABLE until Jason, 2026-11-12: *"what about making
+#: 'Where to confirm it' the first line in Remediation?"* It is the one line of the five that
+#: carries a screen path - `Device > Server Profiles > LDAP` - which is why it was written as
+#: prose rather than as a row, and as the first line of the remediation it is doing the job a
+#: path does: telling an engineer where to go before telling them what to change there. The
+#: block is now one table and nothing else.
+WHERE_TO_CONFIRM_LEAD = "Where to confirm it."
 
 
 @dataclass(frozen=True)
@@ -745,16 +794,22 @@ def split_coverage(detail: list) -> tuple[list, list]:
 
 
 def control_detail_rows(detail: ControlDetail) -> list:
-    """`Control` and `Severity` on one row, then `Findings`, `Firewalls`, and the catalog's
-    three lines.
+    """`Control ID` and `Risk Rating` on one row, then the five rows of the case - see
+    `DETAIL_LINES` for every label and why it is the word it is.
 
     THE ID AND THE GRADE SHARE THE FIRST ROW, Jason 2026-11-06: *"Control id and severity can
     probably be on the same row."* Both are a couple of words, so they read as one line about
-    which control this is, and the table is six rows rather than seven.
+    which control this is, and the table is seven rows rather than eight.
 
     THE CONTROL ID IS IN THE TABLE because a client who follows one of these up quotes it -
     which is also why the catalog's validator refuses a line that names the control's own id,
     the row above having said it already.
+
+    THE LABELS ARE IN THE TEMPLATE'S OWN LABEL STYLE, `Table - Heading`: Optiv blue, bold,
+    10pt. They were a hand-bolded run of 9pt body text, which is the style the VALUES beside
+    them are in - so the one table in this document that labels its rows instead of its columns
+    was the one table whose labels looked like data. Every other table's headings are this
+    style; these are headings that happen to run down the page rather than across it.
 
     A LINE THE CATALOG DOES NOT CARRY IS A MARKED PLACEHOLDER, not an empty cell and not the
     engineer-facing field beside it: the same call `priority_rows` makes for a control with no
@@ -762,22 +817,47 @@ def control_detail_rows(detail: ControlDetail) -> list:
     so a placeholder here is a control somebody added through the UI, and `manual_placeholders`
     counts it into the build's report.
     """
-    rows = [[p.text_cell("Control", width=DETAIL_PAIR_WIDTHS[0], bold=True),
+    catalog = dict(DETAIL_LINES)
+    rows = [[p.text_cell("Control ID", width=DETAIL_PAIR_WIDTHS[0], style=p.TABLE_HEADING),
              p.text_cell(detail.control.control_id, width=DETAIL_PAIR_WIDTHS[1]),
-             p.text_cell("Severity", width=DETAIL_PAIR_WIDTHS[2], bold=True),
-             p.text_cell(Control.Severity(detail.severity).label,
-                         width=DETAIL_PAIR_WIDTHS[3])]]
+             p.text_cell("Risk Rating", width=DETAIL_PAIR_WIDTHS[2], style=p.TABLE_HEADING),
+             p.rating_cell(detail.severity, Control.Severity(detail.severity).label,
+                           width=DETAIL_PAIR_WIDTHS[3])]]
     lines = [
-        ("Findings", findings_phrase(detail)),
-        ("Firewalls", firewalls_phrase(detail)),
-        ("What was matched", matched_phrase(detail)),
+        (catalog["what_it_checks"], _catalog_line(detail, "what_it_checks")),
+        ("Evidence", matched_phrase(detail)),
+        ("Occurrences", findings_phrase(detail)),
+        ("Affected Devices", firewalls_phrase(detail)),
+        (catalog["why_it_matters"], _catalog_line(detail, "why_it_matters")),
     ]
-    for name, label in DETAIL_LINES:
-        lines.append((label, getattr(detail.control, name) or detail_placeholder(
-            name, detail.control.control_id)))
-    rows += [[p.text_cell(label, width=DETAIL_WIDTHS[0], bold=True), _detail_value(value)]
-             for label, value in lines]
+    rows += [[p.text_cell(label, width=DETAIL_WIDTHS[0], style=p.TABLE_HEADING),
+              _detail_value(value)] for label, value in lines]
+    rows.append([p.text_cell(catalog["what_to_change"], width=DETAIL_WIDTHS[0],
+                             style=p.TABLE_HEADING),
+                 _remediation_value(detail)])
     return rows
+
+
+def _catalog_line(detail: ControlDetail, name: str) -> str:
+    """One of the catalogue's own lines, or the placeholder that names who has to write it."""
+    return getattr(detail.control, name) or detail_placeholder(name,
+                                                               detail.control.control_id)
+
+
+def _remediation_value(detail: ControlDetail):
+    """The `Remediation` cell: the screen path first, then what to change there.
+
+    TWO PARAGRAPHS IN ONE CELL, which is the shape the template's own cells use for anything
+    longer than a phrase. The first opens with a bold lead - see `WHERE_TO_CONFIRM_LEAD` - and
+    the second is the catalogue's `what_to_change` sentence.
+    """
+    cell = p.Cell(paragraphs=[
+        p.lead_paragraph(p.TABLE_TEXT, WHERE_TO_CONFIRM_LEAD,
+                         _catalog_line(detail, "where_to_confirm")),
+        p.paragraph(p.TABLE_TEXT, _catalog_line(detail, "what_to_change"))],
+        width=DETAIL_WIDTHS[1])
+    cell.span = 3
+    return cell
 
 
 def _detail_value(text: str):
@@ -858,7 +938,8 @@ def unnamed_report(detail: list) -> list:
 
     SILENT ON THE LAB AND ON ANY ESTATE THAT RESOLVES CLEANLY, because a zero here is the
     normal case - all 17,555 of the lab's findings resolve to an appliance. It exists because
-    the Firewalls line now ACCOUNTS for an unresolved finding instead of dropping it, and a
+    the Affected Devices line now ACCOUNTS for an unresolved finding instead of dropping it,
+    and a
     reader of the build report should be told that some of these rows carry that clause before
     a client asks why. The number to chase is the snapshots, not the findings: a snapshot that
     names neither an appliance, nor an enforcement point belonging to an appliance group, nor
@@ -869,7 +950,7 @@ def unnamed_report(detail: list) -> list:
         return []
     blocks = sum(1 for one in detail if one.unnamed)
     return [f"Findings no firewall is named for: {tally(total)} over {blocks} "
-            f"{plural(blocks, 'block')}, named on the Firewalls line of each"]
+            f"{plural(blocks, 'block')}, named on the Affected Devices line of each"]
 
 
 def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
@@ -885,13 +966,12 @@ def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
         p.bookmark(title, one.anchor, int(one.anchor.removeprefix("_Ref")))
         elements.append(title)
         elements.append(p.table(control_detail_rows(one), DETAIL_GRID, width=FIXED_WIDTH))
-        elements.append(p.paragraph(p.NORMAL, ""))
-        # THE ONE LINE OUTSIDE THE TABLE, and the only one of the four allowed to carry a
-        # screen path - `Device > Server Profiles > LDAP` - because a path is what it is.
-        elements.append(p.lead_paragraph(
-            p.NORMAL, "Where to confirm it.",
-            one.control.where_to_confirm
-            or detail_placeholder("where_to_confirm", one.control.control_id)))
+        # NOTHING AFTER THE TABLE. The block was a table, an empty paragraph and a line of
+        # prose carrying the screen path, and that line is now the `Remediation` cell's first
+        # paragraph - so neither the spacer nor the prose is left. `Heading3` sets
+        # `before=280` and `keepNext`, which is what separates one block from the next and
+        # what keeps a heading with its table, so the empty paragraph was buying nothing but
+        # a line of height on each of 264 blocks.
         unwritten += sum(1 for line, _label in DETAIL_LINES
                          if not getattr(one.control, line))
         unwritten += 0 if one.control.where_to_confirm else 1

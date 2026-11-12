@@ -1,6 +1,7 @@
 """`print_unattributed_findings`: how big the attribution gap is, and what shape it is.
 
-The health check's Firewalls line names every firewall carrying a control's findings. Where a
+The health check's Affected Devices line names every firewall carrying a control's findings.
+Where a
 snapshot resolves to no firewall the line says so rather than dropping the finding - Jason,
 2026-11-10, on a production report: *"the PAN-POL-008 Findings count is not adding up with the
 Firewalls counts."* This command answers the next question, which is why, and it has to be

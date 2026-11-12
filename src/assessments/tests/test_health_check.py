@@ -1276,7 +1276,11 @@ def control_detail_blocks(content: bytes) -> list:
                 trailing.append(body_text)
         elif tag == "tbl" and inside and control is not None:
             for row in element.findall(w("tr")):
-                cells = [_text(cell) for cell in row.findall(w("tc"))]
+                # PARAGRAPH BY PARAGRAPH, not `_text` over the cell: the `Remediation` cell
+                # holds the screen path and then the sentence, and joining their runs with
+                # nothing between them would read "...Login Banner.Confirm a banner...".
+                cells = [" ".join(_text(para) for para in cell.findall(w("p"))).strip()
+                         for cell in row.findall(w("tc"))]
                 # LABEL, VALUE, LABEL, VALUE: the first row carries two pairs, because the
                 # control's id and its severity share it.
                 for index in range(0, len(cells) - 1, 2):
@@ -1331,7 +1335,7 @@ class ControlDetailTests(_SeededEstate):
                                    for severity in health_check.WORST_FIRST})
         for grade, control, lines, _after in blocks:
             self.assertTrue(grade and control)
-            self.assertEqual(lines["Severity"], grade)
+            self.assertEqual(lines["Risk Rating"], grade)
 
     def test_a_summary_row_links_to_its_own_block(self):
         """Jason, 2026-11-09: *"the summary is a doc link to the detail."* Every row's control
@@ -1358,7 +1362,7 @@ class ControlDetailTests(_SeededEstate):
                      .exclude(short_description="")
                      .values_list("short_description", flat=True))
 
-        matched = lines[control.name]["What was matched"]
+        matched = lines[control.name]["Evidence"]
         self.assertTrue(wanted, "the fixture's control has no query sentence to print")
         for sentence in wanted:
             self.assertIn(sentence, matched)
@@ -1372,11 +1376,10 @@ class ControlDetailTests(_SeededEstate):
         control = Control.objects.get(control_id="PAN-MGT-007")
 
         lines = blocks[control.name]
-        self.assertEqual(lines["Control"], "PAN-MGT-007")
-        self.assertEqual(lines["What it checks"], control.what_it_checks)
-        self.assertEqual(lines["Why it matters"], control.why_it_matters)
-        self.assertEqual(lines["What to change"], control.what_to_change)
-        self.assertNotIn("Where to confirm", lines)
+        self.assertEqual(lines["Control ID"], "PAN-MGT-007")
+        self.assertEqual(lines["Requirement"], control.what_it_checks)
+        self.assertEqual(lines["Risk"], control.why_it_matters)
+        self.assertIn(control.what_to_change, lines["Remediation"])
 
     def test_the_id_and_the_severity_share_the_first_row(self):
         """Jason, 2026-11-06: *"Control id and severity can probably be on the same row."* Two
@@ -1391,18 +1394,88 @@ class ControlDetailTests(_SeededEstate):
         for table in tables:
             rows = table.findall(w("tr"))
             first = [_text(cell) for cell in rows[0].findall(w("tc"))]
-            self.assertEqual([first[0], first[2]], ["Control", "Severity"])
+            self.assertEqual([first[0], first[2]], ["Control ID", "Risk Rating"])
             for row in rows[1:]:
                 self.assertEqual(len(row.findall(w("tc"))), 2)
 
-    def test_where_to_confirm_is_the_one_line_outside_the_table(self):
-        """Jason, 2026-11-06: *"Move 'Why it matters.' and 'What to change' to the table."*
-        - which left this one, the screen path, as prose under it."""
-        after = {control: lines for _subject, control, _lines, lines
-                 in control_detail_blocks(self.with_detail())}
+    def detail_tables(self, document: bytes) -> list:
+        """Every control detail table, found by its own grid."""
+        body = document_xml(document).find(w("body"))
+        tables = [table for table in body.iter(w("tbl"))
+                  if tuple(int(column.get(w("w")))
+                           for column in table.find(w("tblGrid")).findall(w("gridCol")))
+                  == health_check.DETAIL_GRID]
+        self.assertTrue(tables, "the document has no control detail table")
+        return tables
+
+    def test_the_grade_is_the_templates_own_coloured_chip(self):
+        """The same cell the Summary of Findings table carries, in the same style and at the
+        same width. The grade used to be plain 9pt text here, so a reader who followed a
+        summary row's link from a red chip arrived at a block that looked like every other."""
+        for table in self.detail_tables(self.with_detail()):
+            cells = table.findall(w("tr"))[0].findall(w("tc"))
+            grade = cells[3].find(w("p")).find(w("pPr")).find(w("pStyle")).get(w("val"))
+            label = _text(cells[3])
+
+            self.assertIn(grade, set(partials.RATING_STYLES.values()))
+            self.assertEqual(grade, partials.rating_style(
+                next(severity for severity in Control.Severity.values
+                     if Control.Severity(severity).label == label)))
+            self.assertEqual(cells[3].find(w("tcPr")).find(w("tcW")).get(w("w")),
+                             str(health_check.DETAIL_PAIR_WIDTHS[3][0]))
+
+    def test_the_row_labels_are_in_the_templates_label_style(self):
+        """`Table - Heading`, which is what every other table in this document labels with.
+        These labels run down the page rather than across it and are labels all the same; they
+        were a hand-bolded run of the same 9pt style as the values beside them."""
+        for table in self.detail_tables(self.with_detail()):
+            rows = table.findall(w("tr"))
+            labels = [rows[0].findall(w("tc"))[0], rows[0].findall(w("tc"))[2]]
+            labels += [row.findall(w("tc"))[0] for row in rows[1:]]
+
+            for cell in labels:
+                with self.subTest(_text(cell)):
+                    style = cell.find(w("p")).find(w("pPr")).find(w("pStyle"))
+                    self.assertEqual(style.get(w("val")), partials.TABLE_HEADING)
+
+    def test_the_detail_grid_fills_the_text_width_and_the_chip_matches_the_summary(self):
+        """Every body table in this template is fixed to 10224 twips, and a grid that does not
+        sum to it is a table Word stretches. The chip column is the Summary of Findings table's
+        own rating column, so the same grade is the same size in both sections."""
+        self.assertEqual(sum(health_check.DETAIL_GRID), health_check.FIXED_WIDTH[0])
+        self.assertEqual(sum(width for width, _unit in health_check.DETAIL_PAIR_WIDTHS),
+                         health_check.FIXED_WIDTH[0])
+        self.assertEqual(health_check.DETAIL_GRID[3], health_check.SUMMARY_GRID[3])
+
+    def test_where_to_confirm_opens_the_remediation_cell(self):
+        """Jason, 2026-11-12: *"what about making 'Where to confirm it' the first line in
+        Remediation?"* It was a paragraph of prose under the table, which is where the
+        2026-11-06 mock-up left it. The block is now one table and nothing else: no spacer
+        paragraph, no trailing prose."""
+        blocks = control_detail_blocks(self.with_detail())
+        lines = {control: block for _subject, control, block, _after in blocks}
         control = Control.objects.get(control_id="PAN-MGT-007")
 
-        self.assertIn(f"Where to confirm it. {control.where_to_confirm}", after[control.name])
+        remediation = lines[control.name]["Remediation"]
+        self.assertTrue(remediation.startswith(
+            f"{health_check.WHERE_TO_CONFIRM_LEAD} {control.where_to_confirm}"))
+        self.assertTrue(remediation.endswith(control.what_to_change))
+        for _subject, _control, _lines, after in blocks:
+            self.assertEqual(after, [], "a block carries nothing after its table")
+
+    def test_the_rows_run_in_the_order_of_the_argument(self):
+        """Jason, 2026-11-12 (P584a). The block opened with `Findings` and `Firewalls` - two
+        counts, before the reader had been told what was checked - so it had to be read
+        backwards. It reads as a case now."""
+        for table in self.detail_tables(self.with_detail()):
+            rows = table.findall(w("tr"))
+            first = [_text(cell) for cell in rows[0].findall(w("tc"))]
+            labels = [first[0], first[2]] + [_text(row.findall(w("tc"))[0])
+                                             for row in rows[1:]]
+
+            self.assertEqual(labels, ["Control ID", "Risk Rating", "Requirement", "Evidence",
+                                      "Occurrences", "Affected Devices", "Risk",
+                                      "Remediation"])
 
     def test_the_line_says_how_many_findings_and_what_they_are_about(self):
         measured = health_check.measure()
@@ -1415,9 +1488,9 @@ class ControlDetailTests(_SeededEstate):
         # The SINGULAR at one object: the seeded estate has one banner, and
         # "1 finding on 1 login banners" was the first version of this line.
         self.assertEqual(findings, objects, "a finding is one control failing on one object")
-        self.assertRegex(lines[control.name]["Findings"],
+        self.assertRegex(lines[control.name]["Occurrences"],
                          rf"^{findings} finding(s)?(, \d+ objects?)?$")
-        self.assertEqual(lines[control.name]["Severity"], "Low")
+        self.assertEqual(lines[control.name]["Risk Rating"], "Low")
 
     def test_the_blocks_run_worst_first(self):
         """The section's own first line says so, and a reader who scans it is reading the order
@@ -1767,7 +1840,7 @@ class NoFirewallNamedTests(_SeededEstate):
 
 
 class ReconciliationTests(_SeededEstate):
-    """The Firewalls line of a block adds up to the Findings line beside it.
+    """The Affected Devices line of a block adds up to the Occurrences line beside it.
 
     Jason, 2026-11-10, spot-checking four controls in a production report: *"the PAN-POL-008
     Findings count is not adding up with the Firewalls counts. PAN-POL-002, PAN-AUTH-021 and
@@ -1825,14 +1898,15 @@ class ReconciliationTests(_SeededEstate):
 
         self.assertEqual(health_check.unnamed_report(counted),
                          ["Findings no firewall is named for: 6 over 2 blocks, named on the "
-                          "Firewalls line of each"])
+                          "Affected Devices line of each"])
         self.assertEqual(health_check.unnamed_report(counted[:1]),
                          ["Findings no firewall is named for: 3 over 1 block, named on the "
-                          "Firewalls line of each"])
+                          "Affected Devices line of each"])
 
 
 class ReachTests(SimpleTestCase):
-    """The Firewalls line of a detail block: which firewalls carry a control's findings.
+    """The Affected Devices line of a detail block: which firewalls carry a control's
+    findings.
 
     Jason, 2026-11-06: *"present counts by firewall instead of subject"*, ranked so that
     *"the five named should be the worst affected by count"* - and 2026-11-10, *"Do not

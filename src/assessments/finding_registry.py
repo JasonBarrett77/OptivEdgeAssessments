@@ -47,7 +47,7 @@ class FindingKind(NamedTuple):
     #: A REQUIRED FIELD rather than a lookup table, so a finding kind added tomorrow cannot
     #: reach a client document without somebody choosing what to call its object.
     common_name: str
-    #: WHAT A CLIENT CALLS SEVERAL OF THEM, lowercase, for the Findings line of a Control Detail
+    #: WHAT A CLIENT CALLS SEVERAL OF THEM, lowercase, for the Occurrences line of a Control
     #: table: "1 high, 9 medium, across 10 AAA server profiles".
     #:
     #: NOT `label` PLURALIZED, which is what that line printed first. `label` is the registry's
@@ -74,7 +74,7 @@ class FindingKind(NamedTuple):
     #: The same word for ONE of them, where `label` is not it. Empty means `label` serves, which
     #: it does for the 44 kinds whose plural is just the label pluralized.
     #:
-    #: WHY THE LINE NEEDS BOTH. The Findings line counts, and a count can be one: measured over
+    #: WHY THE LINE NEEDS BOTH. The Occurrences line counts, and a count can be one: measured
     #: the lab 2026-11-07, 11 of the 203 control blocks are about a single object, and six of
     #: them read `1, across 1 AAA server profiles` - `security rules`, `decryption rules`,
     #: `IKE gateways`, `security zones` and `password profiles` the same way. Falling back to

@@ -99,7 +99,7 @@ class FindingRegistryTests(TestCase):
     DOUBLE_PLURAL_ENDINGS = ("ss", "eses")
 
     def test_every_kind_names_its_objects_for_a_client(self):
-        """`client_plural` is printed as it stands - the Findings line applies no pluralizer to
+        """`client_plural` is printed as it stands - the Occurrences line applies no pluralizer
         it - so the form has to be right here. The same call `common_name` gets in
         `test_health_check.SubjectTests`: the field being required stops a new kind reaching the
         document nameless, and this is what stops it reaching the document misspelled."""
@@ -147,7 +147,7 @@ class FindingRegistryTests(TestCase):
     def test_a_kind_that_chose_its_plural_also_chose_its_singular(self):
         """Required of exactly the kinds in `CHOSEN_RATHER_THAN_DERIVED`, and of no others.
 
-        The Findings line counts, and a count can be one: 11 of the lab's 203 control blocks
+        The Occurrences line counts, and a count can be one: 11 of the lab's 203 control
         were about a single object on 2026-11-07, six of them reading "1, across 1 AAA server
         profiles". A kind whose plural is just its label pluralized needs nothing here, because
         the label IS the singular a client should read. A kind that chose a different word owes
