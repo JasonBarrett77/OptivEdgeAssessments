@@ -227,13 +227,14 @@ def check_styles(styles: dict) -> None:
     cell that lost its style is a critical finding rendered as body text, on a page a client
     reads.
 
-    THE TYPE IS CHECKED TOO. `Optiv (Light Gray Borders)` is a TABLE style and the rest are
-    PARAGRAPH styles, and a `w:pStyle` naming a table style is not an error Word reports - it
-    ignores it, which is the silent fallback again.
+    THE TYPE IS CHECKED TOO. `Optiv (Light Gray Borders)` is a TABLE style, `Hyperlink` is a
+    CHARACTER style and the rest are PARAGRAPH styles, and a `w:pStyle` naming a table style is
+    not an error Word reports - it ignores it, which is the silent fallback again.
     """
     missing, wrong = [], []
     for expected_type, names in (("paragraph", partials.EMITTED_PARAGRAPH_STYLES),
-                                 ("table", partials.EMITTED_TABLE_STYLES)):
+                                 ("table", partials.EMITTED_TABLE_STYLES),
+                                 ("character", partials.EMITTED_CHARACTER_STYLES)):
         for name in names:
             if name not in styles:
                 missing.append(name)

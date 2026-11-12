@@ -75,6 +75,11 @@ RATING_STYLES = {
 #: The table style every table in the template's body uses.
 TABLE_STYLE = "OptivLightGreyBorders"
 
+#: THE TEMPLATE'S OWN CHARACTER STYLE FOR A LINK: Optiv blue `0057B8` and a single underline -
+#: the same blue `Table - Heading` labels are in, not Word's generic hyperlink blue. Carried on
+#: the run inside a `w:hyperlink`, which is what makes a link in this document LOOK like one.
+HYPERLINK = "Hyperlink"
+
 #: The Latin typeface every run this module emits names OUT LOUD.
 #:
 #: IT IS THE ONE OPTIV'S DEFAULTS ALREADY SPECIFY, and `scaffold.check_fonts` refuses a scaffold
@@ -118,9 +123,18 @@ def _fonts():
     return element
 
 
-def _run_properties(*, bold: bool = False, size: str | None = None):
-    """`<w:rPr>` in schema order: `rFonts`, then `b`, then `sz` and `szCs`."""
+def _run_properties(*, bold: bool = False, size: str | None = None,
+                    style: str | None = None):
+    """`<w:rPr>` in schema order: `rStyle`, `rFonts`, then `b`, then `sz` and `szCs`.
+
+    `rStyle` IS FIRST and that is not a preference: `w:rPr` is a sequence, and a `w:rStyle`
+    after `w:rFonts` is the defect Word reports as unreadable content rather than ignoring.
+    """
     properties = OxmlElement("w:rPr")
+    if style:
+        element = OxmlElement("w:rStyle")
+        element.set(qn("w:val"), style)
+        properties.append(element)
     properties.append(_fonts())
     if bold:
         properties.append(OxmlElement("w:b"))
@@ -141,6 +155,7 @@ EMITTED_PARAGRAPH_STYLES = (
     *RATING_STYLES.values(),
 )
 EMITTED_TABLE_STYLES = (TABLE_STYLE,)
+EMITTED_CHARACTER_STYLES = (HYPERLINK,)
 
 
 def rating_style(severity: str) -> str:
@@ -205,9 +220,10 @@ def lead_paragraph(style: str, lead: str, text: str, *, tight: bool = False):
     return element
 
 
-def _run(text: str, *, bold: bool = False, size: str | None = None):
+def _run(text: str, *, bold: bool = False, size: str | None = None,
+         style: str | None = None):
     run = OxmlElement("w:r")
-    run.append(_run_properties(bold=bold, size=size))
+    run.append(_run_properties(bold=bold, size=size, style=style))
     element = OxmlElement("w:t")
     # Word collapses leading and trailing space in a run unless told not to, and the measured
     # sentences here end in a period rather than a space - but a value read off the database
@@ -458,17 +474,25 @@ def text_cell(text: str, *, width=None, style: str = TABLE_TEXT, bold: bool = Fa
 
 
 def link_paragraph(style: str, text: str, anchor: str, *, tight: bool = False):
-    """One paragraph whose whole text links to a bookmark in this document.
+    """One paragraph whose whole text links to a bookmark in this document, and LOOKS like it.
 
-    NOT STYLED AS A HYPERLINK. The `Hyperlink` character style is blue and underlined, which on
-    a summary table reading down a page of control names would paint every row. Word's own
-    table of contents does the same thing - the entries are links and look like text - and the
-    reader finds them the way they find those, by the cursor.
+    IT WAS DELIBERATELY UNSTYLED, on the reasoning that the `Hyperlink` style is blue and
+    underlined and would paint every row of a summary table reading down a page of control
+    names - Word's own table of contents does the same thing, and a reader finds those by the
+    cursor. That reasoning did not survive contact: Jason, 2026-11-12, asked whether each row
+    of the Summary of Findings table could link to its detail block, and it already did. Every
+    row had been a link since 2026-11-09. A link the author of the document cannot find is a
+    link a client will not find either, so the cue is on the page now rather than under the
+    cursor, in the template's own `Hyperlink` style - Optiv blue, not Word's.
+
+    THE TABLE OF CONTENTS IS NOT AFFECTED. Its entries are links too and they are built by
+    `_toc_entry`, which writes its own runs; Word styles a real TOC itself.
     """
     element = paragraph(style, tight=tight)
     link = OxmlElement("w:hyperlink")
     link.set(qn("w:anchor"), anchor)
-    link.append(_run(text, size=BODY_SIZE if style in UNSIZED_STYLES else None))
+    link.append(_run(text, size=BODY_SIZE if style in UNSIZED_STYLES else None,
+                     style=HYPERLINK))
     element.append(link)
     return element
 

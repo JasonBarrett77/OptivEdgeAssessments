@@ -232,6 +232,9 @@ class StyleContractTests(SimpleTestCase):
         for name in partials.EMITTED_TABLE_STYLES:
             with self.subTest(name):
                 self.assertEqual(styles.get(name), "table")
+        for name in partials.EMITTED_CHARACTER_STYLES:
+            with self.subTest(name):
+                self.assertEqual(styles.get(name), "character")
 
     def test_a_paragraph_names_its_typeface_on_the_run_and_on_the_mark(self):
         """The contract itself, asserted where it is made. The two tests over the built document
@@ -255,6 +258,19 @@ class StyleContractTests(SimpleTestCase):
                     for child in element.find(w("r")).find(w("rPr"))]
 
         self.assertEqual(children, ["rFonts", "b"])
+
+    def test_a_links_character_style_comes_before_the_typeface(self):
+        """`w:rPr` is a sequence and `w:rStyle` is the FIRST thing in it, before `w:rFonts`.
+        Out of order it is the same unreadable-content defect as the bold lead above."""
+        element = partials.link_paragraph(partials.TABLE_TEXT, "Login Banner Configured",
+                                          "_Ref20001")
+
+        run = element.find(w("hyperlink")).find(w("r"))
+        children = [child.tag.split("}")[1] for child in run.find(w("rPr"))]
+
+        self.assertEqual(children[:2], ["rStyle", "rFonts"])
+        self.assertEqual(run.find(w("rPr")).find(w("rStyle")).get(w("val")),
+                         partials.HYPERLINK)
 
     def test_a_paragraph_that_opens_with_a_label_carries_two_runs(self):
         """`Where to confirm it.` is bold and the path after it is not, in one paragraph - the
@@ -280,7 +296,8 @@ class StyleContractTests(SimpleTestCase):
         Any module-level constant whose value is a style id in Optiv's own styles.xml is a style
         this module can emit, so it has to appear in one of the two lists.
         """
-        known = set(partials.EMITTED_PARAGRAPH_STYLES) | set(partials.EMITTED_TABLE_STYLES)
+        known = (set(partials.EMITTED_PARAGRAPH_STYLES) | set(partials.EMITTED_TABLE_STYLES)
+                 | set(partials.EMITTED_CHARACTER_STYLES))
         in_the_scaffold = scaffold_styles()
 
         for name, value in vars(partials).items():
@@ -294,6 +311,7 @@ class StyleContractTests(SimpleTestCase):
     def test_a_scaffold_missing_a_style_is_refused(self):
         styles = {name: "paragraph" for name in partials.EMITTED_PARAGRAPH_STYLES}
         styles[partials.TABLE_STYLE] = "table"
+        styles[partials.HYPERLINK] = "character"
         del styles[partials.RATING_STYLES["critical"]]
 
         with self.assertRaises(ArtifactBuildError) as caught:
@@ -1350,6 +1368,25 @@ class ControlDetailTests(_SeededEstate):
         self.assertEqual(len(anchors), len(set(anchors)))
         for anchor in anchors:
             self.assertIn(anchor, bookmarks)
+
+    def test_every_summary_row_looks_like_the_link_it_is(self):
+        """Jason, 2026-11-12, asked whether each row of the Summary of Findings table could
+        link to its detail block. It already did, and had since 2026-11-09 - the row's control
+        name carries the bookmark on that block's heading. What it did not do was LOOK like a
+        link, so nobody reading the document could tell. Every one of them is in the template's
+        own `Hyperlink` style now."""
+        body = document_xml(self.with_detail()).find(w("body"))
+
+        links = [link for link in body.iter(w("hyperlink")) if link.get(w("anchor"))
+                 and link.get(w("anchor")).startswith("_Ref")]
+
+        self.assertTrue(links)
+        for link in links:
+            with self.subTest(_text(link)):
+                run = link.find(w("r"))
+                style = run.find(w("rPr")).find(w("rStyle"))
+                self.assertIsNotNone(style, "a link a reader cannot see is a link nobody uses")
+                self.assertEqual(style.get(w("val")), partials.HYPERLINK)
 
     def test_the_block_says_what_was_matched(self):
         """What the per-severity split buys. A control grades its findings differently because
