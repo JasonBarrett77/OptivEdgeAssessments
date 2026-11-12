@@ -58,6 +58,16 @@ NEGATED_EMPTY = ("negated over the whole address space: the complement is empty,
 UNEXPLAINED = ("every member sizes, the side is not negated, and it is still null - a defect "
                "in the count rather than in the configuration")
 
+#: And what that defect turns out to be when the members DO add up today. `source_num_hosts` is a
+#: stored column, written once by `side_num_hosts` when the rule was normalized and never
+#: revisited; the members it was computed from are rows that a later collection can rewrite.
+#: A side whose stored count is null while its own members come to a number is a column left
+#: behind by its data - normalization has to run again for that enforcement point, and nothing in
+#: the configuration needs changing. `normalize_security_rules(point)` rebuilds the rules from
+#: the stored merged snapshot, so it needs no device.
+STALE = ("every member sizes and they come to {count:,} addresses - so the stored count is "
+         "STALE, not unknowable. Re-normalize this enforcement point")
+
 
 def member_reason(ref) -> str:
     """Why this ref contributes no interval. Call it only on a ref that contributes none."""
@@ -144,6 +154,29 @@ def unsized_sides(name: str = ""):
             yield rule, side, negated, refs, reasons
 
 
+def recomputed(refs: list, negated: bool) -> int | None:
+    """What this side's count would be if it were computed from its stored members NOW.
+
+    THE NORMALIZER'S OWN ARITHMETIC, for the same reason the attribution is: `side_num_hosts`
+    is the function that wrote the column, so a number from anywhere else could differ from the
+    one that would be written by re-normalizing, which is the action this recommends.
+
+    A NEGATED SIDE IS COMPUTED THE WAY THE NORMALIZER COMPUTES IT - the complement, not the
+    members - because that is what such a rule permits. `side_num_hosts` cannot be asked
+    directly for one: it takes the complement as a materialized ref, and materializing is a
+    write.
+    """
+    from optivedge_integrations.integrations.platforms.pan_os.normalization.common import (
+        num_hosts_from_intervals)
+    from optivedge_integrations.integrations.platforms.pan_os.normalization.security_rules import (
+        compute_negated_complement_intervals, side_num_hosts)
+
+    if negated:
+        intervals = compute_negated_complement_intervals(refs)
+        return None if intervals is None else num_hosts_from_intervals(intervals)
+    return side_num_hosts(refs, negated=False, complement_ref=None)
+
+
 def side_fault(negated: bool, refs: list, reasons: list) -> str:
     """The one line that says what is wrong with a side, where no member is."""
     if reasons:
@@ -152,7 +185,8 @@ def side_fault(negated: bool, refs: list, reasons: list) -> str:
         return NO_MEMBERS
     if negated:
         return NEGATED_EMPTY
-    return UNEXPLAINED
+    count = recomputed(refs, negated)
+    return UNEXPLAINED if count is None else STALE.format(count=count)
 
 
 def where(rule) -> str:
@@ -217,3 +251,8 @@ class Command(BaseCommand):
                           if address_object else f"no object, ref_type={ref.ref_type}")
                 self.stdout.write(f"      {mark}  {ref.raw_value!r}  {detail}")
             self.stdout.write(f"      -> {side_fault(negated, refs, reasons)}")
+            now = recomputed(refs, negated)
+            self.stdout.write(
+                "      recomputed from these members now: "
+                + ("could not be computed now either" if now is None
+                   else f"{now:,} {'address' if now == 1 else 'addresses'}"))

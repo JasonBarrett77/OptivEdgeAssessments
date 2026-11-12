@@ -172,16 +172,28 @@ class CauseTests(_Estate):
         self.assertIn(command.NEGATED_EMPTY, output)
         self.assertIn("NEGATED", output)
         self.assertNotIn(command.UNEXPLAINED, output)
+        # The recompute agrees, in the normalizer's own arithmetic: the complement of the whole
+        # space is empty, which is zero addresses rather than an unknown number.
+        self.assertIn("recomputed from these members now: 0 addresses", output)
 
-    def test_a_null_side_whose_every_member_sizes_is_called_a_defect(self):
-        """The shape that would be a fault in our own arithmetic rather than in the estate. It
-        is reported in those words rather than left in a bucket with the regions, because the
-        two send a reader to opposite places."""
+    def test_a_null_side_whose_members_add_up_is_called_stale(self):
+        """THE SHAPE PRODUCTION HAD. Jason ran this against his estate 2026-11-12 and both
+        sides of one rule came back here: four members, every one sized, no negation, and both
+        counts null. `source_num_hosts` is a stored column written once when the rule was
+        normalized, so a side whose own members come to a number today is a column left behind
+        by its data - nothing in the configuration needs changing and re-normalizing the
+        enforcement point writes the count. It is reported in those words rather than left in a
+        bucket with the regions, because the two send a reader to opposite places."""
         self.rule_with("mystery", [
             ("net-a", {"ref_type": SecurityRuleAddressRef.RefType.ADDRESS_OBJECT,
                        "address_object": self.object_of("net-a")})])
 
-        self.assertIn(command.UNEXPLAINED, self.run_command())
+        output = self.run_command()
+
+        self.assertIn("so the stored count is STALE", output)
+        self.assertIn("they come to 256 addresses", output)
+        self.assertIn("recomputed from these members now: 256 addresses", output)
+        self.assertNotIn(command.UNEXPLAINED, output)
 
 
 class ReportTests(_Estate):
@@ -236,7 +248,7 @@ class ReportTests(_Estate):
         output = self.run_command()
 
         self.assertIn("  sized  'Range _172.16.205.63-64'", output)
-        self.assertIn(command.UNEXPLAINED, output)
+        self.assertIn("recomputed from these members now: 2 addresses", output)
         self.assertEqual(rule.source_address_refs.count(), 1)
 
     def test_it_says_which_of_the_rules_carry_a_finding(self):
