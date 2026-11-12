@@ -127,7 +127,7 @@ RECOMMENDED_SEVERITIES = ("critical", "high", "medium")
 #:
 #: SO IT CARRIES THE MEASURED REACH instead, which is the remediation surface's own statement of
 #: itself - "the count beside it is what one edit costs and what it buys" - and is true rather
-#: than written: this many findings cleared, from this many places to edit. A row-by-row
+#: than written: this many findings cleared, from this many objects. A row-by-row
 #: placeholder was the first version and it put 66 of them in these two tables, which makes a
 #: document look abandoned rather than honest; the business benefit is asked for ONCE, above
 #: each table, where a consultant can answer it in a sentence per row if they want to.
@@ -172,8 +172,8 @@ def tally(count: int) -> str:
     """`4,647`, not `4647`.
 
     Every other number in this document is a year, a key length or a port, and those are never
-    grouped. These are counts of findings, objects and places to edit, and on the lab the
-    largest is five figures: "4647 findings across 1083 places to edit" is a client reading a
+    grouped. These are counts of findings and of objects, and on the lab the largest is
+    five figures: "4647 findings across 1083 objects" is a client reading a
     serial number. Grouped at the point of printing rather than in the dataclasses, because the
     counts are also compared, summed and sorted.
     """
@@ -580,10 +580,16 @@ def remediation_places() -> dict:
     row says which control graded it and how. A second definition of "things to fix" that
     disagreed with the remediation pages would be worse than none.
 
-    THE WORD IS `place`, which is the Benefit column's own - *"1,083 places to edit"* - and
-    not the remediation group's label. Six of the thirty-four labels are not count nouns, and
-    pluralizing them printed `forward proxy signings` and `portal authentications` at a client.
-    One vocabulary across the document beats a noun that is right most of the time.
+    THE WORD IS `object` - one noun for all thirty-four remediation groups, not each
+    group's own label. Six of the labels are not count nouns, and pluralizing them printed
+    `forward proxy signings` and `portal authentications` at a client; one vocabulary across
+    the document beats a noun that is right most of the time.
+
+    IT PRINTED `places to edit` UNTIL Jason, 2026-11-12: *"instead of saying 'places to edit',
+    say 'objects'. I know the noun may not fit exactly, but the customer will understand the
+    term better."* Only the printed noun moved. The identifier stays `places`, because what is
+    counted is still one remediation row - a place an engineer opens - and the findings
+    workbook's remediation sheets still say `place to edit`: a separate surface, not in scope.
     """
     places = defaultdict(int)
     for group in surface.REMEDIATION_GROUPS:
@@ -596,7 +602,7 @@ def remediation_places() -> dict:
 
 
 def findings_phrase(detail: ControlDetail) -> str:
-    """`1,027 findings, 24 places to edit` - the impact, and the work.
+    """`1,027 findings, 24 objects` - the impact, and the work.
 
     TWO NUMBERS THAT GENUINELY DIFFER, which the first version of this line did not have. It
     printed the findings count and the count of objects the findings are ABOUT, and those are
@@ -613,7 +619,7 @@ def findings_phrase(detail: ControlDetail) -> str:
     if not detail.places:
         return f"{tally(detail.findings)} {plural(detail.findings, 'finding')}"
     return (f"{tally(detail.findings)} {plural(detail.findings, 'finding')}, "
-            f"{tally(detail.places)} {plural(detail.places, 'place')} to edit")
+            f"{tally(detail.places)} {plural(detail.places, 'object')}")
 
 
 def firewalls_phrase(detail: ControlDetail) -> str:
@@ -902,8 +908,18 @@ def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
 #: not tell a template from a template stack.
 CONTAINER_TYPES = {"device_group": "Device group", "template": "Template"}
 
-#: What the `Within` column says for a container nothing contains - Shared, and every template.
-NO_PARENT = "—"
+#: WHAT A CELL IN TABLE 2 SAYS WHEN IT HAS NOTHING TO SAY. The `Within` column carries it for
+#: a container nothing contains - Shared, and every template - and the `Objects` column for a
+#: container that defined none in the collection this review read.
+#:
+#: The `Objects` column spelled that out as `none in this collection` until Jason, 2026-11-12:
+#: *"replace 'none in this collection' with and em dash."* The distinction the sentence was
+#: there to draw - no objects reached is not a group holding zero - is still drawn, by not
+#: printing `0`; a reader who wants the longer answer has the paragraph above the table.
+EM_DASH = "—"
+
+#: The `Within` column's own name for the same glyph, which the tests read.
+NO_PARENT = EM_DASH
 
 
 @dataclass(frozen=True)
@@ -1020,7 +1036,10 @@ def container_rows(containers: list) -> list:
         p.text_cell("Container", width=CONTAINER_WIDTHS[0], style=p.TABLE_HEADING),
         p.text_cell("Kind", width=CONTAINER_WIDTHS[1], style=p.TABLE_HEADING),
         p.text_cell("Within", width=CONTAINER_WIDTHS[2], style=p.TABLE_HEADING),
-        p.text_cell("Objects it defines", width=CONTAINER_WIDTHS[3], style=p.TABLE_HEADING),
+        # `Objects`, not `Objects it defines`. Jason, 2026-11-12: *"shorten the column name
+        # to simply 'Objects'."* The sentence above the table already says these are the
+        # objects each container defines, so the header was saying it twice.
+        p.text_cell("Objects", width=CONTAINER_WIDTHS[3], style=p.TABLE_HEADING),
     ]]
     for container in containers:
         rows.append([
@@ -1030,8 +1049,8 @@ def container_rows(containers: list) -> list:
             # NOT `0`. A device group that has pushed nothing this collection reached is not a
             # group holding zero objects, and the distinction is the one `DeviceGroupBinding`
             # draws; the sentence above the table says where the rows come from.
-            p.text_cell(tally(container.objects) if container.objects
-                        else "none in this collection", width=CONTAINER_WIDTHS[3]),
+            p.text_cell(tally(container.objects) if container.objects else EM_DASH,
+                        width=CONTAINER_WIDTHS[3]),
         ])
     return rows
 
@@ -1388,11 +1407,17 @@ def write_project_overview(engagement: Engagement, containers: list,
                               "and Optiv’s best practices."),
         p.paragraph(p.BULLET, "Conduct an initial internal and client kickoff call to determine "
                               "the overall architecture and collect pertinent documentation."),
+        # KEY STAKEHOLDERS, NOT `client key players`, which is what the template's own
+        # Approach/Methodology said and what these two bullets carried over verbatim. Jason,
+        # 2026-11-12: *"Please correct that to 'Conduct on-site interviews with key
+        # stakeholders to ensure...'"*. He named the interviews bullet; the walkthrough bullet
+        # above it carried the same phrase and moved with it, because a document that says both
+        # in consecutive bullets reads as unproofed.
         p.paragraph(p.BULLET, "Perform a detailed walkthrough of the architecture together with "
-                              "the client key players based on the available documentation and "
+                              "key stakeholders based on the available documentation and "
                               "in-house knowledge."),
         p.paragraph(p.BULLET, "Obtain access and inspect the configuration of key devices."),
-        p.paragraph(p.BULLET, "Conduct on-site interviews with client key players to ensure the "
+        p.paragraph(p.BULLET, "Conduct on-site interviews with key stakeholders to ensure the "
                               "successful capture of all details and requirements."),
         *container_section(containers, captions),
         p.paragraph(p.NORMAL,
@@ -1716,7 +1741,7 @@ def benefit_risk_rows(selected: list) -> list:
             p.text_cell(f"Resolves {tally(summary.findings)} "
                         f"{plural(summary.findings, 'finding')} of up to "
                         f"{Control.Severity(summary.worst).label.lower()} severity, from "
-                        f"{tally(summary.places)} {plural(summary.places, 'place')} to edit.",
+                        f"{tally(summary.places)} {plural(summary.places, 'object')}.",
                         width=BENEFIT_RISK_WIDTHS[1]),
             p.Cell(paragraphs=[p.paragraph(p.TABLE_BULLET, summary.risk)],
                    width=BENEFIT_RISK_WIDTHS[2]),

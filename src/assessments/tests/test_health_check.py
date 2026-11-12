@@ -498,7 +498,18 @@ class ContainerTests(TestCase):
                 raw_value=value)
 
     def built(self) -> str:
-        return all_text(build_health_check_document(today=dt.date(2026, 11, 6))[0])
+        return all_text(self.document())
+
+    def document(self) -> bytes:
+        return build_health_check_document(today=dt.date(2026, 11, 6))[0]
+
+    def container_table(self):
+        """Table 2: Panorama Containers, by its header."""
+        for table in document_xml(self.document()).iter(w("tbl")):
+            header = [_text(cell) for cell in list(table.iter(w("tr")))[0].iter(w("tc"))]
+            if header[:2] == ["Container", "Kind"]:
+                return table
+        self.fail("the document has no Panorama Containers table")
 
     def rows(self) -> dict:
         return {container.name: container for container in health_check.read_containers()[0]}
@@ -545,11 +556,26 @@ class ContainerTests(TestCase):
 
     def test_a_group_that_has_pushed_nothing_is_still_in_scope_and_says_so(self):
         """`DeviceGroupBinding`: "a group that has pushed nothing this collection reached has no
-        bindings and is still a real group". Printing 0 would read as a group holding nothing."""
-        text = self.built()
+        bindings and is still a real group". Printing 0 would read as a group holding nothing.
+
+        IT SAYS SO WITH AN EM DASH rather than the words `none in this collection`, which is
+        what this cell carried until Jason, 2026-11-12. The claim under test is unchanged: the
+        cell is not `0`."""
+        cells = [_text(cell) for row in list(self.container_table().iter(w("tr")))[1:]
+                 for cell in list(row.iter(w("tc")))[3:4]]
 
         self.assertEqual(self.rows()["dg_empty"].objects, 0)
-        self.assertIn("none in this collection", text)
+        self.assertIn(health_check.EM_DASH, cells)
+        self.assertNotIn("0", cells)
+        self.assertNotIn("none in this collection", self.built())
+
+    def test_the_last_column_is_headed_objects(self):
+        """Jason, 2026-11-12: *"shorten the column name to simply 'Objects'."* It was `Objects
+        it defines`, which the sentence above the table already says."""
+        header = [_text(cell) for cell
+                  in list(list(self.container_table().iter(w("tr")))[0].iter(w("tc")))]
+
+        self.assertEqual(header, ["Container", "Kind", "Within", "Objects"])
 
     def test_a_container_named_only_in_the_configuration_is_still_printed(self):
         """A deployment whose Panorama was never collected has the markers and no hierarchy, and
@@ -982,6 +1008,14 @@ class ContentTests(_SeededEstate):
         total under its worst control's name - 75,664 findings beside
         `Source/Destination Address Breadth Bounded`, whose own findings were 5,428 (Jason,
         2026-11-09). Both numbers are here now and both are about this control at this grade.
+
+        THERE WAS AN `assertNotIn("places to edit", cell)` HERE, left from the shape before
+        those two numbers, and it was a FALSE PASS: the cell has carried the reach phrase since
+        2026-11-09, and the seeded estate's reach is 1, so what it printed was "1 place to
+        edit" and the plural the assertion looked for was never there. Renaming the noun to
+        `object` on 2026-11-12 made it match and the assertion fail. Dropped rather than
+        rewritten - that this row counts its own control and not a group total is
+        `test_every_row_counts_exactly_the_control_it_names`, which measures it.
         """
         rows = list(self.summary_of_findings().iter(w("tr")))[1:]
 
@@ -990,9 +1024,20 @@ class ContentTests(_SeededEstate):
         self.assertTrue(findings)
         for cell in findings:
             with self.subTest(cell):
-                self.assertNotIn("places to edit", cell)
                 self.assertIsNone(re.search(r"[A-Z]{2,4}-[A-Z]{2,5}-\d{3}", cell))
                 self.assertRegex(cell, r"^.+[\d,]+ findings?( ,|,)? ?.*$")
+
+    def test_the_methodology_interviews_key_stakeholders(self):
+        """Jason, 2026-11-12: *"Please correct that to 'Conduct on-site interviews with key
+        stakeholders to ensure...'"* The template's own Approach/Methodology said `client key
+        players` and both bullets carried it over verbatim. A client-facing phrase somebody
+        corrected by hand is worth a test, because the next person to reach for the template's
+        wording will find the correction rather than reinstate it."""
+        text = all_text(self.built())
+
+        self.assertIn("Conduct on-site interviews with key stakeholders", text)
+        self.assertIn("together with key stakeholders", text)
+        self.assertNotIn("key players", text)
 
     def test_every_row_counts_exactly_the_control_it_names(self):
         """The defect this table was rebuilt for. A row named after one control carried the
@@ -1371,7 +1416,7 @@ class ControlDetailTests(_SeededEstate):
         # "1 finding on 1 login banners" was the first version of this line.
         self.assertEqual(findings, objects, "a finding is one control failing on one object")
         self.assertRegex(lines[control.name]["Findings"],
-                         rf"^{findings} finding(s)?(, \d+ places? to edit)?$")
+                         rf"^{findings} finding(s)?(, \d+ objects?)?$")
         self.assertEqual(lines[control.name]["Severity"], "Low")
 
     def test_the_blocks_run_worst_first(self):
@@ -1462,8 +1507,8 @@ class SummaryRowTests(SimpleTestCase):
 
         cells = [[_text_of_cell(cell) for cell in row] for row in rows]
         self.assertEqual([cell[3] for cell in cells], ["Critical", "Medium"])
-        self.assertIn("1 finding, 1 place to edit", cells[0][1])
-        self.assertIn("10,000 findings, 10,000 places to edit", cells[1][1])
+        self.assertIn("1 finding, 1 object", cells[0][1])
+        self.assertIn("10,000 findings, 10,000 objects", cells[1][1])
 
     def test_the_recommendation_repeats_on_each_of_a_controls_rows(self):
         """Jason, 2026-11-09, asked which way and answered it: *"leave it"*. 61 of the lab's
@@ -1505,7 +1550,7 @@ class DetailPhraseTests(SimpleTestCase):
         number I'm looking for."* The first version printed the findings count beside the count
         of objects the findings are ABOUT, which is the same number by construction."""
         self.assertEqual(health_check.findings_phrase(self.detail()),
-                         "4 findings, 4 places to edit")
+                         "4 findings, 4 objects")
 
     def test_one_edit_clearing_many_findings_is_the_point_of_the_line(self):
         """Measured on the lab: PAN-VLN-003 raised 1,067 findings, one per rule, and all of
@@ -1513,13 +1558,13 @@ class DetailPhraseTests(SimpleTestCase):
         detail = self.detail(findings=1_067, objects=1_067, places=16)
 
         self.assertEqual(health_check.findings_phrase(detail),
-                         "1,067 findings, 16 places to edit")
+                         "1,067 findings, 16 objects")
 
     def test_one_of_each_is_singular_twice(self):
         detail = self.detail(findings=1, objects=1, places=1)
 
         self.assertEqual(health_check.findings_phrase(detail),
-                         "1 finding, 1 place to edit")
+                         "1 finding, 1 object")
 
     def test_a_control_the_remediation_surface_has_no_row_for_says_only_the_findings(self):
         """8 of the lab's 264 blocks - the ones whose subject is the review rather than the
@@ -1537,7 +1582,7 @@ class DetailPhraseTests(SimpleTestCase):
                              object_nouns=(kind.client_plural, kind.client_singular))
 
         self.assertEqual(health_check.findings_phrase(detail),
-                         "14 findings, 12 places to edit")
+                         "14 findings, 12 objects")
 
     def test_what_was_matched_is_the_querys_own_sentence(self):
         """`ControlQuery.short_description` is written for a reader, so the block prints it
@@ -1606,7 +1651,7 @@ class NumberTests(SimpleTestCase):
     """How a count is printed, which on this estate is a five-figure number."""
 
     def test_a_count_is_grouped_at_the_thousand(self):
-        """The first lab build printed "4647 findings across 1083 places to edit". A client
+        """The first lab build printed "4647 findings across 1083 objects". A client
         reading a serial number in place of a count is a presentation defect in the one sentence
         the Summary of Findings leads with.
         """
