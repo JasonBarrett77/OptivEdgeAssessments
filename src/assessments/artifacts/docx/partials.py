@@ -341,9 +341,7 @@ def table_of_contents(elements: list) -> int:
     """
     index = _toc_index(elements)
     entries, appendices = [], 0
-    for element in elements:
-        if element.tag != qn("w:p"):
-            continue
+    for element in _every_paragraph(elements):
         style = _style_of(element)
         level = HEADING_LEVELS.get(style)
         if level is None:
@@ -364,6 +362,23 @@ def table_of_contents(elements: list) -> int:
     _carry_field_runs(elements[index], entries[0], entries[-1])
     elements[index:index + 1] = entries
     return len(entries)
+
+
+def _every_paragraph(elements: list):
+    """Every paragraph in the document in reading order, INCLUDING THE ONES INSIDE A TABLE.
+
+    The contents used to read the top level only, which was right while every heading stood on
+    its own. A control detail block now carries its heading in the first row of its own table -
+    see `health_check.control_detail_rows` - and a heading the contents cannot see is a section
+    missing from the contents. Word's own `TOC` field collects a heading wherever it stands,
+    so reading the top level only would also have made our contents disagree with the one Word
+    builds on Update Field.
+    """
+    for element in elements:
+        if element.tag == qn("w:p"):
+            yield element
+        elif element.tag == qn("w:tbl"):
+            yield from element.iter(qn("w:p"))
 
 
 def _toc_index(elements: list) -> int:
@@ -517,11 +532,25 @@ def rating_cell(severity: str | None, label: str, *, width=None) -> Cell:
                 width=width, valign="center")
 
 
-def table(rows, grid, *, style: str = TABLE_STYLE, width=(5000, "pct")):
+def table(rows, grid, *, style: str = TABLE_STYLE, width=(5000, "pct"),
+          keep_together: bool = False):
     """A `<w:tbl>` of `Cell` rows over `grid` (the template's own `<w:gridCol>` widths).
 
     The first row gets `tblHeader`, so it repeats after a page break - see the module docstring.
+
+    `keep_together` HOLDS THE WHOLE TABLE ON ONE PAGE. Jason, 2026-11-13: *"a table should be
+    fully contained on a page. In other words, no page breaks inside a table."* The table style
+    already carries `w:cantSplit`, which keeps one ROW off two pages and says nothing about the
+    table; Word has no "keep this table together" setting, and the way to ask for one is
+    `w:keepNext` on every paragraph except the last row's - each row then has to stay with the
+    row below it, so the whole table moves to the next page rather than breaking. See
+    `_keep_with_next`.
+
+    PASS IT ONLY FOR A TABLE THAT FITS ON A PAGE. A table taller than the text area still
+    breaks - Word has nowhere else to put it - so asking for this on the Summary of Findings
+    table, which runs to 263 rows, would buy a page break before it and nothing else.
     """
+    rows = list(rows)
     element = OxmlElement("w:tbl")
     properties = OxmlElement("w:tblPr")
     style_element = OxmlElement("w:tblStyle")
@@ -552,8 +581,30 @@ def table(rows, grid, *, style: str = TABLE_STYLE, width=(5000, "pct")):
     element.append(grid_element)
 
     for index, cells in enumerate(rows):
-        element.append(_row(cells, header=index == 0))
+        row = _row(cells, header=index == 0)
+        if keep_together and index < len(rows) - 1:
+            _keep_with_next(row)
+        element.append(row)
     return element
+
+
+def _keep_with_next(row) -> None:
+    """`w:keepNext` on every paragraph in one table row, so the row cannot be the last on a page.
+
+    IN SCHEMA ORDER, which for `w:pPr` means directly after `w:pStyle` and before the spacing
+    and `w:rPr` that `paragraph` writes - out of order, Word reports unreadable content rather
+    than ignoring it, the same class of defect as a `w:rStyle` written after `w:rFonts`.
+    """
+    for element in row.iter(qn("w:p")):
+        properties = element.find(qn("w:pPr"))
+        if properties is None:
+            properties = OxmlElement("w:pPr")
+            element.insert(0, properties)
+        if properties.find(qn("w:keepNext")) is not None:
+            continue
+        style = properties.find(qn("w:pStyle"))
+        index = list(properties).index(style) + 1 if style is not None else 0
+        properties.insert(index, OxmlElement("w:keepNext"))
 
 
 def _row(cells, *, header: bool):

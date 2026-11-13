@@ -116,6 +116,19 @@ DETAIL_WIDTHS = ((1800, "dxa"), (8424, "dxa"))
 #: and these widths are about where the text and the chip sit rather than about any line.
 DETAIL_PAIR_WIDTHS = ((1800, "dxa"), (5007, "dxa"), (1440, "dxa"), (1977, "dxa"))
 
+#: THE FILL BEHIND THE CONTROL'S NAME, at the top of its own table. Jason, 2026-11-13:
+#: *"Include the control name in the table as a subtle header strip so that the control name
+#: and its table appear more cohesive."* The name was a `Heading3` standing above the table,
+#: which read as two things on the page - a line of text, and a table that did not say what it
+#: was about - and a table that cannot split across pages (see `_write_blocks`) is a block a
+#: reader meets whole, so it has to carry its own title.
+#:
+#: `CCCCCC` IS THE TEMPLATE'S OWN GREY, `accent5`: the colour `OptivLightGreyBorders` already
+#: fills its last row with and draws its borders in. Subtle was the word, so this is a band
+#: rather than the charcoal `Optiv (Dark Grey Header Row)` paints a header row with - a page of
+#: 263 charcoal bars is a different document.
+DETAIL_STRIP_FILL = ("CCCCCC", "accent5")
+
 #: Severities worst-first, for ordering anything a reader scans.
 WORST_FIRST = sorted(Control.Severity.values, key=lambda value: SEVERITY_RANK[value],
                      reverse=True)
@@ -793,6 +806,27 @@ def split_coverage(detail: list) -> tuple[list, list]:
             [one for one in detail if one.subject == COVERAGE_SUBJECT])
 
 
+def _control_strip(detail: ControlDetail):
+    """The control's name, as the first row of its own table rather than a heading above it.
+
+    IT IS STILL A REAL HEADING - `Heading3`, outline level 2 - so it is a line in the table of
+    contents, a stop in Word's navigation pane, and the thing Update Field collects when a
+    consultant rebuilds the contents. `partials.table_of_contents` reads paragraphs inside
+    tables for exactly this reason. What changed is where it sits, not what it is.
+
+    IT CARRIES THE BOOKMARK, so every row of the Summary of Findings table still links here -
+    a bookmark in a table cell is a landing place like any other. The anchor is the detail's
+    own, so the link and the bookmark cannot drift apart.
+
+    TIGHT, because `Heading3` sets 280 twips above and 120 below for a heading standing in
+    running text, and inside a one-line cell that is padding around a band. The gap between one
+    block and the next is now the empty paragraph `_write_blocks` writes after each table.
+    """
+    title = p.paragraph(p.HEADING_3, detail.control.name, tight=True)
+    p.bookmark(title, detail.anchor, int(detail.anchor.removeprefix("_Ref")))
+    return p.Cell(paragraphs=[title], width=FIXED_WIDTH, span=4, shading=DETAIL_STRIP_FILL)
+
+
 def control_detail_rows(detail: ControlDetail) -> list:
     """`Control ID` and `Risk Rating` on one row, then the five rows of the case - see
     `DETAIL_LINES` for every label and why it is the word it is.
@@ -818,7 +852,8 @@ def control_detail_rows(detail: ControlDetail) -> list:
     counts it into the build's report.
     """
     catalog = dict(DETAIL_LINES)
-    rows = [[p.text_cell("Control ID", width=DETAIL_PAIR_WIDTHS[0], style=p.TABLE_HEADING),
+    rows = [[_control_strip(detail)],
+            [p.text_cell("Control ID", width=DETAIL_PAIR_WIDTHS[0], style=p.TABLE_HEADING),
              p.text_cell(detail.control.control_id, width=DETAIL_PAIR_WIDTHS[1]),
              p.text_cell("Risk Rating", width=DETAIL_PAIR_WIDTHS[2], style=p.TABLE_HEADING),
              p.rating_cell(detail.severity, Control.Severity(detail.severity).label,
@@ -962,16 +997,22 @@ def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
             grade = one.severity
             elements.append(p.paragraph(p.HEADING_2,
                                         Control.Severity(grade).label))
-        title = p.paragraph(p.HEADING_3, one.control.name)
-        p.bookmark(title, one.anchor, int(one.anchor.removeprefix("_Ref")))
-        elements.append(title)
-        elements.append(p.table(control_detail_rows(one), DETAIL_GRID, width=FIXED_WIDTH))
-        # NOTHING AFTER THE TABLE. The block was a table, an empty paragraph and a line of
-        # prose carrying the screen path, and that line is now the `Remediation` cell's first
-        # paragraph - so neither the spacer nor the prose is left. `Heading3` sets
-        # `before=280` and `keepNext`, which is what separates one block from the next and
-        # what keeps a heading with its table, so the empty paragraph was buying nothing but
-        # a line of height on each of 264 blocks.
+        # THE BLOCK IS ONE TABLE, title and all - `_control_strip` is its first row, and the
+        # `Heading3` that used to stand above the table is that row's paragraph. Jason,
+        # 2026-11-13: *"Include the control name in the table as a subtle header strip so that
+        # the control name and its table appear more cohesive."*
+        #
+        # `keep_together` IS THE OTHER HALF OF THE SAME REQUEST: *"a table should be fully
+        # contained on a page. In other words, no page breaks inside a table."* These tables
+        # are eight rows and fit, which is the condition `partials.table` names for asking.
+        elements.append(p.table(control_detail_rows(one), DETAIL_GRID, width=FIXED_WIDTH,
+                                keep_together=True))
+        # AND ONE EMPTY PARAGRAPH AFTER IT, which is what now separates one block from the
+        # next. The gap used to come from `Heading3`'s own `before=280`, and that heading is
+        # inside the table now with its spacing turned off; without this the tables would
+        # stack edge to edge. It is also what gives Word somewhere to put the cursor between
+        # two tables, which a consultant editing the document needs.
+        elements.append(p.paragraph(p.NORMAL, ""))
         unwritten += sum(1 for line, _label in DETAIL_LINES
                          if not getattr(one.control, line))
         unwritten += 0 if one.control.where_to_confirm else 1

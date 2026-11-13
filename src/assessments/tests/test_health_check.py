@@ -1287,13 +1287,16 @@ def control_detail_blocks(content: bytes) -> list:
             elif style == partials.HEADING_2:
                 close()
                 subject, control, lines, trailing = body_text, None, {}, []
-            elif style == partials.HEADING_3:
-                close()
-                control, lines, trailing = body_text, {}, []
             elif control is not None and body_text:
                 trailing.append(body_text)
-        elif tag == "tbl" and inside and control is not None:
-            for row in element.findall(w("tr")):
+        elif tag == "tbl" and inside:
+            rows = element.findall(w("tr"))
+            # THE CONTROL'S NAME IS THE TABLE'S FIRST ROW NOW - one cell spanning the grid,
+            # carrying the `Heading3` that used to stand above the table. A block opens where
+            # that row does, so the parser reads the strip rather than a body heading.
+            close()
+            control, lines, trailing = _text(rows[0].findall(w("tc"))[0]).strip(), {}, []
+            for row in rows[1:]:
                 # PARAGRAPH BY PARAGRAPH, not `_text` over the cell: the `Remediation` cell
                 # holds the screen path and then the sentence, and joining their runs with
                 # nothing between them would read "...Login Banner.Confirm a banner...".
@@ -1418,9 +1421,12 @@ class ControlDetailTests(_SeededEstate):
         self.assertEqual(lines["Risk"], control.why_it_matters)
         self.assertIn(control.what_to_change, lines["Remediation"])
 
-    def test_the_id_and_the_severity_share_the_first_row(self):
+    def test_the_id_and_the_severity_share_a_row(self):
         """Jason, 2026-11-06: *"Control id and severity can probably be on the same row."* Two
-        label-and-value pairs on one row, and every row under it one label and one value."""
+        label-and-value pairs on one row, and every row under it one label and one value.
+
+        IT IS THE SECOND ROW from 2026-11-13, the control's own name having become the first.
+        """
         body = document_xml(self.with_detail()).find(w("body"))
         tables = [table for table in body.iter(w("tbl"))
                   if tuple(int(column.get(w("w")))
@@ -1430,9 +1436,9 @@ class ControlDetailTests(_SeededEstate):
         self.assertTrue(tables)
         for table in tables:
             rows = table.findall(w("tr"))
-            first = [_text(cell) for cell in rows[0].findall(w("tc"))]
-            self.assertEqual([first[0], first[2]], ["Control ID", "Risk Rating"])
-            for row in rows[1:]:
+            pair = [_text(cell) for cell in rows[1].findall(w("tc"))]
+            self.assertEqual([pair[0], pair[2]], ["Control ID", "Risk Rating"])
+            for row in rows[2:]:
                 self.assertEqual(len(row.findall(w("tc"))), 2)
 
     def detail_tables(self, document: bytes) -> list:
@@ -1445,12 +1451,91 @@ class ControlDetailTests(_SeededEstate):
         self.assertTrue(tables, "the document has no control detail table")
         return tables
 
+    def test_the_control_name_is_the_tables_own_header_strip(self):
+        """Jason, 2026-11-13: *"Include the control name in the table as a subtle header strip
+        so that the control name and its table appear more cohesive."* One cell across the
+        whole grid, filled in the template's own grey, and the name was a heading standing
+        above the table until this."""
+        for table in self.detail_tables(self.with_detail()):
+            strip = table.findall(w("tr"))[0].findall(w("tc"))
+            self.assertEqual(len(strip), 1, "the strip is one cell across the table")
+
+            properties = strip[0].find(w("tcPr"))
+            self.assertEqual(properties.find(w("gridSpan")).get(w("val")),
+                             str(len(health_check.DETAIL_GRID)))
+            shading = properties.find(w("shd"))
+            self.assertEqual((shading.get(w("fill")), shading.get(w("themeFill"))),
+                             health_check.DETAIL_STRIP_FILL)
+            self.assertEqual(strip[0].find(w("tcPr")).find(w("tcW")).get(w("w")),
+                             str(health_check.FIXED_WIDTH[0]))
+
+    def test_the_strip_is_still_a_real_heading_and_still_the_link_target(self):
+        """Jason, 2026-11-06, chose real headings over a shaded band so both would reach the
+        table of contents and Word's navigation pane. The band is what he asked for on
+        2026-11-13, and this is the half of the earlier answer that has to survive it: the
+        strip's paragraph is `Heading3`, it carries the bookmark, and the contents names it."""
+        document = self.with_detail()
+        body = document_xml(document).find(w("body"))
+        entries = {_text(entry) for entry in contents_entries(body)}
+        anchors = {link.get(w("anchor")) for link in body.iter(w("hyperlink"))
+                   if (link.get(w("anchor")) or "").startswith("_Ref")}
+
+        for table in self.detail_tables(document):
+            strip = table.findall(w("tr"))[0].find(w("tc"))
+            title = strip.find(w("p"))
+            with self.subTest(_text(title)):
+                self.assertEqual(style_of(title), partials.HEADING_3)
+                # TWO BOOKMARKS ON ONE PARAGRAPH: the `_Ref` the summary's row links to, and
+                # the `_Toc` the contents line links to, which `table_of_contents` adds after.
+                bookmarks = {node.get(w("name")) for node in title.findall(w("bookmarkStart"))}
+                self.assertTrue(bookmarks & anchors, "the summary's link lands on the strip")
+                self.assertIn(_text(title), entries)
+
+    def test_a_detail_table_cannot_break_across_a_page(self):
+        """Jason, 2026-11-13: *"a table should be fully contained on a page. In other words, no
+        page breaks inside a table."* Word has no setting for a whole table, so every row but
+        the last has to be kept with the row below it - `w:keepNext` on each of its paragraphs.
+        The last row carries none: with one there, the table would drag the paragraph after it
+        onto its own page."""
+        for table in self.detail_tables(self.with_detail()):
+            rows = table.findall(w("tr"))
+            for row in rows[:-1]:
+                for paragraph in row.iter(w("p")):
+                    with self.subTest(_text(paragraph)):
+                        self.assertIsNotNone(paragraph.find(w("pPr")).find(w("keepNext")))
+            for paragraph in rows[-1].iter(w("p")):
+                self.assertIsNone(paragraph.find(w("pPr")).find(w("keepNext")))
+
+    def test_the_name_is_printed_once_and_the_blocks_do_not_touch(self):
+        """The strip REPLACED the heading rather than repeating it - a name printed twice, once
+        above the table and once inside it, is the opposite of the one thing it was for. And
+        the gap the heading's own `before` spacing used to open between two blocks is now an
+        empty paragraph after each table, or they would stack edge to edge."""
+        body = document_xml(self.with_detail()).find(w("body"))
+        children = list(body)
+        detail = [index for index, child in enumerate(children) if child.tag == w("tbl")
+                  and tuple(int(column.get(w("w")))
+                            for column in child.find(w("tblGrid")).findall(w("gridCol")))
+                  == health_check.DETAIL_GRID]
+        names = {_text(children[index].findall(w("tr"))[0].find(w("tc")).find(w("p")))
+                 for index in detail}
+
+        headings = [_text(paragraph) for paragraph in body.findall(w("p"))
+                    if style_of(paragraph) == partials.HEADING_3]
+        self.assertEqual([name for name in headings if name in names], [])
+
+        self.assertTrue(detail)
+        for index in detail:
+            after = children[index + 1]
+            self.assertEqual(after.tag, w("p"), "a block ends in the gap before the next")
+            self.assertEqual(_text(after), "")
+
     def test_the_grade_is_the_templates_own_coloured_chip(self):
         """The same cell the Summary of Findings table carries, in the same style and at the
         same width. The grade used to be plain 9pt text here, so a reader who followed a
         summary row's link from a red chip arrived at a block that looked like every other."""
         for table in self.detail_tables(self.with_detail()):
-            cells = table.findall(w("tr"))[0].findall(w("tc"))
+            cells = table.findall(w("tr"))[1].findall(w("tc"))
             grade = cells[3].find(w("p")).find(w("pPr")).find(w("pStyle")).get(w("val"))
             label = _text(cells[3])
 
@@ -1467,8 +1552,8 @@ class ControlDetailTests(_SeededEstate):
         were a hand-bolded run of the same 9pt style as the values beside them."""
         for table in self.detail_tables(self.with_detail()):
             rows = table.findall(w("tr"))
-            labels = [rows[0].findall(w("tc"))[0], rows[0].findall(w("tc"))[2]]
-            labels += [row.findall(w("tc"))[0] for row in rows[1:]]
+            labels = [rows[1].findall(w("tc"))[0], rows[1].findall(w("tc"))[2]]
+            labels += [row.findall(w("tc"))[0] for row in rows[2:]]
 
             for cell in labels:
                 with self.subTest(_text(cell)):
@@ -1506,9 +1591,9 @@ class ControlDetailTests(_SeededEstate):
         backwards. It reads as a case now."""
         for table in self.detail_tables(self.with_detail()):
             rows = table.findall(w("tr"))
-            first = [_text(cell) for cell in rows[0].findall(w("tc"))]
-            labels = [first[0], first[2]] + [_text(row.findall(w("tc"))[0])
-                                             for row in rows[1:]]
+            pair = [_text(cell) for cell in rows[1].findall(w("tc"))]
+            labels = [pair[0], pair[2]] + [_text(row.findall(w("tc"))[0])
+                                           for row in rows[2:]]
 
             self.assertEqual(labels, ["Control ID", "Risk Rating", "Requirement", "Evidence",
                                       "Occurrences", "Affected Devices", "Risk",
