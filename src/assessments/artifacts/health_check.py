@@ -577,15 +577,15 @@ DETAIL_LINES = (
     ("what_to_change", "Remediation"),
 )
 
-#: The bold lead on the `Remediation` cell's first paragraph - the screen path to the setting.
+#: THE SCREEN PATH IS NO LONGER PRINTED HERE. `Control.where_to_confirm` - `Device > Server
+#: Profiles > LDAP` - was a paragraph of prose under the table, then, from 2026-11-12, the
+#: bold first line of the `Remediation` cell. Jason, 2026-11-16: *"Remove the 'Where to
+#: confirm' section entirely, leaving only the remediation wording."* The `Remediation` cell
+#: is now the catalogue's `what_to_change` sentence and nothing else.
 #:
-#: IT WAS A PARAGRAPH OF PROSE UNDER THE TABLE until Jason, 2026-11-12: *"what about making
-#: 'Where to confirm it' the first line in Remediation?"* It is the one line of the five that
-#: carries a screen path - `Device > Server Profiles > LDAP` - which is why it was written as
-#: prose rather than as a row, and as the first line of the remediation it is doing the job a
-#: path does: telling an engineer where to go before telling them what to change there. The
-#: block is now one table and nothing else.
-WHERE_TO_CONFIRM_LEAD = "Where to confirm it."
+#: THE FIELD IS UNTOUCHED. It is still on the control, still written through the catalogue,
+#: and still read by the remediation pages; only this document stopped printing it - which is
+#: also why a control without one is no longer counted as a line somebody has to write.
 
 
 @dataclass(frozen=True)
@@ -864,12 +864,10 @@ def control_detail_rows(detail: ControlDetail) -> list:
         ("Occurrences", findings_phrase(detail)),
         ("Affected Devices", firewalls_phrase(detail)),
         (catalog["why_it_matters"], _catalog_line(detail, "why_it_matters")),
+        (catalog["what_to_change"], _catalog_line(detail, "what_to_change")),
     ]
     rows += [[p.text_cell(label, width=DETAIL_WIDTHS[0], style=p.TABLE_HEADING),
               _detail_value(value)] for label, value in lines]
-    rows.append([p.text_cell(catalog["what_to_change"], width=DETAIL_WIDTHS[0],
-                             style=p.TABLE_HEADING),
-                 _remediation_value(detail)])
     return rows
 
 
@@ -877,22 +875,6 @@ def _catalog_line(detail: ControlDetail, name: str) -> str:
     """One of the catalogue's own lines, or the placeholder that names who has to write it."""
     return getattr(detail.control, name) or detail_placeholder(name,
                                                                detail.control.control_id)
-
-
-def _remediation_value(detail: ControlDetail):
-    """The `Remediation` cell: the screen path first, then what to change there.
-
-    TWO PARAGRAPHS IN ONE CELL, which is the shape the template's own cells use for anything
-    longer than a phrase. The first opens with a bold lead - see `WHERE_TO_CONFIRM_LEAD` - and
-    the second is the catalogue's `what_to_change` sentence.
-    """
-    cell = p.Cell(paragraphs=[
-        p.lead_paragraph(p.TABLE_TEXT, WHERE_TO_CONFIRM_LEAD,
-                         _catalog_line(detail, "where_to_confirm")),
-        p.paragraph(p.TABLE_TEXT, _catalog_line(detail, "what_to_change"))],
-        width=DETAIL_WIDTHS[1])
-    cell.span = 3
-    return cell
 
 
 def _detail_value(text: str):
@@ -1015,7 +997,6 @@ def _write_blocks(elements: list, detail: list, *, heading: bool) -> int:
         elements.append(p.paragraph(p.NORMAL, ""))
         unwritten += sum(1 for line, _label in DETAIL_LINES
                          if not getattr(one.control, line))
-        unwritten += 0 if one.control.where_to_confirm else 1
         unwritten += 0 if one.matched else 1
     return unwritten
 

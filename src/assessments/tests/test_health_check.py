@@ -1569,19 +1569,19 @@ class ControlDetailTests(_SeededEstate):
                          health_check.FIXED_WIDTH[0])
         self.assertEqual(health_check.DETAIL_GRID[3], health_check.SUMMARY_GRID[3])
 
-    def test_where_to_confirm_opens_the_remediation_cell(self):
-        """Jason, 2026-11-12: *"what about making 'Where to confirm it' the first line in
-        Remediation?"* It was a paragraph of prose under the table, which is where the
-        2026-11-06 mock-up left it. The block is now one table and nothing else: no spacer
-        paragraph, no trailing prose."""
+    def test_the_remediation_cell_is_the_remediation_and_nothing_else(self):
+        """Jason, 2026-11-16: *"Remove the 'Where to confirm' section entirely, leaving only
+        the remediation wording."* The screen path - `Device > Server Profiles > LDAP` - was a
+        paragraph of prose under the table from the 2026-11-06 mock-up, then the cell's bold
+        first line from 2026-11-12. It is not printed at all now, and the field it came from is
+        untouched on the control."""
         blocks = control_detail_blocks(self.with_detail())
         lines = {control: block for _subject, control, block, _after in blocks}
         control = Control.objects.get(control_id="PAN-MGT-007")
 
-        remediation = lines[control.name]["Remediation"]
-        self.assertTrue(remediation.startswith(
-            f"{health_check.WHERE_TO_CONFIRM_LEAD} {control.where_to_confirm}"))
-        self.assertTrue(remediation.endswith(control.what_to_change))
+        self.assertEqual(lines[control.name]["Remediation"], control.what_to_change)
+        self.assertTrue(control.where_to_confirm, "the control still carries the path")
+        self.assertNotIn(control.where_to_confirm, all_text(self.with_detail()))
         for _subject, _control, _lines, after in blocks:
             self.assertEqual(after, [], "a block carries nothing after its table")
 
@@ -1645,13 +1645,13 @@ class ControlDetailTests(_SeededEstate):
         control somebody added through the UI - and an empty cell under a client's heading is
         worse than a placeholder saying who has to write it."""
         Control.objects.filter(control_id="PAN-MGT-007").update(
-            what_it_checks="", where_to_confirm="")
+            what_it_checks="", what_to_change="")
 
         content, reports = build_health_check_document(today=dt.date(2026, 11, 5))
 
         text = all_text(content)
         self.assertIn("[MANUAL: write the what it checks line for PAN-MGT-007", text)
-        self.assertIn("[MANUAL: write the where to confirm line for PAN-MGT-007", text)
+        self.assertIn("[MANUAL: write the what to change line for PAN-MGT-007", text)
         self.assertTrue(any("2 lines marked MANUAL" in line for line in reports))
 
     def test_the_section_reports_itself_and_its_tables_keep_the_contract(self):
