@@ -117,7 +117,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "RADIUS profiles below the preferred protocol.",
+              "short_description": "The RADIUS server profile authenticates with PAP or CHAP, neither of which protects the password the way the preferred protocol does.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -153,7 +153,7 @@
             },
             {
               "name": "Meets the minimum, misses the target",
-              "short_description": "CHAP - the corpus minimum, not its preferred.",
+              "short_description": "The protocol is CHAP: it protects the password in transit, and is weaker than the preferred protocol.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -179,7 +179,7 @@
             },
             {
               "name": "The password is protected by nothing but the shared secret",
-              "short_description": "PAP - the password is recoverable by anyone holding the shared secret.",
+              "short_description": "The protocol is PAP, so the password is recoverable by anyone holding the shared secret.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -205,7 +205,7 @@
             },
             {
               "name": "This profile states no authentication protocol",
-              "short_description": "RADIUS profiles storing no protocol at all - a staged or half-written entry.",
+              "short_description": "The profile states no authentication protocol at all, which is a staged or half-written entry.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -539,7 +539,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Administrator-bound sequences with a local-database or none member.",
+              "short_description": "An administrator-bound authentication sequence includes a local-database member, or one that authenticates nobody.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSequence",
                 "operator": "and",
@@ -565,7 +565,7 @@
             },
             {
               "name": "The fallback admits without a credential at all",
-              "short_description": "Administrator-bound sequences whose weakest member performs no authentication.",
+              "short_description": "The weakest member of this administrator-bound sequence performs no authentication at all.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSequence",
                 "operator": "and",
@@ -591,7 +591,7 @@
             },
             {
               "name": "The fallback is a credential the firewall itself holds",
-              "short_description": "Administrator-bound sequences whose weakest member is the local database.",
+              "short_description": "The weakest member of this administrator-bound sequence is the firewall's own local database.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSequence",
                 "operator": "and",
@@ -617,7 +617,7 @@
             },
             {
               "name": "A member names no profile on this appliance",
-              "short_description": "Administrator-bound sequences with a member that resolves to no profile.",
+              "short_description": "A member of this administrator-bound sequence names a profile that does not exist on this appliance.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSequence",
                 "operator": "and",
@@ -643,7 +643,7 @@
             },
             {
               "name": "An administrator-facing sequence tries nothing",
-              "short_description": "Administrator-bound sequences with no members at all.",
+              "short_description": "This administrator-bound sequence has no members at all, so it tries nothing.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSequence",
                 "operator": "and",
@@ -1453,7 +1453,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall allows at least one administrator login after the password has expired.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1474,7 +1474,7 @@
             },
             {
               "name": "Severity: one grace login",
-              "short_description": "a single login after expiry — reported low.",
+              "short_description": "One login is permitted after the password has expired.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1495,7 +1495,7 @@
             },
             {
               "name": "Grace logins after expiry were never read",
-              "short_description": "The post-expiry login allowance was absent from the configuration.",
+              "short_description": "The post-expiry login allowance is absent from the configuration, so how many logins are permitted after a password expires is not known.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1536,7 +1536,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "An expired administrator password keeps working for a grace period after its expiry date.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1557,7 +1557,7 @@
             },
             {
               "name": "Severity: 1 to 7",
-              "short_description": "days of grace after expiry 1 to 7 — reported low.",
+              "short_description": "An expired password keeps working for one to seven days after its expiry date.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -1583,7 +1583,7 @@
             },
             {
               "name": "Grace period after expiry was never read",
-              "short_description": "The post-expiry grace period was absent from the configuration.",
+              "short_description": "The post-expiry grace period is absent from the configuration, so how long an expired password keeps working is not known.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1877,7 +1877,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Lockout disabled, or a limit looser than 3 attempts.",
+              "short_description": "Lockout is switched off, or set above the three consecutive failures the standard allows.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -1914,7 +1914,7 @@
             },
             {
               "name": "Severity: 4 to 5",
-              "short_description": "failed attempts before lockout 4 to 5 — reported low.",
+              "short_description": "Lockout is set at four or five failed attempts, against a standard of three.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -1951,7 +1951,7 @@
             },
             {
               "name": "Severity: 6 to 10",
-              "short_description": "failed attempts before lockout 6 to 10 — reported medium.",
+              "short_description": "Lockout is set at six to ten failed attempts, against a standard of three.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -2170,7 +2170,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "More than two superusers on this appliance.",
+              "short_description": "More than two accounts on this appliance hold the full-privilege superuser role.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
                 "operator": "and",
@@ -2196,7 +2196,7 @@
             },
             {
               "name": "Severity: 3 to 5",
-              "short_description": "superuser accounts 3 to 5 — reported low.",
+              "short_description": "Three to five accounts hold the full-privilege superuser role.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
                 "operator": "and",
@@ -2227,7 +2227,7 @@
             },
             {
               "name": "Severity: 6 to 10",
-              "short_description": "superuser accounts 6 to 10 — reported medium.",
+              "short_description": "Six to ten accounts hold the full-privilege superuser role.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
                 "operator": "and",
@@ -2258,7 +2258,7 @@
             },
             {
               "name": "Superuser roster is configuration alone",
-              "short_description": "No operational roster read was reconciled, so this count is a floor.",
+              "short_description": "The count comes from the configuration alone: no operational roster was read, so it is a floor rather than the number of accounts that exist.",
               "canonical_query": {
                 "model": "integrations.AdminUser",
                 "operator": "and",
@@ -3251,7 +3251,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "A data-plane interface permits an administrative service, so firewall administration is reachable from the traffic side.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "or",
@@ -3282,7 +3282,7 @@
             },
             {
               "name": "Data-plane surface permitting telnet",
-              "short_description": "An unencrypted command-line login reachable from the traffic side.",
+              "short_description": "An unencrypted command-line login is reachable from the traffic side.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3313,7 +3313,7 @@
             },
             {
               "name": "Data-plane surface permitting http",
-              "short_description": "An unencrypted web administration session reachable from the traffic side.",
+              "short_description": "An unencrypted web administration session is reachable from the traffic side.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3344,7 +3344,7 @@
             },
             {
               "name": "Data-plane surface permitting ssh",
-              "short_description": "A full administrative command-line login reachable from the traffic side.",
+              "short_description": "A full administrative command-line login is reachable from the traffic side.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3375,7 +3375,7 @@
             },
             {
               "name": "Data-plane surface permitting https",
-              "short_description": "A full administrative web session reachable from the traffic side.",
+              "short_description": "A full administrative web session is reachable from the traffic side.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3406,7 +3406,7 @@
             },
             {
               "name": "Data-plane surface permitting snmp",
-              "short_description": "Read access to the device's statistics from the traffic side, which is the one administrative service the vendor's own groupings do not place with the other four.",
+              "short_description": "Read access to the device's statistics is reachable from the traffic side. This is the one administrative service the vendor's own groupings do not place with the other four.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3852,7 +3852,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Profiles bound to no interface.",
+              "short_description": "This interface management profile is bound to no interface.",
               "canonical_query": {
                 "model": "integrations.InterfaceManagementProfile",
                 "operator": "or",
@@ -3873,7 +3873,7 @@
             },
             {
               "name": "Unused definition that would permit unencrypted administrative login",
-              "short_description": "Attaching this definition would permit an unencrypted administrative login in one action, which is the exposure PAN-MGT-001 and PAN-MGT-002 exist to report.",
+              "short_description": "Attaching this definition would permit an unencrypted administrative login in one action.",
               "canonical_query": {
                 "model": "integrations.InterfaceManagementProfile",
                 "operator": "and",
@@ -4309,7 +4309,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Fewer than two NTP servers are configured.",
+              "short_description": "Fewer than two NTP servers are named on the firewall.",
               "canonical_query": {
                 "model": "integrations.NtpSettings",
                 "operator": "and",
@@ -4330,7 +4330,7 @@
             },
             {
               "name": "No configured time source at all",
-              "short_description": "No NTP server is configured, so there is no time source to fail over from and the clock is running on nothing but itself.",
+              "short_description": "No NTP server is named at all, so the clock has no configured source to follow and nothing to fall back on.",
               "canonical_query": {
                 "model": "integrations.NtpSettings",
                 "operator": "and",
@@ -4356,7 +4356,7 @@
             },
             {
               "name": "One configured time source and no second",
-              "short_description": "Exactly one NTP server is configured: the floor is met and the redundancy is not.",
+              "short_description": "One NTP server is named. The clock has a source and no second one to fall back on if that server stops answering.",
               "canonical_query": {
                 "model": "integrations.NtpSettings",
                 "operator": "and",
@@ -4382,7 +4382,7 @@
             },
             {
               "name": "The clock is anchored to nothing the configuration names",
-              "short_description": "`show ntp` reports no upstream source keeping the clock - or that reading was never taken, which this reports the same way on purpose.",
+              "short_description": "The firewall is not following any NTP server this configuration names: either it reported keeping its own time, or that reading was not taken.",
               "canonical_query": {
                 "model": "integrations.NtpSettings",
                 "operator": "and",
@@ -4409,7 +4409,7 @@
             },
             {
               "name": "The clock is anchored to a source the configuration does not name",
-              "short_description": "The clock is synchronised, to an address no configured slot holds.",
+              "short_description": "The clock is following an address that no configured NTP slot holds.",
               "canonical_query": {
                 "model": "integrations.NtpSettings",
                 "operator": "and",
@@ -4810,7 +4810,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A configured device uses a default community string.",
+              "short_description": "The SNMP community string is one of the vendor's published defaults.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -4836,7 +4836,7 @@
             },
             {
               "name": "Set, and a surface accepts queries",
-              "short_description": "The default community string is set and at least one management surface enables the SNMP service, so it is live now.",
+              "short_description": "The default community string is set, and at least one management surface has the SNMP service enabled, so it can be used against this firewall now.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -4868,7 +4868,7 @@
             },
             {
               "name": "Set, and reachability not established",
-              "short_description": "The default community string is set and no management surface of this appliance was walked, so nothing has shown whether anything is listening.",
+              "short_description": "The default community string is set, and no management surface on this appliance was reached, so nothing has shown whether anything answers SNMP.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -4900,7 +4900,7 @@
             },
             {
               "name": "Set, and every surface refuses",
-              "short_description": "The default community string is set and every walked surface of this appliance has the SNMP service off, so the credential is latent rather than live.",
+              "short_description": "The default community string is set, and every management surface reached on this appliance has the SNMP service switched off, so the credential is latent rather than live.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -5062,7 +5062,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The management interface is a DHCP client.",
+              "short_description": "The management interface takes its address from DHCP.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
@@ -5083,7 +5083,7 @@
             },
             {
               "name": "Leased, on an appliance no input classifies as cloud-hosted",
-              "short_description": "The management address is leased and nothing available says the appliance is a virtual one in a public cloud, so it does not receive that reduction.",
+              "short_description": "The management address is leased, and nothing identifies this appliance as a virtual one in a public cloud, where a leased address is expected.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
@@ -5110,7 +5110,7 @@
             },
             {
               "name": "Leased, on a virtual appliance in a public cloud",
-              "short_description": "The reduction stage 3 grants a cloud-hosted virtual appliance. No input in either repository classifies one, so this matches nothing until one exists.",
+              "short_description": "The management address is leased on a virtual appliance in a public cloud, where the platform assigns the address and a static value is not available.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
@@ -5540,7 +5540,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A referenced external dynamic list whose fetched content was kept only in part.",
+              "short_description": "A referenced external dynamic list was fetched and only part of its content was kept.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -5576,7 +5576,7 @@
             },
             {
               "name": "Shortfall up to two times",
-              "short_description": "The kept part already fixes the order of magnitude: worth recording, not worth alarming.",
+              "short_description": "The list holds up to twice what was kept, so the order of magnitude is right.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -5617,7 +5617,7 @@
             },
             {
               "name": "Shortfall more than ten times",
-              "short_description": "A reach computed from the kept part can sit several bands below the truth.",
+              "short_description": "The list holds more than ten times what was kept, so a rule's reach computed from the kept part can sit several bands below the truth.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -6627,7 +6627,7 @@
               "asserted_fields": [
                 "shares_full_session_info"
               ],
-              "short_description": "Appliances that withhold session context from WildFire analysis."
+              "short_description": "This appliance withholds session context from WildFire analysis."
             },
             {
               "name": "Grayware verdict reporting not switched on",
@@ -6648,7 +6648,7 @@
               "asserted_fields": [
                 "verdict_reporting_gap"
               ],
-              "short_description": "Appliances not reporting unwanted-file verdicts, with harmless-file reporting on."
+              "short_description": "Unwanted-file verdicts are not reported, and harmless-file verdicts are."
             },
             {
               "name": "Benign verdict reporting not switched on",
@@ -6669,7 +6669,7 @@
               "asserted_fields": [
                 "verdict_reporting_gap"
               ],
-              "short_description": "Appliances not reporting harmless-file verdicts, with unwanted-file reporting on."
+              "short_description": "Harmless-file verdicts are not reported, and unwanted-file verdicts are."
             },
             {
               "name": "Neither verdict reporting setting switched on",
@@ -6690,7 +6690,7 @@
               "asserted_fields": [
                 "verdict_reporting_gap"
               ],
-              "short_description": "Appliances reporting neither harmless-file nor unwanted-file verdicts."
+              "short_description": "Neither harmless-file nor unwanted-file verdicts are reported."
             }
           ],
           "implementation_version": "v2",
@@ -6717,7 +6717,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose anti-spyware profile does not sinkhole malicious DNS queries.",
+              "short_description": "The anti-spyware profile on this rule does not sinkhole malicious DNS queries.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -6749,7 +6749,7 @@
             },
             {
               "name": "Content list permits the lookup",
-              "short_description": "Rules whose anti-spyware profile permits a lookup on the Palo Alto Networks Content malicious-domain list, so nothing is blocked and nothing is logged.",
+              "short_description": "The profile permits a lookup on the vendor's malicious-domain list, so nothing is blocked and nothing is logged.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -6787,7 +6787,7 @@
             },
             {
               "name": "Content list only records the lookup",
-              "short_description": "Rules whose anti-spyware profile alerts on a lookup on the Palo Alto Networks Content malicious-domain list, so the lookup still resolves.",
+              "short_description": "The profile alerts on a lookup on the vendor's malicious-domain list, so the lookup still resolves.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -6825,7 +6825,7 @@
             },
             {
               "name": "Content list blocks without sinkholing",
-              "short_description": "Rules whose anti-spyware profile blocks a lookup on the Palo Alto Networks Content malicious-domain list but does not sinkhole it, so the infected client is never identified.",
+              "short_description": "The profile blocks a lookup on the vendor's malicious-domain list without sinkholing it, so the infected client is never identified.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -6957,14 +6957,14 @@
                   }
                 ]
               },
-              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis detector that does not block.",
+              "short_description": "The anti-spyware profile on this rule has an inline cloud-analysis detector that does not block.",
               "asserted_fields": [
                 "spyware_inline_analysis_blocks"
               ]
             },
             {
               "name": "An inline engine permits the verdict",
-              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis engine set to allow, so a malicious verdict is discarded and no log entry is written.",
+              "short_description": "An inline cloud-analysis engine is set to allow, so a malicious verdict is discarded and no log entry is written.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7002,7 +7002,7 @@
             },
             {
               "name": "An inline engine only records the verdict",
-              "short_description": "Rules whose anti-spyware profile has an inline cloud-analysis engine set to alert, so the session is delivered and a threat log is written.",
+              "short_description": "An inline cloud-analysis engine is set to alert, so the session is delivered and a threat log is written.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7312,7 +7312,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose vulnerability protection profile carries exemptions.",
+              "short_description": "The vulnerability protection profile on this rule carries exemptions.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7344,7 +7344,7 @@
             },
             {
               "name": "Exemption scoped to named addresses",
-              "short_description": "Rules whose profile's widest exemption is a per-signature exception narrowed to named addresses, so the hole has a stated edge.",
+              "short_description": "The profile's widest exemption is a per-signature exception narrowed to named addresses, so the hole has a stated edge.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7382,7 +7382,7 @@
             },
             {
               "name": "Exemption lifts every real-time detector for a population",
-              "short_description": "Rules whose profile carries an inline cloud-analysis exclusion list, so one entry exempts a whole population from every real-time exploit detector.",
+              "short_description": "The profile carries an inline cloud-analysis exclusion list, so one entry exempts a whole population from every real-time exploit detector.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7420,7 +7420,7 @@
             },
             {
               "name": "Rule never assessed for vulnerability inspection",
-              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "short_description": "This allow rule has never been assessed for vulnerability inspection, so what inspects its traffic was not established.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7760,7 +7760,7 @@
             },
             {
               "name": "Key lifetime between one day and one week",
-              "short_description": "More than 24 hours and up to 168 hours on one key.",
+              "short_description": "The key lifetime is more than 24 hours and up to 168 hours on one key.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -7794,7 +7794,7 @@
             },
             {
               "name": "Key lifetime not established",
-              "short_description": "No key lifetime was read on this profile, so no bound was applied to it.",
+              "short_description": "No key lifetime was read on this profile, so nothing bounds how long one key stays in service.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -7816,7 +7816,7 @@
             },
             {
               "name": "IKEv2 re-authentication interval not bounded",
-              "short_description": "On a profile a version-2 gateway uses, the re-authentication interval exceeds 24 hours, is switched off by a zero multiplier, or could not be computed.",
+              "short_description": "On a profile a version-2 gateway uses, the re-authentication interval is more than 24 hours, switched off by a zero multiplier, or could not be worked out.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -8362,7 +8362,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "High availability is on and the HA1 control link is not encrypted - the switch is off or absent, the runtime confirmation is missing, or no HA key is imported.",
+              "short_description": "High availability is on and the HA1 control link is not encrypted: the switch is off or absent, the runtime confirmation is missing, or no HA key is imported.",
               "canonical_query": {
                 "model": "integrations.HighAvailabilityConfig",
                 "operator": "and",
@@ -8450,7 +8450,7 @@
             },
             {
               "name": "High-availability configuration not collected",
-              "short_description": "The high-availability subtree was not collected for this appliance, so the setting was not established.",
+              "short_description": "The high-availability configuration was not collected for this appliance, so whether the control link is encrypted was not established.",
               "canonical_query": {
                 "model": "integrations.HighAvailabilityConfig",
                 "operator": "and",
@@ -8692,7 +8692,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The port is not stripped and shut down, and what it holds is a state this control ranks.",
+              "short_description": "The port is neither stripped nor administratively shut down, and it still holds something a cable could use.",
               "canonical_query": {
                 "model": "integrations.Interface",
                 "operator": "and",
@@ -8766,7 +8766,7 @@
             },
             {
               "name": "Address only",
-              "short_description": "The port holds a configured address and nothing else - routable and reachable, with no service or policy position granted.",
+              "short_description": "The port holds a configured address and nothing else: routable and reachable, with no service or policy position granted.",
               "canonical_query": {
                 "model": "integrations.Interface",
                 "operator": "and",
@@ -8890,7 +8890,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The interface transmits link-layer discovery and what it announces is a state this control ranks, so the mandatory chassis identifier and port name go out on it.",
+              "short_description": "The interface transmits link-layer discovery, so the mandatory chassis identifier and port name go out on it, along with whatever else it announces.",
               "canonical_query": {
                 "model": "integrations.Interface",
                 "operator": "and",
@@ -9009,7 +9009,7 @@
           "queries": [
             {
               "name": "Baseline - a DHCP server branch exists on this interface",
-              "short_description": "The interface carries a DHCP server configuration, in any mode, including one whose mode key is absent.",
+              "short_description": "The interface carries a DHCP server configuration, in any mode, including one whose mode is not recorded.",
               "canonical_query": {
                 "model": "integrations.PanOsDhcpInterfaceConfig",
                 "operator": "and",
@@ -9031,7 +9031,7 @@
             },
             {
               "name": "Server configured and switched off",
-              "short_description": "The server is off but fully configured - the pool, gateway and resolver are one commit from being handed out.",
+              "short_description": "The DHCP server is switched off and fully configured: the pool, gateway and resolver are one commit from being handed out.",
               "canonical_query": {
                 "model": "integrations.PanOsDhcpInterfaceConfig",
                 "operator": "and",
@@ -9060,7 +9060,7 @@
             },
             {
               "name": "A DHCP relay is relaying on this interface",
-              "short_description": "The interface relays address requests to the customer's own servers on at least one address family.",
+              "short_description": "The interface relays address requests to the organization's own servers on at least one address family.",
               "canonical_query": {
                 "model": "integrations.PanOsDhcpInterfaceConfig",
                 "operator": "and",
@@ -9304,7 +9304,7 @@
             },
             {
               "name": "Authentication absent, disabled, cleartext or overridden",
-              "short_description": "The adjacency has no effective authentication - none configured, explicitly disabled, a cleartext password, or a weaker attachment overriding an area-wide profile.",
+              "short_description": "The adjacency has no effective authentication: none configured, explicitly disabled, a cleartext password, or a weaker attachment overriding an area-wide profile.",
               "canonical_query": {
                 "model": "integrations.PanOsRoutingAdjacency",
                 "operator": "and",
@@ -9372,7 +9372,7 @@
             },
             {
               "name": "BGP peer with no enforced prefix ceiling",
-              "short_description": "The peer's prefix limit does not refuse the routes beyond it - no ceiling, a ceiling configured as unlimited, or one that only warns.",
+              "short_description": "The peer's prefix limit does not refuse the routes beyond it: no ceiling, a ceiling configured as unlimited, or one that only warns.",
               "canonical_query": {
                 "model": "integrations.PanOsRoutingAdjacency",
                 "operator": "and",
@@ -9880,7 +9880,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The device classification data installed on this appliance is more than a week old, counted from the release date the appliance reports for it.",
+              "short_description": "The device classification data installed on this appliance is more than a week old, by the release date the appliance reports for it.",
               "canonical_query": {
                 "model": "integrations.DeviceIdentificationState",
                 "operator": "and",
@@ -9908,7 +9908,7 @@
             },
             {
               "name": "More than a quarter behind",
-              "short_description": "The device classification data installed on this appliance is more than ninety days old, so whole classes of equipment published since then cannot be matched at all and rules written for them are inert.",
+              "short_description": "The device classification data is more than ninety days old, so whole classes of equipment published since then cannot be matched and rules written for them are inert.",
               "canonical_query": {
                 "model": "integrations.DeviceIdentificationState",
                 "operator": "and",
@@ -9936,7 +9936,7 @@
             },
             {
               "name": "Release date never reported",
-              "short_description": "This appliance reports no release date for its installed device classification data, so its currency could not be established - and a row with no age passes every staleness threshold.",
+              "short_description": "This appliance reports no release date for its installed device classification data, so how old it is was not established.",
               "canonical_query": {
                 "model": "integrations.DeviceIdentificationState",
                 "operator": "and",
@@ -10020,7 +10020,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "File-blocking profiles in force that do not stop the dangerous file types in both directions.",
+              "short_description": "This file-blocking profile is in force and does not stop the dangerous file types in both directions.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10134,7 +10134,7 @@
             },
             {
               "name": "User-confirmation rule beyond web browsing",
-              "short_description": "A file-blocking rule whose action prompts the user matches an application other than web browsing alone, which drops traffic the policy permits.",
+              "short_description": "A rule whose action prompts the user matches an application other than web browsing alone, which drops traffic the policy permits.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10162,7 +10162,7 @@
             },
             {
               "name": "Whether this profile is in force could not be established",
-              "short_description": "The reference walk behind this profile's in-force test did not complete on this appliance, so the control's own applicability clause rests on an unanswered question.",
+              "short_description": "Whether this profile is in force could not be established on this appliance, because the walk over what references it did not complete.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10216,7 +10216,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "File-blocking profiles in force that do not stop nested-encoded files in both directions.",
+              "short_description": "This file-blocking profile is in force and does not stop nested-encoded files in both directions.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10330,7 +10330,7 @@
             },
             {
               "name": "No decision expressed on files the firewall cannot open",
-              "short_description": "No rule of this profile names a password-protected archive or protected document at all, with any action.",
+              "short_description": "No rule in this profile names a password-protected archive or protected document at all, with any action.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10364,7 +10364,7 @@
             },
             {
               "name": "Whether this profile is in force could not be established",
-              "short_description": "The reference walk behind this profile's in-force test did not complete on this appliance, so both of this control's records rest on an unanswered question.",
+              "short_description": "Whether this profile is in force could not be established on this appliance, because the walk over what references it did not complete.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -10658,7 +10658,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A portal authentication row that does not demand both a password and a client certificate of the endpoint class it serves.",
+              "short_description": "This portal authentication row does not demand both a password and a client certificate of the endpoint class it serves.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortalClientAuthRow",
                 "operator": "and",
@@ -10680,7 +10680,7 @@
             },
             {
               "name": "Admission on a password alone",
-              "short_description": "The and/or switch is permissive and the portal binds no certificate profile, so a password is the whole of the admission test for this endpoint class.",
+              "short_description": "No certificate profile is bound and the portal accepts either factor, so a password is the whole of the admission test for this endpoint class.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortalClientAuthRow",
                 "operator": "and",
@@ -10708,7 +10708,7 @@
             },
             {
               "name": "Admission on either factor rather than both",
-              "short_description": "A certificate profile is bound and the and/or switch is permissive, so the endpoint is admitted on whichever of the two factors it can produce.",
+              "short_description": "A certificate profile is bound, but the portal accepts either factor, so an endpoint is admitted on whichever of the two it can produce.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortalClientAuthRow",
                 "operator": "and",
@@ -10736,7 +10736,7 @@
             },
             {
               "name": "What this row demands could not be resolved",
-              "short_description": "The and/or switch is absent from this row, so one of the two inputs the verdict needs is missing and the row's demand was not established.",
+              "short_description": "The portal does not record whether it demands both factors or either one, so what this row admits an endpoint on is not known.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortalClientAuthRow",
                 "operator": "and",
@@ -10784,7 +10784,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A portal whose first matching agent configuration does not tell the endpoint to upgrade, by prompt or transparently.",
+              "short_description": "The first matching agent configuration this portal hands out does not tell the endpoint to upgrade, by prompt or transparently.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -10812,7 +10812,7 @@
             },
             {
               "name": "Upgrades disallowed outright",
-              "short_description": "The agent configuration sets the upgrade behavior to Disallow, so nothing will move an endpoint matching it and the superseded app is permanent until the portal is edited.",
+              "short_description": "The agent configuration sets the upgrade behaviour to Disallow, so nothing will move an endpoint matching it and the superseded app stays until the portal is edited.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -10846,7 +10846,7 @@
             },
             {
               "name": "Upgrades left to the user to initiate",
-              "short_description": "The agent configuration sets Allow Manually, so an upgrade is possible and nothing initiates it - convergence depends on individual users deciding to look.",
+              "short_description": "The agent configuration sets Allow Manually, so an upgrade is possible and nothing starts it: endpoints move only when individual users decide to look.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -10880,7 +10880,7 @@
             },
             {
               "name": "No agent configuration is handed out at all",
-              "short_description": "The portal has no client-config node, so it hands out no agent configuration and there is no upgrade instruction to read and nothing for a remediation to edit.",
+              "short_description": "The portal hands out no agent configuration at all, so it carries no upgrade instruction for any endpoint.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -10914,7 +10914,7 @@
             },
             {
               "name": "No upgrade instruction recorded on the configuration",
-              "short_description": "An agent configuration exists and records no upgrade setting. What the agent does when the member is absent is documented as a form default and measured nowhere.",
+              "short_description": "An agent configuration exists and records no upgrade setting, so what the endpoint does is left to the app's own default.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -10948,7 +10948,7 @@
             },
             {
               "name": "Several upgrade values on a single-valued setting",
-              "short_description": "The stored list holds more than one upgrade value while the vendor's schema marks the setting single-valued, so there is no effective instruction to report.",
+              "short_description": "The configuration holds more than one upgrade value on a setting the product allows only one of, so no single instruction reaches the endpoint.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11002,7 +11002,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A portal whose first matching agent configuration does not set Save User Credentials to No.",
+              "short_description": "The first matching agent configuration this portal hands out does not set Save User Credentials to No.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11024,7 +11024,7 @@
             },
             {
               "name": "The user's password is kept on the endpoint",
-              "short_description": "Save User Credentials is Yes, so both the username and the password sit in the endpoint's own storage. This is also the value the device's schema marks as the field's default.",
+              "short_description": "Save User Credentials is Yes, so both the username and the password sit in the endpoint's own storage. This is also the product's default for the field.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11052,7 +11052,7 @@
             },
             {
               "name": "The password is kept behind a local biometric",
-              "short_description": "Save User Credentials is Only with User Fingerprint: the password is still stored and what releases it is a check on the endpoint that the firewall cannot see.",
+              "short_description": "Save User Credentials is Only with User Fingerprint: the password is still stored, and what releases it is a check on the endpoint the firewall cannot see.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11080,7 +11080,7 @@
             },
             {
               "name": "The username is kept and the password is not",
-              "short_description": "Save User Credentials is Save Username Only, so no password can be lifted off the device; what remains is a confirmed account name against a confirmed portal.",
+              "short_description": "Save User Credentials is Save Username Only, so no password can be lifted off the device. What remains is a confirmed account name against a confirmed portal.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11108,7 +11108,7 @@
             },
             {
               "name": "No agent configuration is handed out at all",
-              "short_description": "The portal has no client-config node, so what the app keeps on the endpoint is decided by the app and not by this firewall.",
+              "short_description": "The portal hands out no agent configuration, so what the app keeps on the endpoint is decided by the app rather than by this firewall.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11136,7 +11136,7 @@
             },
             {
               "name": "No saved-credential value recorded on the configuration",
-              "short_description": "An agent configuration exists and records no Save User Credentials value, so whether a credential is sitting in an endpoint's storage was not established.",
+              "short_description": "An agent configuration exists and records no Save User Credentials value, so whether a password is sitting in an endpoint's storage is not known.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectPortal",
                 "operator": "and",
@@ -11276,7 +11276,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A virtual system where the clientless-VPN feature is present in any degree - a portal publishing applications, or the definitions held with nothing publishing them.",
+              "short_description": "The clientless-VPN feature is present in this virtual system, either published by a portal or held as definitions with nothing publishing them.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectEnforcementPoint",
                 "operator": "and",
@@ -11338,7 +11338,7 @@
             },
             {
               "name": "The pieces are held and nothing publishes them",
-              "short_description": "Clientless application definitions exist in this virtual system and no portal carries the branch, so nothing is reachable today and the configuration is one edit from being live.",
+              "short_description": "Clientless application definitions exist in this virtual system and no portal carries the branch, so nothing is reachable today and the configuration is one edit from live.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectEnforcementPoint",
                 "operator": "and",
@@ -11372,7 +11372,7 @@
             },
             {
               "name": "Whether this virtual system publishes web applications could not be resolved",
-              "short_description": "The clientless-VPN state of this virtual system was not established, so it is reported rather than counted as clean - an absence must not read as a decision to keep the feature off.",
+              "short_description": "Whether this virtual system publishes internal web applications for browser access was not established.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectEnforcementPoint",
                 "operator": "and",
@@ -11426,7 +11426,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An appliance whose content currency is anything other than current - behind a window, never installed, or unable to report when what it holds was published.",
+              "short_description": "The content installed on this appliance is not current: behind its window, never installed, or carrying no publication date to age it against.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11448,7 +11448,7 @@
             },
             {
               "name": "Applications and threats content behind its minimum window",
-              "short_description": "The applications-and-threats stream is older than the fourteen-day minimum. That stream carries the vulnerability and spyware signatures and the emergency releases for vulnerabilities being exploited now.",
+              "short_description": "The applications-and-threats stream is older than fourteen days. That stream carries the vulnerability and spyware signatures and the emergency releases for vulnerabilities being exploited now.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11476,7 +11476,7 @@
             },
             {
               "name": "Malware stream behind its minimum window",
-              "short_description": "The antivirus stream is older than its seven-day minimum. Ranked at this control's own severity because a malware stream frozen for days is the same class of gap as a stale applications-and-threats stream.",
+              "short_description": "The antivirus stream is older than seven days, so the malware signatures the firewall enforces with are days out of date.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11504,7 +11504,7 @@
             },
             {
               "name": "Content inside the minimum window and outside the preferred one",
-              "short_description": "Every asserted stream is inside its minimum window and at least one is outside its preferred one. What is exposed is hours of newly published signatures rather than an absent stream, which is why this is graded one tier lower.",
+              "short_description": "Every stream is inside its minimum window and at least one is outside its preferred one, so what is exposed is hours of newly published signatures rather than an absent stream.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11532,7 +11532,7 @@
             },
             {
               "name": "No publication date reported, so the age cannot be computed",
-              "short_description": "The appliance reports a content version and no release date, so the staleness arithmetic cannot be performed. Reported at this control's own severity because the stream whose currency is unestablished may be the applications-and-threats stream.",
+              "short_description": "The appliance reports a content version and no release date, so how old the content it holds is cannot be worked out.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11560,7 +11560,7 @@
             },
             {
               "name": "A content stream was never installed",
-              "short_description": "A stream reports this platform's spelling of never-installed - `0`, or `0000.00.00.000` for URL filtering. There are no signatures of that kind on the appliance at all, which is worse than a stream merely behind its window.",
+              "short_description": "A content stream has never been installed, so there are no signatures of that kind on the appliance at all.",
               "canonical_query": {
                 "model": "integrations.FirewallContentStreams",
                 "operator": "and",
@@ -11608,7 +11608,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An appliance whose subscription entitlements are anything other than active beyond the ninety-day renewal horizon - expired, lapsing, unreadable, or an inventory that could not be read at all.",
+              "short_description": "The subscriptions on this appliance are not all active beyond the ninety-day renewal horizon: expired, lapsing, unreadable, or an inventory that could not be read.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11630,7 +11630,7 @@
             },
             {
               "name": "An entitlement has already expired",
-              "short_description": "At least one entitlement on this appliance carries the vendor's own expired flag. The protection it delivers is on a reduced cadence or stopped, and the firewall goes on enforcing with whatever it last received.",
+              "short_description": "At least one entitlement carries the vendor's expired flag, so the protection it delivers is on a reduced cadence or stopped, and the firewall goes on enforcing with whatever it last received.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11658,7 +11658,7 @@
             },
             {
               "name": "An entitlement lapses within thirty days",
-              "short_description": "At least one live entitlement lapses inside thirty days. Nothing has stopped yet, which is why this is graded below this control's own severity - what it costs is the lead time a renewal needs.",
+              "short_description": "At least one live entitlement lapses inside thirty days. Nothing has stopped yet, and the lead time a renewal needs is going.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11686,7 +11686,7 @@
             },
             {
               "name": "An entitlement lapses inside the renewal horizon, or its expiry is unreadable",
-              "short_description": "A live entitlement lapses inside ninety days, or its expiry date could not be parsed. Both land here: the vendor's expired flag already covered the failure that matters, so an unreadable date leaves open only how soon a live entitlement lapses.",
+              "short_description": "A live entitlement lapses inside ninety days, or its expiry date could not be read.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11714,7 +11714,7 @@
             },
             {
               "name": "The license table returned no rows",
-              "short_description": "The license reply carried a `licenses` element that was present and empty, so no entitlement could be checked. Reported at this control's own severity because the answer is not that no licenses are needed - it is unknown.",
+              "short_description": "The licence table came back present and empty, so no entitlement could be read. The answer is not that none are needed; it is not known.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11742,7 +11742,7 @@
             },
             {
               "name": "The license inventory was never read",
-              "short_description": "No license reply exists for this appliance, so nothing is known about what it is entitled to. An unknown fires: a pass would report subscriptions as live on the strength of a reply nobody received.",
+              "short_description": "No licence reply exists for this appliance, so nothing is known about what it is entitled to.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11770,7 +11770,7 @@
             },
             {
               "name": "No support entitlement appears in the license table",
-              "short_description": "No feature in this appliance's license table reads as a support entitlement. Without one there are no software updates - so PAN-OS itself cannot be patched - and no vendor assistance during an incident.",
+              "short_description": "No feature in this appliance's licence table reads as a support entitlement. Without one there are no software updates, so PAN-OS itself cannot be patched, and no vendor assistance during an incident.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11798,7 +11798,7 @@
             },
             {
               "name": "The support entitlement has expired",
-              "short_description": "The support entitlement carries the vendor's own expired flag. Software updates have stopped and so has vendor assistance; the appliance goes on enforcing at the release it already holds.",
+              "short_description": "The support entitlement carries the vendor's expired flag. Software updates have stopped and so has vendor assistance; the appliance goes on enforcing at the release it already holds.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11826,7 +11826,7 @@
             },
             {
               "name": "The support entitlement lapses inside the renewal horizon",
-              "short_description": "The support entitlement lapses inside ninety days. Nothing has stopped yet, which is why this is graded below this control's own severity.",
+              "short_description": "The support entitlement lapses inside ninety days. Nothing has stopped yet.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11854,7 +11854,7 @@
             },
             {
               "name": "The support entitlement could not be established",
-              "short_description": "The license table was never read, so whether a support entitlement exists is unknown rather than absent. An unknown fires at this control's own severity, because the entitlement that might be missing is the one that delivers software updates.",
+              "short_description": "The licence table was never read, so whether a support entitlement exists is not known rather than absent.",
               "canonical_query": {
                 "model": "integrations.LicenceInventory",
                 "operator": "and",
@@ -11902,7 +11902,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An appliance whose log-database alarm mechanism is anything other than on, with thresholds recorded and a notification route switched on.",
+              "short_description": "The log-database alarm mechanism is not on with thresholds recorded and a notification route switched on.",
               "canonical_query": {
                 "model": "integrations.LogAlarmSettings",
                 "operator": "and",
@@ -11924,7 +11924,7 @@
             },
             {
               "name": "The alarm node is absent entirely",
-              "short_description": "No master switch, no log-database threshold and no notification switch is recorded anywhere in this appliance's configuration, so nothing raises an alarm when a log database fills and the oldest records are discarded silently.",
+              "short_description": "No master switch, no log-database threshold and no notification switch is recorded anywhere in this appliance's configuration, so nothing raises an alarm when a log database fills and the oldest records are discarded.",
               "canonical_query": {
                 "model": "integrations.LogAlarmSettings",
                 "operator": "and",
@@ -11952,7 +11952,7 @@
             },
             {
               "name": "Alarm generation is not on",
-              "short_description": "The node is present and alarm generation is not on, so anything configured beneath it is inert. This also covers the master switch being absent from a present node, which is the state this verdict cannot keep apart from off.",
+              "short_description": "Alarm generation is not on, so anything configured beneath it is inert. This also covers a present node whose master switch is absent, which reads the same way.",
               "canonical_query": {
                 "model": "integrations.LogAlarmSettings",
                 "operator": "and",
@@ -11980,7 +11980,7 @@
             },
             {
               "name": "Alarm generation is on and no log type carries a threshold",
-              "short_description": "There is no occupancy at which anything would fire, so the switch being on is cosmetic. Ranked at this control's own severity rather than lower: this is worse than a configured mechanism whose message cannot leave the box.",
+              "short_description": "Alarm generation is on and no log type carries a threshold, so there is no occupancy at which anything would fire.",
               "canonical_query": {
                 "model": "integrations.LogAlarmSettings",
                 "operator": "and",
@@ -12008,7 +12008,7 @@
             },
             {
               "name": "An alarm would be raised and would reach nobody",
-              "short_description": "Alarm generation is on and thresholds are recorded, and neither notification route is switched on - so the alarm reaches nobody who is not already looking at the screen. Graded one tier lower because the mechanism works and the delivery fails.",
+              "short_description": "Alarm generation is on and thresholds are recorded, and neither notification route is switched on, so an alarm reaches nobody who is not already looking at the screen.",
               "canonical_query": {
                 "model": "integrations.LogAlarmSettings",
                 "operator": "and",
@@ -12510,7 +12510,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A WildFire schedule that is anything other than streaming delivery - any timed cadence, no schedule at all, or an appliance whose configuration was never read.",
+              "short_description": "The WildFire schedule is something other than streaming delivery: a timed cadence, no schedule at all, or an appliance whose configuration was never read.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12532,7 +12532,7 @@
             },
             {
               "name": "WildFire signatures are not retrieved at all",
-              "short_description": "No recurrence branch, or an explicit `none`: a verdict the cloud has already reached never reaches this firewall. Also the value held by a firewall with no `update-schedule` node.",
+              "short_description": "No recurrence is set, or it is explicitly none, so a verdict the cloud has already reached never reaches this firewall. This is also what a firewall with no update schedule holds.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12560,7 +12560,7 @@
             },
             {
               "name": "WildFire signatures are retrieved hourly",
-              "short_description": "Up to an hour between a verdict existing and the firewall being able to act on it, against a quarter-hour floor the assertion states.",
+              "short_description": "Signatures are retrieved hourly, so up to an hour passes between a verdict existing and the firewall being able to act on it.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12588,7 +12588,7 @@
             },
             {
               "name": "WildFire signatures are retrieved every thirty minutes",
-              "short_description": "Up to half an hour between a verdict existing and the firewall being able to act on it, still beyond the floor the assertion states.",
+              "short_description": "Signatures are retrieved every thirty minutes, so up to half an hour passes between a verdict existing and the firewall being able to act on it.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12616,7 +12616,7 @@
             },
             {
               "name": "WildFire signatures are retrieved every fifteen minutes",
-              "short_description": "Meets the quarter-hour floor the assertion names and misses the other half of it - the fastest cadence the deployment offers, which on the public service is streaming. A real shortfall and the gentlest, so it is graded below this control's severity.",
+              "short_description": "Signatures are retrieved every fifteen minutes, which is the fastest timed cadence this deployment offers. On the public service, streaming delivery is faster still.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12644,7 +12644,7 @@
             },
             {
               "name": "WildFire signatures are retrieved every minute",
-              "short_description": "Comfortably inside the floor and still short of streaming on a public-service deployment. The residual exposure is a minute, which is the lowest severity above informational this store can express.",
+              "short_description": "Signatures are retrieved every minute, so the delay between a verdict existing and the firewall acting on it is about a minute.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12847,7 +12847,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "URL filtering profiles that do not refuse all three confirmed-hostile categories.",
+              "short_description": "The profile does not refuse all three confirmed-hostile categories: command-and-control, malware and phishing.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -12875,7 +12875,7 @@
             },
             {
               "name": "Hostile categories permitted behind a password prompt",
-              "short_description": "The weakest action on a confirmed-hostile category permits the session once a password is given.",
+              "short_description": "At least one confirmed-hostile category is set to override, so the session is permitted once a password is entered.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -12909,7 +12909,7 @@
             },
             {
               "name": "Hostile categories permitted behind a warning page",
-              "short_description": "The weakest action on a confirmed-hostile category permits the session once the user dismisses a warning page.",
+              "short_description": "At least one confirmed-hostile category is set to continue, so the session is permitted once the user dismisses a warning page.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -12943,7 +12943,7 @@
             },
             {
               "name": "Hostile categories permitted and logged",
-              "short_description": "The weakest action on a confirmed-hostile category permits the session in full and writes a log entry, so the only product is a record.",
+              "short_description": "At least one confirmed-hostile category is set to alert, so the session is permitted in full and the only product is a log entry.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -12977,7 +12977,7 @@
             },
             {
               "name": "Hostile categories permitted with no log entry",
-              "short_description": "The weakest action on a confirmed-hostile category permits the session and writes no log entry. This is the state an unedited profile is in.",
+              "short_description": "At least one confirmed-hostile category is set to allow, so the session is permitted and no log entry is written. This is the state an unedited profile ships in.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13031,7 +13031,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "URL filtering profiles leaving at least one category reachable with no log entry written.",
+              "short_description": "The profile leaves at least one URL category reachable with no log entry written.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13059,7 +13059,7 @@
             },
             {
               "name": "A closely-associated-with-malicious category is unlogged",
-              "short_description": "The worst unlogged category is the tier the vendor describes as not confirmed malicious but closely associated with malicious sites.",
+              "short_description": "The worst unlogged category is high-risk: sites not confirmed malicious, but closely associated with malicious ones.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13093,7 +13093,7 @@
             },
             {
               "name": "An uncategorized category is unlogged",
-              "short_description": "The worst unlogged category is the one the URL database cannot categorize at all, which is the broadest unlogged route a profile can leave open.",
+              "short_description": "The worst unlogged category is unknown, which holds every site the URL database cannot categorize, and is the broadest unlogged route a profile can leave open.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13127,7 +13127,7 @@
             },
             {
               "name": "A medium-risk category is unlogged",
-              "short_description": "The worst unlogged category is the tier the vendor pairs with high-risk in the same instruction, with the same remedies named.",
+              "short_description": "The worst unlogged category is medium-risk, one tier below the sites closely associated with malicious ones.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13161,7 +13161,7 @@
             },
             {
               "name": "A newly-registered-domain category is unlogged",
-              "short_description": "The worst unlogged category is the one that exists because throwaway infrastructure is new, so this is an unlogged permit to the domains with no history.",
+              "short_description": "The worst unlogged category is newly-registered-domain, so visits to domains with no history are permitted and unrecorded.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13195,7 +13195,7 @@
             },
             {
               "name": "A category whose lookup did not resolve is unlogged",
-              "short_description": "The worst unlogged category is where a lookup lands when it times out, so the record of every site the firewall could not classify in time is lost.",
+              "short_description": "The worst unlogged category is not-resolved, where a lookup lands when it times out, so every site the firewall could not classify in time goes unrecorded.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13229,7 +13229,7 @@
             },
             {
               "name": "A benign category is unlogged",
-              "short_description": "The worst unlogged category is the benign tier. Still unlogged, which is this control's point, but the least of these.",
+              "short_description": "The worst unlogged category is low-risk, the benign tier. Still reachable with no log entry written, and the least of these.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13263,7 +13263,7 @@
             },
             {
               "name": "The category population behind this verdict was never established",
-              "short_description": "The device's own category catalog was not read for this profile's appliance and scope, so the denominator this verdict is computed against was never established.",
+              "short_description": "The firewall's own category list was not read for this appliance and scope, so the set of categories this profile was measured against is not known.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13311,7 +13311,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Profiles with a credential detection method that still permit a corporate credential on at least one category they allow.",
+              "short_description": "The profile has a credential detection method selected and still permits a corporate password to be submitted on at least one category it allows.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13345,7 +13345,7 @@
             },
             {
               "name": "No corporate credential detection method is selected",
-              "short_description": "The profile selects no credential detection method at all, so no credential submission is detected and no per-category decision can take effect.",
+              "short_description": "The profile selects no credential detection method, so no password submission is detected and no per-category decision can take effect.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13379,7 +13379,7 @@
             },
             {
               "name": "An uncategorized category accepts corporate credentials",
-              "short_description": "The worst category still accepting a corporate credential is the one the URL database cannot categorize, where a new phishing page lands before anyone classifies it.",
+              "short_description": "The worst category still accepting a corporate password is unknown, which holds the sites the URL database cannot categorize, where a new phishing page lands before anyone classifies it.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13419,7 +13419,7 @@
             },
             {
               "name": "A closely-associated-with-malicious category accepts corporate credentials",
-              "short_description": "The worst category still accepting a corporate credential is the tier the vendor instructs the reader to refuse credentials on, in two separate places.",
+              "short_description": "The worst category still accepting a corporate password is high-risk: sites not confirmed malicious, but closely associated with malicious ones.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13459,7 +13459,7 @@
             },
             {
               "name": "A medium-risk category accepts corporate credentials",
-              "short_description": "The worst category still accepting a corporate credential is the tier the vendor names in the same instruction as high-risk, in both places.",
+              "short_description": "The worst category still accepting a corporate password is medium-risk, one tier below the sites closely associated with malicious ones.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13499,7 +13499,7 @@
             },
             {
               "name": "The category population behind this verdict was never established",
-              "short_description": "The device's own category catalog was not read for this profile's appliance and scope, so this verdict rests on a population nobody established.",
+              "short_description": "The firewall's own category list was not read for this appliance and scope, so the set of categories this profile was measured against is not known.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13553,7 +13553,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "URL filtering profiles that do not record all three HTTP request headers.",
+              "short_description": "The profile does not record all three HTTP request headers the product offers.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13581,7 +13581,7 @@
             },
             {
               "name": "The forwarded-for header is not recorded",
-              "short_description": "The worst unrecorded header is the one that recovers the originating address where a proxy or source translation has replaced it, so losing it loses attribution.",
+              "short_description": "The X-Forwarded-For header is not recorded, so where a proxy or source translation has replaced the address, nothing recovers the originating one.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13615,7 +13615,7 @@
             },
             {
               "name": "The client software header is not recorded",
-              "short_description": "The worst unrecorded header identifies the client software, which is how an investigator separates a person driving a browser from an automated client using the same credentials.",
+              "short_description": "The User-Agent header is not recorded, so nothing separates a person driving a browser from an automated client using the same credentials.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13649,7 +13649,7 @@
             },
             {
               "name": "The referring page header is not recorded",
-              "short_description": "The worst unrecorded header names the page that sent the user, which is the link between the delivery of a phishing message and the visit it produced.",
+              "short_description": "The Referer header is not recorded, so nothing links the delivery of a phishing message to the visit it produced.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13703,7 +13703,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "URL filtering profiles exempting at least one custom category from real-time page analysis.",
+              "short_description": "The profile exempts at least one custom URL category from real-time page analysis.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13731,7 +13731,7 @@
             },
             {
               "name": "An exemption matches on category membership",
-              "short_description": "The broadest exemption in force targets sites by category membership, so its reach grows as the URL database reclassifies sites into the combination.",
+              "short_description": "The broadest exemption in force targets sites by category membership, so its reach grows as the URL database reclassifies sites into that combination.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13765,7 +13765,7 @@
             },
             {
               "name": "An exemption lists the sites it covers",
-              "short_description": "The broadest exemption in force covers the entries it holds, so its reach is what somebody typed - auditable, and still an exemption.",
+              "short_description": "The broadest exemption in force covers only the entries it lists, so its reach is what somebody typed, and it is still an exemption.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13827,7 +13827,7 @@
             },
             {
               "name": "On-box inline categorization is switched off",
-              "short_description": "The profile does not run the on-box real-time analysis engine. Where the key is absent this reading depends on the platform family, and the column recording that doubt is presented beside the finding.",
+              "short_description": "The profile does not run the on-box real-time analysis engine.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13855,7 +13855,7 @@
             },
             {
               "name": "The exemption list behind this verdict was never read",
-              "short_description": "This profile's inline-analysis exemption list was not read and counted, so the count beside it is a migration default rather than a reading and an exemption would not be reported.",
+              "short_description": "This profile's exemption list was not read, so an exemption standing on it would not have been reported.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -13903,7 +13903,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Custom URL categories that nothing this assessment read points at.",
+              "short_description": "No part of the configuration points at this custom URL category.",
               "canonical_query": {
                 "model": "integrations.CustomUrlCategory",
                 "operator": "and",
@@ -13953,7 +13953,7 @@
             },
             {
               "name": "An unreferenced category lists the sites it covers",
-              "short_description": "The unreferenced category reaches only the entries it holds, so it is as broad as whoever last typed into it and no broader.",
+              "short_description": "The unreferenced category reaches only the entries it lists, so it is as broad as whoever last typed into it and no broader.",
               "canonical_query": {
                 "model": "integrations.CustomUrlCategory",
                 "operator": "and",
@@ -14045,7 +14045,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The discovery include/exclude list on this vsys is not an in-force include list, so nothing bounds which subnets the collector may map - the empty, exclude-only and public-range shapes and an unread list all report here.",
+              "short_description": "The discovery include and exclude list on this virtual system is not an in-force include list, so nothing bounds which subnets the collector may map.",
               "canonical_query": {
                 "model": "integrations.UserIdDiscoveryBound",
                 "operator": "and",
@@ -14067,7 +14067,7 @@
             },
             {
               "name": "No in-force include or exclude entry",
-              "short_description": "No in-force entry bounds discovery on this vsys, which is the vendor default: the collector performs discovery in all subnetworks, so every address reachable through a monitored server may become a named user.",
+              "short_description": "No in-force entry bounds discovery on this virtual system, which is the vendor default: the collector discovers in all subnetworks, so every address reachable through a monitored server may become a named user.",
               "canonical_query": {
                 "model": "integrations.UserIdDiscoveryBound",
                 "operator": "and",
@@ -14089,7 +14089,7 @@
             },
             {
               "name": "Exclude entries only, which stops user mapping entirely",
-              "short_description": "This list holds excludes and no include. An exclude-only list excludes every subnetwork rather than only those named, so the collector maps nobody and identity-based policy on this vsys matches nobody.",
+              "short_description": "This list holds excludes and no include. An exclude-only list excludes every subnetwork rather than only those named, so the collector maps nobody and identity-based policy matches nobody.",
               "canonical_query": {
                 "model": "integrations.UserIdDiscoveryBound",
                 "operator": "and",
@@ -14111,7 +14111,7 @@
             },
             {
               "name": "An include entry names a public address range",
-              "short_description": "An include entry on this vsys names a publicly routable range, which re-enables credentialed probing of it: the collector excludes public addresses by default and naming one with Discovery set to Include is what turns that off.",
+              "short_description": "An include entry names a publicly routable range, which re-enables credentialed probing of it: the collector excludes public addresses until one is named with Discovery set to Include.",
               "canonical_query": {
                 "model": "integrations.UserIdDiscoveryBound",
                 "operator": "and",
@@ -14463,7 +14463,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Decryption profiles that let a decrypted session negotiate below TLS 1.2, where no decryption rule naming the profile narrows its destination to a named set.",
+              "short_description": "This decryption profile lets a decrypted session negotiate below TLS 1.2, and no decryption rule naming it narrows its destination to a named set.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14497,7 +14497,7 @@
             },
             {
               "name": "The protocol floor is SSLv3",
-              "short_description": "The configured floor is the worst value the leaf can hold: every session this profile governs may be negotiated on a protocol broken in public for a decade.",
+              "short_description": "The protocol floor is SSLv3, so every session this profile governs may be negotiated on a protocol broken in public for a decade.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14537,7 +14537,7 @@
             },
             {
               "name": "The protocol floor is TLS 1.0",
-              "short_description": "The configured floor is TLS 1.0, deprecated by RFC 8996. It is also the value an unconfigured profile materialises, so a profile storing no floor at all reports here.",
+              "short_description": "The protocol floor is TLS 1.0, deprecated by RFC 8996. It is also what an unconfigured profile uses, so a profile storing no floor at all reads this way.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14577,7 +14577,7 @@
             },
             {
               "name": "The protocol floor is TLS 1.1",
-              "short_description": "The configured floor is TLS 1.1, deprecated by RFC 8996 alongside TLS 1.0 and graded level with it.",
+              "short_description": "The protocol floor is TLS 1.1, deprecated by RFC 8996 alongside TLS 1.0.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14617,7 +14617,7 @@
             },
             {
               "name": "The protocol ceiling is SSLv3",
-              "short_description": "The ceiling forces every session this profile governs onto a broken protocol, and contradicts any floor above it.",
+              "short_description": "The protocol ceiling is SSLv3, which forces every session this profile governs onto a broken protocol and contradicts any floor above it.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14651,7 +14651,7 @@
             },
             {
               "name": "The protocol ceiling is TLS 1.0",
-              "short_description": "The ceiling is below the floor this control's other half asserts, so the two settings on one profile contradict each other.",
+              "short_description": "The protocol ceiling is TLS 1.0, which is below the floor required, so the two settings on one profile contradict each other.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14685,7 +14685,7 @@
             },
             {
               "name": "The protocol ceiling is TLS 1.1",
-              "short_description": "The ceiling is below the floor this control's other half asserts, so the two settings on one profile contradict each other.",
+              "short_description": "The protocol ceiling is TLS 1.1, which is below the floor required, so the two settings on one profile contradict each other.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14719,7 +14719,7 @@
             },
             {
               "name": "The protocol ceiling is TLS 1.2",
-              "short_description": "The newest protocol version is unreachable on every session this profile governs. LOW because the vendor recommends exactly this ceiling where certificate-pinned mobile applications are in scope - and it is the value an unconfigured profile materialises.",
+              "short_description": "The protocol ceiling is TLS 1.2, so the newest protocol version is unreachable on every session this profile governs. The vendor recommends this ceiling where certificate-pinned mobile applications are in scope.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14773,7 +14773,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Decryption profiles still leaving a publicly broken encryption or authentication primitive negotiable, where no decryption rule naming the profile narrows its destination to a named set.",
+              "short_description": "This decryption profile still leaves a publicly broken encryption or authentication primitive negotiable, and no decryption rule naming it narrows its destination to a named set.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14887,7 +14887,7 @@
             },
             {
               "name": "MD5 is still negotiable",
-              "short_description": "The worst broken primitive this profile permits is MD5. The vendor states this one is blocked by default, which makes it the one member of the set an unconfigured profile already satisfies - so a profile reporting here was configured to permit it.",
+              "short_description": "The worst broken primitive this profile permits is MD5. The vendor blocks this one by default, so a profile permitting it was configured to.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14927,7 +14927,7 @@
             },
             {
               "name": "SHA-1 is still negotiable",
-              "short_description": "The worst broken primitive this profile permits is SHA-1. MEDIUM and not high because the vendor's instruction for this one is conditional where its neighbors' are unconditional: block SHA-1 if no necessary site uses SHA-1 authentication.",
+              "short_description": "The worst broken primitive this profile permits is SHA-1. The vendor's instruction for it is conditional: block SHA-1 if no necessary site uses SHA-1 authentication.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -14967,7 +14967,7 @@
             },
             {
               "name": "A static RSA key exchange is still negotiable",
-              "short_description": "This profile permits a key exchange that gives no session its own throwaway secret, so one disclosure of a server's long-term key retrospectively decrypts every session recorded under it. All three key exchanges are enabled on an unconfigured profile.",
+              "short_description": "This profile permits a key exchange that gives no session its own throwaway secret, so one disclosure of a server's long-term key retrospectively decrypts every session recorded under it.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -15001,7 +15001,7 @@
             },
             {
               "name": "AES-128-CBC is still negotiable",
-              "short_description": "This profile permits a block-chaining cipher mode, which does not authenticate what it encrypts. LOW because the primitive is not broken and the mode is weaker.",
+              "short_description": "This profile permits a block-chaining cipher mode, which does not authenticate what it encrypts.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -15035,7 +15035,7 @@
             },
             {
               "name": "AES-256-CBC is still negotiable",
-              "short_description": "This profile permits the same block-chaining mode at the larger key size, which no corpus names and which the control's own preferred value reaches.",
+              "short_description": "This profile permits the same block-chaining mode at the larger key size, which also does not authenticate what it encrypts.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -15634,7 +15634,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An agent configuration that accepts a reconnection cookie for longer than a working day.",
+              "short_description": "The agent configuration accepts a reconnection cookie for longer than a working day.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGatewayAgentConfig",
                 "operator": "and",
@@ -15662,7 +15662,7 @@
             },
             {
               "name": "The cookie is accepted for a week or more",
-              "short_description": "The reconnection cookie is honoured for 169 hours or more, which outlives most incident response and is effectively a standing credential.",
+              "short_description": "The reconnection cookie is honoured for a week or more, which outlives most incident response and amounts to a standing credential.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGatewayAgentConfig",
                 "operator": "and",
@@ -15690,7 +15690,7 @@
             },
             {
               "name": "The cookie is accepted for more than a day and less than a week",
-              "short_description": "The reconnection cookie is honoured for 25 to 168 hours, past the one-working-day baseline this control sets.",
+              "short_description": "The reconnection cookie is honoured for 25 to 168 hours, which is more than a working day and less than a week.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGatewayAgentConfig",
                 "operator": "and",
@@ -15724,7 +15724,7 @@
             },
             {
               "name": "The cookie is accepted for more than half a day",
-              "short_description": "The reconnection cookie is honoured for 13 to 24 hours, which meets the baseline and misses the half-day target this control prefers.",
+              "short_description": "The reconnection cookie is honoured for 13 to 24 hours.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGatewayAgentConfig",
                 "operator": "and",
@@ -15758,7 +15758,7 @@
             },
             {
               "name": "A cookie is accepted and no lifetime was read for it",
-              "short_description": "The row accepts a reconnection cookie and holds no lifetime in any of the three unit branches, so how long it is honoured was never established.",
+              "short_description": "The row accepts a reconnection cookie and records no lifetime for it, so how long it is honoured is not known.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGatewayAgentConfig",
                 "operator": "and",
@@ -15950,7 +15950,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A GlobalProtect gateway that builds no tunnel for its endpoints, so their traffic never reaches this firewall to be inspected.",
+              "short_description": "The gateway builds no tunnel for its endpoints, so their traffic never reaches this firewall to be inspected.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16000,7 +16000,7 @@
             },
             {
               "name": "The preferred transport offers a weaker algorithm first",
-              "short_description": "IPSec is offered and the bound app crypto profile does not put the 256-bit authenticated-encryption proposal first, which is the order this firewall applies.",
+              "short_description": "IPSec is offered and the bound app crypto profile does not put the 256-bit authenticated-encryption proposal first, which is the order the firewall applies.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16028,7 +16028,7 @@
             },
             {
               "name": "The first proposal is the older block cipher",
-              "short_description": "The bound app crypto profile offers aes-128-cbc first or alone, which the vendor's own profile page ranks last of the three.",
+              "short_description": "The bound app crypto profile offers AES-128-CBC first or alone, which the product's own profile page ranks last of the three.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16062,7 +16062,7 @@
             },
             {
               "name": "The first proposal is the weaker authenticated-encryption option",
-              "short_description": "The bound app crypto profile offers aes-128-gcm ahead of the 256-bit option - authenticated encryption at the lower of the two strengths the vendor offers.",
+              "short_description": "The bound app crypto profile offers AES-128-GCM ahead of the 256-bit option: authenticated encryption at the lower of the two strengths the product offers.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16096,7 +16096,7 @@
             },
             {
               "name": "The networking half of this gateway was never read",
-              "short_description": "Whether this gateway offers IPSec is unknown rather than no: the transport is a separate read at a different scope and an absent key matches no comparison.",
+              "short_description": "Whether this gateway offers IPSec was not established: the transport is recorded at a different scope and no value was read there.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16143,7 +16143,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A GlobalProtect gateway that lets a login last longer than a working day before requiring authentication again.",
+              "short_description": "The gateway lets a login last longer than a working day before authentication is required again.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16165,7 +16165,7 @@
             },
             {
               "name": "A login lasts a week or more",
-              "short_description": "The login lifetime is 169 hours or more, the band the vendor's own documented default of 30 days sits in.",
+              "short_description": "The login lifetime is a week or more. The product's own default of 30 days falls in this range.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16187,7 +16187,7 @@
             },
             {
               "name": "A login lasts more than a day and less than a week",
-              "short_description": "The login lifetime is 25 to 168 hours, past the one-working-day baseline this control sets.",
+              "short_description": "The login lifetime is 25 to 168 hours, which is more than a working day and less than a week.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16215,7 +16215,7 @@
             },
             {
               "name": "A login lasts more than half a day",
-              "short_description": "The login lifetime is 13 to 24 hours, which meets the baseline and misses the half-day target this control prefers.",
+              "short_description": "The login lifetime is 13 to 24 hours.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16243,7 +16243,7 @@
             },
             {
               "name": "No login lifetime is bounded on this gateway",
-              "short_description": "No login lifetime was read in any of the three unit branches, so nothing bounds how long a tunnel survives the organization revoking the user's access.",
+              "short_description": "No login lifetime was read, so nothing bounds how long a tunnel survives the organization revoking the user's access.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16270,7 +16270,7 @@
             },
             {
               "name": "An idle tunnel is held for more than three hours",
-              "short_description": "The idle-logout timer is over 180 minutes, so an unattended endpoint holds a route into the network well past the point anybody is using it.",
+              "short_description": "The idle-logout timer is over three hours, so an unattended endpoint holds a route into the network well past the point anybody is using it.",
               "canonical_query": {
                 "model": "integrations.GlobalProtectGateway",
                 "operator": "and",
@@ -16337,7 +16337,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A zone that can receive traffic and resolves no zone protection profile - the attachment is empty or names a profile that does not exist.",
+              "short_description": "This zone can receive traffic and resolves no zone protection profile: the attachment is empty, or it names a profile that does not exist.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16365,7 +16365,7 @@
             },
             {
               "name": "Inter-vsys external zone",
-              "short_description": "An external (inter-vsys) zone with no profile in force. Stage 3's low band: it carries traffic between virtual systems and has no interfaces of its own.",
+              "short_description": "An inter-vsys external zone with no zone protection profile in force. It carries traffic between virtual systems and has no interfaces of its own.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16399,7 +16399,7 @@
             },
             {
               "name": "Layer 3 zone",
-              "short_description": "A routed zone bearing traffic with no profile in force. At the control's own tier, so that the zone type behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "short_description": "A routed zone bearing traffic with no zone protection profile in force.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16433,7 +16433,7 @@
             },
             {
               "name": "Layer 2 zone",
-              "short_description": "A bridged zone bearing traffic with no profile in force, at the control's own tier.",
+              "short_description": "A bridged zone bearing traffic with no zone protection profile in force.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16467,7 +16467,7 @@
             },
             {
               "name": "Virtual wire zone",
-              "short_description": "A transparent zone bearing traffic with no profile in force, at the control's own tier.",
+              "short_description": "A transparent zone bearing traffic with no zone protection profile in force.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16501,7 +16501,7 @@
             },
             {
               "name": "Tunnel zone",
-              "short_description": "A tunnel zone with no profile in force, at the control's own tier. Stage 3 names no rank for this type and it bears traffic, so it takes the band the other traffic-bearing types take.",
+              "short_description": "A tunnel zone with no zone protection profile in force.",
               "canonical_query": {
                 "model": "integrations.Zone",
                 "operator": "and",
@@ -16877,7 +16877,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A zone protection profile in force whose non-SYN TCP refusal does not resolve to yes - the profile's own leaf, or the device-wide setting it defers to.",
+              "short_description": "A zone protection profile in force does not refuse non-SYN TCP, either in its own setting or in the device-wide one it defers to.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -16905,7 +16905,7 @@
             },
             {
               "name": "Refusal deferred to the device-wide setting",
-              "short_description": "The profile's leaf reads `global`, deferring the refusal to a device-wide setting that must be read separately - neither the asserted state nor a readable refusal, and the schema default. Below the baseline: the remedy is a second reading.",
+              "short_description": "The profile defers the refusal to a device-wide setting, which has to be read separately. This is also the product's default for the field.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -16939,7 +16939,7 @@
             },
             {
               "name": "Refusal explicitly switched off",
-              "short_description": "The profile's own leaf reads `no`, so non-SYN TCP is explicitly accepted. At the control's own tier, so that the configured state behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "short_description": "The profile's own setting refuses nothing, so non-SYN TCP is explicitly accepted.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -16973,7 +16973,7 @@
             },
             {
               "name": "Option and segment drops are off",
-              "short_description": "A zone protection profile in force where at least one of the four packet drops this control asserts is off - malformed option, strict source routing, loose source routing, mismatched overlapping TCP segment.",
+              "short_description": "At least one of four packet drops is off on a profile in force: malformed option, strict source routing, loose source routing, or a mismatched overlapping TCP segment.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -17021,7 +17021,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A DoS Protection rule that names a protection profile and whose action is not `protect`, so the profile it names is never consulted.",
+              "short_description": "The DoS Protection rule names a protection profile and its action is not protect, so the profile it names is never consulted.",
               "canonical_query": {
                 "model": "integrations.DosPolicyRule",
                 "operator": "and",
@@ -17049,7 +17049,7 @@
             },
             {
               "name": "Rule denies rather than protects",
-              "short_description": "The rule drops the traffic it matches, so the service is protected by refusal rather than by metering - a misconfiguration rather than an exposure, and something the vendor permits deliberately to carve an exception out of a group.",
+              "short_description": "The rule drops the traffic it matches, so the service is protected by refusal rather than by metering. The product permits this deliberately, to carve an exception out of a group.",
               "canonical_query": {
                 "model": "integrations.DosPolicyRule",
                 "operator": "and",
@@ -17083,7 +17083,7 @@
             },
             {
               "name": "Rule allows rather than protects",
-              "short_description": "The rule matches and passes everything while naming a profile that is never consulted. At the control's own tier, so that the action behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "short_description": "The rule matches and passes everything while naming a profile that is never consulted.",
               "canonical_query": {
                 "model": "integrations.DosPolicyRule",
                 "operator": "and",
@@ -17334,7 +17334,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The weakest cipher the profile still offers is not AES-256-GCM, or the profile offers no cipher at all.",
+              "short_description": "The weakest cipher this tunnel crypto profile still offers is not AES-256-GCM, or the profile offers no cipher at all.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17362,7 +17362,7 @@
             },
             {
               "name": "Weakest cipher offered is null",
-              "short_description": "The weakest cipher offered is the `null` cipher, which carries the payload in cleartext inside what the estate reports as an encrypted tunnel.",
+              "short_description": "The weakest cipher offered is the null cipher, which carries the payload in cleartext inside a tunnel the estate reports as encrypted.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17396,7 +17396,7 @@
             },
             {
               "name": "Weakest cipher offered is 3des",
-              "short_description": "The weakest cipher offered is 3DES - 112-bit and block-size limited, which the vendor's own screen calls a weak, vulnerable algorithm.",
+              "short_description": "The weakest cipher offered is 3DES: 112-bit and block-size limited, which the product's own screen calls a weak, vulnerable algorithm.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17430,7 +17430,7 @@
             },
             {
               "name": "Weakest cipher offered is aes-128-cbc",
-              "short_description": "The weakest cipher offered is AES-128-CBC: it meets the 128-bit strength floor and is not authenticated encryption.",
+              "short_description": "The weakest cipher offered is AES-128-CBC: it meets the 128-bit strength floor and does not authenticate what it encrypts.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17464,7 +17464,7 @@
             },
             {
               "name": "Weakest cipher offered is aes-192-cbc",
-              "short_description": "The weakest cipher offered is AES-192-CBC: above the strength floor, still not authenticated encryption.",
+              "short_description": "The weakest cipher offered is AES-192-CBC: above the strength floor, and it does not authenticate what it encrypts.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17498,7 +17498,7 @@
             },
             {
               "name": "Weakest cipher offered is aes-256-cbc",
-              "short_description": "The weakest cipher offered is AES-256-CBC: strong confidentiality, still not authenticated encryption.",
+              "short_description": "The weakest cipher offered is AES-256-CBC: strong confidentiality, and it does not authenticate what it encrypts.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17620,7 +17620,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The profile offers an integrity algorithm outside the SHA-2 family, or none at all, while also offering a cipher that only encrypts.",
+              "short_description": "The profile offers an integrity algorithm outside the SHA-2 family, or none at all, alongside a cipher that only encrypts.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17654,7 +17654,7 @@
             },
             {
               "name": "Weakest integrity offered is none",
-              "short_description": "The weakest integrity choice offered is the literal `none` beside a cipher that only encrypts - unauthenticated encryption, so the payload is confidential and forgeable.",
+              "short_description": "The weakest integrity choice offered is none, beside a cipher that only encrypts, so the payload is confidential and forgeable.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17695,7 +17695,7 @@
             },
             {
               "name": "Weakest integrity offered is md5",
-              "short_description": "The weakest integrity algorithm offered is MD5, which is collision-broken; the vendor's own screen says md5 and sha1 are not secure.",
+              "short_description": "The weakest integrity algorithm offered is MD5, which is collision-broken; the product's own screen says MD5 and SHA-1 are not secure.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17736,7 +17736,7 @@
             },
             {
               "name": "Weakest integrity offered is sha1",
-              "short_description": "The weakest integrity algorithm offered is SHA-1, deprecated for new work and named with md5 in the same vendor sentence.",
+              "short_description": "The weakest integrity algorithm offered is SHA-1, which is deprecated for new work.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17797,7 +17797,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The profile's key-agreement group is not one of the three elliptic-curve groups this control targets.",
+              "short_description": "The profile's key-agreement group is not one of the three elliptic-curve groups.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17825,7 +17825,7 @@
             },
             {
               "name": "Key agreement group is no-pfs",
-              "short_description": "Per-association key agreement is turned OFF - `no-pfs` reuses the key already agreed in phase 1 rather than deriving a fresh one for the payload.",
+              "short_description": "Per-association key agreement is switched off: the profile reuses the key already agreed in phase 1 rather than deriving a fresh one for the payload.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17860,7 +17860,7 @@
             },
             {
               "name": "Key agreement group is group1",
-              "short_description": "The key-agreement group is Group 1 - 768-bit, within reach of commodity computation.",
+              "short_description": "The key-agreement group is Group 1, at 768 bits, which is within reach of commodity computation.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17895,7 +17895,7 @@
             },
             {
               "name": "Key agreement group is group2",
-              "short_description": "The key-agreement group is Group 2 - 1024-bit, rated at 80-bit strength by the device's own help-string, and the value the absent key materialises as.",
+              "short_description": "The key-agreement group is Group 2, at 1024 bits, which the product's own help text rates at 80-bit strength. It is also what the firewall uses when the setting is absent.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -17930,7 +17930,7 @@
             },
             {
               "name": "Key agreement group is group5",
-              "short_description": "The key-agreement group is Group 5 - 1536-bit, below the 2048-bit floor but above the groups that have fallen.",
+              "short_description": "The key-agreement group is Group 5, at 1536 bits: below the 2048-bit floor and above the groups that have fallen.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18000,7 +18000,7 @@
             },
             {
               "name": "Key agreement group is group15",
-              "short_description": "The key-agreement group is Group 15: above the floor and below the elliptic-curve target.",
+              "short_description": "The key-agreement group is Group 15: above the 2048-bit floor and below the elliptic-curve target.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18035,7 +18035,7 @@
             },
             {
               "name": "Key agreement group is group16",
-              "short_description": "The key-agreement group is Group 16: above the floor and below the elliptic-curve target.",
+              "short_description": "The key-agreement group is Group 16: above the 2048-bit floor and below the elliptic-curve target.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18090,7 +18090,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The profile's payload key lifetime is longer than the one hour this control targets, or was never established.",
+              "short_description": "The profile's payload key lifetime is longer than one hour, or was never established.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18118,7 +18118,7 @@
             },
             {
               "name": "Key lifetime is more than 24 hours",
-              "short_description": "The payload key lifetime works out at 25 hours or more - more than a day on one key.",
+              "short_description": "The payload key lifetime works out at 25 hours or more, so one key carries more than a day of traffic.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18153,7 +18153,7 @@
             },
             {
               "name": "Key lifetime is 9 to 24 hours",
-              "short_description": "The payload key lifetime works out at 9 to 24 hours inclusive - past the eight-hour baseline this control's own floor sets.",
+              "short_description": "The payload key lifetime works out at 9 to 24 hours.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18194,7 +18194,7 @@
             },
             {
               "name": "Key lifetime is more than 1 and up to 8 hours",
-              "short_description": "The payload key lifetime works out at 2 to 8 hours inclusive - it meets the eight-hour baseline and misses the one-hour target.",
+              "short_description": "The payload key lifetime works out at 2 to 8 hours, so it is within eight hours and longer than the one hour required.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnelPath",
                 "operator": "and",
@@ -18839,7 +18839,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A rule that leaves traffic encrypted whose exempt user population is drawn entirely from the four platform keywords, so there is no membership list anybody can audit or recertify.",
+              "short_description": "This rule leaves traffic encrypted for a user population drawn entirely from the platform's own keywords, so there is no membership list anybody can audit or recertify.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18873,7 +18873,7 @@
             },
             {
               "name": "Exempt population is every user",
-              "short_description": "The rule names `any`, so it exempts everyone it otherwise matches - which is also the schema default and the value an absent key materialises, making it the state a query meets most often.",
+              "short_description": "The rule names any, so it exempts everyone it otherwise matches. This is also the product's default, and what an absent setting amounts to.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18913,7 +18913,7 @@
             },
             {
               "name": "Exempt population is every authenticated user",
-              "short_description": "The rule names `known-user`, which the vendor's own screen describes as equivalent to the domain users group - the whole workforce rather than a bounded group.",
+              "short_description": "The rule names known-user, which the product's own screen describes as equivalent to the domain users group: the whole workforce rather than a bounded group.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18953,7 +18953,7 @@
             },
             {
               "name": "Exempt population is whoever identity mapping missed",
-              "short_description": "The rule names `unknown`, so the exempt population is the sessions the firewall could not attribute and cannot be enumerated at all. At the control's own tier, and built because the graded column is a member list - see the control description.",
+              "short_description": "The rule names unknown, so the exempt population is the sessions the firewall could not attribute, and it cannot be enumerated at all.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18993,7 +18993,7 @@
             },
             {
               "name": "Exempt population is a machine state",
-              "short_description": "The rule names `pre-logon`, which is endpoints before anybody has signed in rather than a set of people - bounded and auditable in a different way, and still an exemption nobody recertifies.",
+              "short_description": "The rule names pre-logon, which is endpoints before anybody has signed in rather than a set of people: bounded in a different way, and still an exemption nobody recertifies.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19277,7 +19277,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A rule in force with the failed-handshake record switched off, which is a decision rather than a default: an absent key means the record is KEPT, measured in both directions on a real device.",
+              "short_description": "This rule is in force with the failed-handshake record switched off, which is a decision rather than a default: where the setting is absent, the record is kept.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19305,7 +19305,7 @@
             },
             {
               "name": "No record of a successful session",
-              "short_description": "A rule that opens sessions and keeps no record of the ones that succeed, so the dataset does not exist: nothing to forward and nothing to search. At the control's own tier, and disjoint from its sibling on a single-valued column.",
+              "short_description": "The rule opens sessions and keeps no record of the ones that succeed, so there is nothing to forward and nothing to search.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19345,7 +19345,7 @@
             },
             {
               "name": "Successful-session record kept but not forwarded",
-              "short_description": "The record exists and is readable on the firewall with nothing named to carry it off, so what is lost is retention and central search rather than the observation itself - which is why it is graded below its sibling.",
+              "short_description": "The record of successful sessions is kept and readable on the firewall, with nothing named to carry it off, so what is lost is retention and central search rather than the observation itself.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19404,7 +19404,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Fewer than two off-box log destinations are defined on this appliance.",
+              "short_description": "Fewer than two destinations off the box are defined for this appliance's logs.",
               "canonical_query": {
                 "model": "integrations.LoggingSettings",
                 "operator": "and",
@@ -19451,7 +19451,7 @@
             },
             {
               "name": "Exactly one off-box log destination",
-              "short_description": "A single path off the box, so the audit trail has no second route to survive the loss of the first - the floor is met and the redundancy is not.",
+              "short_description": "One destination off the box, so the audit trail has no second route if the first one is lost.",
               "canonical_query": {
                 "model": "integrations.LoggingSettings",
                 "operator": "and",
@@ -19477,7 +19477,7 @@
             },
             {
               "name": "No forwarding rule names any syslog profile",
-              "short_description": "Every syslog server profile on this appliance is an address book: no match list and no Log Forwarding profile names one, so nothing is sent however many are defined.",
+              "short_description": "Every syslog server profile on this appliance is an address book entry: no match list and no log forwarding profile names one, so nothing is sent however many are defined.",
               "canonical_query": {
                 "model": "integrations.LoggingSettings",
                 "operator": "and",
@@ -19517,7 +19517,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A referenced syslog collector is reached over a transport that does not encrypt.",
+              "short_description": "A syslog collector in use is reached over a transport that does not encrypt.",
               "canonical_query": {
                 "model": "integrations.LogServerTarget",
                 "operator": "and",
@@ -19549,7 +19549,7 @@
             },
             {
               "name": "Cleartext and unacknowledged transport",
-              "short_description": "UDP: neither the content nor the fact of delivery is protected, and this is the value an entry holding only its address reports.",
+              "short_description": "The transport is UDP, so neither the content nor the fact of delivery is protected. This is also what an entry holding only an address amounts to.",
               "canonical_query": {
                 "model": "integrations.LogServerTarget",
                 "operator": "and",
@@ -19586,7 +19586,7 @@
             },
             {
               "name": "Cleartext but acknowledged transport",
-              "short_description": "TCP: delivery is confirmed and the content still crosses the network in the clear, which is one rung below the unacknowledged transport.",
+              "short_description": "The transport is TCP, so delivery is confirmed and the content still crosses the network in the clear.",
               "canonical_query": {
                 "model": "integrations.LogServerTarget",
                 "operator": "and",
@@ -19949,7 +19949,7 @@
             },
             {
               "name": "Missing off-box log type: url",
-              "short_description": "No profile available to this virtual system sends the url record off the box.",
+              "short_description": "No profile available to this virtual system sends the web activity record off the box.",
               "canonical_query": {
                 "model": "integrations.VsysLogForwarding",
                 "operator": "and",
@@ -19981,7 +19981,7 @@
             },
             {
               "name": "Missing off-box log type: data",
-              "short_description": "No profile available to this virtual system sends the data record off the box.",
+              "short_description": "No profile available to this virtual system sends the file and data record off the box.",
               "canonical_query": {
                 "model": "integrations.VsysLogForwarding",
                 "operator": "and",
@@ -20013,7 +20013,7 @@
             },
             {
               "name": "Missing off-box log type: wildfire",
-              "short_description": "No profile available to this virtual system sends the wildfire record off the box.",
+              "short_description": "No profile available to this virtual system sends the malware verdict record off the box.",
               "canonical_query": {
                 "model": "integrations.VsysLogForwarding",
                 "operator": "and",
@@ -20496,6 +20496,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "This rule permits an application the vendor's own published characteristics mark as high-risk.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20532,6 +20533,7 @@
             },
             {
               "name": "Used by malware",
+              "short_description": "The rule permits an application the vendor marks as used by malware.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "critical",
@@ -20573,6 +20575,7 @@
             },
             {
               "name": "Built to evade inspection",
+              "short_description": "The rule permits an application the vendor marks as built to evade inspection.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -20614,6 +20617,7 @@
             },
             {
               "name": "Tunnels other applications",
+              "short_description": "The rule permits an application the vendor marks as able to tunnel other applications.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -20655,6 +20659,7 @@
             },
             {
               "name": "In the top two risk ratings",
+              "short_description": "The rule permits an application in the vendor's top two risk ratings.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
