@@ -16,10 +16,17 @@ Everything below is decided unless marked **OPEN**. Thresholds are calibrated pe
 
 ## Which control this is
 
-**PAN-POL-002, "Source/Destination Address Breadth Bounded"** — critical, STIG
+**PAN-POL-002, "Source and Destination Address Scope Limited"** — critical, STIG
 `PANW-AG-000029`, `not started`. Confirmed against the corpus on 2026-09-30 rather than
 assumed: the corpus entry already carries a `severity_scale` with bands, and its note says
 "thresholds pending user sign-off".
+
+The control was named *"Source/Destination Address Breadth Bounded"* until 2026-11-16.
+Jason, reading a sample detail block: *"The term 'bounded' specifically may not be fully
+understandable by all stakeholders."* The name prints three times per control in the health
+check — the block's header strip, the Summary of Findings row and the contents — so it is
+read before any of the sentences that explain it. The measure below did not change with it,
+and **breadth** stays the word for the measure itself in this document, which is internal.
 
 The corpus measure is NOT the one below. It reads *"largest contiguous address space a single
 allow rule exposes on its broadest side"* — a **max** over one side. That is a deviation to
