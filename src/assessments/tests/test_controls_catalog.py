@@ -15,7 +15,8 @@ from assessments.controls_catalog.io.importers import (
 )
 from assessments.controls_catalog.schemas import (
     CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _IMPERATIVE, _NOT_AN_IMPERATIVE,
-    _ONE_SENTENCE, _ONE_SENTENCE_END, _PROCEDURE_IN_A_STANDARD, validate_catalog_payload)
+    _EVIDENCE_LIMIT, _EVIDENCE_MAY_NOT_SAY, _EVIDENCE_SENTENCES, _ONE_SENTENCE,
+    _ONE_SENTENCE_END, _PROCEDURE_IN_A_STANDARD, validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -25,6 +26,47 @@ from assessments.models import (
     ControlQuery,
 )
 from optivedge.models import ApplicationEnvironment
+
+
+def _seed_with_evidence(sentence: str) -> dict:
+    """A one-control payload whose only query carries `sentence` as its Evidence row.
+
+    Everything else passes the register, so a refusal can only come from the sentence.
+    """
+    return {
+        "type": "optivedge.assessments.catalog",
+        "schema_version": "1.0",
+        "catalog": {"key": "evidence", "label": "Evidence", "version": "1.0.0",
+                    "description": ""},
+        "controls": [{
+            "control_id": "FW-RULE-EV-001",
+            "name": "Evidence Fixture",
+            "control_type": "security_rule",
+            "description": "A fixture for the Evidence row's own rules.",
+            "rationale": "",
+            "audit": "",
+            "remediation": "Tighten rule scope.",
+            "short_remediation": "Tighten the rule's scope.",
+            "what_it_checks": "A rule that permits traffic limits what it allows to the flow "
+                              "it was written for.",
+            "why_it_matters": "A rule broader than the flow it carries is access nobody is "
+                              "watching.",
+            "where_to_confirm": "Policies > Security, the source and destination columns.",
+            "what_to_change": "Narrow the rule to the hosts and services the flow needs.",
+            "default_severity": "high",
+            "implementation_version": "v1",
+            "target_model": "integrations.SecurityRule",
+            "is_active": True,
+            "queries": [{
+                "name": "Baseline",
+                "short_description": sentence,
+                "canonical_query": build_security_rule_query("dmz"),
+                "is_baseline": True,
+                "adjusted_severity": None,
+                "is_active": True,
+            }],
+        }],
+    }
 
 
 def build_security_rule_query(value: str) -> dict:
@@ -46,6 +88,66 @@ def build_security_rule_query(value: str) -> dict:
 
 class SeededCatalogTextTests(TestCase):
     """The text a CUSTOMER reads, checked on the shipped payload rather than on a model."""
+
+    def test_every_shipped_evidence_sentence_says_what_was_found(self):
+        """The Evidence row belongs to the QUERY, and it had no rule at all until 2026-11-17:
+        it shipped 42 backticks, 25 copies of "Default baseline query." and 50 sentences
+        explaining our own grading to a client. All 579 of them are rewritten; this is what
+        stops the next one."""
+        offenders = []
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                for query in control["queries"]:
+                    if not query.get("is_active"):
+                        continue
+                    sentence = query.get("short_description") or ""
+                    for pattern, _what in _EVIDENCE_MAY_NOT_SAY:
+                        if pattern.search(sentence):
+                            offenders.append((control["control_id"], query["name"],
+                                              pattern.search(sentence).group(0)))
+                    if len(sentence) > _EVIDENCE_LIMIT:
+                        offenders.append((control["control_id"], query["name"], len(sentence)))
+                    if len(_ONE_SENTENCE_END.findall(sentence)) > _EVIDENCE_SENTENCES:
+                        offenders.append((control["control_id"], query["name"], "sentences"))
+        self.assertEqual(offenders, [])
+
+    def test_every_active_query_has_an_evidence_sentence(self):
+        """48 of the 579 had none, and the document printed a MANUAL placeholder in the row a
+        client reads to learn what was found on their firewall."""
+        missing = [(control["control_id"], query["name"])
+                   for catalog in load_seed_payload()["catalogs"]
+                   for control in catalog["controls"]
+                   for query in control["queries"]
+                   if query.get("is_active") and not (query.get("short_description") or "")]
+        self.assertEqual(missing, [])
+
+    def test_an_evidence_sentence_explaining_our_own_grading_is_refused(self):
+        """What PAN-AUTH-018's low band used to say, verbatim."""
+        payload = _seed_with_evidence("failed attempts before lockout 4 to 5 - reported low.")
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("explains our own grading", str(caught.exception))
+
+    def test_an_evidence_sentence_naming_our_machinery_is_refused(self):
+        """What 25 queries used to say, verbatim."""
+        payload = _seed_with_evidence("Default baseline query.")
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("names this application's own machinery", str(caught.exception))
+
+    def test_a_malware_verdict_is_the_firewalls_own_word(self):
+        """The lesson the Requirement register learned four times. A WildFire verdict and the
+        HA1 control link are PAN-OS's vocabulary, so the rules name phrases rather than words:
+        a pattern over "verdict" refused six true sentences."""
+        payload = _seed_with_evidence(
+            "No recurrence is set, so a verdict the cloud has already reached never reaches "
+            "this firewall.")
+
+        self.assertTrue(validate_catalog_payload(payload))
 
     def test_no_control_ships_a_literal_backslash_n(self):
         """A paragraph break written `\\n` in the JSON reaches the page as two CHARACTERS.

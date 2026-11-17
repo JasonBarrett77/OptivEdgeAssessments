@@ -251,7 +251,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "TACACS+ profiles using PAP.",
+              "short_description": "This TACACS+ server profile authenticates with PAP, so the password is recoverable by anyone holding the shared secret.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -277,7 +277,7 @@
             },
             {
               "name": "This profile states no authentication protocol",
-              "short_description": "TACACS+ profiles storing no protocol at all - a staged or half-written entry.",
+              "short_description": "This TACACS+ server profile states no authentication protocol at all, which is a staged or half-written entry.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -323,7 +323,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "SAML profiles with IdP certificate validation explicitly off.",
+              "short_description": "This SAML identity provider profile has certificate validation explicitly switched off, so the firewall accepts an assertion without checking who signed it.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -369,7 +369,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "SAML profiles not signing messages to the IdP.",
+              "short_description": "This SAML identity provider profile does not sign the authentication requests the firewall sends, so the provider cannot tell a genuine request from a forged one.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -418,7 +418,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Administrator-bound profiles whose allow list is `all`.",
+              "short_description": "The allow list on this administrator-bound authentication profile admits every user the method can reach.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -444,7 +444,7 @@
             },
             {
               "name": "Every user the method can reach is admitted",
-              "short_description": "Administrator-bound profiles whose allow list is the literal `all`.",
+              "short_description": "The allow list on this administrator-bound profile is the literal all, so every user the method can reach is admitted.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -487,7 +487,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Administrator-bound profiles with additional factors enabled and at least one listed.",
+              "short_description": "This administrator-bound authentication profile has additional factors switched on with at least one multi-factor server profile listed, which the firewall does not use for administrator logins.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "and",
@@ -689,7 +689,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this server profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -715,7 +715,7 @@
             },
             {
               "name": "An unreferenced RADIUS server profile",
-              "short_description": "RADIUS server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this RADIUS server profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -741,7 +741,7 @@
             },
             {
               "name": "An unreferenced TACACS+ server profile",
-              "short_description": "TACACS+ server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this TACACS+ server profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -767,7 +767,7 @@
             },
             {
               "name": "An unreferenced Kerberos server profile",
-              "short_description": "Kerberos server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this Kerberos server profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -793,7 +793,7 @@
             },
             {
               "name": "An unreferenced SAML Identity Provider server profile",
-              "short_description": "SAML IdP server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this SAML identity provider profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -819,7 +819,7 @@
             },
             {
               "name": "An unreferenced MFA server profile",
-              "short_description": "MFA server profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this multi-factor server profile.",
               "canonical_query": {
                 "model": "integrations.ServerProfile",
                 "operator": "and",
@@ -867,7 +867,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Password complexity enforcement is switched off, so the individual requirements stored beneath it are not applied.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -908,7 +908,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The minimum password length is below fifteen characters.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -929,7 +929,7 @@
             },
             {
               "name": "Severity: 9 to 11",
-              "short_description": "characters 9 to 11 — reported medium.",
+              "short_description": "The minimum password length is nine to eleven characters, against a standard of fifteen.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -955,7 +955,7 @@
             },
             {
               "name": "Severity: 12 to 14",
-              "short_description": "characters 12 to 14 — reported medium.",
+              "short_description": "The minimum password length is twelve to fourteen characters, against a standard of fifteen.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -1001,7 +1001,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "No uppercase letter is required in a password.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1042,7 +1042,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "No lowercase letter is required in a password.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1083,7 +1083,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "No digit is required in a password.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1124,7 +1124,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "No character outside the letters and digits is required in a password.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1165,7 +1165,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall accepts a password containing the account's own username.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1206,7 +1206,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Fewer than eight characters have to change when an administrator rotates a password.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1227,7 +1227,7 @@
             },
             {
               "name": "Severity: 3 to 7",
-              "short_description": "characters of difference 3 to 7 — reported low.",
+              "short_description": "Three to seven characters have to change when a password is rotated, against a standard of eight.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -1273,7 +1273,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall remembers fewer than twenty-four previous passwords, so an older one can be set again.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1294,7 +1294,7 @@
             },
             {
               "name": "Severity: 5 to 23",
-              "short_description": "passwords remembered 5 to 23 — reported low.",
+              "short_description": "The firewall remembers five to twenty-three previous passwords, against a standard of twenty-four.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -1340,7 +1340,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "An administrator password never expires, or lasts more than sixty days.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1366,7 +1366,7 @@
             },
             {
               "name": "Severity: 61 to 90",
-              "short_description": "days before expiry 61 to 90 — reported low.",
+              "short_description": "An administrator password lasts 61 to 90 days, against a standard of sixty.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "and",
@@ -1412,7 +1412,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "An administrator is warned less than fourteen days before a password expires.",
               "canonical_query": {
                 "model": "integrations.PasswordComplexityPolicy",
                 "operator": "or",
@@ -1624,7 +1624,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall allows unlimited failed logins, or more than five before it locks the account.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "or",
@@ -1650,7 +1650,7 @@
             },
             {
               "name": "Severity: 6 to 10",
-              "short_description": "failed attempts before lockout 6 to 10 — reported medium.",
+              "short_description": "The firewall locks an account after six to ten failed logins, against a standard of five.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "and",
@@ -1696,7 +1696,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "A locked administrator account releases itself in less than thirty minutes.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "and",
@@ -1763,7 +1763,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "An idle administrative session never closes by itself, or stays open for more than ten minutes.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "or",
@@ -1789,7 +1789,7 @@
             },
             {
               "name": "Severity: 11 to 60",
-              "short_description": "minutes of idle time before logout 11 to 60 — reported medium.",
+              "short_description": "An idle administrative session stays open for 11 to 60 minutes, against a standard of ten.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "and",
@@ -1835,7 +1835,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "A programmatic access key the firewall generates has no lifetime, so it never expires.",
               "canonical_query": {
                 "model": "integrations.AuthenticationSettings",
                 "operator": "or",
@@ -2304,7 +2304,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Profiles nothing on the appliance references.",
+              "short_description": "Nothing in the configuration references this authentication profile.",
               "canonical_query": {
                 "model": "integrations.AuthenticationProfile",
                 "operator": "or",
@@ -2421,7 +2421,7 @@
           "queries": [
             {
               "name": "The key is below the strength floor carried for its own algorithm",
-              "short_description": "Any band other than at-or-above-floor: below, far below, undecodable, or an algorithm this assessment carries no floor for.",
+              "short_description": "The certificate's key is below the strength floor for its own algorithm, cannot be decoded, or uses an algorithm with no floor recorded.",
               "canonical_query": {
                 "model": "integrations.Certificate",
                 "operator": "and",
@@ -2443,7 +2443,7 @@
             },
             {
               "name": "The key is far below the floor for its algorithm",
-              "short_description": "Below HALF the floor - RSA 512 against a 2048-bit floor. Reported critical.",
+              "short_description": "The certificate's key is below half the floor for its algorithm, such as RSA 512 against a 2048-bit floor.",
               "canonical_query": {
                 "model": "integrations.Certificate",
                 "operator": "and",
@@ -2513,7 +2513,7 @@
             },
             {
               "name": "The signing hash is SHA-1",
-              "short_description": "SHA-1 rather than MD5 or an unresolved hash. Reported medium.",
+              "short_description": "The certificate is signed with SHA-1.",
               "canonical_query": {
                 "model": "integrations.Certificate",
                 "operator": "and",
@@ -2562,7 +2562,7 @@
           "queries": [
             {
               "name": "Neither revocation method is in use",
-              "short_description": "Default baseline query: no CRL and no OCSP, so nothing withdraws trust from a credential before it expires.",
+              "short_description": "The certificate profile uses neither CRL nor OCSP, so nothing withdraws trust from a credential before it expires.",
               "canonical_query": {
                 "model": "integrations.CertificateProfile",
                 "operator": "and",
@@ -2589,7 +2589,7 @@
             },
             {
               "name": "Revocation is checked and an inconclusive answer is let through",
-              "short_description": "The profile checks revocation and still allows an unknown status, a timed-out one, or both. Reported at this control's own severity.",
+              "short_description": "The profile checks revocation and still allows a certificate whose status comes back unknown, times out, or both.",
               "canonical_query": {
                 "model": "integrations.CertificateProfile",
                 "operator": "and",
@@ -2637,7 +2637,7 @@
           "queries": [
             {
               "name": "The protocol floor is below TLS 1.2, or is a version this assessment does not recognize",
-              "short_description": "Default baseline query: the floor's rank in the device's own version order is below TLS 1.2's, which an unrecognized token also is.",
+              "short_description": "The profile's minimum protocol version is below TLS 1.2, or is a version the firewall's own version order does not recognize.",
               "canonical_query": {
                 "model": "integrations.SslTlsServiceProfile",
                 "operator": "and",
@@ -2679,7 +2679,7 @@
           "queries": [
             {
               "name": "The management certificate's issuer chain is not CA-issued",
-              "short_description": "Default baseline query: self-signed, a private CA on this device, undetermined, or nothing bound at all.",
+              "short_description": "The certificate the management web interface presents is not issued by a recognized authority: it is self-signed, issued by a private CA on this device, undetermined, or nothing is bound at all.",
               "canonical_query": {
                 "model": "integrations.ManagementTlsBinding",
                 "operator": "and",
@@ -2701,7 +2701,7 @@
             },
             {
               "name": "The management certificate was issued by a private CA on this device",
-              "short_description": "A chain terminating at a self-signed CA held on the appliance. Reported low: the remediation is to distribute the root or move to a public CA, not to stop using self-signed certificates.",
+              "short_description": "The certificate the management web interface presents was issued by a private CA held on this device.",
               "canonical_query": {
                 "model": "integrations.ManagementTlsBinding",
                 "operator": "and",
@@ -2749,7 +2749,7 @@
           "queries": [
             {
               "name": "No master key has been set, or it could not be established that one has",
-              "short_description": "Default baseline query: the factory default is still in use, or the reading that would have said otherwise was never taken.",
+              "short_description": "No master key has been set, so the published factory value still encrypts every private key and stored secret on the device - or the reading that would have said otherwise was never taken.",
               "canonical_query": {
                 "model": "integrations.MasterKey",
                 "operator": "and",
@@ -2791,7 +2791,7 @@
           "queries": [
             {
               "name": "The profile selects SHA-1 among its authentication algorithms",
-              "short_description": "Default baseline query: SHA-1 is selected, either written on or left absent at a version range that renders it.",
+              "short_description": "The profile permits SHA-1 among its authentication algorithms, either selected outright or left to a version range that renders it.",
               "canonical_query": {
                 "model": "integrations.SslTlsServiceProfile",
                 "operator": "and",
@@ -3044,7 +3044,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Telnet is enabled on a management surface, so an administrative command line is reachable without encryption.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "or",
@@ -3085,7 +3085,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "Unencrypted HTTP administration is enabled on a management surface.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "or",
@@ -3126,7 +3126,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "A management surface names no permitted source addresses, or whether it does could not be established, so it may accept any host that can route to it.",
               "canonical_query": {
                 "model": "integrations.ManagementInterface",
                 "operator": "and",
@@ -3457,7 +3457,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "No login banner is set, so the firewall presents nothing before authentication.",
               "canonical_query": {
                 "model": "integrations.LoginBanner",
                 "operator": "or",
@@ -3498,7 +3498,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The login banner does not require acknowledgement, so an administrator can read past it.",
               "canonical_query": {
                 "model": "integrations.LoginBanner",
                 "operator": "or",
@@ -3539,7 +3539,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall does not validate the update server's certificate before it downloads content.",
               "canonical_query": {
                 "model": "integrations.UpdateServerSettings",
                 "operator": "or",
@@ -3744,7 +3744,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Default baseline query.",
+              "short_description": "The firewall writes no system event when dataplane processor load is sustained at a high level.",
               "canonical_query": {
                 "model": "integrations.LoggingSettings",
                 "operator": "or",
@@ -3969,6 +3969,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule permits its applications on the ports its service list opens, rather than on the applications' own default ports.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -4026,6 +4027,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule leaves the application criterion open, so it permits whatever runs on the ports it allows.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -4087,6 +4089,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule permits traffic without all three threat inspection types in force: antivirus, anti-spyware and vulnerability protection.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -4123,6 +4126,7 @@
             },
             {
               "name": "No inspection at all",
+              "short_description": "The rule permits traffic with none of the three threat inspection types in force.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "critical",
@@ -4184,7 +4188,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose anti-spyware profile does not block critical and high severity threats.",
+              "short_description": "The anti-spyware profile on this rule does not block critical and high severity signatures.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -4216,7 +4220,7 @@
             },
             {
               "name": "Critical severity left un-stopped",
-              "short_description": "Rules whose anti-spyware profile leaves critical severity signatures un-stopped.",
+              "short_description": "The anti-spyware profile on this rule leaves critical severity signatures unstopped.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -4254,7 +4258,7 @@
             },
             {
               "name": "High severity left un-stopped",
-              "short_description": "Rules whose anti-spyware profile stops critical but leaves high severity signatures un-stopped.",
+              "short_description": "The anti-spyware profile on this rule stops critical severity and leaves high severity signatures unstopped.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -4726,7 +4730,7 @@
             },
             {
               "name": "The cleartext version is chosen explicitly",
-              "short_description": "`access-setting/version` names v2c, read off the device rather than inferred.",
+              "short_description": "The SNMP access setting names version 2c outright, read off the device rather than inferred from an absent value.",
               "canonical_query": {
                 "model": "integrations.SnmpSettings",
                 "operator": "and",
@@ -5010,7 +5014,7 @@
             },
             {
               "name": "A virtual system records no service-path choice of its own",
-              "short_description": "This virtual system has no route/service subtree, so nothing says whether it inherits the firewall-wide paths deliberately or whether nobody looked.",
+              "short_description": "This virtual system holds no service-path subtree, so nothing says whether it inherits the firewall-wide paths deliberately or whether nobody looked.",
               "canonical_query": {
                 "model": "integrations.ServiceRoute",
                 "operator": "and",
@@ -5300,7 +5304,7 @@
             },
             {
               "name": "No name stored at all",
-              "short_description": "`deviceconfig/system/hostname` holds nothing, which PAN-OS renders as the model name.",
+              "short_description": "No hostname is stored at all, which PAN-OS renders as the appliance model name.",
               "canonical_query": {
                 "model": "integrations.SystemIdentity",
                 "operator": "and",
@@ -5377,7 +5381,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose vulnerability protection profile does not block critical and high severity threats.",
+              "short_description": "The vulnerability protection profile on this rule does not block critical and high severity signatures.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -5409,7 +5413,7 @@
             },
             {
               "name": "Rule never assessed for vulnerability inspection",
-              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "short_description": "This allow rule has never been assessed for vulnerability inspection, so what inspects its traffic was not established.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -6242,6 +6246,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule permits traffic with at least one zone side left open rather than named.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -6278,6 +6283,7 @@
             },
             {
               "name": "Both zone sides any",
+              "short_description": "The rule permits traffic with both zone sides left open, so it applies between every pair of zones.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -6369,7 +6375,7 @@
               "asserted_fields": [
                 "antivirus_blocks_malware"
               ],
-              "short_description": "Rules whose antivirus profile lets malware through on a decoder or an application exception."
+              "short_description": "The antivirus profile on this rule lets malware through on a decoder or on an application exception."
             }
           ],
           "what_it_checks": "Every rule that permits traffic carries an antivirus profile blocking malware on all seven protocols and on every application exception, in all three verdict columns.",
@@ -6423,7 +6429,7 @@
               "asserted_fields": [
                 "antivirus_inline_ml_blocks"
               ],
-              "short_description": "Rules whose antivirus profile has a WildFire inline ML model that does not block."
+              "short_description": "The antivirus profile on this rule has a WildFire inline machine-learning model that does not block."
             }
           ],
           "what_it_checks": "Every rule that permits traffic carries an antivirus profile whose inline machine learning models block what they catch in real time.",
@@ -6476,7 +6482,7 @@
               "asserted_fields": [
                 "is_used"
               ],
-              "short_description": "Antivirus profiles that no security rule and no profile group names."
+              "short_description": "No security rule and no profile group names this antivirus profile."
             },
             {
               "name": "Unreferenced WildFire analysis profile",
@@ -6507,7 +6513,7 @@
               "asserted_fields": [
                 "is_used"
               ],
-              "short_description": "WildFire analysis profiles that no security rule and no profile group names."
+              "short_description": "No security rule and no profile group names this WildFire analysis profile."
             }
           ],
           "what_it_checks": "Every antivirus and sandbox analysis profile an administrator created is named by a security rule or a profile group.",
@@ -6556,7 +6562,7 @@
               "asserted_fields": [
                 "wildfire_analysis_submits_all"
               ],
-              "short_description": "Allow rules whose traffic is not fully sent for WildFire sandbox analysis."
+              "short_description": "The traffic this rule permits is not fully sent for WildFire sandbox analysis: at least one file type it carries is held back."
             }
           ],
           "implementation_version": "v2",
@@ -6597,7 +6603,7 @@
               "asserted_fields": [
                 "size_limits_wholly_untuned"
               ],
-              "short_description": "Appliances whose WildFire file size limits are ALL still at the PAN-OS default."
+              "short_description": "Every WildFire file size limit on this appliance is still at the product default."
             }
           ],
           "implementation_version": "v2",
@@ -6894,7 +6900,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose anti-spyware profile leaves a malicious DNS Security category unenforced.",
+              "short_description": "The anti-spyware profile on this rule leaves a malicious DNS Security category unenforced.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7074,7 +7080,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose vulnerability protection profile does not block the source of brute-force attempts.",
+              "short_description": "The vulnerability protection profile on this rule does not block the source of brute-force attempts.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7106,7 +7112,7 @@
             },
             {
               "name": "Rule never assessed for vulnerability inspection",
-              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "short_description": "This allow rule has never been assessed for vulnerability inspection, so what inspects its traffic was not established.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7155,7 +7161,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Rules whose vulnerability protection profile has an inline cloud-analysis detector that does not block.",
+              "short_description": "The vulnerability protection profile on this rule has an inline cloud-analysis detector that does not block.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7187,7 +7193,7 @@
             },
             {
               "name": "Real-time analysis is switched off for the profile",
-              "short_description": "Rules whose vulnerability protection profile has the profile-wide inline cloud analysis switch off, so no detector runs whatever each one's action says.",
+              "short_description": "The vulnerability protection profile on this rule has its profile-wide inline cloud analysis switched off, so no detector runs whatever each one's action says.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7219,7 +7225,7 @@
             },
             {
               "name": "Rule never assessed for vulnerability inspection",
-              "short_description": "Allow rules the vulnerability assessment pass has never run over, so nothing established what inspects their traffic.",
+              "short_description": "This allow rule has never been assessed for vulnerability inspection, so what inspects its traffic was not established.",
               "canonical_query": {
                 "model": "integrations.SecurityRule",
                 "operator": "and",
@@ -7296,7 +7302,7 @@
                   }
                 ]
               },
-              "short_description": "Rules whose anti-spyware profile carries threat exceptions.",
+              "short_description": "The anti-spyware profile on this rule carries threat exceptions.",
               "asserted_fields": [
                 "spyware_exceptions_minimal"
               ]
@@ -8237,7 +8243,7 @@
           "queries": [
             {
               "name": "Expired, and nothing establishes that nothing depends on it",
-              "short_description": "Default baseline query: the decoded validity end is in the past, and the reference walk has not shown the certificate to be unused.",
+              "short_description": "The certificate's validity period has ended, and nothing has shown that nothing depends on it.",
               "canonical_query": {
                 "model": "integrations.Certificate",
                 "operator": "and",
@@ -8286,7 +8292,7 @@
           "queries": [
             {
               "name": "An authority certificate the reference walk found nothing relying on",
-              "short_description": "Default baseline query: the entry is a CA, and the walk completed and found no name reference and no signed certificate.",
+              "short_description": "This authority certificate has nothing relying on it: no part of the configuration names it, and it has signed nothing the firewall holds.",
               "canonical_query": {
                 "model": "integrations.Certificate",
                 "operator": "and",
@@ -8636,7 +8642,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The management channel is not hardened to customer certificate material with peer-name validation. The baseline tier, so the redundancy calibration overrides it where both match.",
+              "short_description": "The connection to central management is not hardened: it does not use the organization's own certificate material with the server's name validated.",
               "canonical_query": {
                 "model": "integrations.PanoramaRegistration",
                 "operator": "and",
@@ -9607,7 +9613,7 @@
             },
             {
               "name": "Permitted and recorded rather than restricted",
-              "short_description": "The weakest treatment is `alert`: the visit happens and is recorded, so the exposure is unchanged and measurable.",
+              "short_description": "The weakest treatment on those categories is alert: the visit happens and is recorded, so the exposure is unchanged.",
               "canonical_query": {
                 "model": "integrations.SaasUrlFilteringPosture",
                 "operator": "and",
@@ -12067,7 +12073,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An antivirus schedule whose cadence is neither daily nor hourly - so `weekly`, `none`, or an appliance whose configuration was never read.",
+              "short_description": "The antivirus content schedule runs neither daily nor hourly: weekly, not at all, or the appliance's configuration was never read.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12095,7 +12101,7 @@
             },
             {
               "name": "The antivirus schedule retrieves nothing automatically",
-              "short_description": "No recurrence branch at all, or an explicit `none`. Nothing is checked for, downloaded or installed, and what the appliance holds ages until a person intervenes. Also the value held by a firewall with no `update-schedule` node whatsoever.",
+              "short_description": "No antivirus schedule is set, or it is explicitly none, so nothing is fetched or installed and what the appliance holds ages until a person intervenes.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12163,7 +12169,7 @@
             },
             {
               "name": "The antivirus schedule downloads without installing",
-              "short_description": "The scheduled run is `download-only`: new content is retrieved and never applied, so the appliance goes on enforcing what it already had while the schedule reports success.",
+              "short_description": "The scheduled run downloads without installing, so the appliance goes on enforcing what it already had while the schedule reports success.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12197,7 +12203,7 @@
             },
             {
               "name": "The antivirus schedule takes no action when it runs",
-              "short_description": "The in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action - the safe direction, and the limit of what was measured.",
+              "short_description": "The schedule carries no action at all, which the screen renders as None, so it neither downloads nor installs.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12231,7 +12237,7 @@
             },
             {
               "name": "The antivirus schedule's action could not be read",
-              "short_description": "The appliance's `deviceconfig/system` node came back empty, so the action is unknown rather than wrong. An unknown fires: a pass would report the schedule as installing content on the strength of a reply nobody received.",
+              "short_description": "The appliance's system configuration came back empty, so what the schedule does when it runs is not known.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12285,7 +12291,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "An Applications-and-Threats schedule whose cadence is none of daily, hourly or every 30 minutes - so `weekly`, `none`, or an appliance whose configuration was never read.",
+              "short_description": "The applications-and-threats schedule runs at none of daily, hourly or every thirty minutes: weekly, not at all, or the appliance's configuration was never read.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12319,7 +12325,7 @@
             },
             {
               "name": "The Applications and Threats schedule retrieves nothing automatically",
-              "short_description": "No recurrence branch at all, or an explicit `none`: no automatic retrieval of application identifications or vulnerability signatures, and the value held by a firewall with no `update-schedule` node.",
+              "short_description": "No applications-and-threats schedule is set, or it is explicitly none, so neither application identifications nor vulnerability signatures are retrieved automatically.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12399,7 +12405,7 @@
             },
             {
               "name": "The Applications and Threats schedule downloads without installing",
-              "short_description": "The scheduled run is `download-only`: new application identifications and vulnerability signatures are retrieved and never applied.",
+              "short_description": "The scheduled run downloads without installing, so new application identifications and vulnerability signatures are retrieved and never applied.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12433,7 +12439,7 @@
             },
             {
               "name": "The Applications and Threats schedule takes no action when it runs",
-              "short_description": "The in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action.",
+              "short_description": "The schedule carries no action at all, which the screen renders as None, so it neither downloads nor installs.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12467,7 +12473,7 @@
             },
             {
               "name": "The Applications and Threats schedule's action could not be read",
-              "short_description": "The appliance's `deviceconfig/system` node came back empty, so the action is unknown rather than wrong. An unknown fires.",
+              "short_description": "The appliance's system configuration came back empty, so what the schedule does when it runs is not known.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12703,7 +12709,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "The GlobalProtect data file has no recurring schedule at all, or its scheduled run does not install what it fetches. An `or` group, because stage 5 states this half as the passing condition and the finding is its negation.",
+              "short_description": "The GlobalProtect data file has no recurring schedule at all, or its scheduled run does not install what it fetches.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "or",
@@ -12732,7 +12738,7 @@
             },
             {
               "name": "The clientless VPN content has no recurring schedule",
-              "short_description": "No recurrence branch at all, or an explicit `none`: this content is never retrieved automatically. Also the value held by a firewall with no `update-schedule` node.",
+              "short_description": "No schedule is set for the clientless VPN content, or it is explicitly none, so the content is never retrieved automatically.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12754,7 +12760,7 @@
             },
             {
               "name": "The clientless VPN content is downloaded without being installed",
-              "short_description": "A recurring schedule exists and its action is `download-only`, so the content is retrieved and never applied.",
+              "short_description": "A recurring schedule exists and downloads without installing, so the content is retrieved and never applied.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12782,7 +12788,7 @@
             },
             {
               "name": "The clientless VPN content schedule takes no action when it runs",
-              "short_description": "A recurring schedule exists and the in-force branch carries no `action` key at all, which the screen renders as `None`. Read as taking neither action.",
+              "short_description": "A recurring schedule exists and carries no action at all, which the screen renders as None, so it neither downloads nor installs.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -12810,7 +12816,7 @@
             },
             {
               "name": "The clientless VPN content schedule's action could not be read",
-              "short_description": "A recurrence is present and the action is empty, which is the appliance's `deviceconfig/system` node having come back empty. An unknown fires rather than passing.",
+              "short_description": "A schedule is present and the appliance's system configuration came back empty, so what the schedule does when it runs is not known.",
               "canonical_query": {
                 "model": "integrations.ContentUpdateSchedule",
                 "operator": "and",
@@ -14426,7 +14432,7 @@
             },
             {
               "name": "Mapping lifetime above the bound",
-              "short_description": "Mappings on this vsys expire, but only after more than sixty minutes, so identity outlives the DHCP lease that justified it by a margin nobody at the site has justified.",
+              "short_description": "Mappings on this virtual system expire, but only after more than sixty minutes, so an identity outlives the address lease that justified it.",
               "canonical_query": {
                 "model": "integrations.UserIdCollectorSettings",
                 "operator": "and",
@@ -15250,7 +15256,7 @@
             },
             {
               "name": "Overload or a TLS 1.3 downgrade is not failed closed",
-              "short_description": "This profile leaves at least one of the four capacity and downgrade switches unset, on either decryption path, so running short of decryption capacity becomes an inspection bypass an adversary can induce on purpose.",
+              "short_description": "The profile leaves at least one of the four capacity and downgrade switches unset, on either decryption path, so running short of decryption capacity becomes an inspection bypass an adversary can induce.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -15304,7 +15310,7 @@
             },
             {
               "name": "An unavailable signing module is not failed closed",
-              "short_description": "This profile leaves at least one of the two HSM switches unset, on either decryption path, so an outage in one piece of equipment becomes a silent estate-wide inspection gap for as long as it lasts.",
+              "short_description": "The profile leaves at least one of the two signing-module switches unset, on either decryption path, so an outage in one piece of equipment becomes a silent inspection gap for as long as it lasts.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -15364,7 +15370,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Appliances with no forward-trust signing authority designated, or whose designation does not resolve to a self-signed certificate authority the appliance itself holds - including a designation naming a certificate that does not exist.",
+              "short_description": "No forward-trust signing authority is designated on this appliance, or the designation does not resolve to a self-signed authority the appliance itself holds - including one naming a certificate that does not exist.",
               "canonical_query": {
                 "model": "integrations.DecryptionSettings",
                 "operator": "and",
@@ -16690,7 +16696,7 @@
             },
             {
               "name": "Weakest scan action allows the scan",
-              "short_description": "The weakest scan entry allows the scan, so it proceeds and is not even recorded. At the control's own tier, so that the action behind a finding is recorded rather than inferred from the absence of a calibration.",
+              "short_description": "The weakest scan entry on this profile allows the scan, so it proceeds and is not recorded.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -16724,7 +16730,7 @@
             },
             {
               "name": "A scan type has no entry at all",
-              "short_description": "The weakest action reads as the empty sentinel, which means a scan type with no entry on the profile rather than an entry with no action - the device reads the second as alert. `is_empty` is the only operator that reaches this state positively.",
+              "short_description": "A reconnaissance scan type has no entry on this profile at all, which is different from an entry with no action: the firewall treats the second as alert.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -16758,7 +16764,7 @@
             },
             {
               "name": "Scan sensitivity was never read",
-              "short_description": "The interval and threshold on this profile's scan entries were never read, so whether the action is ever reached is unknown rather than answered. Reported rather than passed because no operator in this query language reaches an absent number.",
+              "short_description": "The interval and threshold on this profile's scan entries were not read, so whether the action is ever reached is not known.",
               "canonical_query": {
                 "model": "integrations.ZoneProtectionProfile",
                 "operator": "and",
@@ -17182,7 +17188,7 @@
             },
             {
               "name": "Reference walk could not be completed",
-              "short_description": "A DoS Protection profile whose reference surfaces could not all be walked, so whether anything names it is unknown rather than answered. Reported on its own because the baseline must stay silent here: this control's remediation is a deletion.",
+              "short_description": "The places that could name this DoS protection profile could not all be walked, so whether anything names it is not known.",
               "canonical_query": {
                 "model": "integrations.SecurityProfile",
                 "operator": "and",
@@ -18266,7 +18272,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Replay protection is explicitly disabled on this tunnel - the `anti-replay` key is present and set to no.",
+              "short_description": "Replay protection is explicitly switched off on this tunnel.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnel",
                 "operator": "and",
@@ -18288,7 +18294,7 @@
             },
             {
               "name": "Replay protection was not determined",
-              "short_description": "The `anti-replay` key is absent from this tunnel, so what the device does with it was not determined - this is not a report that replay protection is switched off.",
+              "short_description": "The replay-protection setting is absent from this tunnel, so what the device does with it was not established. This is not a report that replay protection is off.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnel",
                 "operator": "and",
@@ -18330,7 +18336,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "Far-end probing is explicitly disabled on this tunnel - the `tunnel-monitor/enable` key is present and set to no.",
+              "short_description": "Far-end probing is explicitly switched off on this tunnel.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnel",
                 "operator": "and",
@@ -18352,7 +18358,7 @@
             },
             {
               "name": "Far-end monitoring was not determined",
-              "short_description": "The `tunnel-monitor/enable` key is absent - either the whole branch is missing or the key is left out of it - so monitoring was not determined and this tunnel has not been shown to be watched.",
+              "short_description": "The far-end probing setting is absent from this tunnel, so nothing has shown that the tunnel is watched.",
               "canonical_query": {
                 "model": "integrations.IpsecTunnel",
                 "operator": "and",
@@ -18501,7 +18507,7 @@
             },
             {
               "name": "No forward-proxy rule exists at all",
-              "short_description": "At the control's own tier, so that the state behind a finding is recorded rather than inferred from the absence of a calibration. The remediation here is a rule to ADD, which the sibling state's is not.",
+              "short_description": "No decryption rule on this enforcement point opens an outbound web session, so none of that traffic is inspected. The change here is a rule to add.",
               "canonical_query": {
                 "model": "integrations.DecryptionRulebaseVerdict",
                 "operator": "and",
@@ -18529,7 +18535,7 @@
             },
             {
               "name": "Every forward-proxy rule leaves the session encrypted",
-              "short_description": "Rules exist on the branch, they match the traffic, and all of them pass it through unopened. At the control's own tier; the remediation is a rule to EDIT. Mutually exclusive with its sibling on a single-valued column.",
+              "short_description": "Decryption rules match the outbound web traffic and every one of them passes it through unopened. The change here is a rule to edit.",
               "canonical_query": {
                 "model": "integrations.DecryptionRulebaseVerdict",
                 "operator": "and",
@@ -18577,7 +18583,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A rule that leaves traffic encrypted and whose content criterion includes `any`, so every content class it reaches is left unopened - the risky classes among them.",
+              "short_description": "The rule leaves traffic encrypted and its content criterion includes any, so every content class it reaches is left unopened, the risky classes among them.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18611,7 +18617,7 @@
             },
             {
               "name": "Exemption keyed on no criterion at all",
-              "short_description": "Content, source, destination, user and service all unbounded: an exemption belonging to no declared class. At the control's own tier - its rows are a strict subset of the baseline's, so it names the five criteria rather than recalibrating.",
+              "short_description": "Content, source, destination, user and service are all unbounded on this rule, so the exemption belongs to no declared class at all.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -18789,7 +18795,7 @@
           "queries": [
             {
               "name": "Baseline",
-              "short_description": "A rule that leaves traffic encrypted whose content criterion is unbounded and whose source criterion is a named address rather than `any` - a privacy carve-out keyed on hosts instead of on content classes.",
+              "short_description": "The rule leaves traffic encrypted with an unbounded content criterion and a named source, so the carve-out is keyed on hosts instead of on content classes.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19098,7 +19104,7 @@
             },
             {
               "name": "Inverted match on an unbounded address criterion",
-              "short_description": "The rule's source criterion also includes `any`. Commit validation refuses that beside an inverted match, so this matches only a STAGED rule - shipped rather than dropped because the read behind this control is candidate-derived.",
+              "short_description": "The rule's source match is inverted and its source criterion also includes any. Commit validation refuses that pairing, so this is a staged rule rather than one in force.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -19138,7 +19144,7 @@
             },
             {
               "name": "The source match is inverted",
-              "short_description": "The severity the graded ladder gives an inverted match, which is also what this control asserts - so this query carries the baseline's own population and every finding here reports at this tier. Stated mechanically rather than inferred.",
+              "short_description": "The rule's source match is inverted, so every host outside the named set is exempt.",
               "canonical_query": {
                 "model": "integrations.DecryptionPolicyRule",
                 "operator": "and",
@@ -20737,6 +20743,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "No enabled rule blocks the applications the organization has decided against above every rule that could otherwise permit them.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20782,6 +20789,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule does not record the sessions it decides at their end.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20808,6 +20816,7 @@
             },
             {
               "name": "No log forwarding profile attached",
+              "short_description": "The rule names no log forwarding profile, so whatever it records stays on the firewall.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -20854,6 +20863,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "Nothing refuses and records the traffic the policy does not explicitly permit: there is no logged catch-all deny rule, and the firewall's own last-resort rules do not log.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20905,6 +20915,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The firewall's own check for rules that can never match is switched off, so the warning it would produce does not exist.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20946,6 +20957,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "Two rules come down to the same traffic and the same decision, with identical zones, addresses, application, service and action.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20972,6 +20984,7 @@
             },
             {
               "name": "The duplicate comparison has not been run",
+              "short_description": "The comparison that finds duplicate rules has not been run over this rule set.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -21171,6 +21184,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A busy rule is placed after quieter ones, so the firewall evaluates the quiet rules first on every session.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21197,6 +21211,7 @@
             },
             {
               "name": "The hit-count reading cannot be believed",
+              "short_description": "The hit-count reading for this rule set cannot be relied on, so rule order could not be judged against it.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -21243,6 +21258,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A direction is missing from the standing rules that block known-hostile address lists: traffic to those addresses, traffic from them, or both.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21288,6 +21304,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The policy expresses no geographic boundary: it neither accepts only the countries the business operates in nor refuses the ones it has decided against.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21333,6 +21350,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "No rule refuses a high-risk service by matching on the port itself, underneath whatever application identification is already doing.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21378,6 +21396,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule permits traffic and no URL filtering profile is in force on it, so the sites it reaches are not inspected.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21414,6 +21433,7 @@
             },
             {
               "name": "No site inspection in force at all",
+              "short_description": "The rule permits traffic with no site inspection in force by either route, bound directly or through a profile group.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -21475,6 +21495,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule carries no description, so nothing says in writing what business flow it serves.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21521,6 +21542,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule carries a one-off schedule whose window has already passed, and the rule is still in the rule set.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21552,6 +21574,7 @@
             },
             {
               "name": "The schedule kind has not been read",
+              "short_description": "What kind of schedule this rule carries was not read, so whether it stops working by itself is not known.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",

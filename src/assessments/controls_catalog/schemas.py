@@ -327,6 +327,55 @@ def _validate_canonical_query(payload: dict, *, context: str) -> dict:
         raise ValidationError(f"{context} canonical_query is invalid: {exc}") from exc
 
 
+#: WHAT AN EVIDENCE SENTENCE MAY NOT SAY. `ControlQuery.short_description` is the health check's
+#: Evidence row - what was found on this firewall at this grade - and it is the only one of the
+#: block's four lines that belongs to a QUERY rather than to the control. It had no rule at all
+#: until 2026-11-17 and shipped 42 backticks, 25 copies of "Default baseline query." and 50
+#: sentences explaining our own grading to a client. See docs/writing-a-control-block.md.
+#:
+#: THE PHRASES ARE NAMED RATHER THAN A PATTERN OVER "verdict" OR "control", because both words
+#: are PAN-OS's own on these lines: a WildFire malware verdict is the firewall's word, and so is
+#: "the control link" for HA1. The same lesson the Requirement register learned four times.
+_EVIDENCE_MAY_NOT_SAY = (
+    (re.compile(r'`'), "carries a backtick, which is a command or a setting quoted for an engineer"),
+    (re.compile(r"\bbaseline query\b|\bthis control\b|\bcontrol's own (?:tier|severity)\b"
+                r"|\bthis verdict\b|\bthis assessment\b|\bcalibration\b|\bthe corpus\b"
+                r"|\bstage \d\b|\bmaterialis", re.I),
+     "names this application's own machinery"),
+    (re.compile(r"\breported (?:low|medium|high|critical)\b"
+                r"|\bgraded (?:below|above|one tier|at this)\b", re.I),
+     "explains our own grading rather than what was found"),
+    (re.compile(r"\bPAN-[A-Z]{2,5}-\d{3}\b"), "names a control id, which the block prints already"),
+)
+
+#: Two sentences at most, and the column is 255 characters - `models.CharField(max_length=255)`,
+#: so a longer one fails rather than reads badly. The longest shipped is 239.
+_EVIDENCE_LIMIT = 255
+_EVIDENCE_SENTENCES = 2
+
+
+def _validate_evidence_sentence(sentence: str, *, context: str) -> None:
+    """The Evidence row's own rules. Judgement is in the doc; these four are mechanical."""
+    if not sentence:
+        return
+    if len(sentence) > _EVIDENCE_LIMIT:
+        _raise_validation_error(
+            f"{context} has a 'short_description' of {len(sentence)} characters; the column is "
+            f"{_EVIDENCE_LIMIT}. It prints as the health check's Evidence row, so say what was "
+            f"found and leave the reasoning to the engineer-facing fields.")
+    if len(_ONE_SENTENCE_END.findall(sentence)) > _EVIDENCE_SENTENCES:
+        _raise_validation_error(
+            f"{context} has a 'short_description' of more than {_EVIDENCE_SENTENCES} sentences. "
+            f"The first names what was found; a second may place it. Nothing needs a third.")
+    for pattern, what in _EVIDENCE_MAY_NOT_SAY:
+        found = pattern.search(sentence)
+        if found:
+            _raise_validation_error(
+                f"{context} has a 'short_description' that {what}: {found.group(0)!r}. The "
+                f"document prints this line as the Evidence row, which is what was found on the "
+                f"firewall and not how this application graded it.")
+
+
 def _validate_query_payload(query_payload: dict, *, control_id: str) -> dict:
     if not isinstance(query_payload, dict):
         _raise_validation_error(f"Control '{control_id}' query must be an object.")
@@ -355,6 +404,9 @@ def _validate_query_payload(query_payload: dict, *, control_id: str) -> dict:
             context=f"Control '{control_id}' query '{name}'",
         ),
     }
+
+    _validate_evidence_sentence(normalized_query["short_description"],
+                                context=f"Control '{control_id}' query '{name}'")
 
     adjusted_severity = normalized_query["adjusted_severity"]
     if adjusted_severity not in (None, "") and adjusted_severity not in Control.Severity.values:
