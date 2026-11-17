@@ -14,8 +14,8 @@ from assessments.controls_catalog.io.importers import (
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import (
-    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _PROCEDURE_IN_A_STANDARD,
-    validate_catalog_payload)
+    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _ONE_SENTENCE, _ONE_SENTENCE_END,
+    _PROCEDURE_IN_A_STANDARD, validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -302,6 +302,55 @@ class SeededCatalogTextTests(TestCase):
                     offenders[control["control_id"]] = caught
 
         self.assertEqual(offenders, {})
+
+    def test_every_shipped_risk_line_is_one_sentence(self):
+        """Jason agreed the voice on a five-control sample, 2026-11-16: Risk is ONE SENTENCE
+        naming what goes wrong.
+
+        MEASURED BEFORE THE SWEEP over all 218: `why_it_matters` ran to a median of 209
+        characters and only 100 lines were a single sentence, so the usual shape was a general
+        claim followed by the case that made it concrete. After it: 218 of 218, median 174. Two
+        lines also spoke about our own machinery - "the finding is not that a number is wrong"
+        and "unlike most findings" - and the Requirement patterns now cover this field too.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                value = (control.get("why_it_matters") or "").strip()
+                sentences = len(_ONE_SENTENCE_END.findall(value))
+                if sentences != 1:
+                    offenders[control["control_id"]] = sentences
+                caught = [pattern.search(value).group(0)
+                          for pattern, _why in _PROCEDURE_IN_A_STANDARD
+                          if pattern.search(value)]
+                if caught:
+                    offenders[f"{control['control_id']} voice"] = caught
+
+        self.assertEqual(offenders, {})
+
+    def test_a_two_sentence_risk_line_is_refused(self):
+        """A guard: 118 of the 218 lines had two or more sentences before 2026-11-16."""
+        self.assertIn("why_it_matters", _ONE_SENTENCE)
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(
+            payload["controls"][0],
+            why_it_matters="A weak key undermines every certificate that chains to it. "
+                           "Reissuing one is slower than editing a setting.")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("exactly one", str(caught.exception))
+
+    def test_a_version_number_does_not_end_a_risk_sentence(self):
+        """`TLS 1.2` and `aes256-gcm` carry a full stop that is not a sentence end, and the
+        sentence count has to agree: a rule that counted them would refuse a correct line."""
+        payload = load_seed_payload()["catalogs"][0]
+        line = "A floor below TLS 1.2 lets a session negotiate a protocol with known attacks."
+        payload["controls"] = [dict(payload["controls"][0], why_it_matters=line)]
+
+        validated = validate_catalog_payload(payload)
+        self.assertEqual(validated["controls"][0]["why_it_matters"], line)
 
     def test_a_requirement_line_that_says_what_was_looked_at_is_refused(self):
         """A guard, not a convention. The sentence below is the SHAPE 216 of the 218 lines had

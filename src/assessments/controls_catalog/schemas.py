@@ -174,7 +174,29 @@ _PROCEDURE_IN_A_STANDARD = (
 #: Which fields the register above is enforced on. One field joins this as its sweep of all 218
 #: controls lands, never before: a rule that arrives first makes the shipped catalogue invalid
 #: and blocks every commit until the text catches up.
-_REGISTER = {"what_it_checks": _PROCEDURE_IN_A_STANDARD}
+#:
+#: `why_it_matters` is held to the same patterns. The Risk line is about what goes wrong on the
+#: firewall, so our procedure has no more business in it than in the Requirement - two of the
+#: 218 said "the finding is not that a number is wrong" and "unlike most findings".
+_REGISTER = {
+    "what_it_checks": _PROCEDURE_IN_A_STANDARD,
+    "why_it_matters": _PROCEDURE_IN_A_STANDARD,
+}
+
+#: ONE SENTENCE, and the fields held to it. Jason agreed the voice on a five-control sample
+#: 2026-11-16: Risk is ONE SENTENCE naming what goes wrong. Measured over the 218 before the
+#: sweep: `why_it_matters` ran to a median of 209 characters and only 100 of them were a single
+#: sentence, so the usual shape was a general claim followed by the case that made it concrete.
+#: Holding it to one forces the two together and the line reads once.
+#:
+#: WHY A SENTENCE COUNT IS A FAIR RULE HERE AND NOT PEDANTRY: this cell sits in a two-column
+#: table beside a label, and a second sentence is where the block starts pushing onto a second
+#: page - which `keep_together` then holds back, moving the whole control.
+_ONE_SENTENCE = ("why_it_matters",)
+
+#: A sentence end, as opposed to the full stop in `TLS 1.2` or the one in `aes256-gcm`. The
+#: question mark is here because `_validate_client_detail` allows a line to end in one.
+_ONE_SENTENCE_END = re.compile(r"[.?](?:\s|$)")
 
 
 def _validate_client_detail(control_payload: dict, control_id: str, is_active: bool,
@@ -230,6 +252,12 @@ def _validate_client_detail(control_payload: dict, control_id: str, is_active: b
             _raise_validation_error(
                 f"{context} writes in the first person in its '{field}'. The Control Detail "
                 f"section is addressed to the client, not written by us to each other.")
+        if field in _ONE_SENTENCE and len(_ONE_SENTENCE_END.findall(value)) != 1:
+            _raise_validation_error(
+                f"{context} has a '{field}' of "
+                f"{len(_ONE_SENTENCE_END.findall(value))} sentences; it takes exactly one. "
+                f"The document prints this line as the Risk, and one sentence naming what goes "
+                f"wrong is what a client reads. The longer account belongs in 'rationale'.")
         for pattern, what in _REGISTER.get(field, ()):
             found = pattern.search(value)
             if found:

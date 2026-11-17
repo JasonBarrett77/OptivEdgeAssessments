@@ -54,7 +54,7 @@
           "is_active": true,
           "target_model": "integrations.ServerProfile",
           "what_it_checks": "Every LDAP server profile requires SSL/TLS on its connection to the directory.",
-          "why_it_matters": "An LDAP bind sends the bind account's credentials to the directory. Without TLS they cross the network in the clear, and anyone able to watch that traffic obtains the account that can read the whole directory.",
+          "why_it_matters": "Without TLS an LDAP bind sends the account that can read the whole directory across the network in the clear, where anyone watching that traffic obtains it.",
           "where_to_confirm": "Device > Server Profiles > LDAP, then open each profile and check Require SSL/TLS secured connection.",
           "what_to_change": "Turn on Require SSL/TLS secured connection, move the profile to port 636, and enable certificate verification at the same time. Encryption on its own still accepts whatever certificate the server presents."
         },
@@ -100,7 +100,7 @@
           "is_active": true,
           "target_model": "integrations.ServerProfile",
           "what_it_checks": "Every LDAP server profile verifies the directory server's certificate before it trusts the connection.",
-          "why_it_matters": "Encryption without verification stops someone listening but not someone impersonating. The firewall completes a secure connection with whatever answers, so an attacker in the middle can collect the bind credentials.",
+          "why_it_matters": "Encryption without verification stops someone listening but not someone impersonating, so the firewall completes a secure connection with whatever answers and an attacker in the middle collects the bind credentials.",
           "where_to_confirm": "Device > Server Profiles > LDAP, then open each profile and check Verify Server Certificate for SSL sessions.",
           "what_to_change": "Import the certificate authority that issued the directory server's certificate into the firewall's certificate store, then turn on Verify Server Certificate for SSL sessions."
         },
@@ -352,7 +352,7 @@
           "is_active": true,
           "target_model": "integrations.ServerProfile",
           "what_it_checks": "Every SAML identity provider profile validates the provider's certificate.",
-          "why_it_matters": "With validation off the firewall accepts a single sign-on response signed by anything. This is a published authentication bypass, CVE-2020-2021: a forged response makes the attacker any user the identity provider could have named.",
+          "why_it_matters": "With validation off the firewall accepts a single sign-on response signed by anything, a published authentication bypass in which a forged response makes the attacker any user the identity provider could have named.",
           "where_to_confirm": "Device > Server Profiles > SAML Identity Provider, then open each profile and check Validate Identity Provider Certificate.",
           "what_to_change": "Turn on Validate Identity Provider Certificate. The provider's signing certificate must be issued by a certificate authority, and a certificate profile on the firewall must hold that authority."
         },
@@ -522,7 +522,7 @@
           "is_active": true,
           "target_model": "integrations.AuthenticationProfile",
           "what_it_checks": "Administrator multi-factor authentication comes from the RADIUS or SAML service the profile authenticates against. A multi-factor server profile listed on an administrative profile has no effect, because the firewall does not use those profiles for administrator logins.",
-          "why_it_matters": "Administrators appear to have a second factor and do not have one. The configuration shows it, a configuration audit reports it as present, and the firewall ignores it at the moment it would matter.",
+          "why_it_matters": "Administrators appear to have a second factor and do not have one, because the firewall ignores the profile at the moment it would matter.",
           "where_to_confirm": "Device > Authentication Profile, then open each profile an administrator logs in through and check the Factors tab.",
           "what_to_change": "Deliver the second factor through the first instead: point the profile at a RADIUS server profile for the vendor's RADIUS endpoint, or at an identity provider that enforces it. Then remove the Factors entry."
         },
@@ -672,7 +672,7 @@
           "is_active": true,
           "target_model": "integrations.AuthenticationSequence",
           "what_it_checks": "Every authentication sequence an administrator logs in through falls back only to another external method, never to the firewall's own local accounts and never to no authentication at all.",
-          "why_it_matters": "A sequence tries each method in turn until one succeeds, so a local fallback is a management login the identity system cannot revoke. An attacker who can take the directory servers offline can force the firewall down to it.",
+          "why_it_matters": "A sequence tries each method until one succeeds, so a local fallback is a management login the identity system cannot revoke and an attacker who takes the directory offline forces the firewall down to it.",
           "where_to_confirm": "Device > Authentication Sequence, then open each sequence named on an administrator account or under Device > Setup > Management > Authentication Settings and list each member's type.",
           "what_to_change": "Remove local database members from sequences administrators log in through. Keep emergency access as a separate documented local account with its own profile rather than a silent fallback inside every administrator's login path."
         },
@@ -848,7 +848,7 @@
           "is_active": true,
           "target_model": "integrations.ServerProfile",
           "what_it_checks": "Every server profile the firewall holds is referenced by some part of the configuration.",
-          "why_it_matters": "An unused server profile is a live definition nobody maintains. It often points at a server that has been decommissioned, and it is one setting away from being in use again.",
+          "why_it_matters": "An unused server profile is a live definition nobody maintains, often pointing at a decommissioned server and one setting away from being in use again.",
           "where_to_confirm": "Device > Server Profiles, then search the configuration for each profile's name.",
           "what_to_change": "Delete the profile, or record why it is kept. The firewall refuses a deletion that would break a reference and names what refers to it, so a refusal answers the question of whether it is really unused."
         },
@@ -889,7 +889,7 @@
           ],
           "target_model": "integrations.PasswordComplexityPolicy",
           "what_it_checks": "The firewall has password complexity enforcement switched on, so the individual requirements stored beneath it are applied rather than held inert.",
-          "why_it_matters": "This one switch decides whether any of the password rules on the device apply. Off, the configuration screen reads as hardened and the device accepts whatever an administrator types.",
+          "why_it_matters": "This one switch decides whether any of the password rules apply, so with it off the configuration screen reads as hardened while the device accepts whatever an administrator types.",
           "where_to_confirm": "Device > Setup > Management > Minimum Password Complexity, the Enabled setting.",
           "what_to_change": "Switch on password complexity and set the individual requirements in the same change: enabling it alone leaves every requirement at zero."
         },
@@ -1146,7 +1146,7 @@
           ],
           "target_model": "integrations.PasswordComplexityPolicy",
           "what_it_checks": "A local administrator password contains at least one character that is neither a letter nor a digit.",
-          "why_it_matters": "A password made only of letters and digits is reachable by a dictionary attack with simple substitutions. A punctuation character defeats the word lists those attacks are built from.",
+          "why_it_matters": "A password made only of letters and digits is reachable by a dictionary attack with simple substitutions, and a punctuation character defeats the word lists those attacks are built from.",
           "where_to_confirm": "Device > Setup > Management > Minimum Password Complexity, the Minimum Special Characters setting.",
           "what_to_change": "Set the minimum special characters to at least one."
         },
@@ -1677,7 +1677,7 @@
           ],
           "target_model": "integrations.AuthenticationSettings",
           "what_it_checks": "The firewall locks an administrator account after no more than five consecutive failed logins, and never allows unlimited attempts.",
-          "why_it_matters": "A lockout threshold is what stops online password guessing and spraying. Without one an attacker can try passwords against a known administrator name indefinitely.",
+          "why_it_matters": "A lockout threshold is what stops online password guessing, and without one an attacker can try passwords against a known administrator name indefinitely.",
           "where_to_confirm": "Device > Setup > Management > Authentication Settings, the failed attempts setting.",
           "what_to_change": "Set the failed attempts to five or fewer; three is the common hardening target. Do not leave it at zero. Pair it with a non-zero lockout time, or a locked account releases immediately."
         },
@@ -1988,7 +1988,7 @@
             }
           ],
           "what_it_checks": "Every authentication profile locks an account after no more than three consecutive failures, so the protection reaches administrators an external service authenticates.",
-          "why_it_matters": "The firewall-wide lockout does not cover an account authenticated through a profile. Without a limit on the profile, an externally authenticated administrator can be guessed at indefinitely.",
+          "why_it_matters": "The firewall-wide lockout does not cover an account authenticated through a profile, so without a limit on the profile an externally authenticated administrator can be guessed at indefinitely.",
           "where_to_confirm": "Device > Authentication Profile, the Advanced tab of the profile named in the finding, the failed attempts setting.",
           "what_to_change": "Set the failed attempts to five or fewer on the profile; three is the common hardening target. Set a lockout time as well: zero holds the account until an administrator releases it, which is stronger but is an availability decision."
         },
@@ -2284,7 +2284,7 @@
             }
           ],
           "what_it_checks": "No more than two accounts hold the full-privilege superuser role.",
-          "why_it_matters": "The full-privilege role can rewrite policy, read secrets, create further administrators and switch off the logging that would show any of it. The count is the size of the blast radius.",
+          "why_it_matters": "The full-privilege role can rewrite policy, read secrets, create further administrators and switch off the logging that would show any of it, so the count is the size of the blast radius.",
           "where_to_confirm": "Device > Administrators. Count the entries whose administrator type is the full-privilege role.",
           "what_to_change": "Move operators, auditors and automation onto custom roles scoped to what they actually do, leaving full privilege to a named few plus break-glass. Demoting an account does not disturb how it authenticates."
         },
@@ -2472,7 +2472,7 @@
           ],
           "target_model": "integrations.Certificate",
           "what_it_checks": "Every certificate the firewall holds has a key of at least RSA 2048 or ECDSA P-256. A key whose size cannot be read has not been shown to meet that floor.",
-          "why_it_matters": "A weak key undermines every certificate that chains to it, and unlike most findings this cannot be fixed by editing configuration: the certificate has to be reissued and redistributed, which makes early detection worth more.",
+          "why_it_matters": "A weak key undermines every certificate that chains to it, and it cannot be put right by editing configuration: the certificate has to be reissued and redistributed.",
           "where_to_confirm": "Device > Certificate Management > Certificates. The key size is in each certificate's detail. Confirm RSA is 2048 or above and elliptic curve keys are P-256 or above.",
           "what_to_change": "Reissue the certificate with a compliant key and replace it wherever it is referenced. For authorities and long-lived certificates, prefer RSA 3072 or ECDSA P-384."
         },
@@ -2543,7 +2543,7 @@
           ],
           "target_model": "integrations.Certificate",
           "what_it_checks": "Every certificate the firewall holds is signed with a hash from the SHA-2 family or stronger, never MD5 or SHA-1.",
-          "why_it_matters": "A signature is the only thing binding a certificate's identity to its key. A hash with practical collisions makes that binding forgeable, so the certificate proves nothing about who holds the key.",
+          "why_it_matters": "A signature is the only thing binding a certificate's identity to its key, and a hash with practical collisions makes that binding forgeable.",
           "where_to_confirm": "Device > Certificate Management > Certificates, the signature algorithm on each certificate. SHA-256 and above pass; anything resolving to MD5 or SHA-1 is reported.",
           "what_to_change": "Reissue the certificate with a SHA-256 or stronger signature. Where a SHA-1 certificate is a documented legacy exception, record the date it was accepted until and close the finding against that rather than leaving it open indefinitely."
         },
@@ -2618,7 +2618,7 @@
           ],
           "target_model": "integrations.CertificateProfile",
           "what_it_checks": "Every certificate profile enables revocation checking, and refuses a certificate whose revocation status comes back inconclusive.",
-          "why_it_matters": "Revocation is the only mechanism that withdraws trust from a credential before it expires. Without it, a compromised administrator certificate stays valid for its full lifetime however quickly the compromise is found.",
+          "why_it_matters": "Revocation is the only mechanism that withdraws trust from a credential before it expires, so without it a compromised administrator certificate stays valid for its full lifetime.",
           "where_to_confirm": "Device > Certificate Management > Certificate Profile. Confirm each profile uses CRL or OCSP, and on those that do, read the two blocking settings below: either one left clear is reported.",
           "what_to_change": "Enable OCSP with CRL as fallback, and switch on both blocking settings so a session is refused when the certificate's status is unknown or cannot be retrieved in time. Without those, a failed check is indistinguishable from a passed one."
         },
@@ -2660,7 +2660,7 @@
           ],
           "target_model": "integrations.SslTlsServiceProfile",
           "what_it_checks": "Every SSL/TLS service profile on the firewall sets its minimum protocol version to TLS 1.2 or higher, not only the profile bound to the management interface.",
-          "why_it_matters": "A profile is reusable by design, so a weak floor set once is inherited by every service that binds it: the management interface, GlobalProtect and syslog among them. Auditing only the bound profile misses the one about to be bound.",
+          "why_it_matters": "A profile is reusable by design, so a weak floor set once is inherited by every service that binds it, including the management interface, GlobalProtect and syslog.",
           "where_to_confirm": "Device > Certificate Management > SSL/TLS Service Profile. Confirm the minimum version is TLS 1.2 or higher on every profile. A profile whose minimum version cell looks empty needs the stored value read instead.",
           "what_to_change": "Set the minimum version to TLS 1.2 on each profile, or TLS 1.3 where every client supports it. Consider also clearing SHA-1 and the block-chaining ciphers, which are on by default."
         },
@@ -2730,7 +2730,7 @@
           ],
           "target_model": "integrations.ManagementTlsBinding",
           "what_it_checks": "The certificate the management web interface presents is issued by an authority the organization recognizes, rather than the one the firewall signs for itself.",
-          "why_it_matters": "A self-signed management certificate trains administrators to click through browser warnings, which is the reflex an interception on the management network depends on. The warning stops being a signal once it is always present.",
+          "why_it_matters": "A self-signed management certificate trains administrators to click through browser warnings, which is the reflex an interception on the management network depends on.",
           "where_to_confirm": "Device > Setup > Management > General Settings for the bound service profile, then Device > Certificate Management > Certificates to confirm the certificate's issuer differs from its subject.",
           "what_to_change": "Issue a certificate for the management interface from the organization's own authority, import it, and reference it from the bound service profile. Where no profile is bound yet, bind one first: the certificate is carried by the profile."
         },
@@ -2772,7 +2772,7 @@
           ],
           "target_model": "integrations.MasterKey",
           "what_it_checks": "A master key has been set on the firewall, in place of the published factory value that would otherwise encrypt every private key and stored secret on the device.",
-          "why_it_matters": "Every other cryptographic control on the device rests on this one. A hardened profile with a properly issued certificate protects nothing if the private key behind it is encrypted with a value published in the vendor's documentation.",
+          "why_it_matters": "Every other cryptographic control on the device rests on this one, because a properly issued certificate protects nothing if the private key behind it is encrypted with a value published in the vendor's documentation.",
           "where_to_confirm": "Device > Master Key and Diagnostics, or the master key properties on the command line. An expiry reading as unspecified means the factory key is still in use; a concrete date means a key has been set.",
           "what_to_change": "Set a master key and store the value in the organization's secret manager: it is unrecoverable and required to restore a configuration. Both members of a high availability pair need the same key. From release 12.2.2 commits fail after a grace period."
         },
@@ -2813,7 +2813,7 @@
           ],
           "target_model": "integrations.SslTlsServiceProfile",
           "what_it_checks": "No SSL/TLS service profile selects SHA-1 among its authentication algorithms. A profile setting only a version range permits every algorithm the platform offers.",
-          "why_it_matters": "A profile is reusable, so weak algorithms selected once are inherited by every service binding it. Because absent means enabled, this is the state a profile arrives in: setting only a version floor narrows nothing.",
+          "why_it_matters": "A profile is reusable, so weak algorithms selected once are inherited by every service binding it, and because absent means enabled this is the state a profile arrives in.",
           "where_to_confirm": "Device > Certificate Management > SSL/TLS Service Profile, the authentication algorithms group of each profile. An unconfigured profile shows every box ticked, so nothing having been changed is the failing state.",
           "what_to_change": "Clear SHA-1 under the authentication algorithms. For the preferred state also clear the block-chaining ciphers and the static key exchange, leaving forward secrecy. Check client compatibility first: removing those breaks very old clients."
         },
@@ -2854,7 +2854,7 @@
           "is_active": true,
           "target_model": "integrations.ManagementSshSettings",
           "what_it_checks": "The firewall's management SSH server offers aes256-gcm, and nothing weaker than aes256-ctr beside it.",
-          "why_it_matters": "AES-256-GCM is the strongest cipher the platform offers and the only one that authenticates as well as encrypts. The rest of the default offer is weaker, unauthenticated, or open to attacks that recover plaintext.",
+          "why_it_matters": "AES-256-GCM is the strongest cipher the platform offers and the only one that authenticates as well as encrypts, while the rest of the default offer is weaker, unauthenticated or open to plaintext recovery.",
           "where_to_confirm": "Device > Certificate Management > SSH Service Profile, on the profile bound under Device > Setup > Management, and its Ciphers list. No profile, or no cipher list, means the firewall's whole default offer.",
           "what_to_change": "Set the bound profile's cipher list to aes256-gcm, adding aes256-ctr only for clients that cannot use it, then commit and restart the management SSH service."
         },
@@ -2895,7 +2895,7 @@
           "is_active": true,
           "target_model": "integrations.ManagementSshSettings",
           "what_it_checks": "The firewall's management SSH server offers key exchange only from the ECDH curves.",
-          "why_it_matters": "An SSH server with no restriction negotiates whatever the client asks for, including key exchange based on SHA-1. The ECDH curves are the only ones the platform marks as recommended.",
+          "why_it_matters": "An SSH server with no restriction negotiates whatever the client asks for, including key exchange based on SHA-1.",
           "where_to_confirm": "Device > Setup > Management > SSH Management Profiles for the bound profile, then its key exchange list under Device > Certificate Management > SSH Service Profile. No profile means every algorithm the firewall supports.",
           "what_to_change": "Bind an SSH management profile whose key exchange list is restricted to ECDH over the NIST P-256, P-384 and P-521 curves, then commit and restart the management SSH service."
         },
@@ -2978,7 +2978,7 @@
           "is_active": true,
           "target_model": "integrations.ManagementSshSettings",
           "what_it_checks": "The host key the firewall's management SSH server presents to administrators is ECDSA, chosen rather than left to the platform default.",
-          "why_it_matters": "An RSA 2048 host key is at the strength that will be withdrawn for signatures after 2030. ECDSA 256 is stronger and is the one host key type the platform marks as recommended.",
+          "why_it_matters": "An RSA 2048 host key is at the strength that will be withdrawn for signatures after 2030, and ECDSA 256 is the one host key type the platform marks as recommended.",
           "where_to_confirm": "Device > Certificate Management > SSH Service Profile > Hostkey, on the profile bound under Device > Setup > Management. Only the live SSH offer can confirm what is actually presented.",
           "what_to_change": "Set the bound profile's host key to ECDSA 256, then commit and restart the management SSH service. Regenerating a host key keeps its existing type, so the type has to be set here. Administrators' stored host keys will change."
         },
@@ -3438,7 +3438,7 @@
           ],
           "target_model": "integrations.ManagementInterface",
           "what_it_checks": "No traffic-carrying interface has an administrative service enabled on it: no command line, no web administration and no monitoring.",
-          "why_it_matters": "An administrative service on a traffic-carrying interface is reachable from whatever that interface faces, which may be the internet. The separation the firewall is built around assumes administration arrives on the management plane.",
+          "why_it_matters": "An administrative service on a traffic-carrying interface is reachable from whatever that interface faces, which may be the internet, and the separation the firewall is built around assumes administration arrives on the management plane.",
           "where_to_confirm": "Network > Interfaces for each interface named in the finding and the management profile bound to it. Confirm the interface does not face an untrusted network, or that the exposure is required and restricted.",
           "what_to_change": "Remove the interface management profile, or reduce it to the services actually required and bind a permitted-source list to it."
         },
@@ -3561,7 +3561,7 @@
           ],
           "target_model": "integrations.UpdateServerSettings",
           "what_it_checks": "The firewall validates the update server's certificate before it downloads content.",
-          "why_it_matters": "Content updates are executable inputs to inspection. Accepting them from a server whose identity has not been checked undermines every signature-based control on the device.",
+          "why_it_matters": "Content updates are executable inputs to inspection, so accepting them from a server whose identity has not been checked undermines every signature-based control on the device.",
           "where_to_confirm": "Device > Setup > Services, the setting that verifies the update server's identity.",
           "what_to_change": "Enable verification of the update server's identity."
         },
@@ -3725,7 +3725,7 @@
           ],
           "target_model": "integrations.ManagementTlsBinding",
           "what_it_checks": "The management web interface binds a service profile whose protocol floor is TLS 1.2 or higher.",
-          "why_it_matters": "The management interface carries full administrative authority. An unbound interface is not merely unhardened: it is weaker than the hardened profile the product already ships and could have bound for nothing.",
+          "why_it_matters": "The management interface carries full administrative authority, and an unbound interface is weaker than the hardened profile the product already ships and could have bound for nothing.",
           "where_to_confirm": "Device > Setup > Management > General Settings for the bound service profile, then that profile's minimum version. Where the name matches a profile shipped with the product, read that one rather than a custom one.",
           "what_to_change": "Bind a service profile whose minimum version is TLS 1.2. The profile the product ships for TLS 1.3 satisfies this on its own, but not the control on the management certificate, because it carries the firewall's own self-signed one."
         },
@@ -3833,7 +3833,7 @@
           "target_model": "integrations.ApplianceOperationalMode",
           "is_active": true,
           "what_it_checks": "The firewall runs in the cryptographic operating mode that restricts it to an approved algorithm list.",
-          "why_it_matters": "Outside that mode the firewall uses cryptography an approved-algorithm regime does not accept, however carefully each profile was configured. Whether such an obligation applies is not recorded anywhere on the device.",
+          "why_it_matters": "Outside that mode the firewall uses cryptography an approved-algorithm regime does not accept, however carefully each profile was configured.",
           "where_to_confirm": "The operating mode reported by the firewall's own system information. There is no configuration setting for it at any scope, so this is a runtime reading rather than a stored one.",
           "what_to_change": "Establish first whether this firewall falls within an obligation mandating approved cryptography. Outside such an obligation the mode is a design choice with real operational costs and no change is indicated. Where it applies, the change is a rebuild."
         },
@@ -3952,7 +3952,7 @@
           ],
           "target_model": "integrations.InterfaceManagementProfile",
           "what_it_checks": "Every interface management profile the firewall holds is bound to an interface.",
-          "why_it_matters": "Unused definitions accumulate, are not reviewed alongside the configuration in use, and are the most likely thing to be bound in haste. Removing them reduces what has to be read to understand how a device is administered.",
+          "why_it_matters": "Unused definitions are not reviewed alongside the configuration in use, and are the most likely thing to be bound in haste.",
           "where_to_confirm": "Network > Network Profiles > Interface Mgmt for each profile named in the finding, and Network > Interfaces to confirm none references it.",
           "what_to_change": "Delete the profile, or bind it to the interface it was created for. A profile kept deliberately for a planned change is an accepted finding rather than a defect, so record that where it applies."
         },
@@ -4009,7 +4009,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A rule that permits traffic binds the applications it names to their own default ports, rather than allowing them on any port its service list opens.",
-          "why_it_matters": "A permitted application allowed on any port can be run over an unusual one, and the traffic is then indistinguishable from what the rule was written for. Binding to default ports turns that evasion back into a violation.",
+          "why_it_matters": "A permitted application allowed on any port can be run over an unusual one, where its traffic becomes indistinguishable from what the rule was written for.",
           "where_to_confirm": "Policies > Security, the service column of the rule named. It should read application default on every rule that permits traffic.",
           "what_to_change": "Set the rule's service to application default. The setting cannot share a list with explicit service objects, so remove the existing members rather than adding to them. Where a non-standard port is deliberate, keep the explicit object and record why."
         },
@@ -4065,7 +4065,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A rule that permits traffic names the applications it permits, rather than leaving the application criterion open and admitting whatever runs on the ports it allows.",
-          "why_it_matters": "A rule that identifies traffic only by port is how an allowed port becomes an allowed tunnel. Identifying the application is the control this platform exists to provide, and a rule declining to use it is trusting a number.",
+          "why_it_matters": "A rule that identifies traffic only by port is how an allowed port becomes an allowed tunnel, because anything at all can be made to run on it.",
           "where_to_confirm": "Policies > Security, the application column of the rule named. A rule permitting traffic with the column open is the finding; the policy optimizer lists the applications each one actually carried.",
           "what_to_change": "Replace the open criterion with the applications the rule is for; the policy optimizer proposes them from observed traffic. Where a custom or unidentified application is involved, define it as a custom application rather than leaving the rule open."
         },
@@ -4164,7 +4164,7 @@
             }
           ],
           "what_it_checks": "A rule that permits traffic carries threat inspection profiles, counted by what a named profile group actually contains rather than by the group being named.",
-          "why_it_matters": "Threat prevention is the reason the firewall is in the path. A rule permitting traffic without it is a hole however tightly its addresses are scoped, and it is invisible in a review because the rule looks complete.",
+          "why_it_matters": "A rule permitting traffic without threat inspection is a hole however tightly its addresses are scoped, and it is invisible in a review because the rule looks complete.",
           "where_to_confirm": "Policies > Security, the profile column of the rule named. Where it names a group, open the group: the finding is about what the group contains.",
           "what_to_change": "Attach a profile group carrying all three inspection types, and check the group is not empty. Where a group is shared across rules, fixing the group fixes every rule naming it."
         },
@@ -5523,7 +5523,7 @@
           "is_active": true,
           "target_model": "integrations.AddressObject",
           "what_it_checks": "Every address object a security rule relies on has its contents resolved, so the addresses the rule admits can be counted. An external dynamic list the firewall has never fetched leaves that number unknown.",
-          "why_it_matters": "How broad a rule is depends on how many addresses the objects in it hold. Where that count is unknown, the rule reads as tighter than it may be, and nobody has reason to doubt it.",
+          "why_it_matters": "How broad a rule is depends on how many addresses its objects hold, so where that count is unknown the rule reads as tighter than it may be and nobody has reason to doubt it.",
           "where_to_confirm": "Objects > Addresses, for an external dynamic list showing no resolved content or a name-based object with no resolved addresses.",
           "what_to_change": "Refresh the external dynamic list and name resolution caches on the firewall, then regenerate the findings. An object that clears was a gap in the assessment; one that remains means the firewall cannot fetch the list or resolve the name."
         },
@@ -5661,7 +5661,7 @@
           "is_active": true,
           "target_model": "integrations.AddressObject",
           "what_it_checks": "Every external dynamic list a security rule relies on is collected in full, so its member count is the list's real size rather than a floor beneath it.",
-          "why_it_matters": "An under-counted address object reads as a smaller object, and a smaller object makes the rule using it read as tighter than it is. Recording the shortfall stops a partial reading being taken for a complete one.",
+          "why_it_matters": "An under-counted address object reads as a smaller object, which makes the rule using it read as tighter than it is.",
           "where_to_confirm": "Objects > Addresses. The object reports both the number of members collected and the total the firewall holds; the finding states the size of the gap between them.",
           "what_to_change": "Nothing changes on the firewall. Either treat every breadth figure taken from this object as a lower bound, or raise the collection limit and read the list again where its exact size matters to a finding resting on it."
         },
@@ -5972,7 +5972,7 @@
             }
           ],
           "what_it_checks": "Every rule that permits traffic limits at least one side to the addresses the flow needs, measured by how many addresses that side covers rather than how many objects are named on it.",
-          "why_it_matters": "A rule's reach is the product of what it permits on each side, and the side nobody narrowed is the one that decides it. Breadth is also the property that can be acted on without knowing the business behind the rule.",
+          "why_it_matters": "A rule that limits neither side permits far more traffic than it was written for, and a single address object can cover millions of addresses.",
           "where_to_confirm": "Policies > Security, the source and destination address columns of the rule named. The finding carries the resolved host count for each side, or states that it could not be established.",
           "what_to_change": "Narrow the broader side to the hosts or subnets the flow actually needs. Where a side could not be established, its breadth is not known to be acceptable: refresh the dynamic address lists and check again, or replace a member that cannot be resolved."
         },
@@ -6209,7 +6209,7 @@
             }
           ],
           "what_it_checks": "No disabled rule that would permit traffic is left in the rule set, whatever it would open if somebody switched it on.",
-          "why_it_matters": "Disabled rules preserve intent nobody has revisited. They escape review as production policy, survive audits because they match no traffic, and get re-enabled temporarily during an incident by whoever is on call.",
+          "why_it_matters": "Disabled rules preserve intent nobody has revisited, escape review as production policy, and get switched back on during an incident by whoever is on call.",
           "where_to_confirm": "Policies > Security with disabled rules shown. The finding carries the resolved host count for each side. Read the count as what the rule would permit: while disabled it permits nothing.",
           "what_to_change": "Delete the rule; the configuration history preserves it if anyone needs to look later. Where it is kept deliberately, narrow it to what its flow actually needs and record the owner. A rule kept broad because it is disabled is one nobody has decided about."
         },
@@ -6308,7 +6308,7 @@
             }
           ],
           "what_it_checks": "A rule that permits traffic names the zones it applies to on both sides.",
-          "why_it_matters": "A zone pair is the coarsest statement a rule makes about where it applies, and the first thing an engineer reads. Left open, it defers the decision to whatever the network becomes: every zone added later inherits the rule.",
+          "why_it_matters": "A zone pair left open defers the decision to whatever the network becomes, so every zone added later inherits the rule.",
           "where_to_confirm": "Policies > Security, the source zone and destination zone columns of the rule named. The two default rules carry no zone criteria and are out of scope.",
           "what_to_change": "Name the zones the flow actually crosses. Where a rule genuinely applies to every zone, such as a refuse-all at the end of the rule set, that is a deliberate choice an assessor can clear: nothing tells it apart from an unconsidered one."
         },
@@ -6362,7 +6362,7 @@
             }
           ],
           "what_it_checks": "Every rule that permits traffic carries an antivirus profile blocking malware on all seven protocols and on every application exception, in all three verdict columns.",
-          "why_it_matters": "Three of the seven protocols in the profile that ships with the product alert rather than block, so mail-borne malware is logged on its way past. The configuration says default everywhere, so the gap is invisible.",
+          "why_it_matters": "Three of the seven protocols in the profile that ships with the product alert rather than block, so mail-borne malware is logged on its way past while the configuration reads as default everywhere.",
           "where_to_confirm": "Objects > Security Profiles > Antivirus. Read all three action columns for all seven protocols, where a default shows its resolution in brackets, then the Application Exceptions tab, where it does not.",
           "what_to_change": "Set every action explicitly to a blocking value, in all three columns. The profile that ships with the product cannot be edited, so create one and attach it through the profile group the rules already name. Give each application exception an explicit blocking action."
         },
@@ -6416,7 +6416,7 @@
             }
           ],
           "what_it_checks": "Every rule that permits traffic carries an antivirus profile whose inline machine learning models block what they catch in real time.",
-          "why_it_matters": "Signature-based antivirus cannot catch what has no signature yet, which is the malware that reaches a target first. These models are the part of the profile that does, so the gap appears where somebody built their own profile.",
+          "why_it_matters": "Signature-based antivirus cannot catch what has no signature yet, which is the malware that reaches a target first, and these models are the part of the profile that does.",
           "where_to_confirm": "Objects > Security Profiles > Antivirus, the WildFire Inline ML tab, the action column. A profile created and left alone reads as disabled for all protocols.",
           "what_to_change": "Set every model to enable. Choosing the setting that inherits the per-protocol action ties the verdict to the protocol actions, so hardening those carries through without a second decision."
         },
@@ -6552,7 +6552,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "Every rule that permits traffic sends every file type it carries for sandbox analysis.",
-          "why_it_matters": "The sandbox is the only thing that catches malware with no signature yet, and the profile decides what it ever sees. A file type filtered out is an unanalyzed delivery channel, and the rule itself looks configured.",
+          "why_it_matters": "The sandbox is the only thing that catches malware with no signature yet, so a file type filtered out of analysis is an unanalyzed delivery channel on a rule that looks configured.",
           "where_to_confirm": "Policies > Security for each rule's profile, then Objects > Security Profiles > WildFire Analysis: file types and applications should read any, and direction both. An empty rule list sends nothing.",
           "what_to_change": "Attach an analysis profile to every rule that permits traffic, through the profile group the rules already name rather than rule by rule. Give a custom profile a rule with file type any, application any and direction both. Check the file size limits too."
         },
@@ -6593,7 +6593,7 @@
           "is_active": true,
           "target_model": "integrations.WildfireSettings",
           "what_it_checks": "The sandbox file size limits are set for the traffic this estate carries, rather than left wholly at the product's own defaults.",
-          "why_it_matters": "A file above its forwarding limit is never analyzed, and attackers pad payloads past the defaults precisely because those defaults are predictable and widely unchanged. The finding is not that a number is wrong but that nobody chose one.",
+          "why_it_matters": "A file above its forwarding limit is never analyzed, and attackers pad payloads past the product's defaults precisely because those defaults are predictable and widely unchanged.",
           "where_to_confirm": "Device > Setup > WildFire > General Settings > File Size Limits. Click into a field for the live range and default, which can change with a release. The units differ by file type.",
           "what_to_change": "Size each limit against the platform's buffer space and the file types the estate carries, and record the reasoning. Raising everything to the maximum is not the vendor's advice: too large a limit stops several large files being forwarded at once."
         },
@@ -6697,7 +6697,7 @@
           "is_active": true,
           "target_model": "integrations.WildfireSettings",
           "what_it_checks": "The firewall sends full session context with each sandbox submission, and keeps the harmless and unwanted verdicts as well as the malicious ones.",
-          "why_it_matters": "A verdict is more useful with the session that produced it, and verdict reporting is what makes near-miss deliveries visible at all. Without it the only samples an analyst sees are the ones already judged malicious.",
+          "why_it_matters": "Without session context and the harmless and unwanted verdicts, the only samples an analyst sees are the ones already judged malicious and a near-miss delivery is invisible.",
           "where_to_confirm": "Device > Setup > WildFire. In Session Information Settings a ticked box means the attribute is not excluded. In General Settings, both verdict reporting boxes are unticked by default.",
           "what_to_change": "Tick every session information box and both verdict reporting boxes. Note the direction of this: it forwards session context including usernames and URLs to the vendor's cloud, so an estate with a data residency constraint should take the exclusions deliberately."
         },
@@ -6863,7 +6863,7 @@
             }
           ],
           "what_it_checks": "An anti-spyware profile sinkholes lookups of known malicious domains, rather than permitting, recording or merely blocking them.",
-          "why_it_matters": "Where the firewall sits behind a local resolver, every malicious lookup appears to come from the resolver, so blocking or alerting names the wrong host and the infected client stays hidden. Sinkholing is what identifies it.",
+          "why_it_matters": "Where the firewall sits behind a local resolver every malicious lookup appears to come from the resolver, so blocking or alerting names the wrong host and the infected client stays hidden.",
           "where_to_confirm": "Objects > Security Profiles > Anti-Spyware, the DNS Policies tab. Read the policy action on the vendor content row, and the sinkhole settings beneath it for the address.",
           "what_to_change": "Set the policy action for the vendor's malicious domain list to sinkhole. The sinkhole address has to be set first or the action is refused. An internal address in a monitored zone is better than the placeholder, because hits then show up as incidents."
         },
@@ -6915,7 +6915,7 @@
             }
           ],
           "what_it_checks": "An anti-spyware profile blocks or sinkholes the cloud DNS categories for command-and-control, malware and phishing.",
-          "why_it_matters": "The cloud service classifies domains in real time, which catches infrastructure too new for a downloadable list. A category left at its default lets those lookups resolve, so the subscription produces verdicts that change nothing.",
+          "why_it_matters": "The cloud service classifies domains in real time, which catches infrastructure too new for a downloadable list, and a category left at its default lets those lookups resolve.",
           "where_to_confirm": "Objects > Security Profiles > Anti-Spyware, the DNS Policies tab, the DNS Security rows. Read the policy action on the command-and-control, malware and phishing categories; the default setting is not an action.",
           "what_to_change": "Set the policy action on the command-and-control, malware and phishing categories to sinkhole, or to block where sinkholing is not wanted. Sinkhole identifies the infected client behind an internal resolver and needs the sinkhole address set first."
         },
@@ -7043,7 +7043,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "An anti-spyware profile's real-time cloud analysis detectors are all present and set to stop the traffic they catch.",
-          "why_it_matters": "Signature-based detection cannot catch a beacon whose signature does not exist yet, which is what a live intrusion generates. The real-time engine looks at behavior instead, and a detector left on alert makes it a logging feature.",
+          "why_it_matters": "Signature-based detection cannot catch a beacon whose signature does not exist yet, which is what a live intrusion generates, and a detector left on alert makes the engine a logging feature.",
           "where_to_confirm": "Objects > Security Profiles > Anti-Spyware, the Inline Cloud Analysis tab. Every detector's action should read a blocking value; alert means the detector runs and the traffic passes.",
           "what_to_change": "Set every real-time detector to reset-both or another blocking action. The feature needs an active Advanced Threat Prevention subscription; without one the configuration is still writable and nothing enforces it."
         },
@@ -7127,7 +7127,7 @@
             }
           ],
           "what_it_checks": "A vulnerability protection profile blocks the source of authentication guessing attempts across critical, high and medium severity, on both the client and server sides.",
-          "why_it_matters": "Password spraying is one host making thousands of attempts. Resetting or dropping each attempt ends that attempt and leaves the source free to make the next, so the attack continues at full speed while every attempt is logged.",
+          "why_it_matters": "Password spraying is one host making thousands of attempts, and resetting each attempt individually leaves the source free to make the next, so the attack continues at full speed while every attempt is logged.",
           "where_to_confirm": "Objects > Security Profiles > Vulnerability Protection, the Rules tab. A rule covers brute force when its category is brute-force or any and does not narrow to particular signatures. The action must be Block IP.",
           "what_to_change": "Add a rule with the category set to brute-force, any severity, any host and the action Block IP, tracking by source, with a duration between 1 and 3600 seconds. Leave the existing severity rules in place; they answer a different question."
         },
@@ -7243,7 +7243,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A vulnerability protection profile has real-time exploit analysis switched on, with both detectors set to stop the traffic they catch.",
-          "why_it_matters": "An exploit against an unpatched flaw arrives before the signature for it does. Real-time analysis is what sees the pattern rather than the signature, and a detector on alert watches the exploit succeed.",
+          "why_it_matters": "An exploit against an unpatched flaw arrives before the signature for it does, and a detector set to alert watches that exploit succeed.",
           "where_to_confirm": "Objects > Security Profiles > Vulnerability Protection, the Inline Cloud Analysis tab. Both detectors should read a blocking action; alert runs the detector and lets the traffic through.",
           "what_to_change": "Set both detectors to reset-both or another blocking action. This profile's inline action does not offer drop, unlike the anti-spyware one. It needs an active Advanced Threat Prevention subscription."
         },
@@ -7295,7 +7295,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "An anti-spyware profile carries no signature exception, no DNS policy exception and no exempt address on its real-time analysis.",
-          "why_it_matters": "An exception is a hole with a reason, and the reason expires faster than the hole does. The risk is not that exceptions exist but that nobody revisits them, and the configuration cannot say which of the two an estate is in.",
+          "why_it_matters": "An exception is a hole with a reason, and the reason expires faster than the hole does.",
           "where_to_confirm": "Objects > Security Profiles > Anti-Spyware: the Exceptions tab, the exceptions and allow list on the DNS Policies tab, and the exempt addresses on the Inline Cloud Analysis tab.",
           "what_to_change": "Remove exceptions whose justification has expired. Where one is still needed, narrow it to named source addresses where the signature allows that, and record an owner and a review date outside the configuration, which has nowhere to keep them."
         },
@@ -7455,7 +7455,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A vulnerability protection profile carries no signature exception, and no exclusion list lifting every real-time detector for a whole population.",
-          "why_it_matters": "A vulnerability exception is a decision to stop blocking a known exploit. That is sometimes right and always worth revisiting, and nothing in the configuration records whether anyone has.",
+          "why_it_matters": "A vulnerability exception is a decision to stop blocking a known exploit, and nothing in the configuration records whether anyone has revisited it.",
           "where_to_confirm": "Objects > Security Profiles > Vulnerability Protection, the Exceptions tab, and the exempt addresses on the Inline Cloud Analysis tab. For each, ask who added it, why, and when it was last reviewed.",
           "what_to_change": "Remove exceptions whose justification has expired, narrow the rest to named addresses where the signature allows it, and keep the owner and review date outside the configuration where they can be read."
         },
@@ -7602,7 +7602,7 @@
           "is_active": true,
           "target_model": "integrations.IpsecTunnelPath",
           "what_it_checks": "Every key exchange crypto profile offers only key agreement groups at or above the floor, because the profile offers its whole list and a peer takes the first group it accepts.",
-          "why_it_matters": "Finite-field groups at 768, 1024 and 1536 bits fall to precomputation attacks, and 2048 bits is the current floor. A member that removes the key agreement altogether removes the forward secrecy the exchange exists to provide.",
+          "why_it_matters": "Finite-field groups at 768, 1024 and 1536 bits fall to precomputation attacks, and a member that removes the key agreement altogether removes the forward secrecy the exchange exists to provide.",
           "where_to_confirm": "Network > Network Profiles > IKE Crypto, the DH Group list of the profile named. Read the whole list rather than the first entry: it is an offer set tried in order until one succeeds.",
           "what_to_change": "Remove every finite-field group below 2048 bits and the none member from each profile's group list, leaving group 19, 20 or 21 where the peers support them and group 14 or above otherwise."
         },
@@ -7644,7 +7644,7 @@
           "is_active": true,
           "target_model": "integrations.IpsecTunnelPath",
           "what_it_checks": "Every key exchange crypto profile offers only ciphers at or above the floor, because the profile offers its whole list and a peer takes the first cipher that succeeds.",
-          "why_it_matters": "3DES has a 64-bit block and is attackable by collision at data volumes a real tunnel reaches. AES at 128 bits or more is the floor for key management traffic, and AES-256 is the target.",
+          "why_it_matters": "3DES has a 64-bit block and is attackable by collision at data volumes a real tunnel reaches, so one weak cipher left in the list is the one a peer can drive the exchange down to.",
           "where_to_confirm": "Network > Network Profiles > IKE Crypto, the Encryption list of the profile named. Read the whole list.",
           "what_to_change": "Remove 3DES from each profile's encryption list, leaving AES-256 in cipher block chaining mode, or in authenticated encryption mode where every peer on that profile supports it and negotiates version 2."
         },
@@ -7715,7 +7715,7 @@
           "is_active": true,
           "target_model": "integrations.IpsecTunnelPath",
           "what_it_checks": "Every key exchange crypto profile offers integrity algorithms from the SHA-2 family, unless its only ciphers already authenticate what they encrypt.",
-          "why_it_matters": "MD5 is collision-broken and unfit for key management traffic, and SHA-1 is deprecated with practical collisions demonstrated. A profile with no integrity algorithm and no authenticating cipher protects the exchange with nothing.",
+          "why_it_matters": "MD5 is collision-broken and SHA-1 is deprecated with practical collisions demonstrated, and a profile with no integrity algorithm and no authenticating cipher protects the exchange with nothing.",
           "where_to_confirm": "Network > Network Profiles > IKE Crypto, the Authentication list of the profile named, read with its Encryption list: the no-integrity member is correct beside an authenticating cipher and a defect without one.",
           "what_to_change": "Leave SHA-384 or SHA-512 in each profile's authentication list and remove MD5 and SHA-1. Keep the no-integrity member only where every cipher offered already authenticates; where a chaining cipher sits beside it, a SHA-2 member must stay."
         },
@@ -7895,7 +7895,7 @@
           "is_active": true,
           "target_model": "integrations.IkeGateway",
           "what_it_checks": "Every key exchange gateway in use authenticates its peer with a certificate, and names a certificate profile constraining how that certificate is validated.",
-          "why_it_matters": "Certificate authentication removes the shared-secret distribution problem and makes revocation possible. A gateway on a shared secret has a credential that cannot be revoked and whose strength nothing on the device records.",
+          "why_it_matters": "A gateway on a shared secret has a credential that cannot be revoked and whose strength nothing on the device records.",
           "where_to_confirm": "Network > Network Profiles > IKE Gateways, the Authentication tab of the gateway named: the certificate or shared secret choice, and the certificate profile beside it.",
           "what_to_change": "Move each gateway to certificate authentication and name a certificate profile on it. Where a shared secret has to remain for a named peer, record the exception and keep the secret in a vault: its strength cannot be assessed from the configuration."
         },
@@ -7949,7 +7949,7 @@
           "is_active": true,
           "target_model": "integrations.IkeGateway",
           "what_it_checks": "A gateway that can still complete a version 1 exchange negotiates in main mode, never the faster aggressive mode.",
-          "why_it_matters": "The faster version 1 mode transmits an identity hash in the clear, which can then be cracked offline against the shared secret. Main mode protects the identities.",
+          "why_it_matters": "The faster version 1 mode transmits an identity hash in the clear, which can then be cracked offline against the shared secret.",
           "where_to_confirm": "Network > Network Profiles > IKE Gateways, Advanced Options, the version 1 exchange mode on the gateway named. No stored selection means automatic.",
           "what_to_change": "Set the exchange mode to main on every gateway that can still complete a version 1 exchange. Automatic is not an acceptable middle setting. Moving the gateway to version 2 only removes the setting altogether."
         },
@@ -8256,7 +8256,7 @@
           ],
           "target_model": "integrations.Certificate",
           "what_it_checks": "No certificate the firewall holds and relies on is past the end of its validity period, including the entries that ship with the product.",
-          "why_it_matters": "An expired certificate does not fail safely. The service keeps running, the warning lands on whoever is using it, and the habit of dismissing warnings is what an interception later depends on.",
+          "why_it_matters": "An expired certificate does not fail safely: the service keeps running, the warning lands on whoever is using it, and the habit of dismissing warnings is what a later interception depends on.",
           "where_to_confirm": "Device > Certificate Management > Certificates, the Expires column at every scope. Then check the certificate and service profiles, GlobalProtect, decryption and syslog settings for a reference to each expired entry.",
           "what_to_change": "Reissue the certificate, import the replacement, and repoint every profile and service naming the old one before deleting it. Where the certificate is an authority, reissue it and re-sign what it issued rather than deleting it."
         },
@@ -8304,7 +8304,7 @@
           ],
           "target_model": "integrations.Certificate",
           "what_it_checks": "Every certificate authority certificate the firewall holds has something relying on it, either a named reference or a certificate it signed.",
-          "why_it_matters": "Every certificate an authority signed stays verifiable while the authority is trusted, so an authority kept past its purpose is a standing grant of trust with no owner. The cost of leaving it is not merely clutter.",
+          "why_it_matters": "Every certificate an authority signed stays verifiable while that authority is trusted, so an authority kept past its purpose is a standing grant of trust with no owner.",
           "where_to_confirm": "Device > Certificate Management > Certificates, for each entry whose authority flag is set. Look for its name in the profiles and services, and read every other certificate's issuer against this one's subject.",
           "what_to_change": "Establish what the authority was for before removing it. Where it is genuinely finished, delete it and record that the key is gone: the delete is irreversible. Where it is still issuing, leave it and record the decision."
         },
@@ -8345,7 +8345,7 @@
           "is_active": true,
           "target_model": "integrations.HighAvailabilityConfig",
           "what_it_checks": "A firewall whose failure would interrupt traffic the business cannot lose has a live redundant peer, and that relationship has formed and is exchanging state.",
-          "why_it_matters": "A firewall carrying critical traffic alone turns any single fault into an outage of everything behind it. Worse is one configured for redundancy that never formed the relationship: the configuration reads as safe and failover never happens.",
+          "why_it_matters": "A pair configured for redundancy that never formed the relationship is worse than no pair at all: the configuration reads as safe and the failover never happens.",
           "where_to_confirm": "Device > High Availability > General for the enable switch, mode and peer, then the high availability state on each member. Only the running state says whether the peer answers and whether state is being exchanged.",
           "what_to_change": "Pair every firewall the business names as critical, then confirm on the device that the relationship formed: one member active and one passive, the peer connection up, and session state synchronization enabled. Where a firewall is deliberately standalone, record that decision."
         },
@@ -8474,7 +8474,7 @@
           "is_active": true,
           "target_model": "integrations.HighAvailabilityConfig",
           "what_it_checks": "The link carrying configuration and session ownership between a redundant pair is encrypted.",
-          "why_it_matters": "Anything on that path reads the whole rule set as it is synchronized and can forge the state deciding which firewall owns a session. One foothold beside the link yields both firewalls and a failover nobody ordered.",
+          "why_it_matters": "Anything on that path reads the whole rule set as it is synchronized and can forge the state deciding which firewall owns a session, so one foothold beside the link yields both firewalls.",
           "where_to_confirm": "Device > High Availability > General > Control Link (HA1) for Encryption Enabled and the port the link uses, then the running high availability state for confirmation. The switch is not the same as the state.",
           "what_to_change": "Export the high availability key from one firewall and import it on the other, then enable encryption on the control link on both members and confirm each reports it as on. Where the two are not directly cabled, treat this as the first thing to fix."
         },
@@ -8541,7 +8541,7 @@
           "is_active": true,
           "target_model": "integrations.HighAvailabilityConfig",
           "what_it_checks": "A redundant pair has a second way of telling each other they are alive that shares neither the first way's port nor its subnet, and that second path is complete enough to carry traffic.",
-          "why_it_matters": "With one path for these messages, losing that link while both firewalls are alive leaves each believing the other is dead. Two firewalls then claim the active role and fight over the same addresses until somebody intervenes.",
+          "why_it_matters": "With one path for these messages, losing that link while both firewalls are alive leaves each believing the other is dead, and both then claim the active role over the same addresses.",
           "where_to_confirm": "Device > High Availability > General > Control Link (HA1 Backup) for the port, address and backup peer address, and Election Settings for Heartbeat Backup. A backup link with no far end looks configured.",
           "what_to_change": "Give the backup link its own port, address and a subnet that does not overlap the primary link's, and set the backup peer address on each member. Where the primary link is not on the management port, enable heartbeat backup as well; where it is, use a backup link instead."
         },
@@ -8608,7 +8608,7 @@
           "is_active": true,
           "target_model": "integrations.HighAvailabilityConfig",
           "what_it_checks": "A firewall in a redundant pair hands over when the traffic it forwards stops being deliverable, not only when its peer stops answering, with at least one real group of interfaces or destinations under monitoring.",
-          "why_it_matters": "A firewall whose peer is alive and whose own forwarding path has died keeps the active role and accepts traffic it can no longer deliver. The pair bought to survive a failure sits through an outage with both members reporting healthy.",
+          "why_it_matters": "A firewall whose peer is alive and whose own forwarding path has died keeps the active role and accepts traffic it can no longer deliver, so the pair sits through an outage reporting healthy.",
           "where_to_confirm": "Device > High Availability > Link and Path Monitoring. Read the link and path groups rather than the enabled switches: a switch does nothing without a group, and an empty group monitors nothing.",
           "what_to_change": "Define at least one link group holding the interfaces whose loss should move the active role, and at least one path group holding destinations beyond the next hop, on both members. Then confirm the groups are populated rather than trusting the enabled switch."
         },
@@ -8675,7 +8675,7 @@
           "is_active": true,
           "target_model": "integrations.PanoramaRegistration",
           "what_it_checks": "A firewall's connection to central management names a second management appliance, and uses the organization's own certificate with the server's identity verified.",
-          "why_it_matters": "A firewall with one management address loses central policy, logging and visibility the moment that appliance goes down, and keeps passing traffic so nobody notices. On default certificates, anything on that network can sit in the middle.",
+          "why_it_matters": "A firewall with one management address loses central policy, logging and visibility the moment that appliance goes down, and keeps passing traffic so nobody notices.",
           "where_to_confirm": "Device > Setup > Management > Panorama Settings for both server fields, and Secure Communication Settings for the certificate type, the client communication switches and Verify Panorama Server Identity.",
           "what_to_change": "Name the secondary management appliance in the second server field. Issue a device certificate from the organization's own authority, bind it, enable secure client communication and server identity verification, then do the matching half on the management appliance."
         },
@@ -8809,7 +8809,7 @@
           "is_active": true,
           "target_model": "integrations.Interface",
           "what_it_checks": "An interface that is not in service holds nothing a cable could use: no address, no zone membership, no bound management profile, and the port administratively shut down.",
-          "why_it_matters": "A forgotten port still holding an address, a zone or a management profile is a way into the estate no policy was written for. A bound management profile with no source restriction answers its services to anything reaching the port.",
+          "why_it_matters": "A forgotten port still holding an address, a zone or a management profile is a way into the estate no policy was written for, and with no source restriction on it answers its services to anything reaching the port.",
           "where_to_confirm": "Network > Interfaces for the addressing and the management profile under Advanced, where the Link State also holds the administrative state. Zone membership is only visible from Network > Zones.",
           "what_to_change": "On each port out of service, remove the addressing, take the port out of its zone's member list, clear the management profile binding and set the link state down. Where the port belongs to an aggregate or virtual wire, removing that membership strips it."
         },
@@ -8873,7 +8873,7 @@
           "is_active": true,
           "target_model": "integrations.PanOsSessionSettings",
           "what_it_checks": "The firewall re-evaluates running sessions against policy when a change is committed.",
-          "why_it_matters": "Without re-evaluation on commit, withdrawing a rule is an instruction about future connections only. Anyone holding an open session keeps what the rule change was meant to take away, for as long as that session lasts.",
+          "why_it_matters": "Without re-evaluation on commit, withdrawing a rule is an instruction about future connections only, so anyone holding an open session keeps what the rule change was meant to take away.",
           "where_to_confirm": "Device > Setup > Session > Session Settings, the Rematch Sessions setting. No operational command reports this, so the configured value is the only reading available.",
           "what_to_change": "Enable Rematch Sessions and commit. On a high availability pair set it on both members: each firewall holds its own setting and nothing compares the two."
         },
@@ -8992,7 +8992,7 @@
           "is_active": true,
           "target_model": "integrations.Interface",
           "what_it_checks": "An interface facing a network whose adjacent equipment the organization does not control announces nothing about the firewall to the next hop.",
-          "why_it_matters": "A link-layer announcement is a broadcast introduction to whatever is on the other end of the cable. On a port facing equipment nobody here controls it hands over the management address, the software build and the topology.",
+          "why_it_matters": "A link-layer announcement is a broadcast introduction to whatever is on the other end of the cable, and on a port facing equipment nobody here controls it hands over the management address, the software build and the topology.",
           "where_to_confirm": "Network > Interfaces, the LLDP section under Advanced for the enable setting and the profile, then Network > Network Profiles > LLDP for what that profile transmits.",
           "what_to_change": "Clear the LLDP enable setting on every interface facing equipment the organization does not control, or set it to receive only. Where it must transmit, bind a profile suppressing the management address, system description and system name; the chassis identifier still goes out."
         },
@@ -9119,7 +9119,7 @@
           "is_active": true,
           "target_model": "integrations.PanOsDhcpInterfaceConfig",
           "what_it_checks": "An interface facing a network the organization does not control runs no DHCP server, and relays no address requests to the organization's own address servers.",
-          "why_it_matters": "A DHCP server on a segment nobody here controls hands every host appearing there a gateway, a resolver and a time source of the firewall's choosing, which is a position to intercept from. A relay is the mirror image.",
+          "why_it_matters": "A DHCP server on a segment nobody here controls hands every host appearing there a gateway, a resolver and a time source of the firewall's choosing, which is a position to intercept from.",
           "where_to_confirm": "Network > DHCP > DHCP Server and Network > DHCP > DHCP Relay, one entry per interface. Read whether the entry exists before reading its mode, and check both address families on the relay tab.",
           "what_to_change": "Delete the DHCP server entry for each interface facing a network the organization does not control; disabling it leaves the pool and options in place. Delete the relay entry for the same reason, and remove the relayed server addresses on both address families."
         },
@@ -9161,7 +9161,7 @@
           "is_active": true,
           "target_model": "integrations.PanOsSessionSettings",
           "what_it_checks": "A firewall that routes IPv6 has session inspection of IPv6 traffic switched on, so the IPv6 rules it holds are enforced.",
-          "why_it_matters": "A firewall routing IPv6 without inspecting it is a router. Every rule written for an IPv6 destination, and every profile attached to one, reads to an operator as being in force and is not, so the traffic crosses on routing alone.",
+          "why_it_matters": "A firewall routing IPv6 without inspecting it is a router, so every rule written for an IPv6 destination reads to an operator as being in force while the traffic crosses on routing alone.",
           "where_to_confirm": "Device > Setup > Session > Session Settings, the Enable IPv6 Firewalling setting. An absent setting means on, so read the stored value rather than inferring it from the box.",
           "what_to_change": "Enable IPv6 firewalling and commit, on both members of a high availability pair. Where the setting is explicitly stored as off, deleting it also returns the firewall to its default of on."
         },
@@ -9259,7 +9259,7 @@
           "is_active": true,
           "target_model": "integrations.PanOsTunnelInspectionCoverage",
           "what_it_checks": "Policy opens the cleartext tunnels passing through an enforcement point to inspection: every protocol carried, across every zone pair they cross, to the depth of encapsulation in use.",
-          "why_it_matters": "A cleartext tunnel crossing a firewall with no inspection policy is logged as one permitted session, and everything inside reaches its destination unexamined. Partial coverage is harder: the firewall and its logs look like they are working.",
+          "why_it_matters": "A cleartext tunnel crossing a firewall with no inspection policy is logged as one permitted session while everything inside it reaches its destination unexamined.",
           "where_to_confirm": "Policies > Tunnel Inspection for each virtual system. Read each rule's state, protocol list, source and destination zones, maximum inspection levels and any overlay identifier narrowing.",
           "what_to_change": "Add or enable a tunnel inspection rule covering every cleartext tunnel protocol that crosses this point, scoped to every zone pair they traverse, with the maximum inspection level set to the deepest nesting in use and no overlay identifier narrowing."
         },
@@ -9403,7 +9403,7 @@
           "is_active": true,
           "target_model": "integrations.PanOsRoutingAdjacency",
           "what_it_checks": "Every dynamic routing relationship the firewall forms authenticates its peer with a keyed digest from the stronger family, and every BGP peer carries a prefix ceiling that refuses the routes beyond it.",
-          "why_it_matters": "An unauthenticated routing relationship accepts routes from anything that can reach the interface. One host on that segment can advertise a better path and pull the traffic for it through itself, leaving the policy intact and irrelevant.",
+          "why_it_matters": "An unauthenticated routing relationship accepts routes from anything that can reach the interface, so one host on that segment can advertise a better path and pull the traffic through itself.",
           "where_to_confirm": "Network > Virtual Routers, the BGP, OSPF and RIP sections. For each peer read the authentication profile and then open it: a name in the field says nothing about what is inside. For BGP read the maximum prefixes.",
           "what_to_change": "Attach an authentication profile carrying a SHA-2 keyed digest to each relationship, and remove any set to disabled or to a cleartext password. On each BGP peer set a maximum prefix count agreed with its owner, and confirm it refuses routes rather than only warning."
         },
@@ -9473,7 +9473,7 @@
           "is_active": true,
           "target_model": "integrations.SanctionedApplicationMarking",
           "what_it_checks": "The cloud applications the business has approved are marked with the firewall's own approval tag, and the virtual systems enforcing policy agree with each other about which they are.",
-          "why_it_matters": "Controls on tenants and unsanctioned applications need to know which cloud applications are approved, and the firewall has one place to record it. Empty, every control depending on it catches the approved ones too, or catches nothing.",
+          "why_it_matters": "The controls on tenants and on unsanctioned applications all read this one list, so with it empty every one of them catches the approved applications too, or catches nothing.",
           "where_to_confirm": "Objects > Applications for the virtual system in the finding: select an application and read Edit Tags. The grid's Tags column mixes the vendor's characteristic tags with approval markings and is not the answer.",
           "what_to_change": "Apply the approval tag to each cloud application the business has approved, in every virtual system that enforces policy, and apply the same set in each. Writing a tag adds to the existing list rather than replacing it, so removing a wrong marking is its own step."
         },
@@ -9515,7 +9515,7 @@
           "is_active": true,
           "target_model": "integrations.SaasUrlFilteringPosture",
           "what_it_checks": "A sanctioned cloud application that also has consumer tenants is reached through a URL filtering profile inserting a tenant-restriction header, carried by one of the enforcement point's security rules.",
-          "why_it_matters": "A sanctioned application reachable in any tenant is a route out of the organization: the same client and domain serve a personal account as the corporate one. A header defined in a profile no rule carries changes nothing.",
+          "why_it_matters": "A sanctioned application reachable in any tenant is a route out of the organization, because the same client and the same domain serve a personal account as the corporate one.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the HTTP Header Insertion tab of each profile this point can reach, then Policies > Security to confirm a rule carries it directly or through a profile group.",
           "what_to_change": "Add a tenant-restriction header insertion entry to a URL filtering profile, give each header the organization's own account identifier, and attach the profile to the security rules carrying that traffic. One application per entry, so add a sibling entry for each."
         },
@@ -9557,7 +9557,7 @@
           "is_active": true,
           "target_model": "integrations.SaasApplicationPolicyPosture",
           "what_it_checks": "Where the firewall can identify a cloud application's upload, sharing and delete functions separately from the application itself, policy refuses those functions while browsing and viewing stay permitted.",
-          "why_it_matters": "Blocking a cloud application outright is usually refused by the business and permitting it outright leaves the upload path open. The function-level identities are the only setting that separates reading from writing.",
+          "why_it_matters": "Blocking a cloud application outright is usually refused by the business and permitting it outright leaves the upload path open, so the function-level identities are the only setting that separates reading from writing.",
           "where_to_confirm": "Policies > Security for the enforcement point in the finding, including rules pushed centrally, and read the action of the first rule matching each function. Deny, drop and the reset actions all count as refusals.",
           "what_to_change": "Add a rule refusing the upload, sharing and delete functions of each cloud application the policy permits, and place it above the rule permitting the application itself. Check the rule is enabled: a disabled rule still counts in this assessment and refuses nothing."
         },
@@ -9628,7 +9628,7 @@
           "is_active": true,
           "target_model": "integrations.SaasUrlFilteringPosture",
           "what_it_checks": "The web categories carrying consumer file storage and personal publishing are actively restricted: interrupted, held behind a password or refused, rather than only recorded.",
-          "why_it_matters": "No hand-written list of unsanctioned cloud services stays current. The web category covers the providers nobody has heard of yet, and a category left unset is permitted by default, which looks the same as a decision to permit it.",
+          "why_it_matters": "No hand-written list of unsanctioned cloud services stays current, and a web category left unset is permitted by default, which looks the same as a decision to permit it.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the Categories tab of every profile this enforcement point can reach, and the Site Access column for those categories. The weakest reachable profile decides.",
           "what_to_change": "Set Site Access for consumer file storage and personal publishing to Continue, Override or Block in every reachable profile, not only the one an engineer opens. Then exempt the approved applications by name so the restriction does not refuse them."
         },
@@ -9676,7 +9676,7 @@
           "is_active": true,
           "target_model": "integrations.CloudAppEngineSetting",
           "what_it_checks": "Where the cloud application inspection subscription is bought, the cloud application engine is working: licensed, connected, holding a device certificate, and switched on.",
-          "why_it_matters": "A cloud-delivered application identity the engine cannot fetch stops matching traffic while the rule naming it still reads as policy. The configuration looks correct and enforces nothing, and the subscription is only one of several causes.",
+          "why_it_matters": "A cloud-delivered application identity the engine cannot fetch stops matching traffic while the rule naming it still reads as policy, so the configuration looks correct and enforces nothing.",
           "where_to_confirm": "Device > Setup > Content-ID on the firewall in the finding, for whether the engine is switched off, then ask the engine itself: it reports the license check, the cloud connection and the device certificate separately.",
           "what_to_change": "Fix the condition the finding names: activate the subscription for a failed license check, install the device certificate where it is missing, check egress and name resolution for a failed connection, or clear the switch in the template that sets it."
         },
@@ -9762,7 +9762,7 @@
             }
           ],
           "what_it_checks": "A firewall in an estate carrying equipment nobody administers holds a paid-up device identification subscription, and names the address of the service it sends traffic records to.",
-          "why_it_matters": "Equipment nobody administers cannot be patched or logged into, and often ships with credentials nobody changed. Without identification a policy can name it only by address, so it cannot be segmented as the estate changes around it.",
+          "why_it_matters": "Equipment nobody administers cannot be patched or logged into, and without identification a policy can name it only by address, so it cannot be segmented as the estate changes around it.",
           "where_to_confirm": "Device > Licenses on the firewall named in the finding, for a device identification entitlement, then Device > Setup > Management for the edge service address. An entitlement not held shows as a missing row.",
           "what_to_change": "Buy and activate the device identification subscription for this firewall; it is per serial number, so a high availability pair needs both. Set the edge service address and confirm records reach the service. Where the estate identifies this equipment another way, record that."
         },
@@ -9860,7 +9860,7 @@
             }
           ],
           "what_it_checks": "Device identification is switched on in every zone carrying equipment nobody administers, and narrowed to a named list of addresses rather than applied to the whole zone.",
-          "why_it_matters": "A zone is where traffic from unadministered equipment arrives, and identification is set per zone. Switched off, nothing in it is identified by what it is. Narrowed, the screen reads as correct while the equipment sits outside the list.",
+          "why_it_matters": "Identification is set per zone, so with it off nothing in the zone is identified by what it is, and narrowed to a list the screen reads as correct while the equipment sits outside that list.",
           "where_to_confirm": "Network > Zones on the firewall in the finding. The Device-ID column shows whether identification is on, and the zone's Device-ID tab shows its included and excluded networks. An empty included list means the whole zone.",
           "what_to_change": "Switch identification on for zones carrying equipment nobody administers. Where it has been narrowed, check the list against what the zone actually carries and widen it, or remove the list so the whole zone is identified. Where the zone comes from a template, change it there."
         },
@@ -9958,7 +9958,7 @@
             }
           ],
           "what_it_checks": "The device classification data installed on the firewall is less than a week old, counted from the release date the firewall reports for it.",
-          "why_it_matters": "Classification data is what turns traffic into a statement about what a device is. Stale data fails quietly: the feature stays on, the reports keep listing devices, and equipment published since the last delivery is absent from all of it.",
+          "why_it_matters": "Stale classification data fails quietly: the feature stays on and the reports keep listing devices, while equipment published since the last delivery is absent from all of it.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding, for the installed device dictionary and its release date. Read the age from the finding rather than comparing dates, which are local to each firewall.",
           "what_to_change": "Install the current device dictionary, then confirm the installed release date actually moved. Put the dictionary on a schedule and record the cadence somewhere a reviewer can find it, because the firewall's own content schedule has no entry for it."
         },
@@ -10196,7 +10196,7 @@
             }
           ],
           "what_it_checks": "Every file-blocking profile in force stops the file types most used to deliver malware, including Windows executables, scripts, shortcuts and peer-to-peer transfers, in both directions.",
-          "why_it_matters": "A profile that records a dangerous file transfer without stopping it delivers the file anyway, and the only evidence is a log read after the incident. The firewall becomes the record of the breach rather than what prevented it.",
+          "why_it_matters": "A profile that records a dangerous file transfer without stopping it delivers the file anyway, which makes the firewall the record of the breach rather than what prevented it.",
           "where_to_confirm": "Objects > Security Profiles > File Blocking. Open the profile named in the finding and read each rule's file type list, direction and action. The finding names the weakest action in force across the whole profile.",
           "what_to_change": "Set the action to block on a rule naming those file types, covering both upload and download. Where a rule names them and only alerts, changing that one value is the whole fix. A profile that ships with the product cannot be edited; attach one of the organization's own."
         },
@@ -10398,7 +10398,7 @@
             }
           ],
           "what_it_checks": "Every file-blocking profile in force stops files wrapped in layer upon layer of encoding, in both directions, and names password-protected archives and protected documents explicitly.",
-          "why_it_matters": "Layered encoding is how a file that would be stopped on sight arrives unexamined. An archive the firewall cannot open is a decision somebody has to make, rather than a gap to discover during an incident.",
+          "why_it_matters": "Layered encoding is how a file that would be stopped on sight arrives unexamined, and an archive the firewall cannot open is a decision somebody has to make rather than a gap to find during an incident.",
           "where_to_confirm": "Objects > Security Profiles > File Blocking. Read the rule naming the nested-encoding file type for its action and direction, then check whether any rule names an encrypted archive or protected document.",
           "what_to_change": "Add or amend a rule naming the nested-encoding file type with the action set to block in both directions. Name encrypted archives and protected documents in a rule too, with whatever action the policy calls for, and record the reason where they are permitted."
         },
@@ -10440,7 +10440,7 @@
             }
           ],
           "what_it_checks": "Outward traffic from the enforcement point passes a data-filtering profile that names a pattern, and that pattern defines something to look for.",
-          "why_it_matters": "A profile with nothing behind the pattern it names, or one not in force on the traffic that leaves, reads as data-loss protection in every review while scanning nothing. The organization believes it has a tripwire across its exits.",
+          "why_it_matters": "A profile with nothing behind the pattern it names, or one not in force on the traffic that leaves, reads as data-loss protection in every review while scanning nothing.",
           "where_to_confirm": "Objects > Security Profiles > Data Filtering, and Objects > Custom Objects > Data Patterns. The finding names the enforcement point and which of the three parts failed.",
           "what_to_change": "Create a data-filtering profile with at least one rule, name a pattern object on it, and attach the profile to the rules carrying traffic outward. Where the pattern object defines nothing, add the patterns. Where this protection is delivered off the firewall, record that."
         },
@@ -10638,7 +10638,7 @@
             }
           ],
           "what_it_checks": "Every GlobalProtect portal binds an SSL/TLS service profile, so what it negotiates with a remote user is a decision somebody made.",
-          "why_it_matters": "The first thing a new endpoint does is reach the portal over HTTPS with no configuration on it yet. The portal's transport settings are the only thing between a remote user and an interception on that connection.",
+          "why_it_matters": "The first thing a new endpoint does is reach the portal over HTTPS with no configuration on it yet, so the portal's transport settings are the only thing between a remote user and an interception.",
           "where_to_confirm": "Network > GlobalProtect > Portals. Open the portal named in the finding and read its SSL/TLS service profile. Where a gateway terminates on the same interface, read the gateway's too: the vendor says the gateway's wins.",
           "what_to_change": "Bind an SSL/TLS service profile to the portal. Where a gateway terminates on the same interface, bind the same certificate and service profile to both, which is the vendor's recommendation and the only way the portal's record and the handshake agree."
         },
@@ -10982,7 +10982,7 @@
             }
           ],
           "what_it_checks": "The agent configuration a GlobalProtect portal hands out moves the endpoint to a current app version.",
-          "why_it_matters": "Client vulnerabilities in a superseded GlobalProtect app are patched and publicly described, and the portal is the only channel reaching those endpoints. A portal that does not drive upgrades leaves nothing that will retire them.",
+          "why_it_matters": "Client vulnerabilities in a superseded GlobalProtect app are patched and publicly described, and the portal is the only channel that will ever retire those endpoints.",
           "where_to_confirm": "Network > GlobalProtect > Portals, the Agent tab of the portal named in the finding, App Configurations. Read the upgrade behavior on the first configuration an endpoint would match.",
           "what_to_change": "Set the upgrade behavior to Allow with Prompt or Allow Transparently on the configurations this portal hands out, after testing the version on a limited one first. Where the portal hands out no configuration at all, create one: nothing else reaches those endpoints."
         },
@@ -11588,7 +11588,7 @@
             }
           ],
           "what_it_checks": "The applications-and-threats, antivirus and WildFire content installed on the firewall is no older than the window it is published on.",
-          "why_it_matters": "Signatures are what stands between a known exploit and the traffic carrying it, and they date by the hour. A firewall whose content stopped updating enforces last month's threat picture while every configuration screen reads as correct.",
+          "why_it_matters": "Signatures date by the hour, so a firewall whose content stopped updating enforces last month's threat picture while every configuration screen reads as correct.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding. Read the version and the release date together: a version of zero means the content was never installed rather than an old version number.",
           "what_to_change": "Install the content the finding names, then fix why it fell behind: a misfired schedule, a full disk, a lapsed subscription and no route to the update servers all present the same way here. Make sure a failed update alerts somebody."
         },
@@ -11882,7 +11882,7 @@
             }
           ],
           "what_it_checks": "Every subscription on the firewall is active for at least the next ninety days, and the support entitlement is in force.",
-          "why_it_matters": "Every subscription-delivered protection stops quietly when its entitlement lapses, and without a support entitlement the firewall cannot take a software update at all. Neither appears on any configuration screen.",
+          "why_it_matters": "Every subscription-delivered protection stops quietly when its entitlement lapses, and without a support entitlement the firewall cannot take a software update at all.",
           "where_to_confirm": "Device > Licenses on the firewall named in the finding. Check the organization's purchase record as well, which is the only place a canceled entitlement can be told apart from one never bought.",
           "what_to_change": "Renew the entitlement the finding names and retrieve the license on the firewall. Treat a missing support entitlement first: without one the platform cannot be patched, so every finding about the software release is unfixable until it is in place."
         },
@@ -12036,7 +12036,7 @@
             }
           ],
           "what_it_checks": "The firewall raises an alarm when a log database fills, with a threshold to fire at and a way to send the message off the box.",
-          "why_it_matters": "A log database that fills without warning discards its oldest records silently. The first anybody learns of it is when an investigation asks for records that are no longer there.",
+          "why_it_matters": "A log database that fills without warning discards its oldest records silently, and the first anybody learns of it is when an investigation asks for records that are no longer there.",
           "where_to_confirm": "Device > Setup > Management > Logging and Reporting Settings on the firewall named in the finding, for alarm generation, the per-log-type thresholds, and the notification routes.",
           "what_to_change": "Switch on alarm generation, record an occupancy threshold for each log type the firewall writes, and enable at least one notification route so a raised alarm leaves the box. Choose the thresholds from the firewall's own log volume."
         },
@@ -12254,7 +12254,7 @@
             }
           ],
           "what_it_checks": "The firewall's antivirus content schedule runs at least daily and installs what it fetches.",
-          "why_it_matters": "Antivirus content loses value by the day, and the schedule is the only thing keeping it current without a person. One that runs weekly, or downloads without installing, leaves the firewall on stale content while the screen reports success.",
+          "why_it_matters": "A schedule that runs weekly, or downloads without installing, leaves the firewall on stale antivirus content while the screen reports success.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding, for the antivirus schedule's recurrence and its action. Check whether the value is supplied by a central template rather than set locally.",
           "what_to_change": "Set the antivirus schedule to run daily or hourly with its action set to download and install. Where no schedule exists, create one. Where the schedule is owned by a central template, change it there, because a local edit can leave the two disagreeing silently."
         },
@@ -12490,7 +12490,7 @@
             }
           ],
           "what_it_checks": "The firewall's applications-and-threats content schedule runs at least daily and installs what it fetches.",
-          "why_it_matters": "Application identities and vulnerability signatures arrive on this schedule, and emergency releases are published on it. A weekly run or a download-only action can leave a fix for an actively exploited flaw unapplied for days.",
+          "why_it_matters": "Application identities, vulnerability signatures and emergency releases all arrive on this schedule, so a weekly run or a download without an install can leave a fix for an actively exploited flaw unapplied for days.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding, the Applications and Threats group, for its recurrence and action. Check whether the value is supplied by a central template.",
           "what_to_change": "Set the schedule to run at least daily, with every thirty minutes being the fastest this content offers, and set its action to download and install. Where no schedule exists, create one. Where a central template owns the value, change it there."
         },
@@ -12672,7 +12672,7 @@
             }
           ],
           "what_it_checks": "The firewall receives WildFire signatures by streaming delivery rather than on a timed schedule.",
-          "why_it_matters": "WildFire exists to turn an unknown file into an enforceable verdict quickly, and a timed schedule throws that away: the verdict waits for the next interval. Streaming is the only setting where the firewall acts as soon as it exists.",
+          "why_it_matters": "A timed schedule makes the firewall wait for the next interval before acting on a verdict the sandbox has already reached.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding, the WildFire group, for its recurrence. Confirm which WildFire service feeds this firewall, since not every deployment offers streaming.",
           "what_to_change": "Set the WildFire schedule to real time so signatures arrive as the cloud reaches a verdict. Where the deployment feeding this firewall does not offer streaming, set the fastest cadence it does and record why the passing value is out of reach."
         },
@@ -12827,7 +12827,7 @@
             }
           ],
           "what_it_checks": "Both GlobalProtect content types, the data file and the clientless VPN content, are fetched on a recurring schedule and installed when they arrive.",
-          "why_it_matters": "Both content types feed decisions made about endpoints connecting from outside the perimeter, and neither is visible on the screens an operator checks after a change. One has no screen at all, so frozen content draws no attention.",
+          "why_it_matters": "Both content types feed decisions made about endpoints connecting from outside the perimeter, and neither is visible on the screens an operator checks after a change.",
           "where_to_confirm": "Device > Dynamic Updates carries the clientless VPN content. The GlobalProtect data file has no group on that screen, so its schedule has to be read from the configuration itself.",
           "what_to_change": "Set each GlobalProtect content schedule to a recurring cadence with its action set to download and install. The clientless VPN content can be set on the dynamic updates screen; the data file has no entry there and has to be set another way."
         },
@@ -13011,7 +13011,7 @@
             }
           ],
           "what_it_checks": "A URL filtering profile refuses all three confirmed-hostile categories outright: command-and-control, malware and phishing.",
-          "why_it_matters": "A category that is malicious by definition holds no legitimate destination, so every session permitted there reaches an attacker's infrastructure. Where the action writes no log entry, the firewall holds no record it happened.",
+          "why_it_matters": "A category that is malicious by definition holds no legitimate destination, so every session permitted there reaches an attacker's infrastructure.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the Categories tab of the profile named in the finding. Read the Site Access column on the command-and-control, malware and phishing rows explicitly.",
           "what_to_change": "Set Site Access to block on all three categories in the profile named. Where the profile is pushed centrally, change it at the scope it is defined at. A category left at the isolation action also has to be changed: it reads as a plain permit."
         },
@@ -13291,7 +13291,7 @@
             }
           ],
           "what_it_checks": "A URL filtering profile writes a log entry for every category it leaves reachable.",
-          "why_it_matters": "Web activity that is permitted and unlogged cannot be reconstructed, so an investigation reaches the firewall and finds no record the session took place. The firewall's logs are usually the only place that record would exist.",
+          "why_it_matters": "Web activity that is permitted and unlogged cannot be reconstructed, and the firewall's logs are usually the only place that record would have existed.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the Site Access column across the Categories tab of the profile named in the finding. The finding names the worst category left at an unlogged permit.",
           "what_to_change": "Move every permitted category to the alert action or stronger, which permits the session exactly as before and writes a log entry. Where a category named in the finding is one the organization means to refuse outright, refuse it instead."
         },
@@ -13533,7 +13533,7 @@
             }
           ],
           "what_it_checks": "A URL filtering profile stops a corporate password being submitted to an external site, with a detection method selected and no permitted category still accepting the credential.",
-          "why_it_matters": "Credential harvesting collects a password that is still valid everywhere else, so the damage is done at submission rather than at the visit. A profile that detects the submission and permits it records the theft without preventing it.",
+          "why_it_matters": "Credential harvesting collects a password that is still valid everywhere else, so a profile that detects the submission and permits it records the theft without preventing it.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering: the URL Filtering Settings tab for the detection method, and the Categories tab's User Credential Submission column for the per-category decision.",
           "what_to_change": "Select a credential detection method suited to the deployment, then set user credential submission to block on every permitted category, starting with the uncategorized and high-risk tiers. Neither setting affects traffic the firewall does not decrypt."
         },
@@ -13683,7 +13683,7 @@
             }
           ],
           "what_it_checks": "A URL filtering profile records all three HTTP request headers the product offers: the forwarded-for address, the client software and the referring page.",
-          "why_it_matters": "A web log line without client identification says a request happened, not who made it. Behind a proxy or an address translation the forwarded-for header is the only record of the originating address, so every session attributes to it.",
+          "why_it_matters": "A web log line without client identification says a request happened and not who made it, and behind a proxy the forwarded-for header is the only record of the originating address.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the HTTP Header Logging section of the URL Filtering Settings tab. A profile that has never been set here shows all three cleared.",
           "what_to_change": "Enable all three header logging options on the profile named. None of them changes what the firewall permits or refuses, only what the log line carries, so the change is safe to make on a profile already in production."
         },
@@ -13883,7 +13883,7 @@
             }
           ],
           "what_it_checks": "Real-time page analysis is working on every site a URL filtering profile permits, with both engines on and no custom category exempted from it.",
-          "why_it_matters": "Real-time analysis catches a phishing kit or a cloaked page in the window before the URL database has classified it, which is the window an attacker uses. An exemption removes that protection for the sites it covers.",
+          "why_it_matters": "Real-time analysis catches a phishing kit or a cloaked page in the window before the URL database has classified it, which is the window an attacker uses.",
           "where_to_confirm": "Objects > Security Profiles > URL Filtering, the URL Filtering Settings tab, for the two inline categorization settings and the exemption list. Check the subscription and device certificate too.",
           "what_to_change": "Enable both inline categorization settings on the profile named, and remove the analysis exemptions unless each is still justified. Where one has to stay, prefer an exemption listing the sites over one matching on category membership."
         },
@@ -13981,7 +13981,7 @@
             }
           ],
           "what_it_checks": "Every custom URL category is pointed at by some part of the configuration.",
-          "why_it_matters": "A permissive object nothing uses is an exception already written and approved that nobody is watching, so putting it into service is one edit rather than a request. One matching on category membership grows in reach with no edit at all.",
+          "why_it_matters": "A permissive object nothing uses is an exception already written and approved that nobody is watching, so putting it into service is one edit rather than a request.",
           "where_to_confirm": "Objects > Custom Objects > URL Category at the scope the finding names. Search the configuration for the category's name before acting: two further rule sets can match on a URL category and are not read here.",
           "what_to_change": "Confirm the category is genuinely unused, including in the rule sets this assessment does not read, then remove it or record why it is kept. Removing one needs it set to the inert action in every profile naming it. Do not delete on this finding alone."
         },
@@ -14024,7 +14024,7 @@
             }
           ],
           "what_it_checks": "User-ID is switched on only in zones carrying the organization's own user populations, and off in every zone carrying traffic from a network the organization does not control.",
-          "why_it_matters": "Identity is only as trustworthy as the zone it was learned in. A username-to-address mapping gathered on a network nobody here controls is an attacker-supplied fact that policy enforces on and the logs attribute traffic to.",
+          "why_it_matters": "A username-to-address mapping gathered on a network nobody here controls is an attacker-supplied fact that policy then enforces on and the logs attribute traffic to.",
           "where_to_confirm": "Network > Zones on the firewall and virtual system named in the finding. The User Identification column shows whether the switch is on. Confirm against the site's addressing which zones carry the organization's users.",
           "what_to_change": "Switch User-ID off in any zone carrying traffic from a network the organization does not control. Where the zone comes from a central template, change it there, because a local edit will be refused or overwritten."
         },
@@ -14133,7 +14133,7 @@
             }
           ],
           "what_it_checks": "The list bounding which subnets the identity collector may map names the subnets to include, and those subnets are not publicly routable.",
-          "why_it_matters": "The zone switch decides where identity is gathered; this list decides which addresses are eligible at all. Unbounded, the firewall maps guest and server ranges as though they were user populations.",
+          "why_it_matters": "Unbounded, the firewall maps guest and server ranges as though they were user populations, and a publicly routable range in the list maps addresses that are not the organization's at all.",
           "where_to_confirm": "Device > User Identification > User Mapping, the Include/Exclude Networks tab on the virtual system named in the finding. A disabled entry bounds nothing and counts as absent.",
           "what_to_change": "Add an inclusion list naming the subnets carrying the organization's own users, so everything else is excluded by implication, and remove any publicly routable range from it. Where the list holds exclusions and none included, adding inclusions is the fix."
         },
@@ -14176,7 +14176,7 @@
             }
           ],
           "what_it_checks": "Client probing is switched off on the firewall's built-in identity agent, so the firewall does not reach out to endpoints to ask who is logged in.",
-          "why_it_matters": "Every other weakness in this area costs accuracy; this one hands out credentials. The agent authenticates as a directory account, and probing takes those credentials onto an endpoint where anyone watching can relay them.",
+          "why_it_matters": "The agent authenticates as a directory account, and probing takes those credentials onto an endpoint where anyone watching can relay them.",
           "where_to_confirm": "Device > User Identification > User Mapping on the virtual system named in the finding, the agent setup dialog, Client Probing tab. Confirm Enable Probing is not ticked.",
           "what_to_change": "Clear Enable Probing and commit. Where probing is the site's only source of identity, put an alternative in place first: GlobalProtect, the Cloud Identity Engine, or server monitoring, none of which puts the agent's credentials on a probed segment."
         },
@@ -14241,7 +14241,7 @@
             }
           ],
           "what_it_checks": "Where the firewall reads security logs from servers to learn who is logged in, the directory account it uses holds only the rights that reading needs.",
-          "why_it_matters": "That one account authenticates to every monitored server, is held on a network device and is used continuously. Event-log reader rights are enough for what it does; anything more turns monitoring into a standing path to move sideways.",
+          "why_it_matters": "That one account authenticates to every monitored server, is held on a network device and is used continuously, so anything beyond event-log reader rights turns monitoring into a standing path to move sideways.",
           "where_to_confirm": "Device > User Identification > User Mapping on the virtual system in the finding, the Server Monitor Account tab for the account name. Then check that account in the directory for group memberships and logon rights.",
           "what_to_change": "Replace a privileged account with a dedicated one holding event-log reader rights and nothing else, and deny it interactive and remote desktop logon. Where session reading is enabled and session enumeration is not needed, switch it off and leave log reading in place."
         },
@@ -14373,7 +14373,7 @@
             }
           ],
           "what_it_checks": "No management surface and no traffic-carrying interface permits the unauthenticated syslog identity listener, which accepts username-to-address mappings over UDP with nothing authenticating the sender.",
-          "why_it_matters": "A forged mapping is not a gap in coverage. It is an attacker choosing which username the firewall attributes their traffic to, which turns identity-based policy from a control into an instrument.",
+          "why_it_matters": "A forged mapping is an attacker choosing which username the firewall attributes their traffic to, which turns identity-based policy from a control into an instrument.",
           "where_to_confirm": "Device > Setup > Management for the management interface services list, and Network > Network Profiles > Interface Mgmt for the profile named in the finding, then Network > Interfaces to see what it is bound to.",
           "what_to_change": "Disable the UDP syslog listener on the surface named: clear the service on the management interface, or clear it in the bound interface management profile. Where syslog identity mapping is needed, enable the SSL listener instead and give it a certificate profile."
         },
@@ -14443,7 +14443,7 @@
             }
           ],
           "what_it_checks": "Username-to-address mappings expire, and the lifetime they expire after is sixty minutes or less.",
-          "why_it_matters": "A mapping claims an address belongs to a person, and a DHCP lease makes that claim expire whether the firewall agrees or not. A mapping outliving its lease attributes one person's traffic to another in policy and in the audit trail.",
+          "why_it_matters": "A mapping that outlives the DHCP lease behind it attributes one person's traffic to another, in policy and in the audit trail.",
           "where_to_confirm": "Device > User Identification > User Mapping on the virtual system named in the finding, the agent setup dialog, Cache tab. Compare the lifetime against the site's DHCP lease time rather than against the default.",
           "what_to_change": "Switch on the user identification timeout where it is off and set it to sixty minutes or less. Where expiry is already on and the lifetime is longer, reduce it; tuning it to the site's typical DHCP lease time is what keeps identity accurate."
         },
@@ -15069,7 +15069,7 @@
             }
           ],
           "what_it_checks": "No decryption profile permits a broken encryption or authentication algorithm, a key exchange without forward secrecy, or a cipher mode that does not authenticate what it encrypts.",
-          "why_it_matters": "Six of these seven settings default to the permissive side, so an unconfigured profile permits RC4, 3DES, SHA-1 and a static key exchange with nobody having chosen them. Nothing in the session record shows which was negotiated.",
+          "why_it_matters": "Six of these seven settings default to the permissive side, so an unconfigured profile permits RC4, 3DES, SHA-1 and a static key exchange with nobody having chosen them.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Protocol Settings tab of the profile named in the finding. The finding names the worst member of each class still permitted and lists the individual settings beside it.",
           "what_to_change": "Clear the algorithm settings the finding names. Where a necessary destination still requires one, build a second profile for those destinations rather than loosening this one. Raising the profile's floor to TLS 1.2 is worth doing first: it blocks two regardless."
         },
@@ -15117,7 +15117,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile ends a session whose destination presented an expired certificate.",
-          "why_it_matters": "The check costs nothing and is off unless somebody turned it on. An expired certificate is the validation failure a user will click through fastest, and also the cheapest sign that a connection is not going where it appears to.",
+          "why_it_matters": "An expired certificate is the validation failure a user will click through fastest, and also the cheapest sign that a connection is not going where it appears to.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Decryption > SSL Forward Proxy tab of the profile named in the finding, the setting that blocks sessions with expired certificates.",
           "what_to_change": "Switch on blocking of sessions with expired certificates. Where a destination with an expired certificate is genuinely required, exclude that destination by rule rather than switching the check off for every session the profile governs."
         },
@@ -15165,7 +15165,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile ends a session whose destination presented a certificate from an authority the firewall does not trust.",
-          "why_it_matters": "This check separates decryption used for inspection from decryption that launders an interception. A session failing it and forwarded anyway reaches the user behind the firewall's own trusted certificate, so no warning appears.",
+          "why_it_matters": "A session that fails this check and is forwarded anyway reaches the user behind the firewall's own trusted certificate, so no warning appears and the inspection has laundered an interception.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Decryption > SSL Forward Proxy tab of the profile named, the setting that blocks sessions with untrusted issuers. Check the firewall's trusted authority list separately.",
           "what_to_change": "Switch on blocking of sessions with untrusted issuers. Then confirm the forward-untrust authority is a different certificate from the forward-trust one and is trusted by nothing: that warning is the last line behind every blocking check."
         },
@@ -15333,7 +15333,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile stops a session it cannot inspect rather than carrying it through: on an unsupported protocol version or cipher, when the firewall is short of decryption capacity, and when the signing module is unreachable.",
-          "why_it_matters": "Carrying the session through is the default on all ten settings and none is visible from the policy. The conditions are what an attacker can induce on purpose, and the bypass is cached with no event saying inspection was skipped.",
+          "why_it_matters": "Carrying the session through is the default on all ten settings, the conditions are what an attacker can induce on purpose, and the bypass is cached with no event saying inspection was skipped.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Decryption tab of the profile named, on both the SSL Forward Proxy and SSL Inbound Inspection sub-tabs. A profile storing no setting has all ten off.",
           "what_to_change": "Switch on every failure check the finding names, on both sub-tabs. Before closing the capacity checks, confirm decryption capacity is monitored with thresholds: failing closed without that monitoring turns a security control into an outage."
         },
@@ -15397,7 +15397,7 @@
             }
           ],
           "what_it_checks": "A firewall that decrypts outbound traffic designates its own forward trust signing authority, holds that authority locally, and designates a separate untrust authority beside it.",
-          "why_it_matters": "This is the highest-value key on the firewall and the one with the least ceremony around it. Having designated nothing is also the state the firewall ships in, so an appliance never set up looks the same as one set up wrongly.",
+          "why_it_matters": "This is the highest-value key on the firewall, and having designated nothing is also the state the firewall ships in, so an appliance never set up looks the same as one set up wrongly.",
           "where_to_confirm": "Device > Certificate Management > Certificates on the firewall named, then open each certificate and read its Certificate Use selections. Confirm a different certificate carries the forward-untrust designation.",
           "what_to_change": "Generate a self-signed authority on the firewall and designate it forward trust, then generate a second, different authority and designate it forward untrust. Distribute only the first to client trust stores: the second must be trusted by nothing."
         },
@@ -15888,7 +15888,7 @@
             }
           ],
           "what_it_checks": "A GlobalProtect gateway's agent configuration leaves no path by which a connected endpoint reaches the internet or its own local network without passing through this firewall.",
-          "why_it_matters": "Traffic leaving the tunnel is traffic the firewall cannot inspect, log or police, so every such path is an unreported route into the estate. An exclusion nobody approved looks exactly like one somebody did.",
+          "why_it_matters": "Traffic leaving the tunnel is traffic the firewall cannot inspect, log or police, so every such path is a route into the estate that nobody approved and nothing announces.",
           "where_to_confirm": "Network > GlobalProtect > Gateways, Agent > Client Settings > Split Tunnel on the row named. Read the access route, domain and application lists, and the no direct access to local network setting.",
           "what_to_change": "For each path the finding counts, either remove it from the exclusion lists so the traffic returns to the tunnel, or record it on an approved list naming who approved it and when it is next reviewed. Treat the local network setting as one of those paths."
         },
@@ -16811,7 +16811,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.ZoneProtectionProfile",
           "what_it_checks": "Every zone protection profile in force detects all four reconnaissance scan types, at a sensitivity somebody set, with an exemption list that does not hand the protection back.",
-          "why_it_matters": "Reconnaissance is what precedes the attack. A profile detecting three of four scan types, or detecting them at a threshold nothing reaches, or exempting the sources doing the scanning, reads on screen as a configured defense.",
+          "why_it_matters": "A profile detecting three of four scan types, or detecting them at a threshold nothing reaches, or exempting the sources doing the scanning, reads on screen as a configured defense.",
           "where_to_confirm": "Network > Network Profiles > Zone Protection, the Reconnaissance Protection tab of the profile named. Read all four rows for action, interval and threshold, then read every entry in the source address exclusion lists.",
           "what_to_change": "Create an entry for every scan type the profile can carry, set each action to block the source, and set the interval and threshold tight enough that the action is reached. Confirm every exempted address is a trusted host doing vulnerability testing."
         },
@@ -17201,7 +17201,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.SecurityProfile",
           "what_it_checks": "Every denial-of-service protection profile is named by a rule, in one of a rule's two protection slots.",
-          "why_it_matters": "A profile nothing references is either a defense somebody built and never wired up, or configuration left behind by a change. On this kind of profile the first reading means a service that was meant to be protected and is not.",
+          "why_it_matters": "A profile nothing references is either a defense somebody built and never wired up or configuration left behind by a change, and on this kind of profile the first reading means a service meant to be protected is not.",
           "where_to_confirm": "Objects > Security Profiles > DoS Protection for the profile named, then Policies > DoS Protection for its name in both the aggregate and classified slots, in every virtual system and in the shared scope.",
           "what_to_change": "For each profile confirmed to be referenced by nothing, decide whether it is kept deliberately and record that, or delete it. Do not delete where the finding says the reference search could not be completed: that is a gap in the reading, not the configuration."
         },
@@ -18366,7 +18366,7 @@
           "is_active": true,
           "target_model": "integrations.IpsecTunnel",
           "what_it_checks": "The firewall probes the far end of every tunnel, so a dead path is found by the firewall rather than by users.",
-          "why_it_matters": "An unmonitored tunnel that dies keeps attracting every packet routed into it, so the failure surfaces hours later as an unexplained application outage. The interface indicator stays green throughout.",
+          "why_it_matters": "An unmonitored tunnel that dies keeps attracting every packet routed into it, so the failure surfaces hours later as an unexplained application outage with the interface indicator still green.",
           "where_to_confirm": "Network > IPSec Tunnels, the General tab of the tunnel named: the tunnel monitor setting, its destination address and its monitor profile.",
           "what_to_change": "Enable tunnel monitoring on each tunnel carrying traffic an application depends on, and give it a destination the far end will answer. Supply the list of tunnels that matter first: the firewall cannot tell which carry production traffic."
         },
@@ -18548,7 +18548,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionRulebaseVerdict",
           "what_it_checks": "At least one decryption rule in force on the enforcement point opens outbound web sessions for inspection.",
-          "why_it_matters": "With most web traffic encrypted, a firewall that does not decrypt inspects almost nothing while every threat report it produces reads clean. This is the precondition for every content inspection control in the assessment.",
+          "why_it_matters": "With most web traffic encrypted, a firewall that does not decrypt inspects almost nothing while every threat report it produces reads clean.",
           "where_to_confirm": "Policies > Decryption on the virtual system named in the finding, the type and action columns of every rule in force, including rules pushed centrally. A switched-off rule is not in force.",
           "what_to_change": "Add a forward proxy decryption rule covering the egress paths carrying user web traffic, with forward trust and forward untrust signing certificates designated. Where a rule exists and leaves traffic encrypted, change its action rather than adding another."
         },
@@ -18718,7 +18718,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionPolicyRule",
           "what_it_checks": "Every decryption rule that leaves traffic encrypted carries a description saying why the exemption exists and when somebody is due to revisit it.",
-          "why_it_matters": "A performance exemption is the one carve-out meant to be temporary, and the only thing making it temporary is a written reason with a date against it. Without one it becomes permanent by default.",
+          "why_it_matters": "A performance exemption is the one carve-out meant to be temporary, and without a written reason and a date against it the exemption becomes permanent by default.",
           "where_to_confirm": "Policies > Decryption, the Description column of the rule named. A throughput exemption should say which path it was granted for, what the measured impact was, and when it is next re-measured.",
           "what_to_change": "Write the justification and the review date into the rule's description, and re-measure after hardware and software upgrades. Scope the rule to a content class or a narrow destination rather than a wide address group, so it can be checked against the claim."
         },
@@ -18760,7 +18760,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.SslDecryptionExclusion",
           "what_it_checks": "Every decryption exclusion the organization added carries a description naming the application it protects and when it was last reviewed.",
-          "why_it_matters": "An exclusion is a server whose sessions the firewall will never open, chosen locally rather than by the vendor. Each is a permanent hole in the inspection surface, and an undocumented one cannot be reviewed or removed.",
+          "why_it_matters": "An exclusion is a server whose sessions the firewall will never open, chosen locally rather than by the vendor, and an undocumented one cannot be reviewed or removed.",
           "where_to_confirm": "Device > Certificate Management > SSL Decryption Exclusion, the entries whose location is not predefined. Check both scopes, and read disabled entries too: they are still on the list.",
           "what_to_change": "Write the application, the owner and a recheck date into each locally added exclusion's description. Rely on the vendor's maintained list first and keep the local list minimal. Where an entry can be accounted for by nobody, remove it rather than documenting it."
         },
@@ -18821,7 +18821,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionPolicyRule",
           "what_it_checks": "A privacy exemption from decryption names the content classes it covers, rather than exempting every class for a named set of hosts.",
-          "why_it_matters": "A privacy exemption written against addresses cannot be audited against the policy that authorized it, and it exempts every other thing those hosts do. The carve-out becomes a segment nobody inspects.",
+          "why_it_matters": "A privacy exemption written against addresses exempts every other thing those hosts do, and cannot be audited against the policy that authorized it.",
           "where_to_confirm": "Policies > Decryption, the URL Category and Source columns of the rule named, read together. Open the named source object and ask what else those hosts do: everything they do is exempt.",
           "what_to_change": "Re-key the rule on the content classes the written privacy policy names and remove the address scoping, so the exemption covers the sensitive traffic and nothing else. Keep a decryption profile attached so certificate checks still run on the exempt traffic."
         },
@@ -19217,7 +19217,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionPolicyRule",
           "what_it_checks": "Every decryption rule that leaves traffic encrypted still has a decryption profile attached, so the certificate checks that survive an exemption keep running.",
-          "why_it_matters": "An exempt flow is the one place the firewall still has a cheap signal about the far end: whether the certificate is valid and who issued it. A rule with no profile throws that away as well as the inspection.",
+          "why_it_matters": "An exempt flow is the one place the firewall still has a cheap signal about the far end, and a rule with no profile throws that away as well as the inspection.",
           "where_to_confirm": "Policies > Decryption, the profile column of the rule named. Then open that profile and read its No Decryption tab: a profile blocking neither expired certificates nor untrusted issuers is as good as none.",
           "what_to_change": "Attach a decryption profile to every rule that leaves traffic encrypted, set to block sessions with an expired certificate and sessions whose issuer is untrusted. Enable decryption logging on the same rules so refusals are visible when they fire."
         },
@@ -19259,7 +19259,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionRulebaseVerdict",
           "what_it_checks": "At least one decryption rule inspects inbound TLS toward the organization's own published servers.",
-          "why_it_matters": "Inbound TLS toward a published service is the one direction where the attacker chooses the payload and the organization owns the server. Without inspection the threat logs are silent about the traffic most likely to be hostile.",
+          "why_it_matters": "Inbound TLS toward a published service is the one direction where the attacker chooses the payload, so without inspection the threat logs are silent about the traffic most likely to be hostile.",
           "where_to_confirm": "Policies > Decryption on the virtual system named, for a rule of the inbound inspection type with the published service's address as its destination and the server's certificate bound.",
           "what_to_change": "Add an inbound inspection rule for each business-critical published service, scoped to that service's address, and import the server certificate with its private key. Where TLS is terminated at a load balancer instead, record that as the compensating control."
         },
@@ -19387,7 +19387,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.DecryptionPolicyRule",
           "what_it_checks": "Every decryption rule in force records its failed handshakes, and a rule that opens sessions keeps a usable record of the ones that succeed.",
-          "why_it_matters": "Decryption logs are the only dataset saying what TLS the estate is actually negotiating and where decryption is failing. A rule with the records off contributes nothing, and its silence looks like traffic nobody sends.",
+          "why_it_matters": "Decryption logs are the only record of what TLS the estate negotiates and where decryption is failing, and a rule with them off contributes a silence that looks like traffic nobody sends.",
           "where_to_confirm": "Policies > Decryption, the two log settings on the Options tab of the rule named. A blank failed-handshake cell means enabled; a blank successful-session cell means disabled, which is the default.",
           "what_to_change": "Leave the failed-handshake record enabled on every rule. On rules that open sessions, enable the successful-session record as well and name a log forwarding profile, so the TLS data reaches the log store rather than aging out locally."
         },
@@ -20258,7 +20258,7 @@
           "target_model": "integrations.LoggingSettings",
           "is_active": true,
           "what_it_checks": "Logs from a centrally managed firewall arrive at the central store with no backlog, rather than merely being configured to be sent.",
-          "why_it_matters": "A forwarding gap is invisible to a configuration review by construction: the configuration is correct and the logs are not arriving. Only a runtime reading finds it, and only monitoring finds it promptly.",
+          "why_it_matters": "A forwarding gap is invisible to a configuration review by construction, because the configuration is correct and the logs are simply not arriving.",
           "where_to_confirm": "The firewall's own logging status reading. Read the per-log-type lines rather than the connection list: confirm a last-forwarded timestamp exists and the last sequence forwarded equals the last acknowledged.",
           "what_to_change": "Restore delivery to the collector, then confirm a forward has completed with no backlog. Put something outside the firewall in place to notice the next stop, because nothing on the device will."
         },
@@ -20816,7 +20816,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "Every rule records the sessions it decides, and a forwarding profile on the rule carries that record off the firewall.",
-          "why_it_matters": "A rule that keeps no record leaves an investigation with a hole at exactly the point the policy made its decision. A record kept only on the firewall expires on the firewall's schedule rather than the investigation's.",
+          "why_it_matters": "A rule that keeps no record leaves an investigation with a hole at exactly the point the policy made its decision, and a record kept only on the firewall expires on the firewall's schedule.",
           "where_to_confirm": "Policies > Security, the Actions tab of the rule named: the log at session end setting and the log forwarding profile. An unticked box on a rule storing no setting is the default and is compliant.",
           "what_to_change": "Switch on logging at session end and name a log forwarding profile on the rule. Where no forwarding profile exists, build one that sends traffic and threat records to a collector the organization controls: an empty match list forwards nothing."
         },
@@ -21201,7 +21201,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "The rule set evaluates the busiest rules before the quietest, except where moving one would change what the policy decides.",
-          "why_it_matters": "Every packet is tested against every rule above the one it matches, so a busy flow placed late makes the firewall repeat that work on each of its packets. The estate pays for it in latency and capacity.",
+          "why_it_matters": "Every packet is tested against every rule above the one it matches, so a busy flow placed late makes the firewall repeat that work on each of its packets.",
           "where_to_confirm": "Policies > Security with the hit count and rule usage columns shown, ordered by position. Confirm the policy rule hit count is enabled first, or the reading means nothing.",
           "what_to_change": "Move the rule up, but only where doing so cannot change a decision. Check first that no rule between the two could have matched the same traffic: a reorder that changes what the policy decides is a policy change, not a tuning change."
         },
@@ -21246,7 +21246,7 @@
           "is_active": true,
           "target_model": "integrations.VsysRulePosture",
           "what_it_checks": "Standing rules block known-hostile address lists in both directions, traffic to those addresses and traffic from them, placed above any rule that could otherwise permit them.",
-          "why_it_matters": "These lists are maintained for the organization and cost nothing to enforce, so an estate without them carries traffic to and from addresses already known to be hostile. The omission is invisible: no rule is wrong, one is absent.",
+          "why_it_matters": "These lists are maintained for the organization and cost nothing to enforce, so an estate without them carries traffic to and from addresses already known to be hostile.",
           "where_to_confirm": "Policies > Security for the virtual system: blocking rules naming a hostile-address list as their source and, separately, as their destination, both above the permitting rules.",
           "what_to_change": "Add two enabled blocking rules above the permitting rules, one per direction, each naming the vendor's hostile-address lists. Those lists cannot be created: reference the ones the firewall already carries."
         },
@@ -21433,7 +21433,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A rule that carries web traffic has inspection of the sites it reaches in force, and names no category list that excuses everything outside it from the bound profile.",
-          "why_it_matters": "A bypass is a hole somebody opened deliberately and nobody closed, so the sites it excuses stay reachable long after the reason has gone. Because the rule carries inspection for everything else, it reads as inspected.",
+          "why_it_matters": "A bypass is a hole somebody opened deliberately and nobody closed, and because the rule carries inspection for everything else it reads as inspected.",
           "where_to_confirm": "Policies > Security, the profile setting on the Actions tab of the rule named, then the rule's own service and URL category tab for a category list narrowing what the profile sees.",
           "what_to_change": "Bind a URL filtering profile to the rule, or point it at a profile group containing one. Where a category list on the rule is excusing sites deliberately, keep it and record the reason, the owner and an expiry date outside the configuration."
         },
@@ -21556,7 +21556,7 @@
           "is_active": true,
           "target_model": "integrations.SecurityRule",
           "what_it_checks": "A rule written for a temporary purpose stops working by itself when that purpose ends, rather than outliving its one-off window.",
-          "why_it_matters": "Emergency access that nothing withdraws becomes permanent exposure. The time limits only stop a rule matching new sessions, so access granted for a week can still carry an established session after the window closes.",
+          "why_it_matters": "Emergency access that nothing withdraws becomes permanent exposure, and a time limit only stops the rule matching new sessions rather than ending the ones already open.",
           "where_to_confirm": "Policies > Security, the schedule on the Actions tab of the rule named, then Objects > Schedules for the schedule itself. A one-off schedule whose date range has passed is the finding.",
           "what_to_change": "Delete the rule the window was written for. Where the access is still needed, write a new one-off window rather than removing the schedule: removing it makes the rule permanent, which is the configuration this control exists to catch."
         }
