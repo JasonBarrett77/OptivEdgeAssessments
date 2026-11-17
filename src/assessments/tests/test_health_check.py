@@ -1789,6 +1789,81 @@ class DetailPhraseTests(SimpleTestCase):
         self.assertEqual(health_check.matched_phrase(detail),
                          "Profiles that let malware through on a decoder.")
 
+    def _query(self, name, sentence, *, baseline=False, severity=None, clauses=None):
+        return ControlQuery(name=name, short_description=sentence, is_baseline=baseline,
+                            adjusted_severity=severity or "",
+                            canonical_query={"model": "integrations.SecurityRule",
+                                             "operator": "and", "clauses": clauses or []})
+
+    def test_the_baseline_sentence_goes_when_a_calibration_matched(self):
+        """Jason, 2026-11-17 (P621a). The baseline states the general failure and a calibration
+        states the specific one, so a block printing both stutters: PAN-AUTH-018's medium block
+        read "Lockout is switched off, or set above the three consecutive failures the standard
+        allows. Lockout is set at six to ten failed attempts, against a standard of three." """
+        rows = [self._query("Baseline", "The general failure.", baseline=True),
+                self._query("Severity: 6 to 10", "Six to ten.", severity="medium")]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["Six to ten."])
+
+    def test_a_block_where_only_the_baseline_matched_keeps_its_sentence(self):
+        """126 of the lab's 264 blocks are this shape, and that sentence is the whole of what
+        they have to say."""
+        rows = [self._query("Baseline", "The general failure.", baseline=True)]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["The general failure."])
+
+    def test_a_band_a_worse_band_implies_is_dropped(self):
+        """PAN-POL-002's critical block matched six queries, because a side over 16,777,216
+        addresses is also over 1,048,576 and over 131,072. Only the critical one is news."""
+        wide = [{"field": "source_num_hosts", "op": "gt", "value": 131072}]
+        worse = [{"field": "source_num_hosts", "op": "gt", "value": 16777216}]
+        rows = [self._query("Broader than /14", "Over 131,072.", severity="medium",
+                            clauses=wide),
+                self._query("Broader than /8", "Over 16,777,216.", severity="critical",
+                            clauses=worse)]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["Over 16,777,216."])
+
+    def test_two_facts_at_one_grade_both_speak(self):
+        """The 58 graded controls that are NOT a scale: PAN-MGT-006's critical block matched
+        four data-plane surfaces - http, https, ssh and telnet - and all four belong in the
+        cell, because no one of them implies another."""
+        rows = [self._query("Permitting ssh", "SSH is reachable.", severity="critical",
+                            clauses=[{"field": "service_enabled", "op": "eq", "value": "ssh"}]),
+                self._query("Permitting https", "HTTPS is reachable.", severity="critical",
+                            clauses=[{"field": "service_enabled", "op": "eq", "value": "https"}])]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["HTTPS is reachable.", "SSH is reachable."])
+
+    def test_the_sentences_run_worst_first_then_by_query_name(self):
+        """The cell is a document, so its order cannot come out of whatever order the rows
+        arrived in - and a reader meets the worst thing first."""
+        rows = [self._query("B", "Medium fact.", severity="medium",
+                            clauses=[{"field": "a", "op": "eq", "value": 1}]),
+                self._query("A", "High fact.", severity="high",
+                            clauses=[{"field": "b", "op": "eq", "value": 2}])]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["High fact.", "Medium fact."])
+
+    def test_a_shape_the_implication_test_cannot_read_keeps_both_sentences(self):
+        """`_implies` answers two exact cases and runs no solver, so an OR group it cannot
+        reason about keeps both sentences. The safe direction: a reader sees one line too many
+        rather than one line too few."""
+        rows = [self._query("Either side", "Either side is wide.", severity="medium",
+                            clauses=[{"operator": "or", "clauses": [
+                                {"field": "source_num_hosts", "op": "gt", "value": 8192},
+                                {"field": "destination_num_hosts", "op": "gt", "value": 8192}]}]),
+                self._query("Source only", "The source is wider.", severity="high",
+                            clauses=[{"field": "source_num_hosts", "op": "gt", "value": 16777216}])]
+
+        self.assertEqual([q.short_description for q in health_check.speaking_queries(rows)],
+                         ["The source is wider.", "Either side is wide."])
+
     def test_a_query_nobody_described_is_marked_rather_than_left_blank(self):
         """48 of the lab's 579 queries carry no sentence, and an empty row under a client's
         heading is worse than a placeholder saying who has to write it."""

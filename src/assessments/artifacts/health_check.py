@@ -43,6 +43,7 @@ describes a pass and would contradict a row graded Informational.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 
@@ -54,7 +55,7 @@ from assessments import finding_registry
 from assessments import remediation as surface
 from assessments.control_queries import SEVERITY_RANK
 from assessments.environment import get_application_environment
-from assessments.models import Control, FindingControlQueryBase
+from assessments.models import Control, ControlQuery, FindingControlQueryBase
 
 from optivedge_integrations.integrations.models import (
     Appliance, ApplianceGroup, DecryptionRulebaseVerdict, DeviceGroup, FieldProvenance,
@@ -740,15 +741,92 @@ def matched_phrase(detail: ControlDetail) -> str:
     return " ".join(detail.matched)
 
 
+def _clause_leaves(node: dict, found: list | None = None) -> list:
+    """Every leaf clause of a canonical query, ignoring how the groups nest."""
+    found = [] if found is None else found
+    if "clauses" in node:
+        for child in node["clauses"]:
+            _clause_leaves(child, found)
+    elif "field" in node:
+        found.append(node)
+    return found
+
+
+def _implies(narrow: dict, wide: dict) -> bool:
+    """Does every row matching `narrow` also match `wide`?
+
+    TWO EXACT CASES AND NO SOLVER, which is all the catalogue's own shapes need:
+    `narrow` carries every clause `wide` does and adds more; or the only clauses it does not
+    carry are numeric lower bounds on a field `wide` bounds LOWER, so `source_num_hosts >
+    16777216` implies `source_num_hosts > 1048576`. Anything else answers False, which keeps
+    both sentences - the safe direction.
+    """
+    narrow_keys = {json.dumps(leaf, sort_keys=True) for leaf in _clause_leaves(narrow)}
+    wide_leaves = _clause_leaves(wide)
+    unmatched = [leaf for leaf in wide_leaves
+                 if json.dumps(leaf, sort_keys=True) not in narrow_keys]
+    if not unmatched:
+        return True
+    bounds = {(leaf["field"], leaf["op"]): leaf["value"] for leaf in _clause_leaves(narrow)
+              if leaf.get("op") in ("gt", "gte") and isinstance(leaf.get("value"), (int, float))}
+    for leaf in unmatched:
+        value = leaf.get("value")
+        if leaf.get("op") in ("gt", "gte") and isinstance(value, (int, float)):
+            held = bounds.get((leaf["field"], leaf["op"]))
+            if held is not None and held >= value:
+                continue
+        return False
+    return True
+
+
+def speaking_queries(matched: list) -> list:
+    """Which of the queries that matched one block say something the others do not.
+
+    Jason, 2026-11-17 (P621a). A block prints the sentence of EVERY query that matched a finding
+    in it, and on 138 of the lab's 264 blocks that is more than one. Two of those sentences are
+    always redundant, and both drops are mechanical.
+
+    THE BASELINE GOES WHENEVER A CALIBRATION MATCHED. The baseline states the general failure
+    and a calibration states the specific one, so printing both stutters: PAN-AUTH-018's medium
+    block read *"Lockout is switched off, or set above the three consecutive failures the
+    standard allows. Lockout is set at six to ten failed attempts, against a standard of
+    three."* The 126 blocks where only the baseline matched keep theirs - that sentence is the
+    whole of what they have to say.
+
+    A BAND A WORSE BAND IMPLIES GOES TOO, which is what the five cumulative controls need.
+    PAN-POL-002's critical block matched six queries, because a side over 16,777,216 addresses
+    is also over 1,048,576 and over 131,072 and over 32,768; only the critical one is news.
+    `_implies` is deliberately narrow, so a shape it cannot read keeps both sentences.
+
+    WORST FIRST, then by query name: the cell is a document, so its order cannot come out of
+    whatever order the rows arrived in.
+    """
+    #: A baseline carries no calibration, so it ranks below every band for the ordering and for
+    #: the comparison - and it only reaches either where nothing else matched at all.
+    def rank(query):
+        return SEVERITY_RANK.get(query.adjusted_severity, -1)
+
+    kept = [row for row in matched if not row.is_baseline] or list(matched)
+    speaking = [row for row in kept
+                if not any(other is not row and rank(other) > rank(row)
+                           and _implies(other.canonical_query, row.canonical_query)
+                           for other in kept)]
+    return sorted(speaking, key=lambda row: (-rank(row), row.name))
+
+
 def query_sentences() -> dict:
     """(control id, severity) -> the client sentences of the queries that graded it that way.
 
     ONE DISTINCT QUERY PER FINDING KIND rather than a walk over the findings. Every kind has a
     `FindingControlQueryBase` join beside it recording which query matched which finding, and
-    the three columns this needs - control, severity, sentence - have at most a few hundred
+    the three columns this needs - control, severity, query - have at most a few hundred
     distinct combinations across the estate, against 17,555 findings on the lab.
+
+    THE QUERY ID RATHER THAN THE SENTENCE, because `speaking_queries` needs the clauses and the
+    calibration beside it to decide which sentences are redundant - and because a DISTINCT over
+    a JSON column is a backend question this does not need to ask.
     """
-    found = defaultdict(list)
+    matched = defaultdict(set)
     for kind in finding_registry.FINDING_KINDS:
         for related in kind.model._meta.related_objects:
             model = related.related_model
@@ -757,10 +835,18 @@ def query_sentences() -> dict:
             rows = model.objects.values_list(
                 "control_query__control__control_id",
                 f"{related.field.name}__severity",
-                "control_query__short_description").distinct()
-            for control_id, severity, sentence in rows:
-                if sentence and sentence not in found[(control_id, severity)]:
-                    found[(control_id, severity)].append(sentence)
+                "control_query_id").distinct()
+            for control_id, severity, query_id in rows:
+                matched[(control_id, severity)].add(query_id)
+    queries = {query.pk: query for query in ControlQuery.objects.filter(
+        pk__in={query_id for ids in matched.values() for query_id in ids})}
+    found = {}
+    for where, ids in matched.items():
+        sentences = []
+        for query in speaking_queries([queries[query_id] for query_id in sorted(ids)]):
+            if query.short_description and query.short_description not in sentences:
+                sentences.append(query.short_description)
+        found[where] = sentences
     return found
 
 
