@@ -1253,7 +1253,7 @@
             }
           ],
           "target_model": "integrations.PasswordComplexityPolicy",
-          "what_it_checks": "At least eight characters change when an administrator rotates a password.",
+          "what_it_checks": "A new administrator password differs from the old one by at least eight characters.",
           "why_it_matters": "A rotation that changes one character leaves the old password almost entirely intact, so anyone holding the previous one is a short guess away from the new one.",
           "where_to_confirm": "Device > Setup > Management > Minimum Password Complexity, the setting for how many characters a new password must differ by.",
           "what_to_change": "Set the required difference to at least eight characters, which is about half of a fifteen-character password."
@@ -4167,7 +4167,7 @@
               ]
             }
           ],
-          "what_it_checks": "A rule that permits traffic carries threat inspection profiles, counted by what a named profile group actually contains rather than by the group being named.",
+          "what_it_checks": "A rule that permits traffic has all three threat inspection types in force: antivirus, anti-spyware and vulnerability protection, bound to the rule itself or through a profile group.",
           "why_it_matters": "A rule permitting traffic without threat inspection is a hole however tightly its addresses are scoped, and it is invisible in a review because the rule looks complete.",
           "where_to_confirm": "Policies > Security, the profile column of the rule named. Where it names a group, open the group: the finding is about what the group contains.",
           "what_to_change": "Attach a profile group carrying all three inspection types, and check the group is not empty."
@@ -4938,7 +4938,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.SnmpSettings",
-          "what_it_checks": "Where version 2c of SNMP is still in use, its community string is not one of the published defaults.",
+          "what_it_checks": "The SNMP community string the firewall uses is not one of the vendor's published defaults.",
           "why_it_matters": "A default community string is a published password, and version 2c sends it in the clear on every poll.",
           "where_to_confirm": "Device > Setup > Operations > SNMP Setup, the community string, on a firewall using version 2c.",
           "what_to_change": "Move to version 3."
@@ -5677,7 +5677,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "default_severity": "informational",
-          "description": "How much address space an allow rule exposes, on its broader side.\n\nSEVERITY COMES FROM THE SIZE, not from a boolean. The host count on each side is converted to the smallest subnet that would contain it - network_bits = 32 - ceil(log2(n)) - and the bands run: /0-/7 critical (over 16,777,216 addresses, including `any`), /8-/11 high, /12-/14 medium, /15-/16 low, /17-/18 informational, and /19 or narrower reports nothing. Rounding UP is deliberate: the RFC1918 aggregate is 17,891,328 addresses and lands at /7, critical, where rounding to nearest would call it /8. Jason, 2026-09-30: \"RFC1918 rules may be poorly considered.\"\n\nA SIDE'S COUNT IS THE UNION OF ITS OBJECTS, DE-DUPLICATED - two members covering the same /8 are one /8, not two - and it is read AFTER NEGATION. A negated side keeps its member refs and gains a synthetic complement beside them; the complement is what the rule actually permits. Scoring the members instead would read a negated rule as its own inverse, so negating one host would score /32 rather than the whole space but one.\n\nAN INDETERMINATE SIDE REPORTS AT MEDIUM rather than nothing. A side is unknowable when it names a dynamic address group or a region, when an EDL or FQDN on it has no resolved content, or when that content was truncated at the collection ceiling and is a known under-count. The count is NULL in those cases, never 0 - zero is the narrowest value there is, and a rule nobody could measure must not read as the tightest rule on the device. Why a particular object could not be sized is reported separately by the PAN-COV coverage controls.\n\nSCOPE. Allow rules only, excluding the two predefined default rules, whose match tuple cannot be edited, and excluding disabled rules, which permit nothing.\n\nv1 IS ADDRESSES ONLY, which is what this control's name asserts. The wider permissiveness methodology also scores service and application and combines the per-field tiers into an aggregate; service is PAN-POL-003 and needs a ServiceObject model that does not exist, application needs application-group resolution that does not exist, and the aggregate needs all four. See rule-permissiveness-scoring.md.\n\nPAN-POL-001 WAS DROPPED INTO THIS CONTROL on 2026-10-06, and this control now carries its STIG reference alone. It asserted that no allow rule leaves BOTH its source and its destination covering the whole address space - read semantically, so a 0.0.0.0/0 object counted as `any` - which is a subset of this control's critical band. Measured before the drop: 45 of its 46 lab findings also reported here, all at critical. The 46th was a DISABLED any/any rule, which 001 reported because its baseline had no `disabled` clause and this one does. That was a false positive by the reasoning here - a disabled rule permits nothing - and disabled rules are PAN-POL-014's subject, which is not yet built. Until it is, a disabled rule of any breadth is reported by nothing.\n\nTHE NAME SAID `BREADTH BOUNDED` UNTIL 2026-11-16, and the word was the one a client stopped on. Jason, reading a sample detail block: *\"The term 'bounded' specifically may not be fully understandable by all stakeholders.\"* The name is printed THREE TIMES per control in the health check - the detail block's own header strip, the Summary of Findings row and the contents - and it is the first thing a reader meets, before a word of the block. `Scope Limited` asserts the same thing in words nobody has to translate. Nothing about the measure, the bands or the scope changed with it.",
+          "description": "How much address space an allow rule exposes, on its broader side.\n\nSEVERITY COMES FROM THE SIZE, not from a boolean. The host count on each side is converted to the smallest subnet that would contain it - network_bits = 32 - ceil(log2(n)) - and the bands run: /0-/7 critical (over 16,777,216 addresses, including `any`), /8-/11 high, /12-/14 medium, /15-/16 low, /17-/18 informational, and /19 or narrower reports nothing. Rounding UP is deliberate: the RFC1918 aggregate is 17,891,328 addresses and lands at /7, critical, where rounding to nearest would call it /8. Jason, 2026-09-30: \"RFC1918 rules may be poorly considered.\"\n\nA SIDE'S COUNT IS THE UNION OF ITS OBJECTS, DE-DUPLICATED - two members covering the same /8 are one /8, not two - and it is read AFTER NEGATION. A negated side keeps its member refs and gains a synthetic complement beside them; the complement is what the rule actually permits. Scoring the members instead would read a negated rule as its own inverse, so negating one host would score /32 rather than the whole space but one.\n\nAN INDETERMINATE SIDE REPORTS AT MEDIUM rather than nothing. A side is unknowable when it names a dynamic address group or a region, when an EDL or FQDN on it has no resolved content, or when that content was truncated at the collection ceiling and is a known under-count. The count is NULL in those cases, never 0 - zero is the narrowest value there is, and a rule nobody could measure must not read as the tightest rule on the device. Why a particular object could not be sized is reported separately by the PAN-COV coverage controls.\n\nSCOPE. Allow rules only, excluding the two predefined default rules, whose match tuple cannot be edited, and excluding disabled rules, which permit nothing.\n\nv1 IS ADDRESSES ONLY, which is what this control's name asserts. The wider permissiveness methodology also scores service and application and combines the per-field tiers into an aggregate; service is PAN-POL-003 and needs a ServiceObject model that does not exist, application needs application-group resolution that does not exist, and the aggregate needs all four. See rule-permissiveness-scoring.md.\n\nPAN-POL-001 WAS DROPPED INTO THIS CONTROL on 2026-10-06, and this control now carries its STIG reference alone. It asserted that no allow rule leaves BOTH its source and its destination covering the whole address space - read semantically, so a 0.0.0.0/0 object counted as `any` - which is a subset of this control's critical band. Measured before the drop: 45 of its 46 lab findings also reported here, all at critical. The 46th was a DISABLED any/any rule, which 001 reported because its baseline had no `disabled` clause and this one does. That was a false positive by the reasoning here - a disabled rule permits nothing - and disabled rules are PAN-POL-014's subject, which is not yet built. Until it is, a disabled rule of any breadth is reported by nothing.\n\nTHE NAME SAID `BREADTH BOUNDED` UNTIL 2026-11-16, and the word was the one a client stopped on. Jason, reading a sample detail block: *\"The term 'bounded' specifically may not be fully understandable by all stakeholders.\"* The name is printed THREE TIMES per control in the health check - the detail block's own header strip, the Summary of Findings row and the contents - and it is the first thing a reader meets, before a word of the block. `Scope Limited` asserts the same thing in words nobody has to translate. Nothing about the measure, the bands or the scope changed with it.\n\nTHE REQUIREMENT LINE STATED A WEAKER STANDARD THAN THIS CONTROL ENFORCES, until 2026-11-17. It read *\"limits AT LEAST ONE SIDE to the addresses the flow needs\"*, and the baseline fires when EITHER side is over 8,192 addresses - so a rule with `any` on one side and a single host on the other passes the sentence and grades critical. Jason: *\"I'm uncomfortable with the 'at least one side' verbiage. This is more about rule permisiveness, and the name of the control is 'source *and* destination address scope limited', which is the more correct interpretation.\"* The name was right and the sentence was wrong. Nothing about the measure, the bands or the scope changed with the correction; only the sentence a client reads.",
           "rationale": "A rule's reach is the product of what it permits on each side, and the side nobody narrowed is the one that decides it. Breadth is also the property an assessor can act on without knowing the business: naming one end of a rule is usually a short change, where deciding what traffic a rule was ever for is not.",
           "audit": "Policies > Security. Read Source Address and Destination Address as address SPACE rather than as member counts - one object can be a /8. The rule's own row carries the resolved host count for each side, and `Unknown` where it could not be established.",
           "remediation": "Narrow the broader side to the hosts or subnets the flow actually needs. Where a side is reported Unknown, the breadth is not known to be acceptable - run the EDL/FQDN cache refresh and re-check, or replace a dynamic group or region member with something resolvable.",
@@ -5981,7 +5981,7 @@
               ]
             }
           ],
-          "what_it_checks": "Every rule that permits traffic limits at least one side to the addresses the flow needs, measured by how many addresses that side covers rather than how many objects are named on it.",
+          "what_it_checks": "A rule that permits traffic limits both sides: neither its source nor its destination is wider than a /19, which is 8,192 addresses.",
           "why_it_matters": "A rule that limits neither side permits far more traffic than it was written for, and a single address object can cover millions of addresses.",
           "where_to_confirm": "Policies > Security, the source and destination address columns of the rule named. The finding carries the resolved host count for each side, or states that it could not be established.",
           "what_to_change": "Narrow the wider side to the hosts or subnets the flow requires."
@@ -9573,7 +9573,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.SaasApplicationPolicyPosture",
-          "what_it_checks": "Where the firewall can identify a cloud application's upload, sharing and delete functions separately from the application itself, policy refuses those functions while browsing and viewing stay permitted.",
+          "what_it_checks": "Policy refuses a cloud application's upload, sharing and delete functions where the firewall can identify them separately from the application itself, while browsing and viewing stay permitted.",
           "why_it_matters": "Blocking a cloud application outright is usually refused by the business and permitting it outright leaves the upload path open, so the function-level identities are the only setting that separates reading from writing.",
           "where_to_confirm": "Policies > Security for the enforcement point in the finding, including rules pushed centrally, and read the action of the first rule matching each function. Deny, drop and the reset actions all count as refusals.",
           "what_to_change": "Add a rule refusing the upload, sharing and delete functions of each cloud application the policy permits, and place it above the rule permitting the application itself."
@@ -9692,7 +9692,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.CloudAppEngineSetting",
-          "what_it_checks": "Where the cloud application inspection subscription is bought, the cloud application engine is working: licensed, connected, holding a device certificate, and switched on.",
+          "what_it_checks": "The cloud application engine is working where its subscription is bought: licensed, connected, holding a device certificate, and switched on.",
           "why_it_matters": "A cloud-delivered application identity the engine cannot fetch stops matching traffic while the rule naming it still reads as policy, so the configuration looks correct and enforces nothing.",
           "where_to_confirm": "Device > Setup > Content-ID on the firewall in the finding, for whether the engine is switched off, then ask the engine itself: it reports the license check, the cloud connection and the device certificate separately.",
           "what_to_change": "Fix whichever condition stopped the engine: activate the subscription, install the device certificate, clear the path to the cloud, or switch the feature back on."
@@ -9974,7 +9974,7 @@
               "is_active": true
             }
           ],
-          "what_it_checks": "The device classification data installed on the firewall is less than a week old, counted from the release date the firewall reports for it.",
+          "what_it_checks": "The device classification data installed on the firewall was released less than a week ago.",
           "why_it_matters": "Stale classification data fails quietly: the feature stays on and the reports keep listing devices, while equipment published since the last delivery is absent from all of it.",
           "where_to_confirm": "Device > Dynamic Updates on the firewall named in the finding, for the installed device dictionary and its release date. Read the age from the finding rather than comparing dates, which are local to each firewall.",
           "what_to_change": "Install the current device dictionary, then confirm the installed release date actually moved."
@@ -14257,7 +14257,7 @@
               "is_active": true
             }
           ],
-          "what_it_checks": "Where the firewall reads security logs from servers to learn who is logged in, the directory account it uses holds only the rights that reading needs.",
+          "what_it_checks": "The directory account the firewall uses to read security logs holds only the rights that reading needs.",
           "why_it_matters": "That one account authenticates to every monitored server, is held on a network device and is used continuously, so anything beyond event-log reader rights turns monitoring into a standing path to move sideways.",
           "where_to_confirm": "Device > User Identification > User Mapping on the virtual system in the finding, the Server Monitor Account tab for the account name. Then check that account in the directory for group memberships and logon rights.",
           "what_to_change": "Replace a privileged account with a dedicated one holding event-log reader rights and nothing else, and deny it interactive and remote desktop logon."
@@ -20500,7 +20500,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.SecurityRule",
-          "what_it_checks": "A rule that permits traffic opens no more than five ports, counted over every service and service group it names, following groups through and counting the width of every range, on both transports.",
+          "what_it_checks": "A rule that permits traffic opens no more than five ports, counting TCP and UDP together.",
           "why_it_matters": "Every port a rule opens beyond the ones in use is a separate way in that nobody is watching, so a rule written to carry one application leaves the rest available to anything that can already reach the same addresses.",
           "where_to_confirm": "Policies > Security, the service column of the rule named, then Objects > Services and Objects > Service Groups for each member. Count the distinct ports the whole list resolves to.",
           "what_to_change": "Set the rule's service to application default, or to service objects naming only the ports the named applications need."
@@ -21332,7 +21332,7 @@
           "implementation_version": "v1",
           "is_active": true,
           "target_model": "integrations.VsysRulePosture",
-          "what_it_checks": "Where the business operates in a limited set of countries, the policy says so, either by accepting only those countries or by refusing the ones it has decided against.",
+          "what_it_checks": "The policy states the organization's geographic boundary, either by accepting only the countries the business operates in or by refusing the ones it has decided against.",
           "why_it_matters": "Without a geographic boundary the estate accepts connections from everywhere by default, and the omission is invisible in a review because no rule is wrong: one is simply absent.",
           "where_to_confirm": "Policies > Security for the virtual system: any rule whose source or destination names a region, with any action. Regions come from the vendor's own country catalog and need no object creating.",
           "what_to_change": "Add a rule stating the boundary, in whichever direction matches the decision: refusing the countries decided against, or accepting only those the business operates in."
