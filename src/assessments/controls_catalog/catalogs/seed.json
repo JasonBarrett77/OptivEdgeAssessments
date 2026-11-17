@@ -889,7 +889,7 @@
           ],
           "target_model": "integrations.PasswordComplexityPolicy",
           "what_it_checks": "The firewall has password complexity enforcement switched on, so the individual requirements stored beneath it are applied rather than held inert.",
-          "why_it_matters": "This one switch decides whether any of the password rules apply, so with it off the configuration screen reads as hardened while the device accepts whatever an administrator types.",
+          "why_it_matters": "One switch decides whether any of the password rules apply, so with it off the configuration screen reads as hardened while the device accepts whatever an administrator types.",
           "where_to_confirm": "Device > Setup > Management > Minimum Password Complexity, the Enabled setting.",
           "what_to_change": "Switch on password complexity and set the individual requirements in the same change: enabling it alone leaves every requirement at zero."
         },
@@ -2772,7 +2772,7 @@
           ],
           "target_model": "integrations.MasterKey",
           "what_it_checks": "A master key has been set on the firewall, in place of the published factory value that would otherwise encrypt every private key and stored secret on the device.",
-          "why_it_matters": "Every other cryptographic control on the device rests on this one, because a properly issued certificate protects nothing if the private key behind it is encrypted with a value published in the vendor's documentation.",
+          "why_it_matters": "Every other cryptographic control on the device rests on the master key, because a properly issued certificate protects nothing if the private key behind it is encrypted with a value published in the vendor's documentation.",
           "where_to_confirm": "Device > Master Key and Diagnostics, or the master key properties on the command line. An expiry reading as unspecified means the factory key is still in use; a concrete date means a key has been set.",
           "what_to_change": "Set a master key and store the value in the organization's secret manager: it is unrecoverable and required to restore a configuration."
         },
@@ -2978,7 +2978,7 @@
           "is_active": true,
           "target_model": "integrations.ManagementSshSettings",
           "what_it_checks": "The host key the firewall's management SSH server presents to administrators is ECDSA, chosen rather than left to the platform default.",
-          "why_it_matters": "An RSA 2048 host key is at the strength that will be withdrawn for signatures after 2030, and ECDSA 256 is the one host key type the platform marks as recommended.",
+          "why_it_matters": "The host key is what administrators verify the firewall by, and an RSA 2048 key is adequate today and withdrawn for signatures after 2030, so it has to be replaced and re-trusted before then.",
           "where_to_confirm": "Device > Certificate Management > SSH Service Profile > Hostkey, on the profile bound under Device > Setup > Management. Only the live SSH offer can confirm what is actually presented.",
           "what_to_change": "Set the bound profile's host key to ECDSA 256, then commit and restart the management SSH service."
         },
@@ -3833,7 +3833,7 @@
           "target_model": "integrations.ApplianceOperationalMode",
           "is_active": true,
           "what_it_checks": "The firewall runs in the cryptographic operating mode that restricts it to an approved algorithm list.",
-          "why_it_matters": "Outside that mode the firewall uses cryptography an approved-algorithm regime does not accept, however carefully each profile was configured.",
+          "why_it_matters": "Outside the approved cryptographic operating mode the firewall uses cryptography an approved-algorithm regime does not accept, however carefully each profile was configured.",
           "where_to_confirm": "The operating mode reported by the firewall's own system information. There is no configuration setting for it at any scope, so this is a runtime reading rather than a stored one.",
           "what_to_change": "Establish first whether this firewall falls within an obligation mandating approved cryptography."
         },
@@ -8134,7 +8134,7 @@
           "is_active": true,
           "target_model": "integrations.IkeGateway",
           "what_it_checks": "Every key exchange gateway detects a peer that has gone away, by dead peer detection on its version 1 branch and the idle liveness probe on its version 2 branch.",
-          "why_it_matters": "Without it a stale security association is never torn down, so traffic to a peer that has gone away is discarded silently and failover waits until the association expires on its own.",
+          "why_it_matters": "Without a liveness check a stale security association is never torn down, so traffic to a peer that has gone away is discarded silently and failover waits until the association expires on its own.",
           "where_to_confirm": "Network > Network Profiles > IKE Gateways, Advanced Options on the gateway named, for dead peer detection on the version 1 branch and the liveness check on version 2. Read the switch, not only the interval.",
           "what_to_change": "Enable dead peer detection on the version 1 branch of every gateway that has one, and set a liveness check interval on every gateway with a version 2 branch."
         },
@@ -11423,7 +11423,7 @@
             }
           ],
           "what_it_checks": "A virtual system publishes internal web applications for browser access through a GlobalProtect portal only where a business need is documented.",
-          "why_it_matters": "This makes the firewall rewrite and proxy an internal application's pages for anyone who can reach the portal, which is a far larger surface than a tunnel and has featured in pre-authentication exploit chains.",
+          "why_it_matters": "Publishing internal web applications through the portal makes the firewall rewrite and proxy their pages for anyone who can reach it, a far larger surface than a tunnel and one that has featured in pre-authentication exploit chains.",
           "where_to_confirm": "Network > GlobalProtect > Portals, the Clientless VPN tab of every portal in the virtual system named, and Network > GlobalProtect > Clientless Apps and Clientless App Groups for the definitions themselves.",
           "what_to_change": "Delete the clientless VPN branch from each portal carrying it, and delete the application definitions the virtual system holds, since leaving them is one edit from live."
         },
@@ -12844,7 +12844,7 @@
             }
           ],
           "what_it_checks": "Both GlobalProtect content types, the data file and the clientless VPN content, are fetched on a recurring schedule and installed when they arrive.",
-          "why_it_matters": "Both content types feed decisions made about endpoints connecting from outside the perimeter, and neither is visible on the screens an operator checks after a change.",
+          "why_it_matters": "The GlobalProtect content feeds decisions made about endpoints connecting from outside the perimeter, and neither of its two content types is visible on the screens an operator checks after a change.",
           "where_to_confirm": "Device > Dynamic Updates carries the clientless VPN content. The GlobalProtect data file has no group on that screen, so its schedule has to be read from the configuration itself.",
           "what_to_change": "Set each GlobalProtect content schedule to a recurring cadence with its action set to download and install."
         },
@@ -14150,7 +14150,7 @@
             }
           ],
           "what_it_checks": "The list bounding which subnets the identity collector may map names the subnets to include, and those subnets are not publicly routable.",
-          "why_it_matters": "Unbounded, the firewall maps guest and server ranges as though they were user populations, and a publicly routable range in the list maps addresses that are not the organization's at all.",
+          "why_it_matters": "With nothing bounding which subnets it may map, the firewall maps guest and server ranges as though they were user populations, and a publicly routable range maps addresses that are not the organization's at all.",
           "where_to_confirm": "Device > User Identification > User Mapping, the Include/Exclude Networks tab on the virtual system named in the finding. A disabled entry bounds nothing and counts as absent.",
           "what_to_change": "Add an inclusion list naming the subnets carrying the organization's own users, so everything else is excluded by implication, and remove any publicly routable range from it."
         },
@@ -14258,7 +14258,7 @@
             }
           ],
           "what_it_checks": "The directory account the firewall uses to read security logs holds only the rights that reading needs.",
-          "why_it_matters": "That one account authenticates to every monitored server, is held on a network device and is used continuously, so anything beyond event-log reader rights turns monitoring into a standing path to move sideways.",
+          "why_it_matters": "The account the firewall reads security logs with authenticates to every monitored server and is held on a network device, so anything beyond event-log reader rights turns monitoring into a standing path to move sideways.",
           "where_to_confirm": "Device > User Identification > User Mapping on the virtual system in the finding, the Server Monitor Account tab for the account name. Then check that account in the directory for group memberships and logon rights.",
           "what_to_change": "Replace a privileged account with a dedicated one holding event-log reader rights and nothing else, and deny it interactive and remote desktop logon."
         },
@@ -14770,7 +14770,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile holds a decrypted session to TLS 1.2 or higher, and lets it reach the newest version the firewall supports.",
-          "why_it_matters": "Both are invisible on the session record: a session negotiated down to TLS 1.0 and one at TLS 1.3 are both logged as decrypted and inspected, so nothing short of opening every profile shows which versions a rule permits.",
+          "why_it_matters": "A session negotiated down to TLS 1.0 and one at TLS 1.3 are both logged as decrypted and inspected, so nothing short of opening every decryption profile shows which versions a rule permits.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Protocol Settings tab of the profile named in the finding. Min Version is the floor and Max Version the ceiling; the finding prints both.",
           "what_to_change": "Set the minimum version to TLS 1.2 or better and the maximum to Max."
         },
@@ -15182,7 +15182,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile ends a session whose destination presented a certificate from an authority the firewall does not trust.",
-          "why_it_matters": "A session that fails this check and is forwarded anyway reaches the user behind the firewall's own trusted certificate, so no warning appears and the inspection has laundered an interception.",
+          "why_it_matters": "A session whose destination presented an untrusted certificate and was forwarded anyway reaches the user behind the firewall's own trusted certificate, so no warning appears and the inspection has laundered an interception.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Decryption > SSL Forward Proxy tab of the profile named, the setting that blocks sessions with untrusted issuers. Check the firewall's trusted authority list separately.",
           "what_to_change": "Switch on blocking of sessions with untrusted issuers."
         },
@@ -15350,7 +15350,7 @@
             }
           ],
           "what_it_checks": "Every decryption profile stops a session it cannot inspect rather than carrying it through: on an unsupported protocol version or cipher, when the firewall is short of decryption capacity, and when the signing module is unreachable.",
-          "why_it_matters": "Carrying the session through is the default on all ten settings, the conditions are what an attacker can induce on purpose, and the bypass is cached with no event saying inspection was skipped.",
+          "why_it_matters": "Carrying an uninspectable session through is what the firewall does unless told otherwise, the conditions that trigger it are ones an attacker can induce on purpose, and the bypass is cached with no event saying inspection was skipped.",
           "where_to_confirm": "Objects > Decryption Profile, the SSL Decryption tab of the profile named, on both the SSL Forward Proxy and SSL Inbound Inspection sub-tabs. A profile storing no setting has all ten off.",
           "what_to_change": "Switch on every failure check on both sub-tabs, so a session the firewall cannot inspect is stopped rather than carried through."
         },
@@ -15414,7 +15414,7 @@
             }
           ],
           "what_it_checks": "A firewall that decrypts outbound traffic designates its own forward trust signing authority, holds that authority locally, and designates a separate untrust authority beside it.",
-          "why_it_matters": "This is the highest-value key on the firewall, and having designated nothing is also the state the firewall ships in, so an appliance never set up looks the same as one set up wrongly.",
+          "why_it_matters": "The forward trust signing authority is the highest-value key on the firewall, and having designated nothing is also the state the firewall ships in, so an appliance never set up looks the same as one set up wrongly.",
           "where_to_confirm": "Device > Certificate Management > Certificates on the firewall named, then open each certificate and read its Certificate Use selections. Confirm a different certificate carries the forward-untrust designation.",
           "what_to_change": "Generate a self-signed authority on the firewall and designate it forward trust, then generate a second, different authority and designate it forward untrust."
         },
@@ -16602,7 +16602,7 @@
           "implementation_version": "v1",
           "target_model": "integrations.ZoneProtectionProfile",
           "what_it_checks": "Every zone protection profile in force has SYN flood protection switched on, so the zones it protects meter half-open TCP connections.",
-          "why_it_matters": "SYN flood protection is the one defense on this object acting on the firewall's own session capacity rather than on a protocol detail, so a profile with it off protects nothing of that kind.",
+          "why_it_matters": "SYN flood protection is the one zone defense acting on the firewall's own session capacity rather than on a protocol detail, so a profile with it off protects nothing of that kind.",
           "where_to_confirm": "Network > Network Profiles > Zone Protection, the Flood Protection tab of the profile named. Read the three rates beside the SYN setting against this zone's own measured average and peak connection rates.",
           "what_to_change": "Enable SYN flood protection on every profile in force, and set the alarm, activate and maximum rates from this zone's measured traffic rather than the shipped numbers."
         },
@@ -21287,7 +21287,7 @@
           "is_active": true,
           "target_model": "integrations.VsysRulePosture",
           "what_it_checks": "Standing rules block known-hostile address lists in both directions, traffic to those addresses and traffic from them, placed above any rule that could otherwise permit them.",
-          "why_it_matters": "These lists are maintained for the organization and cost nothing to enforce, so an estate without them carries traffic to and from addresses already known to be hostile.",
+          "why_it_matters": "Known-hostile address lists are maintained for the organization and cost nothing to enforce, so an estate without them carries traffic to and from addresses already known to be hostile.",
           "where_to_confirm": "Policies > Security for the virtual system: blocking rules naming a hostile-address list as their source and, separately, as their destination, both above the permitting rules.",
           "what_to_change": "Add two enabled blocking rules above the permitting rules, one per direction, each naming the vendor's hostile-address lists."
         },
