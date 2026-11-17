@@ -122,6 +122,61 @@ _MAY_CARRY_A_UI_PATH = ("where_to_confirm",)
 _FIRST_PERSON = re.compile(r"\b(?:we|we're|our|ours|us|I|I'm|my)\b")
 
 
+#: THE REGISTER EACH CLIENT-FACING LINE IS WRITTEN IN, as opposed to its format. Jason,
+#: 2026-11-16: *"The text values for requirement, risk, and remediation in the 'Detailed Findings
+#: and Recommendations' is not written for the intended audience."*
+#:
+#: WHAT WAS WRONG. The document's labels were changed on 2026-11-12 to Requirement, Risk and
+#: Remediation, and the text under them was not. Measured over all 218 controls that day: 216
+#: Requirement lines said some form of "is checked", and 124 opened with "Each". So every block
+#: described THIS APPLICATION'S PROCEDURE under a heading promising THE STANDARD - "Each LDAP
+#: server profile is checked for whether SSL/TLS is required" where the standard is "Every LDAP
+#: server profile requires SSL/TLS on its connection to the directory".
+#:
+#: THE RULE FOR `what_it_checks`, which the document prints as Requirement: state the standard in
+#: the present tense, and never say what was examined. A client reads this line to learn what
+#: good looks like; whether we looked, and how, is the Evidence row directly beneath it.
+#:
+#: WHY IT IS REFUSED RATHER THAN REVIEWED. A register cannot be held by good intentions across
+#: 218 controls and whoever adds the 219th. Each pattern below was MEASURED on the text that was
+#: replaced, so none of them is a guess about what a writer might do.
+#:
+#: WHAT IS DELIBERATELY NOT BANNED. The verb "check" in the firewall's own vocabulary - a
+#: certificate revocation check, the shadow-rule check - is the subject speaking, not us, so
+#: only the passive "is checked" construction is refused. An active sentence about what the
+#: FIREWALL does ("the firewall validates the update server's certificate") is the standard.
+_PROCEDURE_IN_A_STANDARD = (
+    #: The auxiliary is limited to `is|are|was|were` and the participle list to verbs that can
+    #: only mean us looking. "can be counted" and "is compared against twelve characters" are
+    #: the standard speaking, and a wider pattern refused them: PAN-COV-001's line is about
+    #: whether the addresses behind an object CAN BE COUNTED at all, which is the requirement.
+    (re.compile(r"\b(?:is|are|was|were)\s+(?:checked|examined|inspected|reported"
+                r"|flagged|assessed)\b"),
+     "describes what was examined rather than what the standard requires"),
+    (re.compile(r"\bchecked\s+(?:for|against)\b"),
+     "describes what was examined rather than what the standard requires"),
+    #: "is reported" is caught above. A BARE "reports" is not banned, because on these lines it
+    #: is nearly always the FIREWALL reporting something to us - PAN-IOT-003's standard is that
+    #: the device dictionary is younger than a week "counted from the release date the firewall
+    #: reports for it", and the date the firewall reports is the measurement, not our verdict.
+    (re.compile(r"\bfindings?\b|\bthe\s+quer(?:y|ies)\b|\b(?:this|the)\s+control\b"),
+     "names this application's own machinery"),
+    #: "for whether" is the construction the old text used 216 times over - "checked for
+    #: whether SSL/TLS is required". A BARE "whether" is left alone: it is also the correlative
+    #: in "whether named directly or reached through a group", which states a fact about both
+    #: cases rather than asking a question about either.
+    (re.compile(r"\b(?:for|about|as to)\s+whether\b"),
+     "poses a question where the standard states a fact"),
+    (re.compile(r"^Each\b"),
+     "opens by enumerating what was looked at; a standard opens with what must be true"),
+)
+
+#: Which fields the register above is enforced on. One field joins this as its sweep of all 218
+#: controls lands, never before: a rule that arrives first makes the shipped catalogue invalid
+#: and blocks every commit until the text catches up.
+_REGISTER = {"what_it_checks": _PROCEDURE_IN_A_STANDARD}
+
+
 def _validate_client_detail(control_payload: dict, control_id: str, is_active: bool,
                             *, required: bool) -> dict:
     """The four lines a client reads about one control, and the rules they are held to.
@@ -175,6 +230,13 @@ def _validate_client_detail(control_payload: dict, control_id: str, is_active: b
             _raise_validation_error(
                 f"{context} writes in the first person in its '{field}'. The Control Detail "
                 f"section is addressed to the client, not written by us to each other.")
+        for pattern, what in _REGISTER.get(field, ()):
+            found = pattern.search(value)
+            if found:
+                _raise_validation_error(
+                    f"{context} has a '{field}' that {what}: {found.group(0)!r}. The document "
+                    f"prints this line as the Requirement, so it states the standard in the "
+                    f"present tense - what must be true of the firewall, not what was looked at.")
         detail[field] = value
     return detail
 

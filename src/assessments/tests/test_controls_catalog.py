@@ -14,7 +14,8 @@ from assessments.controls_catalog.io.importers import (
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import (
-    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, validate_catalog_payload)
+    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _PROCEDURE_IN_A_STANDARD,
+    validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -274,6 +275,67 @@ class SeededCatalogTextTests(TestCase):
 
         self.assertIn("what_it_checks", str(caught.exception))
 
+    def test_every_shipped_requirement_line_states_the_standard(self):
+        """The REGISTER of the Requirement line, as opposed to its format, over all 218.
+
+        Jason, 2026-11-16: *"The text values for requirement, risk, and remediation in the
+        'Detailed Findings and Recommendations' is not written for the intended audience."* The
+        document's labels became Requirement, Risk and Remediation on 2026-11-12 and the text
+        under them did not change, so every block described THIS APPLICATION'S PROCEDURE under a
+        heading promising THE STANDARD.
+
+        MEASURED BOTH WAYS, which is why this test is worth its line count. Against the text
+        this replaced, these patterns refuse 217 of the 218 lines - 195 said "checked for", 167
+        "is checked", 138 "for whether", 124 opened with "Each". Against the swept text they
+        refuse none. The one line they would have passed before, PAN-AUTH-020, opened with
+        "Whether" instead. The median line also fell from 217 characters to 132, and the number
+        written as a single sentence rose from 62 to 212.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                value = (control.get("what_it_checks") or "").strip()
+                caught = [pattern.search(value).group(0)
+                          for pattern, _why in _PROCEDURE_IN_A_STANDARD
+                          if pattern.search(value)]
+                if caught:
+                    offenders[control["control_id"]] = caught
+
+        self.assertEqual(offenders, {})
+
+    def test_a_requirement_line_that_says_what_was_looked_at_is_refused(self):
+        """A guard, not a convention. The sentence below is the SHAPE 216 of the 218 lines had
+        before 2026-11-16, and a control added tomorrow must not be able to bring it back.
+        """
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(
+            payload["controls"][0],
+            what_it_checks="Each LDAP server profile is checked for whether SSL/TLS is "
+                           "required on the connection to the directory.")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("what_it_checks", str(caught.exception))
+        self.assertIn("states the standard", str(caught.exception))
+
+    def test_the_register_leaves_the_firewalls_own_vocabulary_alone(self):
+        """The rules refuse OUR procedure, not the subject's. Three sentences that have to pass:
+        a revocation check, a date the firewall reports, and a correlative "whether ... or".
+        Each one was a false refusal while the patterns were being narrowed.
+        """
+        for line in ("Every certificate profile enables revocation checking and refuses an "
+                     "inconclusive answer.",
+                     "The installed device classification data is less than a week old, "
+                     "counted from the release date the firewall reports for it.",
+                     "No rule permits a high-risk application, whether named directly or "
+                     "reached through a group."):
+            payload = load_seed_payload()["catalogs"][0]
+            payload["controls"] = [dict(payload["controls"][0], what_it_checks=line)]
+            with self.subTest(line=line):
+                validated = validate_catalog_payload(payload)
+                self.assertEqual(validated["controls"][0]["what_it_checks"], line)
+
     def test_a_control_detail_line_that_carries_a_command_is_refused(self):
         payload = load_seed_payload()["catalogs"][0]
         payload["controls"] = [dict(payload["controls"][0],
@@ -412,7 +474,7 @@ class ControlsCatalogTests(TestCase):
                         "audit": "",
                         "remediation": "Tighten rule scope.",
                         "short_remediation": "Tighten the rule's scope.",
-                        "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                        "what_it_checks": "A rule that permits traffic limits what it allows to the flow it was written for.",
                         "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
                         "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
                         "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
@@ -522,12 +584,12 @@ class ControlsCatalogTests(TestCase):
                             "audit": "",
                             "remediation": "Tighten rule scope.",
                             "short_remediation": "Tighten the rule's scope.",
-                            "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                            "what_it_checks": "A rule that permits traffic limits what it allows to the flow it was written for.",
                             "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
                             "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
                             "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
                         "short_remediation": "Tighten the rule's scope.",
-                        "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                        "what_it_checks": "A rule that permits traffic limits what it allows to the flow it was written for.",
                         "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
                         "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
                         "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
@@ -660,7 +722,7 @@ class CatalogDriftTargetModelTests(TestCase):
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
                 "short_remediation": "Tighten the rule's scope.",
-                "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                "what_it_checks": "A rule that permits traffic limits what it allows to the flow it was written for.",
                 "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
                 "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
                 "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
@@ -705,7 +767,7 @@ class CatalogSchemaTargetModelValidationTests(TestCase):
                 "description": "test",
                 "rationale": "", "audit": "", "remediation": "",
                 "short_remediation": "Tighten the rule's scope.",
-                "what_it_checks": "Rules that permit traffic are checked for the breadth of what they allow.",
+                "what_it_checks": "A rule that permits traffic limits what it allows to the flow it was written for.",
                 "why_it_matters": "A rule broader than the flow it carries is access nobody is watching.",
                 "where_to_confirm": "Policies > Security, the source and destination columns of the rule.",
                 "what_to_change": "Narrow the rule to the hosts and services the flow actually needs.",
