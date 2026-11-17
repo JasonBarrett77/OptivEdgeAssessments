@@ -5683,6 +5683,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A side covers a /18 through /17: over 8,192 addresses, the narrowest band graded. Wider sides are graded higher, up to critical at a /7 or wider.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -5741,6 +5742,7 @@
             },
             {
               "name": "Broader than /16 on a side",
+              "short_description": "A side covers a /16 through /15: over 32,768 addresses. Wider sides are graded higher, up to critical at a /7 or wider.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -5787,6 +5789,7 @@
             },
             {
               "name": "Broader than /14 on a side",
+              "short_description": "A side covers a /14 through /12: over 131,072 addresses. Wider sides are graded higher, up to critical at a /7; narrower sides lower, down to informational at a /18.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -5833,6 +5836,7 @@
             },
             {
               "name": "Broader than /11 on a side",
+              "short_description": "A side covers a /11 through /8: over 1,048,576 addresses. A /7 or wider is graded critical, and narrower sides lower, down to informational at a /18.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -5879,6 +5883,7 @@
             },
             {
               "name": "Broader than /8 on a side, or any",
+              "short_description": "A side covers a /7 or wider: over 16,777,216 addresses, which is where an unrestricted side lands. Narrower sides are graded lower, down to informational at a /18.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "critical",
@@ -5925,6 +5930,7 @@
             },
             {
               "name": "A side's breadth could not be established",
+              "short_description": "A side could not be sized: a member is a dynamic address group, a region, a list the firewall has not fetched, or an object whose value yields no IPv4 range.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -5994,6 +6000,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "A disabled rule that would permit traffic is still in the rule set, and how much it would open could not be sized.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -6025,6 +6032,7 @@
             },
             {
               "name": "Breadth established, at the floor band",
+              "short_description": "A disabled rule that would permit traffic is still in the rule set. What it would open is measured and narrower than a /14; wider is graded higher, up to critical above a /8.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -6071,6 +6079,7 @@
             },
             {
               "name": "Broader than /14 on a side",
+              "short_description": "Switching this disabled rule on would open more than 131,072 addresses on one side, a /14 or wider. Above a /11 is graded high, and above a /8 critical.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -6117,6 +6126,7 @@
             },
             {
               "name": "Broader than /11 on a side",
+              "short_description": "Switching this disabled rule on would open more than 1,048,576 addresses on one side, a /11 or wider. Above a /8 is graded critical.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -6163,6 +6173,7 @@
             },
             {
               "name": "Broader than /8 on a side",
+              "short_description": "Switching this disabled rule on would open more than 16,777,216 addresses on one side, a /8 or wider, which is the widest band graded.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "critical",
@@ -20275,6 +20286,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule opens more than five ports.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -20311,6 +20323,7 @@
             },
             {
               "name": "Six ports or more",
+              "short_description": "The rule opens six to fifteen ports, against a standard of five. Sixteen to ninety-nine is graded medium, and a hundred or more high.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -20352,6 +20365,7 @@
             },
             {
               "name": "Sixteen ports or more",
+              "short_description": "The rule opens sixteen to ninety-nine ports. A hundred or more is graded high, and six to fifteen low.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -20393,6 +20407,7 @@
             },
             {
               "name": "A hundred ports or more",
+              "short_description": "The rule opens a hundred ports or more. Sixteen to ninety-nine is graded medium, and six to fifteen low.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -20434,6 +20449,7 @@
             },
             {
               "name": "The open-port count could not be established",
+              "short_description": "How many ports this rule opens could not be established, and its service is not set to application-default.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "high",
@@ -21002,6 +21018,7 @@
           "queries": [
             {
               "name": "Baseline",
+              "short_description": "The rule has matched nothing for thirty days or more.",
               "is_baseline": true,
               "is_active": true,
               "adjusted_severity": null,
@@ -21033,6 +21050,7 @@
             },
             {
               "name": "Unused for 30 days or more",
+              "short_description": "The rule has matched nothing for thirty to eighty-nine days. Ninety days or more is graded medium.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "low",
@@ -21064,6 +21082,7 @@
             },
             {
               "name": "Unused for 90 days or more",
+              "short_description": "The rule has matched nothing for ninety days or more. Thirty to eighty-nine days is graded low.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
@@ -21100,6 +21119,7 @@
             },
             {
               "name": "The hit-count reading cannot be believed",
+              "short_description": "The hit-count reading for this rule cannot be relied on, so how long it has been since the rule last matched is not known.",
               "is_baseline": false,
               "is_active": true,
               "adjusted_severity": "medium",
