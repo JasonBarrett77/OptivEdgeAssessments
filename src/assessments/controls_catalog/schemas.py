@@ -159,7 +159,11 @@ _PROCEDURE_IN_A_STANDARD = (
     #: is nearly always the FIREWALL reporting something to us - PAN-IOT-003's standard is that
     #: the device dictionary is younger than a week "counted from the release date the firewall
     #: reports for it", and the date the firewall reports is the measurement, not our verdict.
-    (re.compile(r"\bfindings?\b|\bthe\s+quer(?:y|ies)\b|\b(?:this|the)\s+control\b"),
+    #: "the control link" is PAN-OS's own name for the HA1 link between a redundant pair, so
+    #: the lookahead keeps PAN-HAP-002's remediation out of this: it was the one false refusal
+    #: this pattern produced over the 218.
+    (re.compile(r"\bfindings?\b|\bthe\s+quer(?:y|ies)\b"
+                r"|\b(?:this|the)\s+control\b(?!\s+(?:link|links|plane))"),
      "names this application's own machinery"),
     #: "for whether" is the construction the old text used 216 times over - "checked for
     #: whether SSL/TLS is required". A BARE "whether" is left alone: it is also the correlative
@@ -181,6 +185,7 @@ _PROCEDURE_IN_A_STANDARD = (
 _REGISTER = {
     "what_it_checks": _PROCEDURE_IN_A_STANDARD,
     "why_it_matters": _PROCEDURE_IN_A_STANDARD,
+    "what_to_change": _PROCEDURE_IN_A_STANDARD,
 }
 
 #: ONE SENTENCE, and the fields held to it. Jason agreed the voice on a five-control sample
@@ -192,7 +197,32 @@ _REGISTER = {
 #: WHY A SENTENCE COUNT IS A FAIR RULE HERE AND NOT PEDANTRY: this cell sits in a two-column
 #: table beside a label, and a second sentence is where the block starts pushing onto a second
 #: page - which `keep_together` then holds back, moving the whole control.
-_ONE_SENTENCE = ("why_it_matters",)
+_ONE_SENTENCE = ("why_it_matters", "what_to_change")
+
+#: AND THE REMEDIATION LINE OPENS WITH A VERB. Jason's rule for it, agreed 2026-11-16: one
+#: imperative sentence naming the change, with the engineer's steps left in `remediation`. A
+#: line opening with one of these words is describing the firewall rather than telling anybody
+#: what to do - "Nothing changes on the firewall", "A permissive object nothing uses" - and the
+#: cell it lands in is headed Remediation.
+#:
+#: IT IS A WORD LIST RATHER THAN A PARSE because the alternative is a part-of-speech tagger in
+#: a catalogue validator. Measured over the 218 lines that ship: every one of them opens with a
+#: verb, a preposition carrying a condition ("On each port out of service, remove...") or
+#: "Either", and none opens with a word below.
+_NOT_AN_IMPERATIVE = frozenset({
+    "a", "an", "the", "this", "that", "these", "those", "each", "every", "it", "its",
+    "there", "they", "you", "we", "nothing", "what", "which", "who", "whether",
+})
+_IMPERATIVE = ("what_to_change",)
+
+#: What the health check document heads each of these cells with, so a refusal can say which
+#: line of which block a writer has to go and look at.
+_PRINTED_AS = {
+    "what_it_checks": "Requirement",
+    "why_it_matters": "Risk",
+    "what_to_change": "Remediation",
+    "where_to_confirm": "where to confirm it",
+}
 
 #: A sentence end, as opposed to the full stop in `TLS 1.2` or the one in `aes256-gcm`. The
 #: question mark is here because `_validate_client_detail` allows a line to end in one.
@@ -252,19 +282,27 @@ def _validate_client_detail(control_payload: dict, control_id: str, is_active: b
             _raise_validation_error(
                 f"{context} writes in the first person in its '{field}'. The Control Detail "
                 f"section is addressed to the client, not written by us to each other.")
+        if field in _IMPERATIVE:
+            opening = re.sub(r"[^A-Za-z-]", "", value.split(" ")[0]).lower()
+            if opening in _NOT_AN_IMPERATIVE:
+                _raise_validation_error(
+                    f"{context} has a '{field}' opening with {opening!r}, which describes the "
+                    f"firewall rather than naming a change. The document prints this line as "
+                    f"the Remediation, so it is one imperative sentence: start it with the verb.")
         if field in _ONE_SENTENCE and len(_ONE_SENTENCE_END.findall(value)) != 1:
             _raise_validation_error(
                 f"{context} has a '{field}' of "
                 f"{len(_ONE_SENTENCE_END.findall(value))} sentences; it takes exactly one. "
-                f"The document prints this line as the Risk, and one sentence naming what goes "
-                f"wrong is what a client reads. The longer account belongs in 'rationale'.")
+                f"The document prints this line as the Risk or the Remediation, and one "
+                f"sentence is what a client reads. The longer account belongs in the "
+                f"engineer-facing field beside it.")
         for pattern, what in _REGISTER.get(field, ()):
             found = pattern.search(value)
             if found:
                 _raise_validation_error(
                     f"{context} has a '{field}' that {what}: {found.group(0)!r}. The document "
-                    f"prints this line as the Requirement, so it states the standard in the "
-                    f"present tense - what must be true of the firewall, not what was looked at.")
+                    f"prints this line as the {_PRINTED_AS[field]}, which is about the firewall "
+                    f"and not about how this application looked at it.")
         detail[field] = value
     return detail
 

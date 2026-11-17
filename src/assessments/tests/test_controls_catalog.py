@@ -14,8 +14,8 @@ from assessments.controls_catalog.io.importers import (
     seed_catalogs_if_empty,
 )
 from assessments.controls_catalog.schemas import (
-    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _ONE_SENTENCE, _ONE_SENTENCE_END,
-    _PROCEDURE_IN_A_STANDARD, validate_catalog_payload)
+    CLIENT_DETAIL_LIMITS, SHORT_REMEDIATION_LIMIT, _IMPERATIVE, _NOT_AN_IMPERATIVE,
+    _ONE_SENTENCE, _ONE_SENTENCE_END, _PROCEDURE_IN_A_STANDARD, validate_catalog_payload)
 from assessments.controls_catalog.registry import load_seed_payload
 from assessments.models import (
     ApplicationEnvironmentCatalogState,
@@ -328,6 +328,66 @@ class SeededCatalogTextTests(TestCase):
 
         self.assertEqual(offenders, {})
 
+    def test_every_shipped_remediation_line_is_one_imperative_sentence(self):
+        """Jason's third rule, agreed on the five-control sample 2026-11-16: Remediation is one
+        imperative sentence naming the change, with the engineer's steps left in `remediation`.
+
+        MEASURED BEFORE THE SWEEP over all 218: `what_to_change` ran to a median of 237
+        characters, only 35 lines were a single sentence, and 21 spoke about this application
+        rather than the firewall - "Clear the algorithm settings the finding names". After it:
+        218 of 218 one sentence, median 116, none of them opening with a word that describes
+        rather than instructs.
+
+        NOTHING WAS LOST BY CUTTING THEM. 165 lines kept their first sentence and dropped the
+        rest, which was the engineer's caveat - break-glass access before enforcing a lockout,
+        the master key being unrecoverable, an irreversible delete - and `remediation` was read
+        first to confirm it carries every one of those in full.
+        """
+        offenders = {}
+        for catalog in load_seed_payload()["catalogs"]:
+            for control in catalog["controls"]:
+                value = (control.get("what_to_change") or "").strip()
+                why = []
+                if len(_ONE_SENTENCE_END.findall(value)) != 1:
+                    why.append(f"{len(_ONE_SENTENCE_END.findall(value))} sentences")
+                opening = re.sub(r"[^A-Za-z-]", "", value.split(" ")[0]).lower()
+                if opening in _NOT_AN_IMPERATIVE:
+                    why.append(f"opens with {opening!r}")
+                if any(pattern.search(value) for pattern, _w in _PROCEDURE_IN_A_STANDARD):
+                    why.append("our own machinery")
+                if why:
+                    offenders[control["control_id"]] = why
+
+        self.assertEqual(offenders, {})
+
+    def test_a_remediation_line_that_describes_rather_than_instructs_is_refused(self):
+        """The line below is what PAN-COV-002 said before the sweep. It is true, and it is not
+        a remediation: the cell it lands in is headed Remediation.
+        """
+        self.assertIn("what_to_change", _IMPERATIVE)
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0],
+                                    what_to_change="Nothing changes on the firewall.")]
+
+        with self.assertRaises(ValidationError) as caught:
+            validate_catalog_payload(payload)
+
+        self.assertIn("imperative", str(caught.exception))
+
+    def test_the_firewalls_own_control_link_is_not_our_machinery(self):
+        """`the control link` is PAN-OS's name for the HA1 link between a redundant pair, and
+        it was the one false refusal the machinery pattern produced over the 218 - PAN-HAP-002's
+        remediation. A pattern that refuses the subject's own vocabulary is a worse rule than no
+        rule, because the writer's only way out is to say something less true.
+        """
+        line = ("Export the high availability key from one firewall and import it on the "
+                "other, then enable encryption on the control link on both members.")
+        payload = load_seed_payload()["catalogs"][0]
+        payload["controls"] = [dict(payload["controls"][0], what_to_change=line)]
+
+        validated = validate_catalog_payload(payload)
+        self.assertEqual(validated["controls"][0]["what_to_change"], line)
+
     def test_a_two_sentence_risk_line_is_refused(self):
         """A guard: 118 of the 218 lines had two or more sentences before 2026-11-16."""
         self.assertIn("why_it_matters", _ONE_SENTENCE)
@@ -366,7 +426,7 @@ class SeededCatalogTextTests(TestCase):
             validate_catalog_payload(payload)
 
         self.assertIn("what_it_checks", str(caught.exception))
-        self.assertIn("states the standard", str(caught.exception))
+        self.assertIn("prints this line as the Requirement", str(caught.exception))
 
     def test_the_register_leaves_the_firewalls_own_vocabulary_alone(self):
         """The rules refuse OUR procedure, not the subject's. Three sentences that have to pass:
