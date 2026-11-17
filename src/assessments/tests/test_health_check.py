@@ -1585,19 +1585,21 @@ class ControlDetailTests(_SeededEstate):
         for _subject, _control, _lines, after in blocks:
             self.assertEqual(after, [], "a block carries nothing after its table")
 
-    def test_the_rows_run_in_the_order_of_the_argument(self):
-        """Jason, 2026-11-12 (P584a). The block opened with `Findings` and `Firewalls` - two
-        counts, before the reader had been told what was checked - so it had to be read
-        backwards. It reads as a case now."""
+    def test_the_rows_run_in_the_order_a_stakeholder_scans(self):
+        """Jason, 2026-11-17, replacing his own order-of-the-argument ruling of 2026-11-12
+        (P584a): *"The reader will train themself to read the top and the bottom, then move to
+        the middle only as needed."* The sentence saying why anyone should care is first, and
+        the two counts - how much, and where - are last. The block still does not OPEN on
+        counts, which is what the 2026-11-12 change was for."""
         for table in self.detail_tables(self.with_detail()):
             rows = table.findall(w("tr"))
             pair = [_text(cell) for cell in rows[1].findall(w("tc"))]
             labels = [pair[0], pair[2]] + [_text(row.findall(w("tc"))[0])
                                            for row in rows[2:]]
 
-            self.assertEqual(labels, ["Control ID", "Risk Rating", "Requirement", "Evidence",
-                                      "Occurrences", "Affected Devices", "Risk",
-                                      "Remediation"])
+            self.assertEqual(labels, ["Control ID", "Risk Rating", "Risk", "Requirement",
+                                      "Evidence", "Remediation", "Occurrences",
+                                      "Affected Devices"])
 
     def test_the_line_says_how_many_findings_and_what_they_are_about(self):
         measured = health_check.measure()

@@ -566,11 +566,25 @@ UNNAMED_CLAUSE = "{count} more that the configuration they were read from names 
 #:                                            which the summary table uses for the one-sentence
 #:                                            version of the same thing
 #:
-#: AND THEY RUN IN THE ORDER OF THE ARGUMENT, Jason 2026-11-12 (P584a). They used to open with
-#: `Findings` and `Firewalls` - two counts, before the reader had been told what was checked -
-#: so a block had to be read backwards. It now reads as a case: what the check requires, what
-#: was found, how many, on which devices, why it matters, what to change. The summary row the
-#: reader arrived from has already given them the count.
+#: AND THEY RUN IN THE ORDER A STAKEHOLDER SCANS, Jason 2026-11-17, which REPLACES the
+#: order-of-the-argument ruling of 2026-11-12 (P584a): *"Moving the risk up was exactly the
+#: direction my thought process arrived at... I'd say that justifies a re-ordering, even if it
+#: contradicts my decision from the past. I also think putting the occurrences at the bottom
+#: might still be a good idea. The reader will train themself to read the top and the bottom,
+#: then move to the middle only as needed."*
+#:
+#: Risk, Requirement, Evidence, Remediation, Occurrences, Affected Devices. The reader this
+#: section is written for is a stakeholder at the assessed organization holding 263 of these
+#: blocks, and they triage on CONSEQUENCE rather than on the standard - so the sentence that
+#: says why anyone should care is the first one, and the two counts, which answer how much and
+#: where rather than what is wrong, are last. The argument order put `Risk` seventh of eight,
+#: below both counts and the device list, which is late for a reader deciding whether to keep
+#: reading. The middle four are the case itself and are read by whoever acts on it.
+#:
+#: WHAT THE 2026-11-12 CHANGE GOT RIGHT AND THIS KEEPS: the block does not OPEN on counts.
+#: It opened with `Findings` and `Firewalls` before the reader had been told anything, so it
+#: had to be read backwards; the counts are last here because they are the detail, not because
+#: they are unimportant.
 DETAIL_LINES = (
     ("what_it_checks", "Requirement"),
     ("why_it_matters", "Risk"),
@@ -859,12 +873,12 @@ def control_detail_rows(detail: ControlDetail) -> list:
              p.rating_cell(detail.severity, Control.Severity(detail.severity).label,
                            width=DETAIL_PAIR_WIDTHS[3])]]
     lines = [
+        (catalog["why_it_matters"], _catalog_line(detail, "why_it_matters")),
         (catalog["what_it_checks"], _catalog_line(detail, "what_it_checks")),
         ("Evidence", matched_phrase(detail)),
+        (catalog["what_to_change"], _catalog_line(detail, "what_to_change")),
         ("Occurrences", findings_phrase(detail)),
         ("Affected Devices", firewalls_phrase(detail)),
-        (catalog["why_it_matters"], _catalog_line(detail, "why_it_matters")),
-        (catalog["what_to_change"], _catalog_line(detail, "what_to_change")),
     ]
     rows += [[p.text_cell(label, width=DETAIL_WIDTHS[0], style=p.TABLE_HEADING),
               _detail_value(value)] for label, value in lines]
