@@ -23,6 +23,12 @@ answers nothing once the appliance has been regrouped; it now goes through the p
 a vsys whose firewalls this engagement did not assess, a collection that recorded no node row,
 or a finding with no snapshot - and it names which, and prints what each failing vsys runs on.
 
+AND THAT IS WHAT THE PRODUCTION RUN SAID. 23,340 findings of 179,431, over 19 controls, and
+22,743 of them on ONE point: `vsys1 (point 46), in_scope=False, runs on
+scem-p-cfw-elz-001-westus3`, a cloud NGFW whose rules are defined in Panorama alone. The
+attribution is right and the scope tick is not where the collected configuration is -
+`print_device_identity` is the command for that half.
+
 WHY IT IS A COMMAND. It has to be answered against the environment that produced the report, and
 the lab cannot stand in: all 17,555 of its findings resolve to an appliance, so it prints zero
 there whatever is wrong elsewhere. It was a loose script first and ran as
@@ -169,5 +175,12 @@ class Command(BaseCommand):
 
     @staticmethod
     def name_of(appliance) -> str:
-        return (appliance.hostname or appliance.serial_number
-                or f"appliance {appliance.pk} with no name")
+        """Name AND primary key, because one hostname can be several appliance rows.
+
+        `Appliance` is unique per (station, serial number), so a device that re-registers -
+        a cloud NGFW instance, for one - accumulates rows carrying the same hostname. Printing
+        the name alone makes `runs on` and `members` read as agreement when they may be two
+        different rows, which is exactly what has to be told apart here.
+        """
+        return (f"{appliance.hostname or appliance.serial_number or 'unnamed'} "
+                f"(appliance {appliance.pk}, serial {appliance.serial_number or 'none'})")
