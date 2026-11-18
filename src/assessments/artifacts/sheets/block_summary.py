@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from assessments.models import Control
 
-from ..layout import (plural, severity_group, write_header_block, write_sheet_link,
-                      write_table)
+from ..layout import (fill_severity_column, plural, severity_group, write_header_block,
+                      write_sheet_link, write_table)
 
 TITLE = "Summary of Findings"
 
@@ -81,10 +81,18 @@ def write_sheet(build, sheet, blocks, infos) -> str:
     write_table(build, sheet, top=top, name="BlockSummary", columns=COLUMNS, rows=rows,
                 empty_text="No findings")
 
-    control_col = [header for header, _w, _wrap in COLUMNS].index("Control ID")
+    headers = [header for header, _w, _wrap in COLUMNS]
+    control_col = headers.index("Control ID")
     for index, info in enumerate(infos):
         write_sheet_link(build, sheet, top + 1 + index, control_col, info.title,
                          rows[index][control_col])
+
+    # The grade a reader scans this table by, carrying the findings tabs' own severity fills
+    # (Jason, 2026-11-18). `Importance` is the document's word for the column; the colors are
+    # the same five the Severity cell of every findings tab uses, so one palette means one
+    # thing across all four deliverables.
+    fill_severity_column(build, sheet, first_row=top + 1, last_row=top + max(len(rows), 1),
+                         col=headers.index("Importance"))
     return (f"{TITLE}: {len(rows)} {plural(len(rows), 'row')} over {controls} controls, "
             f"each linked to its tab")
 

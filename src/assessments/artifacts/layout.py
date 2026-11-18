@@ -266,6 +266,32 @@ def write_sheet_link(build, sheet, row, col, title, text=None, cell_format=None)
                      f"Open the {title} tab")
 
 
+def fill_severity_column(build, sheet, *, first_row, last_row, col) -> None:
+    """Fill a column of severity LABELS with each severity's own color.
+
+    CONDITIONAL RATHER THAN WRITTEN PER CELL, which is how the findings tabs have always done
+    it: a cell format written over a table cell has to be written with the value, and the value
+    is already in the table's `data`. Matching on the label leaves the data alone and colors
+    whatever the row ends up holding.
+
+    FOUR PRIVATE COPIES OF THIS LOOP ALREADY EXISTED when it was promoted - in `sheets.findings`,
+    `sheets.rules_by_device_group`, `sheets.remediation` and, written per cell rather than
+    conditionally, the two summary sheets. They are deliberately left alone: each is
+    load-bearing for a shipped tab and none is broken, which is the judgement
+    `device_configuration.management_node` recorded when it was promoted for the same reason.
+    This exists so the FIFTH caller does not write a sixth copy.
+
+    CRITICAL TAKES WHITE TEXT. Its fill is #C00000, which black does not read on.
+    """
+    for text, colour in SEVERITY_FILL.items():
+        fmt = {"bg_color": colour, "bold": True}
+        if text == "Critical":
+            fmt["font_color"] = "#FFFFFF"
+        sheet.conditional_format(first_row, col, last_row, col, {
+            "type": "cell", "criteria": "==", "value": f'"{text}"',
+            "format": build.workbook.add_format(fmt)})
+
+
 def severity_group(by_severity):
     """The counts-strip group for {severity: count}, worst first, zero counts omitted."""
     from assessments.control_queries import SEVERITY_RANK

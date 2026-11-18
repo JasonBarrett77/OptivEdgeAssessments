@@ -31,8 +31,8 @@ from __future__ import annotations
 
 from assessments.models import Control
 
-from ..layout import (SheetInfo, TAB_COLOURS, plural, severity_group, write_header_block,
-                      write_link, write_table)
+from ..layout import (SheetInfo, TAB_COLOURS, fill_severity_column, plural, severity_group,
+                      write_header_block, write_link, write_table)
 from .findings import implicated_format
 
 
@@ -124,6 +124,13 @@ def write_sheet(build, *, number: int, detail, table) -> SheetInfo:
                     implicated_format(build, wrap))
 
     headers = [header for header, _width, _wrap in columns]
+    # Every row on a block tab carries the SAME grade - that is what a block is - so this fill
+    # says less here than on a findings tab, where it sorts a mixed column. It is here because
+    # the two files are read side by side and a Severity cell that is colored on one and plain
+    # on the other reads as a difference in the finding rather than in the tab.
+    fill_severity_column(build, sheet, first_row=top + 1,
+                         last_row=top + max(len(rows), 1),
+                         col=headers.index("Severity"))
     control_col = headers.index("Control ID")
     for index, meta in enumerate(row_meta):
         key = (meta["control"], meta["severity"])
