@@ -609,39 +609,47 @@ class GlobalProtectPortalTabTestCase(TestCase):
             self.assertLessEqual(len(title), 31, f"{slug}: {title!r} is {len(title)} characters")
 
     # ------------------------------------------------------------------ the stated condition
-    def test_the_stated_condition_renders_in_field_names_and_the_resolving_cells_are_present(self):
-        """RECORDED AS IT IS RATHER THAN FIXED: `fires_when` is shared machinery.
+    def test_the_stated_condition_is_the_one_that_fired_and_still_reads_in_field_names(self):
+        """TWO SEPARATE THINGS, one fixed 2026-11-18 and one still recorded as it is.
 
-        `render_node` consults `setting_labels` nowhere, so the condition reads
-        `saved_credentials_posture ≠ 0` directly above a column headed "Save User Credentials"
-        whose cell reads "Yes - username and password" - the same value named two ways on one row,
-        and the raw `0` that the reader exists to keep out of the cell is printed in the condition
-        anyway. What is asserted is that the cells which RESOLVE it are all still on the row.
+        FIXED: the cell used to read `saved_credentials_posture ≠ 0` - the BASELINE's condition -
+        on a row graded by a calibration. It now renders the query that SET THE GRADE, which
+        repeats the baseline clause and adds its own, so the row states the condition it actually
+        met rather than the one its control opens with.
+
+        STILL AS IT IS: `render_node` consults `setting_labels` nowhere, so the condition reads in
+        Django field names directly above a column headed "Save User Credentials" whose cell
+        reads "Yes - username and password" - the same value named two ways on one row, and the
+        raw `0` that the reader exists to keep out of the cell is printed in the condition anyway.
+        What is asserted of that is that the cells which RESOLVE it are all still on the row.
         """
         cells = self.cells("globalprotect-portals", "PAN-GPP-004", "pan-fw-1085-a", "oep-gpp6-a")
-        self.assertEqual("saved_credentials_posture ≠ 0",
+        self.assertEqual("saved_credentials_posture ≠ 0 and saved_credentials_posture = 1",
                          cells["Fires when (failing condition)"])
         self.assertEqual("Yes - username and password", cells["Save User Credentials"])
         self.assertIn("The user's password is kept on the endpoint", cells["Matched queries"])
         self.assertIn("The user's password is kept on the endpoint", cells["Severity basis"])
 
-    def test_the_severity_basis_announces_an_adjustment_that_moved_nothing(self):
-        """RECORDED, NOT FIXED - `severity_basis` is out of this stage's scope.
+    def test_the_severity_basis_says_which_of_two_identical_grades_moved(self):
+        """RECORDED HERE 2026-11-02, FIXED 2026-11-18. The two rows below carry the same grade
+        from queries of different kinds, and the cell used to word them identically.
 
-        18 of this domain's 24 built rows read "Adjusted to <X> by: <query>" where <X> is already
-        the control's default severity, so the cell announces a change that did not happen. Five
-        rows are genuine adjustments. Pinned on one row of each kind so a later fix is visible as
-        a test change rather than as silence.
+        18 of this domain's 24 built rows read "Adjusted to <X> by: <query>" where <X> was
+        already the control's default severity, so the cell announced a change that did not
+        happen; five rows were genuine adjustments and read the same. PAN-GPP-003 defaults to
+        medium and PAN-GPP-004 does not, so one row is a grade that stayed and the other a grade
+        that moved - and that is now the difference between the two cells.
         """
         noop = self.cells("globalprotect-portals", "PAN-GPP-003", "pan-fw-1085-a", "oep-gpp6-a")
         self.assertEqual("Medium", noop["Severity"])
-        self.assertTrue(noop["Severity basis"].startswith("Adjusted to Medium by:"),
+        self.assertTrue(noop["Severity basis"].startswith("Graded at Medium by:"),
                         noop["Severity basis"])
 
         genuine = self.cells("globalprotect-portals", "PAN-GPP-004",
                              "pan-fw-1085-a", "oep-gpp6-c")
         self.assertEqual("Medium", genuine["Severity"])
-        self.assertTrue(genuine["Severity basis"].startswith("Adjusted to Medium by:"))
+        self.assertTrue(genuine["Severity basis"].startswith("Adjusted to Medium by:"),
+                        genuine["Severity basis"])
 
     def test_a_row_matching_two_calibrations_finds_them_at_the_same_severity(self):
         """BOARD RECORD P450, AND ITS PRECONDITION IS REACHABLE HERE - which is NOT what the

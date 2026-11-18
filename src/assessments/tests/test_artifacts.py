@@ -1184,3 +1184,114 @@ class RemediationWiringTests(TestCase):
         source = inspect.getsource(findings_module.build_rows)
         self.assertIn("read(policy, remediation_of, shown)", source)
         self.assertIn("remediation_accessor(provenance_of", source)
+
+
+class TheSeverityBasisCellTests(SimpleTestCase):
+    """What the cell says and what it refuses to say - P450, fixed 2026-11-18.
+
+    The cell is the live findings pages' only account of a grade, so both of its defects are
+    pinned here rather than only in the domains that found them. Built from objects rather than
+    rows: `severity_basis` reads four attributes of a finding and the control's queries, and a
+    database adds nothing to the claim.
+    """
+
+    class Finding:
+        def __init__(self, control, severity, matched):
+            self.control = control
+            self.severity = severity
+            self.matched_query_names = matched
+
+        def get_severity_display(self):
+            from assessments.models import Control
+            return Control.Severity(self.severity).label
+
+    def _control(self, default, queries):
+        """A control whose `queries.all()` returns `queries`, each (name, severity or None).
+
+        A STAND-IN rather than a `Control`, because Django forbids assigning to the reverse side
+        of a related set and the cell reads nothing else off the model. Every attribute named
+        here is one `severity_basis` or `fires_when_matched` actually reads.
+        """
+        from types import SimpleNamespace
+
+        built = [SimpleNamespace(
+            name=name, is_baseline=severity is None, adjusted_severity=severity or "",
+            is_active=True, canonical_query={"field": name, "op": "eq", "value": True})
+            for name, severity in queries]
+        return SimpleNamespace(control_id="PAN-TEST-450", name="T",
+                               default_severity=default,
+                               queries=SimpleNamespace(all=lambda: built))
+
+    def test_a_grade_the_control_already_defaults_to_is_not_called_an_adjustment(self):
+        """221 of the catalog's non-baseline queries, on 109 controls, carry an adjusted severity
+        EQUAL to their control's default, and the cell announced an adjustment on 2,667 of the
+        lab run's 13,520 findings because of it. The worst were PAN-GPP-002's four critical rows,
+        where critical is the default."""
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("critical", [("Baseline", None), ("Unresolved", "critical")])
+        finding = self.Finding(control, "critical", ["Baseline", "Unresolved"])
+
+        self.assertEqual("Graded at Critical by:\nUnresolved", severity_basis(finding))
+
+    def test_a_grade_that_moved_off_the_default_is_called_an_adjustment(self):
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("informational", [("Baseline", None), ("Wide", "critical")])
+        finding = self.Finding(control, "critical", ["Baseline", "Wide"])
+
+        self.assertEqual("Adjusted to Critical by:\nWide", severity_basis(finding))
+
+    def test_a_query_that_argued_for_a_lower_grade_is_not_named_as_the_reason(self):
+        """P450's sharp form, measured on 259 of the lab run's findings over 12 controls. On 16
+        of 20 PAN-DCP-001 rows the cell named `The protocol ceiling is TLS 1.2` - the one genuine
+        DOWNGRADE in that control - as a reason for High."""
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("medium", [("Baseline", None), ("Floor", "high"),
+                                           ("Ceiling", "low")])
+        finding = self.Finding(control, "high", ["Baseline", "Floor", "Ceiling"])
+
+        self.assertEqual("Adjusted to High by:\nFloor", severity_basis(finding))
+
+    def test_two_queries_that_tie_at_the_grade_are_both_named(self):
+        """PAN-GPP-005's two calibrations clause on different fields, so one portal matches both
+        at medium. Both decided, so both are named."""
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("low", [("Baseline", None), ("One", "medium"),
+                                        ("Two", "medium")])
+        finding = self.Finding(control, "medium", ["Baseline", "One", "Two"])
+
+        self.assertEqual("Adjusted to Medium by:\nOne\nTwo", severity_basis(finding))
+
+    def test_a_row_only_the_baseline_matched_still_reads_control_default(self):
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("medium", [("Baseline", None), ("Wide", "high")])
+        finding = self.Finding(control, "medium", ["Baseline"])
+
+        self.assertEqual("Control default", severity_basis(finding))
+
+    def test_a_catalog_edited_since_the_run_says_so_rather_than_explaining(self):
+        """The one thing in the cell that is not about the finding, and the only warning anywhere
+        that the stored grade and the current queries disagree."""
+        from assessments.artifacts.sheets.findings import severity_basis
+
+        control = self._control("medium", [("Baseline", None), ("Wide", "high")])
+        finding = self.Finding(control, "critical", ["Baseline", "Wide"])
+
+        self.assertIn("Catalog has changed since this run", severity_basis(finding))
+
+    def test_the_stated_condition_is_the_deciding_query_s_and_not_the_baseline_s(self):
+        """P613, in the shared machinery rather than in the domains that met it. The baseline is
+        rendered only where nothing else decided."""
+        from assessments.artifacts.sheets.findings import fires_when_matched
+
+        control = self._control("medium", [("Baseline", None), ("Wide", "high")])
+
+        self.assertEqual("Wide = Yes",
+                         fires_when_matched(self.Finding(control, "high",
+                                                         ["Baseline", "Wide"])))
+        self.assertEqual("Baseline = Yes",
+                         fires_when_matched(self.Finding(control, "medium", ["Baseline"])))

@@ -477,12 +477,13 @@ class DecryptionFindingsTabTests(TestCase):
         self.assertIn("Fires when (failing condition)",
                       DOMAIN_BY_SLUG["forward-proxy-signing"].spec.tested_columns)
 
-    def test_a_row_matched_only_by_the_calibration_query_prints_a_contradicting_condition(self):
-        """MEASURED, not predicted. The baseline asserts the trust verdict and this row passes it;
-        the finding comes from the untrust verdict alone. `fires_when` is
-        `render_node(baseline_query(control))` with no per-spec hook, so the row states a condition
-        it does not meet. Shared machinery - recorded, not worked around - and `Matched queries`
-        plus the marked cell resolve it between them."""
+    def test_a_row_matched_only_by_the_calibration_query_states_that_querys_condition(self):
+        """MEASURED, not predicted, and FIXED 2026-11-18. The baseline asserts the trust verdict
+        and this row passes it; the finding comes from the untrust verdict alone. `fires_when`
+        was `render_node(baseline_query(control))` with no per-spec hook, so the row stated a
+        condition it did not meet - `forward_trust_is_designated_local_ca` beside its own cell
+        reading Yes. The cell now renders the query that set the grade, so it states the untrust
+        verdict that actually fired and the row no longer argues with itself."""
         DecryptionSettings.objects.create(
             management_station=self.station, appliance=self.appliance,
             appliance_group=self.group, source_snapshot=self.snapshot,
@@ -498,7 +499,7 @@ class DecryptionFindingsTabTests(TestCase):
         fires = row[table.headers.index("Fires when (failing condition)")]
         trust = row[table.headers.index("Trust certificate is a local self-signed CA")]
 
-        self.assertIn("forward_trust_is_designated_local_ca", fires)
+        self.assertEqual("untrust_distinct_from_trust = No", fires)
         self.assertEqual("Yes", trust)
         self.assertEqual("No distinct forward-untrust authority",
                          row[table.headers.index("Matched queries")])
@@ -506,10 +507,11 @@ class DecryptionFindingsTabTests(TestCase):
     def test_the_stated_condition_reads_in_django_field_names_after_labelling(self):
         """P437, measured AFTER the twenty-one labels landed rather than before. `render_node`
         builds its text from the clause's FIELD and consults `setting_labels` nowhere, so the same
-        value is named two ways on one row: the heading says "Trust certificate is a local
-        self-signed CA" and the condition above it says `forward_trust_is_designated_local_ca`.
-        Shared machinery. Asserted so that a later fix to `render_node` shows up here as a failure
-        to re-measure rather than as silence."""
+        value is named two ways on one row: the heading says "Untrust authority differs from
+        trust" and the condition above it says `untrust_distinct_from_trust`. Shared machinery,
+        and untouched by the 2026-11-18 change - which altered WHICH query the cell renders, not
+        how a clause is worded. Asserted so that a later fix to `render_node` shows up here as a
+        failure to re-measure rather than as silence."""
         DecryptionSettings.objects.create(
             management_station=self.station, appliance=self.appliance,
             appliance_group=self.group, source_snapshot=self.snapshot)
@@ -518,8 +520,8 @@ class DecryptionFindingsTabTests(TestCase):
         table = self.table("forward-proxy-signing")
         fires = table.rows[0][table.headers.index("Fires when (failing condition)")]
 
-        self.assertIn("forward_trust_is_designated_local_ca", fires)
-        self.assertNotIn("Trust certificate is a local self-signed CA", fires)
+        self.assertIn("untrust_distinct_from_trust", fires)
+        self.assertNotIn("Untrust authority differs from trust", fires)
 
     def test_the_signing_tab_hides_nothing(self):
         """The gate counts a field as presented if `hidden_fields` carries it, so a non-empty tuple

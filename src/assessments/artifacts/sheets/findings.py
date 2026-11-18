@@ -20,8 +20,9 @@ WHAT IS DERIVED, NOT TYPED.
 - The finding model and its subject come from `finding_registry.FINDING_KINDS`, by control type.
 - The controls come from the catalog, by the same control type.
 - The field a control tests is read from its baseline query.
-- "Fires when" is rendered from the baseline clauses. It is the FAILING condition; printing it as
-  the expected value inverts every threshold.
+- "Fires when" is rendered from the clauses of the query that SET THE GRADE, and from the
+  baseline's where only the baseline matched. It is the FAILING condition; printing it as the
+  expected value inverts every threshold.
 - The Template cell is `FieldProvenance.raw_value`, which normalization already stores as the bare
   template or stack name. It is not parsed out of anything here.
 - PROVENANCE IS READ, NOT DECIDED. Integrations records what a key's absence meant since
@@ -453,7 +454,7 @@ def tested_cells(spec, finding, subject, shown, provenance, tested=None):
     """
     carried = spec.tested_columns if tested is None else tested
     by_header = {
-        "Fires when (failing condition)": lambda: fires_when(finding.control),
+        "Fires when (failing condition)": lambda: fires_when_matched(finding),
         "Provenance": lambda: provenance,
     }
     return [make() for header, _w, _wrap in TESTED_COLUMNS
@@ -522,24 +523,73 @@ def render_node(control, node, top=False) -> str:
     return f"{node['field']} {op} {display_value(node['value'])}"
 
 
-def severity_basis(finding) -> str:
-    """Why the finding carries its severity: the control default, or the queries that moved it."""
+def deciding_queries(finding) -> list:
+    """The matched queries that GAVE this finding its severity, or none where the default did.
+
+    Every query that matched and carries a severity is not the answer, and that was P450's sharp
+    form: on 16 of 20 PAN-DCP-001 rows the basis cell named `The protocol ceiling is TLS 1.2`,
+    which carries `adjusted_severity: low` and is the one genuine DOWNGRADE in that control, as
+    a reason for High. The worst match wins, so the queries that decided are the ones whose own
+    severity IS the one the finding carries; the rest argued for something lower and are named
+    in `Matched queries` where that is what they are.
+
+    Several can tie - PAN-GPP-005's two calibrations clause on different fields and one portal
+    matches both at medium - so this returns a list rather than a query.
+    """
     control = finding.control
-    matched = set(finding.matched_query_names)
+    matched = set(finding.matched_query_names or ())
     adjusting = [q for q in control.queries.all()
                  if q.name in matched and not q.is_baseline and q.adjusted_severity]
-    derived = (max(adjusting, key=lambda q: SEVERITY_RANK[q.adjusted_severity]).adjusted_severity
-               if adjusting else control.default_severity)
+    if not adjusting:
+        return []
+    worst = max(SEVERITY_RANK[q.adjusted_severity] for q in adjusting)
+    return [q for q in adjusting if SEVERITY_RANK[q.adjusted_severity] == worst]
+
+
+def fires_when_matched(finding) -> str:
+    """The condition of the query that set the grade - or the baseline's, where none did.
+
+    IT USED TO BE THE BASELINE'S ON EVERY ROW, which is P613 and the defect Jason met on a
+    production NTP row: PAN-SVC-001 with two servers configured, graded by a query about whether
+    the clock follows one of them, printing `server_count < 2` - a condition false of that row.
+    29 controls carry 46 queries whose clause fields are wholly disjoint from their baseline's,
+    so the cell could state a condition about fields the matched query never constrains.
+
+    Every surface that draws the cell gets the fix, and the workbook's own findings tabs are
+    about to stop drawing it at all (P613e).
+    """
+    deciding = deciding_queries(finding)
+    if not deciding:
+        return fires_when(finding.control)
+    return "\n".join(render_node(finding.control, q.canonical_query, top=True)
+                     for q in deciding)
+
+
+def severity_basis(finding) -> str:
+    """Why the finding carries its severity: the control default, or the queries that set it.
+
+    "GRADED AT" WHERE NOTHING MOVED, "ADJUSTED TO" WHERE IT DID - P450's first defect. 221 of
+    the catalog's non-baseline queries, on 109 controls, carry an adjusted severity EQUAL to
+    their control's default, so the cell announced an adjustment that moved nothing on 2,667 of
+    the lab run's 13,520 findings. The worst of them were PAN-GPP-002's four critical rows,
+    where critical is the default and the cell read "Adjusted to Critical by: What this row
+    demands could not be resolved" - an announcement landing on the rows a reader is most
+    likely to misread.
+    """
+    control = finding.control
+    deciding = deciding_queries(finding)
+    derived = deciding[0].adjusted_severity if deciding else control.default_severity
     if derived != finding.severity:
         return (f"Catalog has changed since this run:\ncurrent queries give {derived},\n"
                 f"the run recorded {finding.severity}")
-    if not adjusting:
+    if not deciding:
         return "Control default"
     # Not "Adjusted from High to Medium": the Severity column beside it already says Medium, and
     # the control's own default is on the Controls tab (Jason, 2026-09-18).
+    moved = "Adjusted to" if derived != control.default_severity else "Graded at"
     return "\n".join([
-        f"Adjusted to {finding.get_severity_display()} by:",
-        *(q.name for q in adjusting),
+        f"{moved} {finding.get_severity_display()} by:",
+        *(q.name for q in deciding),
     ])
 
 

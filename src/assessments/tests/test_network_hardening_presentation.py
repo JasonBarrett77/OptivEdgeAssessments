@@ -638,25 +638,27 @@ class NetworkHardeningTabTests(NetworkHardeningEstateMixin, TestCase):
 
     # ------------------------------------------------------------------ P450
 
-    def test_the_lower_calibration_is_printed_as_the_basis_of_the_higher_grade(self):
-        """P450's DAMAGING VARIANT, REACHABLE ON A REAL SUBJECT - which no earlier domain managed.
-        `findings.py:510-524` collects every matched non-baseline query carrying an adjusted
-        severity, grades on the MAXIMUM, and prints them ALL under "Adjusted to <max> by:". A BGP
-        peer with no authentication AND no prefix ceiling is in one state of each of two
-        INDEPENDENT columns, so it matches the `high` authentication calibration and the `medium`
-        prefix-ceiling one at once - and the medium query is then printed as a basis of the high
+    def test_only_the_calibration_that_set_the_grade_is_printed_as_its_basis(self):
+        """P450's DAMAGING VARIANT, REACHABLE ON A REAL SUBJECT - which no earlier domain managed,
+        and FIXED 2026-11-18. A BGP peer with no authentication AND no prefix ceiling is in one
+        state of each of two INDEPENDENT columns, so it matches the `high` authentication
+        calibration and the `medium` prefix-ceiling one at once. The basis used to print BOTH
+        under "Adjusted to High by:", which offered the medium query as a reason for the high
         grade.
 
-        PINNED AS THE DEFECT IT IS. The grade is right; the basis is misleading. `severity_basis`
-        is shared machinery and not this stage's to change, so this test is what a later fix
-        turns."""
+        `deciding_queries` now keeps only the matched queries whose own severity IS the grade.
+        The prefix-ceiling query is still on the row - `Matched queries` names every query that
+        fired, which is what that column is for - so nothing is hidden, it is just no longer
+        presented as the reason for a grade it argued against."""
         table = self.table("virtual-routers")
         basis = str(self.cell(table, 0, "Severity basis"))
+        matched = str(self.cell(table, 0, "Matched queries"))
         self.assertEqual("High", str(self.cell(table, 0, "Severity")))
         self.assertIn("Authentication absent, disabled, cleartext or overridden", basis)
-        self.assertIn("BGP peer with no enforced prefix ceiling", basis,
-                      "the medium calibration is no longer printed under the high grade - if "
-                      "severity_basis was fixed, this test is the one to retire")
+        self.assertNotIn("BGP peer with no enforced prefix ceiling", basis,
+                         "the medium calibration is printed under the high grade again")
+        self.assertIn("BGP peer with no enforced prefix ceiling", matched,
+                      "the medium calibration left the row altogether, which hides a real match")
 
     # ------------------------------------------------------------------ the HA pair
 

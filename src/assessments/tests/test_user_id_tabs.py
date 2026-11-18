@@ -253,19 +253,22 @@ class ACellSaysWhatTheStoredValueCannot(UserIdTabTestCase):
         self.assertEqual(user_id.include_networks(row), "203.0.113.0/24")
 
 
-class TheSeverityBasisClaimsAnAdjustmentThatMovedNothing(UserIdTabTestCase):
-    """P414, measured on this domain and NOT fixable here: `severity_basis` is shared.
+class TheSeverityBasisSaysWhetherTheGradeMoved(UserIdTabTestCase):
+    """P414, measured on this domain and FIXED 2026-11-18 in the shared machinery.
 
-    `severity_basis` puts a matched non-baseline query in its `adjusting` list whenever the query
-    carries any `adjusted_severity`, without comparing it to the control default - so a query
-    whose tier EQUALS the default still prints "Adjusted to ... by:". The two cases below are the
-    same column of the same tab in the same wording, and only one of them moved anything.
+    `severity_basis` used to put a matched non-baseline query in its `adjusting` list whenever
+    the query carried any `adjusted_severity`, without comparing it to the control default - so a
+    query whose tier EQUALS the default printed "Adjusted to ... by:" and announced a change that
+    did not happen. The two cases below are the same column of the same tab and only one of them
+    moved anything, which is now what the cell says: "Graded at" where the query lands on the
+    control's own default, "Adjusted to" where it moves off it.
     """
 
-    def test_a_calibration_at_the_controls_own_tier_still_claims_an_adjustment(self):
+    def test_a_calibration_at_the_controls_own_tier_says_graded_at(self):
         basis = self.cell("user-id-discovery", "PAN-UID-002",
                           "Severity basis", row=self._row_for("vsys1"))
-        self.assertIn("Adjusted to Medium by:", basis)
+        self.assertIn("Graded at Medium by:", basis)
+        self.assertNotIn("Adjusted", basis)
         self.assertIn("No in-force include or exclude entry", basis)
 
     def test_a_calibration_that_really_moved_the_tier_reads_identically(self):

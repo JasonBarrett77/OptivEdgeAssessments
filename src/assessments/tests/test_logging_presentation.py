@@ -372,24 +372,33 @@ class LoggingPresentationTests(TestCase):
         self.assertEqual(cells["Log types no profile sends off-box"], "gtp,sctp")
         self.assertEqual(self.marked(table, 0), {"Log types no profile sends off-box"})
 
-    def test_a_row_missing_five_ranked_types_prints_five_query_names_three_of_them_medium(self):
-        """P450's WORST INSTANCE, and it needs only ONE column.
+    def test_a_row_missing_five_ranked_types_names_only_the_two_that_set_its_grade(self):
+        """P450's WORST INSTANCE, which needed only ONE column - and FIXED 2026-11-18.
 
-        `findings.py:510-524` collects every matched non-baseline query carrying an adjusted
-        severity, grades on the MAXIMUM, and prints them ALL under "Adjusted to <max> by:".
+        The basis used to collect every matched non-baseline query carrying an adjusted severity,
+        grade on the MAXIMUM and print them ALL under "Adjusted to <max> by:".
         `offbox_log_type_gaps` is a GAP SET rather than a state, so membership is non-exclusive
         and five calibrations at three severities match one row at once - and three of the five
-        names printed as the basis of a High grade are `medium` queries.
+        names printed as the basis of a High grade were `medium` queries. The sufficient
+        condition for that defect was therefore NOT "clauses spanning two or more columns": one
+        column of non-exclusive membership did it.
 
-        The sufficient condition for this defect is therefore NOT "clauses spanning two or more
-        columns": one column of non-exclusive membership does it.
+        Now only the queries whose own severity IS the grade are named, so the two `high` gaps
+        stand as the reason for High and the three `medium` ones do not. All five are still named
+        in `Matched queries`, where naming a match is the point. "Graded at" rather than
+        "Adjusted to" because `high` is PAN-LOG-003's own default.
         """
         self.vsys(gaps="traffic,threat,wildfire,url,data")
         table = self.table("log-forwarding")
         cells = self.cells(table, 0)
         self.assertEqual(cells["Severity"], "High")
         self.assertEqual(cells["Severity basis"].splitlines(), [
-            "Adjusted to High by:",
+            "Graded at High by:",
+            "Missing off-box log type: threat",
+            "Missing off-box log type: traffic",
+        ])
+        self.assertEqual(cells["Matched queries"].splitlines(), [
+            "Baseline",
             "Missing off-box log type: data",
             "Missing off-box log type: threat",
             "Missing off-box log type: traffic",
@@ -397,22 +406,25 @@ class LoggingPresentationTests(TestCase):
             "Missing off-box log type: wildfire",
         ])
 
-    def test_the_row_that_argues_against_its_own_finding_carries_the_value_that_fired(self):
-        """`fires_when` renders the BASELINE's condition alone, with no per-spec hook.
+    def test_the_row_states_the_condition_it_met_rather_than_its_controls_baseline(self):
+        """`fires_when` rendered the BASELINE's condition alone until 2026-11-18, with no
+        per-spec hook.
 
         PAN-LOG-001's baseline is `offbox_destination_count < 2` and its calibration "No
         forwarding rule names any syslog profile" asserts on a DIFFERENT column, so an appliance
-        with two destinations and no forwarding rule naming one gets a row whose stated condition
-        it does not meet. The workaround is the one the contract names: get the value that fired
-        onto the row, so the marked cell, `Matched queries` and `Severity basis` resolve it
-        between them.
+        with two destinations and no forwarding rule naming one got a row whose stated condition
+        it did not meet - `offbox_destination_count < 2` beside its own count cell reading 2. The
+        cell now renders the query that set the grade, so it states the column that fired. The
+        marked cell and `Matched queries` are still asserted: they are what the condition is read
+        against.
         """
         self.posture(offbox_destination_count=2, syslog_destination_in_use=False)
         table = self.table("logging-settings")
         row = next(index for index, row in enumerate(table.rows)
                    if row[table.headers.index("Control ID")] == "PAN-LOG-001")
         cells = self.cells(table, row)
-        self.assertEqual(cells["Fires when (failing condition)"], "offbox_destination_count < 2")
+        self.assertEqual(cells["Fires when (failing condition)"],
+                         "syslog_destination_in_use = No")
         self.assertEqual(cells["Off-box log destinations (count)"], "2")
         self.assertEqual(cells["A forwarding rule names a syslog profile"], "No")
         self.assertEqual(self.marked(table, row), {"A forwarding rule names a syslog profile"})

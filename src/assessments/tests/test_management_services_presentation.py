@@ -606,20 +606,23 @@ class ManagementServicesPresentationTests(TestCase):
         self.assertEqual(marked["pan-fw-7d6e"],
                          {"Running an approved cryptographic mode", "Mode the appliance reports"})
 
-    def test_the_tls_row_states_a_condition_it_does_not_meet(self):
-        """`fires_when` is `render_node(baseline_query(control).canonical_query)` with no per-query
-        hook, so a row that fired through a CALIBRATION prints the baseline's condition instead of
-        the one it met. PAN-MGT-010's unbound row matches only `No transport-security configuration
-        bound` while the baseline asks for a profile that IS bound.
+    def test_the_tls_row_states_the_condition_it_actually_met(self):
+        """`fires_when` was `render_node(baseline_query(control).canonical_query)` with no
+        per-query hook until 2026-11-18, so a row that fired through a CALIBRATION printed the
+        baseline's condition instead of the one it met: PAN-MGT-010's unbound row matches only
+        `No transport-security configuration bound` while the baseline asks for a profile that IS
+        bound, and the cell read `profile_name is not empty` beside its own profile cell reading
+        `(empty)`.
 
-        PINNED RATHER THAN FIXED: `fires_when` is shared machinery and recording a defect is not
-        fixing one. What resolves it on the row is `Matched queries` beside the marked cell, so
-        this asserts that both say the right thing while the condition does not."""
+        The cell renders the query that set the grade, so the condition and the cell beside it
+        now agree. `Matched queries` and the marked cell - what used to be the row's only
+        explanation - are still asserted here."""
         self.tls_binding_unbound()
         self.ssh_defaults()
         row = self.cells(self.table("management-crypto"), "PAN-MGT-010", "pan-fw-1085")
 
-        self.assertIn("profile_name is not empty", row["Fires when (failing condition)"])
+        self.assertIn("profile_name is empty", row["Fires when (failing condition)"])
+        self.assertNotIn("is not empty", row["Fires when (failing condition)"])
         self.assertEqual(row["Matched queries"], "No transport-security configuration bound")
         self.assertEqual(row["SSL/TLS Service Profile"], "(empty)")
 

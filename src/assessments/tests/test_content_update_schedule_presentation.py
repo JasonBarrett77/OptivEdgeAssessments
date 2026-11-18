@@ -482,14 +482,25 @@ class ContentUpdateScheduleTabTests(ContentUpdateScheduleEstate):
         """Both its stage 5 records are `finding_when_clauses_fail` - the only ones in the domain -
         and stage 8 compiled that into the baseline as an `or` group of the FAILING states. So the
         cell reads as the condition that fires. A recompilation stating the PASSING condition
-        would print the exact opposite of what the row reports and nothing else would notice."""
+        would print the exact opposite of what the row reports and nothing else would notice.
+
+        ONE ROW, ONE REASON, SINCE 2026-11-18. The cell renders the query that SET THE GRADE
+        rather than the baseline's whole `or` group, so these two rows no longer read alike: the
+        PA-VM has a clientless-VPN schedule that takes no action when it runs, and tpa-b has no
+        recurring schedule at all. What is still asserted is the sign - every one of them states
+        a state that FAILS, never its negation."""
         table = self.table()
         rows = [r for r in table.rows if self.cell(table, r, "Control ID") == "PAN-UPD-005"]
         self.assertTrue(rows)
+        stated = set()
         for row in rows:
             condition = self.cell(table, row, "Fires when (failing condition)")
-            self.assertIn(" or ", condition)
-            self.assertIn("gp_datafile_recurrence = none", condition)
+            # The ASSERTED half is the last clause, and it names the state that fails. A
+            # recompilation stating the passing condition would end in `≠ none` instead.
+            self.assertTrue(condition.endswith("= none"), condition)
+            stated.add(condition)
+        self.assertEqual(len(rows), len(stated),
+                         "two rows failing for different reasons read the same condition")
 
     def test_the_two_rows_whose_condition_their_subject_does_not_meet_are_the_calibration_rows(self):
         """KNOWN AND NOT FIXABLE HERE: `fires_when` renders the BASELINE alone, and on PAN-UPD-001
@@ -512,16 +523,18 @@ class ContentUpdateScheduleTabTests(ContentUpdateScheduleEstate):
     def test_a_basis_cell_can_name_two_queries_of_two_columns_at_one_severity(self):
         """P450's two-column shape, on a built row. PAN-UPD-002 on tpa-b matches a RECURRENCE
         calibration and an ACTION calibration at once - two different columns of one control - so
-        `severity_basis` names both. Both carry the control's OWN default, so the grade is right
-        and only the word "Adjusted" is false; the LOWER-grade variant of the defect is not
-        reachable in this domain, because the only control with a severity spread grades on a
-        single column whose five states are mutually exclusive."""
+        the basis names both, and both of them really did give the grade. The LOWER-grade variant
+        of the defect is not reachable in this domain, because the only control with a severity
+        spread grades on a single column whose five states are mutually exclusive.
+
+        AND THE CELL NO LONGER CLAIMS AN ADJUSTMENT, from 2026-11-18: both calibrations carry the
+        control's OWN default severity, so nothing moved and the cell says "Graded at"."""
         table = self.table()
         (row,) = [r for r in table.rows
                   if self.cell(table, r, "Control ID") == "PAN-UPD-002"
                   and self.cell(table, r, "Appliance") == "fw-core-tpa-b"]
         basis = self.cell(table, row, "Severity basis").split("\n")
-        self.assertEqual("Adjusted to High by:", basis[0])
+        self.assertEqual("Graded at High by:", basis[0])
         self.assertEqual(2, len(basis[1:]), "two calibrations, two columns, one row")
         self.assertEqual("High", self.cell(table, row, "Severity"))
         marked = sorted(table.headers[c] for (r, c) in table.implicated

@@ -505,27 +505,32 @@ class DeviceServicesPresentationTests(TestCase):
 
     # ------------------------------------------------------------------ severity and the mark
 
-    def test_a_medium_query_is_printed_as_the_basis_of_a_high_grade(self):
-        """P450, ON THE MEASURED ESTATE AND NOT FORCED. PAN-SVC-001 grades on TWO independent
-        column sets - `server_count` (`high` for none, `medium` for one-and-no-second) and
-        `synched_to_a_configured_server`/`time_source_in_force` (`high` and `medium`) - so an
-        appliance with one configured server whose clock is anchored to nothing the configuration
-        names matches a `medium` and a `high` at once. `findings.py:510-524` collects every
-        matched calibration carrying an adjusted severity, grades on the MAXIMUM, and prints them
-        ALL, so the `medium` query is named as the basis of a High grade.
+    def test_only_the_query_that_graded_the_row_is_printed_as_its_basis(self):
+        """P450, ON THE MEASURED ESTATE AND NOT FORCED - and FIXED 2026-11-18. PAN-SVC-001 grades
+        on TWO independent column sets - `server_count` (`high` for none, `medium` for
+        one-and-no-second) and `synched_to_a_configured_server`/`time_source_in_force` (`high`
+        and `medium`) - so an appliance with one configured server whose clock is anchored to
+        nothing the configuration names matches a `medium` and a `high` at once. The basis used to
+        collect every matched calibration carrying an adjusted severity, grade on the MAXIMUM and
+        print them ALL, so the `medium` query was named as the basis of a High grade.
 
-        The sufficient condition is two matched calibrations at DIFFERENT severities on one row,
-        however achieved. PAN-SVC-005 and PAN-SVC-007 also carry spreads and neither is
-        reachable: their calibrations sit on one mutually exclusive classification column each
-        (`default_community_exposure`, `addressing_mode_posture`), so one row can match only one.
+        It now names only the queries whose own severity IS the grade, and says "Graded at"
+        rather than "Adjusted to" because `high` is this control's default - two defects on one
+        cell, both of them on the row Jason met this on. The medium query is still named in
+        `Matched queries`, which is the cell that says what fired.
+
+        The sufficient condition for the shape is two matched calibrations at DIFFERENT
+        severities on one row, however achieved. PAN-SVC-005 and PAN-SVC-007 also carry spreads
+        and neither is reachable: their calibrations sit on one mutually exclusive classification
+        column each (`default_community_exposure`, `addressing_mode_posture`), so one row can
+        match only one.
         """
         self.everything()
         row = self.cells(self.table("ntp"), "PAN-SVC-001", "pan-fw-201")
 
         self.assertEqual(row["Severity"], "High")
         self.assertEqual(row["Severity basis"],
-                         "Adjusted to High by:\n"
-                         "One configured time source and no second\n"
+                         "Graded at High by:\n"
                          "The clock is anchored to nothing the configuration names")
         self.assertEqual(row["Matched queries"],
                          "Baseline\n"

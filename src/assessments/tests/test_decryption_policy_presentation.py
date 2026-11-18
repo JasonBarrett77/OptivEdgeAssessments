@@ -491,21 +491,24 @@ class DecryptionRuleRowTests(DecryptionPolicyTabTestCase):
         self.assertEqual("High", self.cell(
             "decryption-rules", "PAN-DEC-007", "oep-dec6-r04", "Severity"))
 
-    def test_a_row_firing_on_a_calibration_prints_the_baselines_condition(self):
-        """CONTRACT FINDING 1, reproduced. `fires_when` is
+    def test_a_row_firing_on_a_calibration_prints_that_calibrations_condition(self):
+        """CONTRACT FINDING 1, reproduced 2026-11-02 and FIXED 2026-11-18. `fires_when` was
         `render_node(baseline_query(control).canonical_query)` with no per-spec hook, so
         `oep-dec6-d01` - which fired on PAN-DEC-010's SECOND record about the successful-session
-        record - prints the FIRST record's condition `log_fail = No` beside a `Log Unsuccessful
-        SSL Handshake` cell reading `Yes`. The subject does not meet the condition on the row.
+        record - printed the FIRST record's condition `log_fail = No` beside a `Log Unsuccessful
+        SSL Handshake` cell reading `Yes`. The subject did not meet the condition on its own row.
 
-        NOT FIXABLE AT THIS STAGE and not fixed: `fires_when` is shared machinery. What is
-        asserted instead is that the three cells which RESOLVE it are all still on the row - the
-        marked cell, `Matched queries` and `Severity basis` - which is the workaround the contract
-        names. A refactor that drops any of the three takes the row's only explanation with it."""
+        The cell now renders the query that SET THE GRADE, so it states the record that fired and
+        the row agrees with itself. The three cells that used to be the only way to resolve it -
+        the marked cell, `Matched queries` and `Severity basis` - are still asserted here,
+        because they are what a reader checks the condition against."""
         row = self.one_row("decryption-rules", "PAN-DEC-010", "oep-dec6-d01")
         table = self.table("decryption-rules")
-        self.assertEqual("disabled = No and log_fail = No",
-                         row[table.headers.index("Fires when (failing condition)")])
+        condition = row[table.headers.index("Fires when (failing condition)")]
+        self.assertIn("success_record_di", condition,
+                      f"the cell does not state the record that fired: {condition!r}")
+        self.assertNotIn("log_fail", condition,
+                         f"the cell is back to the baseline's condition: {condition!r}")
         self.assertEqual("Yes", row[table.headers.index("Log Unsuccessful SSL Handshake")])
         self.assertEqual({"Record of a successful session"},
                          self.marked("decryption-rules", "PAN-DEC-010", "oep-dec6-d01"))
