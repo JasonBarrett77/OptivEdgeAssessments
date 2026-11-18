@@ -15,12 +15,16 @@ machinery and the one that could lose a row quietly.
 from __future__ import annotations
 
 import datetime as dt
+import io
+import re
+import zipfile
 
 from django.test import SimpleTestCase, TestCase
 
 from assessments.artifacts import ArtifactBuildError, build_block_workbook
 from assessments.artifacts import block_workbook
 from assessments.artifacts.health_check import measure, read_control_detail
+from assessments.artifacts.layout import SUMMARY_TITLE
 from assessments.artifacts.naming import block_workbook_filename
 from assessments.artifacts.sheets import block as block_sheet
 from assessments.finding_run import regenerate_findings
@@ -30,6 +34,24 @@ from assessments.tests.test_artifacts import sheet_names
 from assessments.tests.test_findings_views import build_estate
 
 REFERENCE_TABS = ["Management Stations", "Appliances", "Enforcement Points", "Controls"]
+
+
+def internal_targets(content: bytes) -> set:
+    """Every worksheet an internal link in the file points AT, read out of the file.
+
+    xlsxwriter writes `internal:'Sheet name'!A1` into the worksheet XML, and nothing checks
+    that the name is a sheet. Excel does, on the click, with "Reference isn't valid".
+    """
+    targets = set()
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        for name in archive.namelist():
+            if not name.startswith("xl/worksheets/sheet"):
+                continue
+            xml = archive.read(name).decode("utf-8")
+            for location in re.findall(r'location="([^"]+)"', xml):
+                sheet = location.rsplit("!", 1)[0]
+                targets.add(sheet.strip("\'").replace("\'\'", "\'"))
+    return targets
 
 
 class TabTitleTests(SimpleTestCase):
@@ -91,7 +113,19 @@ class EmptyEstateTests(TestCase):
         link into its own control-and-severity row."""
         names = sheet_names(build_block_workbook()[0])
 
-        self.assertEqual(names[:5], ["Summary of Findings"] + REFERENCE_TABS)
+        self.assertEqual(names[:5], [SUMMARY_TITLE] + REFERENCE_TABS)
+
+    def test_every_internal_link_names_a_sheet_that_exists(self):
+        """Excel answers a link to a missing sheet with "Reference isn't valid", on the click
+        and not on the build - so nothing in the build can report it.
+
+        The first version of this file named its summary tab `Summary of Findings` while
+        `layout.write_strip` writes every tab's back link at `SUMMARY_TITLE`, and all 268 of
+        them were dead (Jason, 2026-11-18).
+        """
+        content = build_block_workbook()[0]
+
+        self.assertLessEqual(internal_targets(content), set(sheet_names(content)))
 
 
 class SeededEstateTests(TestCase):

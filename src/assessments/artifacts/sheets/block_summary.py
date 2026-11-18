@@ -20,10 +20,19 @@ from __future__ import annotations
 
 from assessments.models import Control
 
-from ..layout import (fill_severity_column, plural, severity_group, write_header_block,
-                      write_sheet_link, write_table)
+from ..layout import (SUMMARY_TITLE, fill_severity_column, plural, severity_group,
+                      write_header_block, write_sheet_link, write_table)
 
-TITLE = "Summary of Findings"
+#: THE SHEET IS CALLED `Summary`, like the other two workbooks', and it is not a style choice.
+#: `layout.write_strip` writes every tab's `← Summary` back link at `SUMMARY_TITLE`, so a
+#: summary tab named anything else leaves 268 links pointing at a sheet that does not exist -
+#: Excel answers "Reference isn't valid" on the click (Jason, 2026-11-18, on the first build).
+#: `test_every_internal_link_names_a_sheet_that_exists` is the standing proof.
+TITLE = SUMMARY_TITLE
+
+#: What the title band says, which is the document's own caption for this table. The tab strip
+#: has to match a constant; the band is read by a person holding the document.
+BANNER = "Summary of Findings and Recommendations"
 
 #: `(header, width, wrap)`. The widths are the document's proportions, read across: the finding
 #: and the recommendation carry prose and everything else is a label or a number.
@@ -71,7 +80,7 @@ def write_sheet(build, sheet, blocks, infos) -> str:
     controls = len({detail.control.control_id for detail in blocks})
 
     top = write_header_block(
-        build, sheet, title=TITLE, last_col=len(COLUMNS) - 1, back_link=False,
+        build, sheet, title=BANNER, last_col=len(COLUMNS) - 1, back_link=False,
         count_groups=[
             [(len(rows), plural(len(rows), "block"), None),
              (controls, plural(controls, "control"), None),
@@ -93,7 +102,7 @@ def write_sheet(build, sheet, blocks, infos) -> str:
     # thing across all four deliverables.
     fill_severity_column(build, sheet, first_row=top + 1, last_row=top + max(len(rows), 1),
                          col=headers.index("Importance"))
-    return (f"{TITLE}: {len(rows)} {plural(len(rows), 'row')} over {controls} controls, "
+    return (f"{BANNER}: {len(rows)} {plural(len(rows), 'row')} over {controls} controls, "
             f"each linked to its tab")
 
 
