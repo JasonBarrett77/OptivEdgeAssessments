@@ -18,6 +18,7 @@ from assessments.views import (
     FindingsDomainView,
     FindingsSummaryView,
     HealthCheckBuildView,
+    BlockWorkbookBuildView,
     RemediationWorkbookBuildView,
     WorkbookBuildView,
     DownloadsView,
@@ -78,6 +79,11 @@ urlpatterns = [
         "remediation/workbook/build/",
         RemediationWorkbookBuildView.as_view(),
         name="assessment_remediation_workbook_build",
+    ),
+    path(
+        "workbook/blocks/build/",
+        BlockWorkbookBuildView.as_view(),
+        name="assessment_block_workbook_build",
     ),
     # `group/` is still in the path although nothing else sits under `remediation/` any more:
     # it was there to keep a one-segment control route from swallowing the slug, and the links

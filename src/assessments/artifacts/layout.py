@@ -344,12 +344,18 @@ def write_simple_header(build, sheet, *, title, last_col, tab_colour=None) -> in
 
 
 def write_header_block(build, sheet, *, title, last_col, count_groups, rationale=None,
-                       back_link=True, tab_colour=None) -> int:
+                       rationale_label="Why it matters", back_link=True,
+                       tab_colour=None) -> int:
     """Title band, a counts strip and an optional rationale. Returns the table's header row.
 
     `count_groups` is a list of groups, each a list of (count, text, color-or-None). Items in a
     group are separated by a dot, groups by a bar. Shared values - client, engagement, run - belong
     on the Summary tab, not here.
+
+    `rationale_label` names the sentence rather than assuming it. The findings tabs print the
+    control's `rationale` under its own words; the block workbook prints `why_it_matters` and
+    has to call it `Risk`, because that tab IS a block of the health check document and a
+    reader holding both should meet one word for one field (`health_check.DETAIL_LINES`).
     """
     workbook = build.workbook
     base = _BAND
@@ -383,7 +389,8 @@ def write_header_block(build, sheet, *, title, last_col, count_groups, rationale
     if rationale:
         label = workbook.add_format({"bold": True, "font_color": TITLE_FILL})
         prose = workbook.add_format({"italic": True, "font_color": MUTED_TEXT})
-        sheet.write_rich_string(row, 0, label, "Why it matters   ", prose, rationale, rule_fmt)
+        sheet.write_rich_string(row, 0, label, f"{rationale_label}   ", prose, rationale,
+                                rule_fmt)
         sheet.set_row(row, 24)
     else:
         # The rule still closes the block, on a thin row of its own.

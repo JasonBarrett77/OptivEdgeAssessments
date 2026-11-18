@@ -3361,6 +3361,12 @@ class GeneratedArtifact(models.Model):
         #: A .docx rather than a workbook, which is why `ArtifactDownloadView` now serves a
         #: content type BY KIND instead of sending the one spreadsheet type for everything.
         HEALTH_CHECK = "health_check", "Health check document"
+        #: The fourth deliverable, 2026-11-18. Jason: *"I want a third workbook artifact that
+        #: better aligns with the summary doc. In effect, a tab in the workbook for each block
+        #: in the doc's Detailed Findings and Recommendations, in the same order as they
+        #: appear in the doc."* The same findings as WORKBOOK, cut by control and severity
+        #: instead of by settings domain, so the tab strip is the document's contents.
+        BLOCKS = "blocks", "Document block workbook"
 
     class Status(models.TextChoices):
         BUILDING = "building", "Building"

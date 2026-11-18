@@ -1028,6 +1028,7 @@ CONTENT_TYPES = {
     GeneratedArtifact.Kind.WORKBOOK: XLSX_CONTENT_TYPE,
     GeneratedArtifact.Kind.REMEDIATION: XLSX_CONTENT_TYPE,
     GeneratedArtifact.Kind.HEALTH_CHECK: DOCX_CONTENT_TYPE,
+    GeneratedArtifact.Kind.BLOCKS: XLSX_CONTENT_TYPE,
 }
 
 
@@ -1119,6 +1120,21 @@ class RemediationWorkbookBuildView(WorkbookBuildView):
 
     kind = GeneratedArtifact.Kind.REMEDIATION
     noun = "remediation workbook"
+    parts = "tabs"
+
+
+class BlockWorkbookBuildView(WorkbookBuildView):
+    """The document block workbook, built the same way and refused under the same conditions.
+
+    THE FOURTH DELIVERABLE, 2026-11-18, and the third spreadsheet. It carries the same findings
+    as the first one cut by control and severity rather than by settings domain, so a reader
+    holding the health check document opens the tab whose number is the block they are on.
+    `build_in_progress()` covers every kind, so this cannot run beside a build that would read
+    the stored tables from under it.
+    """
+
+    kind = GeneratedArtifact.Kind.BLOCKS
+    noun = "document block workbook"
     parts = "tabs"
 
 

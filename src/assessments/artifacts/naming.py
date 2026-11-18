@@ -38,6 +38,24 @@ def workbook_filename(environment=None, *, today: dt.date | None = None) -> str:
     return "-".join(parts) + ".xlsx"
 
 
+def block_workbook_filename(environment=None, *, today: dt.date | None = None) -> str:
+    """`acme-op-1234567-findings-detail-2026-11-18.xlsx`, the same three parts with its own word.
+
+    Named for what it IS to the reader holding the document - the detail behind each of its
+    findings - rather than for the structure that makes it so. `-blocks` is this codebase's
+    word for a section of Detailed Findings and Recommendations and means nothing to a client
+    with the three files in a directory.
+    """
+    parts = []
+    if environment is not None:
+        name = environment.client_short_name or environment.client_name
+        parts.extend(part for part in (slugify(name),
+                                       slugify(environment.opportunity_number)) if part)
+    parts.append("findings-detail")
+    parts.append((today or dt.date.today()).isoformat())
+    return "-".join(parts) + ".xlsx"
+
+
 def remediation_workbook_filename(environment=None, *, today: dt.date | None = None) -> str:
     """`acme-op-1234567-remediation-2026-11-05.xlsx`, the same three parts with its own word.
 

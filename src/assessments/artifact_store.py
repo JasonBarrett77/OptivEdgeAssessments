@@ -34,9 +34,11 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from assessments.artifacts import (
-    ArtifactBuildError, build_health_check_document, build_remediation_workbook, build_workbook)
+    ArtifactBuildError, build_block_workbook, build_health_check_document,
+    build_remediation_workbook, build_workbook)
 from assessments.artifacts.naming import (
-    health_check_filename, remediation_workbook_filename, workbook_filename)
+    block_workbook_filename, health_check_filename, remediation_workbook_filename,
+    workbook_filename)
 from assessments.environment import get_application_environment
 from assessments.models import AssessmentRun, GeneratedArtifact
 
@@ -103,6 +105,7 @@ BUILDERS = {
                                          remediation_workbook_filename),
     GeneratedArtifact.Kind.HEALTH_CHECK: ("build_health_check_document",
                                           health_check_filename),
+    GeneratedArtifact.Kind.BLOCKS: ("build_block_workbook", block_workbook_filename),
 }
 
 

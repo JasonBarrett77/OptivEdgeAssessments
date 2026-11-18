@@ -20,6 +20,7 @@ from .errors import ArtifactBuildError
 from .health_check import build_health_check_document
 from .naming import health_check_filename, remediation_workbook_filename, workbook_filename
 from .sheets.findings import ALL_TESTED_COLUMNS, FindingsTable, build_findings_table
+from .block_workbook import build_block_workbook
 from .remediation_workbook import build_remediation_workbook
 from .stored import stored_findings_table
 from .workbook import build_workbook
@@ -30,6 +31,7 @@ __all__ = [
     "FindingsTable",
     "build_findings_table",
     "build_health_check_document",
+    "build_block_workbook",
     "build_remediation_workbook",
     "build_workbook",
     "health_check_filename",
