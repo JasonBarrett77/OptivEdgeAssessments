@@ -1186,6 +1186,246 @@ class RemediationWiringTests(TestCase):
         self.assertIn("remediation_accessor(provenance_of", source)
 
 
+class ControlsTabIsOneRowPerControlAndSeverityTests(TestCase):
+    """The reference tab a findings row links INTO, reshaped 2026-11-18.
+
+    Jason: *"Can we remove that column and adjust the control link to the specific
+    control+severity on the control sheet?"* - `Severity basis` and `Fires when` both left the
+    findings rows, so what explained a grade in a cell has to be a row here instead. Three
+    things follow, and each is asserted against the WHOLE catalog rather than a fixture: every
+    severity a control can grade at has a row, every active query reaches exactly one of them,
+    and the columns that used to restate a control on 54 findings tabs say it once here.
+    """
+
+    maxDiff = None
+
+    def setUp(self):
+        from assessments.tests._seed import seed_control, seed_specs
+        self.controls = [seed_control(spec) for spec in seed_specs().values()]
+
+    def _rows(self):
+        from assessments.artifacts.sheets import controls as controls_sheet
+        from assessments.models import Control
+
+        controls = list(Control.objects.prefetch_related("queries").order_by("control_id"))
+        rows, placements = controls_sheet.sheet_rows(controls, controls_sheet.finding_counts())
+        return controls, rows, placements
+
+    def _cell(self, row, header):
+        from assessments.artifacts.sheets import controls as controls_sheet
+        return row[[h for h, _w, _x in controls_sheet.COLUMNS].index(header)]
+
+    def test_every_severity_a_control_can_grade_at_has_a_row(self):
+        """And nothing else does. A pair with no row is a findings row with no link target; a row
+        for a pair the catalog cannot produce is a band that does not exist."""
+        from assessments.control_queries import SEVERITY_RANK
+
+        controls, rows, _placements = self._rows()
+        expected = sorted(
+            (control.control_id, control.Severity(severity).label)
+            for control in controls
+            for severity in {q.adjusted_severity or control.default_severity
+                             for q in control.queries.all() if q.is_active})
+        written = sorted((self._cell(row, "Control ID"), self._cell(row, "Severity"))
+                         for row in rows)
+        self.assertEqual(expected, written)
+        self.assertEqual(len(rows), len(set(written)), "a pair was written twice")
+        self.assertTrue(SEVERITY_RANK)
+
+    def test_a_controls_rows_run_from_its_lowest_grade_to_its_worst(self):
+        """The ladder reads the way a scale is written - informational first, critical last - so a
+        control's bands can be read down its own block. PAN-POL-002 is the one with all five."""
+        from assessments.control_queries import SEVERITY_RANK
+        from assessments.models import Control
+
+        _controls, rows, _placements = self._rows()
+        by_control = {}
+        for row in rows:
+            by_control.setdefault(self._cell(row, "Control ID"), []).append(
+                self._cell(row, "Severity"))
+        label_rank = {Control.Severity(value).label: rank
+                      for value, rank in SEVERITY_RANK.items()}
+        for control_id, severities in by_control.items():
+            with self.subTest(control=control_id):
+                ranks = [label_rank[severity] for severity in severities]
+                self.assertEqual(ranks, sorted(ranks))
+
+    def test_every_active_query_reaches_exactly_one_row(self):
+        """The cells stack, so a query that fell out of the sheet would do it silently - the row
+        it belonged on is still there, one line shorter."""
+        from assessments.models import ControlQuery
+
+        _controls, rows, _placements = self._rows()
+        written = []
+        for row in rows:
+            cell = self._cell(row, "Queries that grade here")
+            written.extend(cell.splitlines())
+        expected = [q.name for q in ControlQuery.objects.filter(is_active=True)]
+        self.assertEqual(sorted(expected), sorted(written))
+
+    def test_two_queries_at_one_severity_share_a_row_and_their_cells_read_across(self):
+        """133 of the catalog's 325 pairs hold more than one query. Their names, conditions and
+        Evidence sentences are three stacked cells in ONE order, which is the only thing that
+        makes such a row readable - the same convention the findings tabs use for a control's
+        tested fields."""
+        _controls, rows, _placements = self._rows()
+        shared = [row for row in rows
+                  if len(self._cell(row, "Queries that grade here").splitlines()) > 1]
+        self.assertTrue(shared, "no pair holds more than one query, so this proves nothing")
+        for row in shared:
+            with self.subTest(control=self._cell(row, "Control ID"),
+                              severity=self._cell(row, "Severity")):
+                names = self._cell(row, "Queries that grade here").splitlines()
+                conditions = self._cell(row, "Fires when (failing condition)").splitlines()
+                evidence = self._cell(row, "Evidence").splitlines()
+                self.assertEqual(len(names), len(conditions))
+                self.assertEqual(len(names), len(evidence))
+
+    def test_the_condition_on_a_row_is_the_query_s_own_and_not_the_baseline_s(self):
+        """P613: `fires_when` rendered the baseline for every row of a control, so a band's row
+        stated the condition the control OPENS with rather than the threshold that reaches that
+        band. PAN-POL-002's five rows are five different numbers."""
+        _controls, rows, _placements = self._rows()
+        pol002 = [row for row in rows if self._cell(row, "Control ID") == "PAN-POL-002"]
+        self.assertEqual(5, len(pol002), "PAN-POL-002 no longer grades at five severities")
+        conditions = [self._cell(row, "Fires when (failing condition)") for row in pol002]
+        self.assertEqual(len(conditions), len(set(conditions)),
+                         "two of the bands state the same condition")
+
+    def test_the_evidence_cell_is_the_sentence_the_document_prints(self):
+        """The language project wrote one for all 579 queries and the workbook had nowhere to put
+        it. It is `ControlQuery.short_description` verbatim - the same field the health check
+        document's Evidence row reads - and not a second wording of it."""
+        from assessments.models import ControlQuery
+
+        _controls, rows, _placements = self._rows()
+        printed = {line for row in rows for line in self._cell(row, "Evidence").splitlines()}
+        for query in ControlQuery.objects.filter(is_active=True).exclude(short_description=""):
+            with self.subTest(query=query.name):
+                self.assertIn(query.short_description, printed)
+
+    def test_the_engineer_s_rationale_is_not_labelled_as_the_client_s_sentence(self):
+        """P620. The column was headed "Why it matters" and filled from `control.rationale`, and
+        those are two different fields: `why_it_matters` is the client sentence the document
+        prints as Risk, and it is different text on 202 of the 218 controls. The cell was right,
+        so the header was renamed rather than the field swapped - `models.Control` says this
+        surface prints the engineer's four."""
+        from assessments.artifacts.sheets import controls as controls_sheet
+
+        headers = [h for h, _w, _x in controls_sheet.COLUMNS]
+        self.assertIn("Rationale", headers)
+        self.assertNotIn("Why it matters", headers)
+        _controls, rows, _placements = self._rows()
+        for row, control in zip(rows, self._rows()[0]):
+            if self._cell(row, "Control ID") == control.control_id and control.rationale:
+                self.assertEqual(control.rationale, self._cell(row, "Rationale"))
+                break
+        else:
+            self.fail("no control carries a rationale to check")
+
+    def test_the_findings_count_is_per_grade_rather_than_per_control(self):
+        """Which band the estate actually landed in is a fact no column could carry while the
+        sheet was one row per control."""
+        from assessments.artifacts.sheets import controls as controls_sheet
+
+        counts = controls_sheet.finding_counts()
+        self.assertTrue(all(isinstance(key, tuple) and len(key) == 2 for key in counts),
+                        "finding_counts is no longer keyed on the pair")
+
+
+class AFindingsRowLinksToItsOwnGradeTests(TestCase):
+    """The link a findings row's Control ID cell carries, end to end.
+
+    The two cells that used to explain a grade on the row are gone, so if this link lands on the
+    wrong row the reader has nothing at all. Asserted through the anchors the Controls tab
+    registers rather than by parsing the file, because the anchor key IS the claim.
+    """
+
+    def setUp(self):
+        from assessments.tests._seed import seed_control, seed_specs
+        [seed_control(spec) for spec in seed_specs().values()]
+
+    def test_the_tab_registers_an_anchor_for_every_pair_and_one_per_control(self):
+        from assessments.artifacts.sheets import controls as controls_sheet
+        from assessments.models import Control
+
+        controls = list(Control.objects.prefetch_related("queries").order_by("control_id"))
+        _rows, placements = controls_sheet.sheet_rows(controls, controls_sheet.finding_counts())
+        pairs = {key for key, _index in placements if isinstance(key, tuple)}
+        bare = {key for key, _index in placements if not isinstance(key, tuple)}
+        self.assertEqual({control.pk for control in controls}, bare,
+                         "a control with no fallback anchor costs the whole workbook on a "
+                         "finding whose severity the catalog no longer produces")
+        for control in controls:
+            for query in control.queries.all():
+                if not query.is_active:
+                    continue
+                severity = query.adjusted_severity or control.default_severity
+                with self.subTest(control=control.control_id, severity=severity):
+                    self.assertIn((control.pk, severity), pairs)
+
+    def test_the_workbook_findings_tabs_carry_neither_restatement(self):
+        """Both columns are about the CONTROL, on a row that is about one firewall. 54 of the 77
+        findings tabs drew `Fires when` and 76 drew `Severity basis` before this."""
+        from assessments.artifacts.domains import DOMAINS
+        from assessments.artifacts.stored import stored_findings_table
+        from assessments.artifacts.sheets.findings import (
+            WORKBOOK_HEAD_COLUMNS, WORKBOOK_TESTED_COLUMNS)
+
+        for domain in DOMAINS:
+            with self.subTest(domain=domain.slug):
+                table = stored_findings_table(domain.spec, tested=WORKBOOK_TESTED_COLUMNS,
+                                              head=WORKBOOK_HEAD_COLUMNS)
+                self.assertNotIn("Severity basis", table.headers)
+                self.assertNotIn("Fires when (failing condition)", table.headers)
+                self.assertIn("Control ID", table.headers)
+                self.assertIn("Matched queries", table.headers)
+
+    def test_a_live_page_keeps_both_because_it_has_no_sheet_to_link_to(self):
+        """The surface decides, which is what `tested` has always been for and what `head` now
+        is. `views.py` asks for the full sets."""
+        from assessments.artifacts.sheets import objects
+        from assessments.artifacts.stored import stored_findings_table
+        from assessments.artifacts.sheets.findings import ALL_TESTED_COLUMNS
+        from assessments.models import Control
+
+        spec = objects.SPEC_BY_TYPE[Control.ControlType.LOGIN_BANNER]
+        table = stored_findings_table(spec, tested=ALL_TESTED_COLUMNS)
+
+        self.assertIn("Severity basis", table.headers)
+        self.assertIn("Fires when (failing condition)", table.headers)
+
+    def test_narrowing_the_head_block_moves_the_marked_cells_with_it(self):
+        """The fill is held as (row, column index), so dropping a column from the LEFT of the
+        table without reindexing would mark the cell beside the one at fault - and it would do it
+        silently, on every row of every tab.
+
+        Built by hand rather than from a domain: an empty estate has no marked cell, so a table
+        drawn here would prove this by having nothing to get wrong.
+        """
+        from assessments.artifacts.sheets.findings import (
+            FindingsTable, HEAD_COLUMNS, WORKBOOK_HEAD_COLUMNS)
+        from assessments.artifacts.stored import narrow_head
+
+        columns = [(header, None, False) for header, _w, _x in HEAD_COLUMNS]
+        columns += [("Vsys", None, False), ("Login banner text", None, True)]
+        row = [f"cell {i}" for i in range(len(columns))]
+        basis = [header for header, _w, _x in HEAD_COLUMNS].index("Severity basis")
+        marked = [(0, len(columns) - 1), (0, len(columns) - 2)]
+        table = FindingsTable(
+            spec=None, title="t", description="d", category="Device", columns=columns,
+            rows=[list(row)], implicated=marked, findings=[], controls=[],
+            by_severity={}, runs=set(), row_meta=[{}])
+
+        narrowed = narrow_head(table, WORKBOOK_HEAD_COLUMNS)
+
+        self.assertNotIn("Severity basis", narrowed.headers)
+        self.assertEqual(len(columns) - 1, len(narrowed.headers))
+        self.assertEqual(row[:basis] + row[basis + 1:], narrowed.rows[0])
+        self.assertEqual(sorted((r, table.headers[c]) for r, c in table.implicated),
+                         sorted((r, narrowed.headers[c]) for r, c in narrowed.implicated))
+
+
 class TheSeverityBasisCellTests(SimpleTestCase):
     """What the cell says and what it refuses to say - P450, fixed 2026-11-18.
 

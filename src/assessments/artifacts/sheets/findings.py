@@ -22,7 +22,8 @@ WHAT IS DERIVED, NOT TYPED.
 - The field a control tests is read from its baseline query.
 - "Fires when" is rendered from the clauses of the query that SET THE GRADE, and from the
   baseline's where only the baseline matched. It is the FAILING condition; printing it as the
-  expected value inverts every threshold.
+  expected value inverts every threshold. The workbook's tabs no longer draw it - see
+  `WORKBOOK_TESTED_COLUMNS` - and the live findings pages do.
 - The Template cell is `FieldProvenance.raw_value`, which normalization already stores as the bare
   template or stack name. It is not parsed out of anything here.
 - PROVENANCE IS READ, NOT DECIDED. Integrations records what a key's absence meant since
@@ -555,8 +556,10 @@ def fires_when_matched(finding) -> str:
     29 controls carry 46 queries whose clause fields are wholly disjoint from their baseline's,
     so the cell could state a condition about fields the matched query never constrains.
 
-    Every surface that draws the cell gets the fix, and the workbook's own findings tabs are
-    about to stop drawing it at all (P613e).
+    The workbook's findings tabs no longer draw this cell at all (P613e): their Control ID links
+    to the control's row for that severity, where the condition is written once. The live
+    findings pages ask for the full tested set and keep it, which is why it is fixed and not
+    simply deleted.
     """
     deciding = deciding_queries(finding)
     if not deciding:
@@ -690,6 +693,23 @@ TESTED_COLUMNS = [
     ("Fires when (failing condition)", 30, True),
     ("Provenance", 15, True),
 ]
+
+#: WHAT THE WORKBOOK'S FINDINGS TABS CARRY, decided by the surface rather than by each spec -
+#: which is what the `tested` override has always been for, now said once instead of 58 times.
+#:
+#: Jason, 2026-11-18, on `Severity basis`: *"Can we remove that column and adjust the control
+#: link to the specific control+severity on the control sheet?"* And on `Fires when`, P613e:
+#: *"DROP the column from the findings rows and let the Controls sheet carry it alone."* Both
+#: cells restate something about the CONTROL on a row that is about one firewall, and the row
+#: already carries the Control ID - which now links to that control's row for that severity,
+#: where the grade, the queries that give it, their conditions and their Evidence sentences are
+#: written once. `Matched queries` still names, on every row, which of them fired.
+#:
+#: THE LIVE FINDINGS PAGES KEEP BOTH. They ask for the full sets explicitly (`views.py`), and
+#: they have no sheet to send a reader to.
+WORKBOOK_TESTED_COLUMNS = ("Provenance",)
+WORKBOOK_HEAD_COLUMNS = tuple(header for header, _w, _wrap in HEAD_COLUMNS
+                              if header != "Severity basis")
 
 TAIL_COLUMNS = [
     ("Matched queries", 24, True),
@@ -1133,7 +1153,9 @@ def write_sheet(build, spec) -> SheetInfo:
     workbook = build.workbook
     from ..stored import stored_findings_table
 
-    table = stored_findings_table(spec, subjects=build.subjects)
+    table = stored_findings_table(spec, subjects=build.subjects,
+                                  tested=WORKBOOK_TESTED_COLUMNS,
+                                  head=WORKBOOK_HEAD_COLUMNS)
     controls = table.controls
     rows, implicated = table.rows, table.implicated
     columns, title, category = table.columns, table.title, table.category
@@ -1162,11 +1184,21 @@ def write_sheet(build, spec) -> SheetInfo:
                     implicated_format(build, wrap))
 
     headers = [h for h, _, _ in columns]
-    # The Control ID cell opens that control's row on the Controls tab, where its remediation,
-    # audit path and firing condition are written once instead of down every row.
+    # The Control ID cell opens the row for THIS CONTROL AT THIS SEVERITY on the Controls tab,
+    # where the queries that grade there, their conditions, their Evidence sentences, the audit
+    # path and the remediation are written once instead of down every row (Jason, 2026-11-18).
+    #
+    # FALLING BACK TO THE CONTROL'S FIRST ROW, which the Controls tab registers for exactly this:
+    # a finding's severity is what its run recorded, and a catalog edited since then can leave a
+    # grade no active query produces. Measured 2026-11-18 over the lab run, that is 0 of 13,520
+    # findings - but the alternative to a fallback is `no control row registered for pk ...` and
+    # no workbook at all, which is the trade the Appliance link below already makes.
     control_col = headers.index("Control ID")
     for i, meta in enumerate(table.row_meta):
-        write_link(build, sheet, top + 1 + i, control_col, "control", meta["control"],
+        key = (meta["control"], meta["severity"])
+        if ("control", key) not in build.anchors:
+            key = meta["control"]
+        write_link(build, sheet, top + 1 + i, control_col, "control", key,
                    rows[i][control_col])
 
     # The Appliance cell opens that appliance's row on the Appliances tab, where the subject has

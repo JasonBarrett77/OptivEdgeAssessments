@@ -190,17 +190,8 @@ def _table(spec, payload: dict, controls) -> FindingsTable:
     )
 
 
-def narrow(table: FindingsTable, spec, tested=None) -> FindingsTable:
-    """The table a surface carrying `tested` would have built, from one carrying all of them.
-
-    `columns_for` lays out HEAD, the subject columns, then the tested block - every one of
-    `TESTED_COLUMNS` in order, on a table built with `ALL_TESTED_COLUMNS` - so the columns to
-    drop are found by position, never by a header that a subject column could share.
-    """
-    carried = spec.tested_columns if tested is None else tested
-    start = len(HEAD_COLUMNS) + len(spec.subject_columns)
-    dropped = {start + i for i, (header, _w, _wrap) in enumerate(TESTED_COLUMNS)
-               if header not in carried}
+def _without(table: FindingsTable, dropped: set) -> FindingsTable:
+    """The same table without those column positions, with the marked cells reindexed."""
     if not dropped:
         return table
     kept = [i for i in range(len(table.columns)) if i not in dropped]
@@ -215,9 +206,45 @@ def narrow(table: FindingsTable, spec, tested=None) -> FindingsTable:
         runs=table.runs, row_meta=table.row_meta)
 
 
-def stored_findings_table(spec, *, tested=None, subjects=None,
+def narrow(table: FindingsTable, spec, tested=None) -> FindingsTable:
+    """The table a surface carrying `tested` would have built, from one carrying all of them.
+
+    `columns_for` lays out HEAD, the subject columns, then the tested block - every one of
+    `TESTED_COLUMNS` in order, on a table built with `ALL_TESTED_COLUMNS` - so the columns to
+    drop are found by position, never by a header that a subject column could share.
+    """
+    carried = spec.tested_columns if tested is None else tested
+    start = len(HEAD_COLUMNS) + len(spec.subject_columns)
+    return _without(table, {start + i for i, (header, _w, _wrap) in enumerate(TESTED_COLUMNS)
+                            if header not in carried})
+
+
+def narrow_head(table: FindingsTable, head=None) -> FindingsTable:
+    """The table a surface carrying only `head` of the HEAD columns would have built.
+
+    BY POSITION for the reason `narrow` is: the head block is the first `len(HEAD_COLUMNS)`
+    columns of every findings table, whatever else a surface asked for, so a header that a
+    subject column happens to share cannot be dropped by mistake. `None` keeps them all.
+
+    WHAT USES IT. The workbook drops `Severity basis` (Jason, 2026-11-18): its findings rows
+    link their Control ID to the control's row for that severity on the Controls tab, where the
+    grade, the queries that give it, their conditions and their Evidence sentences are written
+    once. The live findings pages have no such sheet to send a reader to, so they keep the cell.
+    """
+    if head is None:
+        return table
+    return _without(table, {i for i, (header, _w, _wrap) in enumerate(HEAD_COLUMNS)
+                            if header not in head})
+
+
+def stored_findings_table(spec, *, tested=None, head=None, subjects=None,
                           allow_running: bool = False) -> FindingsTable:
-    """`build_findings_table`, read from storage where the run's table is current."""
+    """`build_findings_table`, read from storage where the run's table is current.
+
+    `head` names the HEAD columns this surface carries; see `narrow_head`. It is applied to the
+    table whichever way it was obtained, because the head block is built whole either way - a
+    stored payload holds every column there is, and so does a table built here.
+    """
     built = []
 
     def compute():
@@ -227,13 +254,13 @@ def stored_findings_table(spec, *, tested=None, subjects=None,
 
     payload = stored_payload(spec.table_name, spec, compute, allow_running=allow_running)
     if payload is None:
-        return build_findings_table(spec, tested=tested, subjects=subjects)
+        return narrow_head(build_findings_table(spec, tested=tested, subjects=subjects), head)
     if built:
         table = built[0]
     else:
         table = _table(spec, payload, list(
             selected_controls(spec).prefetch_related("queries").order_by("control_id")))
-    return narrow(table, spec, tested)
+    return narrow_head(narrow(table, spec, tested), head)
 
 
 def store_run_tables(assessment_run) -> None:
