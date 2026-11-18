@@ -22,7 +22,8 @@ from assessments.artifacts import health_check
 from assessments.finding_run import regenerate_findings
 from assessments.tests._seed import seed_controls
 from assessments.tests.test_findings_views import build_estate
-from optivedge_integrations.integrations.models import ManagementStation, Snapshot
+from optivedge_integrations.integrations.models import (
+    Appliance, ApplianceGroup, EnforcementPoint, ManagementStation, Snapshot)
 
 
 class UnattributedFindingsCommandTests(TestCase):
@@ -37,12 +38,15 @@ class UnattributedFindingsCommandTests(TestCase):
         call_command("print_unattributed_findings", *args, stdout=out)
         return out.getvalue()
 
-    def orphan_every_snapshot_carrying_a_finding(self) -> None:
+    def snapshots_carrying_a_finding(self) -> set:
         carrying = {snapshot for kind in finding_registry.FINDING_KINDS
                     for snapshot in kind.model.objects.values_list("snapshot_id", flat=True)
                     if snapshot}
         self.assertTrue(carrying)
-        Snapshot.objects.filter(pk__in=carrying).update(
+        return carrying
+
+    def orphan_every_snapshot_carrying_a_finding(self) -> None:
+        Snapshot.objects.filter(pk__in=self.snapshots_carrying_a_finding()).update(
             appliance=None, appliance_group=None, enforcement_point=None,
             management_station=ManagementStation.objects.first())
 
@@ -87,6 +91,45 @@ class UnattributedFindingsCommandTests(TestCase):
         output = self.run_command("--snapshots")
 
         self.assertIn(f"snapshot {orphan.pk}", output)
+
+    def test_a_finding_that_records_no_snapshot_is_named_rather_than_blamed_on_a_lost_one(self):
+        """`FindingBase.snapshot` is nullable, so a finding can carry nothing to attribute it
+        through. That used to be reported as `the snapshot is gone` - a snapshot this command
+        had failed to look up - which sends a reader to the Snapshot table to find a row that
+        was never there. It is its own shape, and it is not counted as a snapshot either.
+        """
+        kind = next(kind for kind in finding_registry.FINDING_KINDS
+                    if kind.model.objects.exists())
+        kind.model.objects.update(snapshot=None)
+        orphaned = kind.model.objects.count()
+
+        output = self.run_command("--snapshots")
+
+        self.assertIn(f"and {orphaned:,} recording no snapshot", output)
+        self.assertIn(health_check.FINDING_WITHOUT_A_SNAPSHOT, output)
+        self.assertNotIn("the snapshot is gone", output)
+
+    def test_it_says_what_each_failing_vsys_runs_on_and_what_its_group_holds(self):
+        """The two lines that name the repair. A point whose nodes name a firewall is one
+        thing to fix, a point with no node row at all is another, and the group's own members
+        say whether the appliance has been regrouped out from under it."""
+        appliance = Appliance.objects.exclude(hostname="").first()
+        point = EnforcementPoint.objects.create(
+            management_station=ManagementStation.objects.first(),
+            appliance_group=ApplianceGroup.objects.create(
+                management_station=ManagementStation.objects.first(), name="g-emptied",
+                group_type=ApplianceGroup.TYPE_STANDALONE),
+            vsys_name="vsys9", in_scope=False)
+        Snapshot.objects.filter(pk__in=self.snapshots_carrying_a_finding()).update(
+            appliance=None, appliance_group=None, enforcement_point=point)
+
+        output = self.run_command()
+
+        self.assertIn("the enforcement points behind them (1):", output)
+        self.assertIn(f"vsys9 (point {point.pk}), in_scope=False", output)
+        self.assertIn("runs on: no node row", output)
+        self.assertIn("group:   g-emptied  members: none", output)
+        self.assertNotIn(appliance.hostname, output.split("the enforcement points")[1])
 
     def test_it_writes_nothing(self):
         """A reader runs this against production. It reads three tables and touches none."""

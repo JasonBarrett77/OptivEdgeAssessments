@@ -6,7 +6,22 @@ be absent from that line without a word, so the row's two numbers disagreed - Ja
 spot-checking a production report: *"the PAN-POL-008 Findings count is not adding up with the
 Firewalls counts."* The line now states those findings instead of dropping them, which makes the
 row honest; it does not make the gap go away. This command says how big the gap is and which of
-six shapes the snapshots behind it are, because each shape is a different repair.
+seven shapes the snapshots behind it are, because each shape is a different repair.
+
+WHAT IT IS FOR, 2026-11-18. Jason, on a production build: *"for several controls, I'm seeing
+an item in affected devices that says: 'n' more that the configuration they were read from
+names no firewall for... PAN-POL-008, PAN-POL-004, PAN-POL-003, PAN-AVW-003, PAN-VLN-001 and
+others."* All five of those are `security_rule` controls, which narrows the cause before the
+command is even run: a rule's snapshot is either the appliance's merged config, which always
+names a firewall, or the vsys's pushed shared policy, which does not name one directly. So the
+gap is in the pushed path, or the finding carries no snapshot at all.
+
+ONE CAUSE IN THAT PATH IS FIXED AND THIS SAYS WHETHER ANY REMAINS. `firewalls_by_snapshot`
+resolved a pushed snapshot only through the appliance group its enforcement point names, which
+answers nothing once the appliance has been regrouped; it now goes through the point's own
+`EnforcementNode` rows first. What this command still reports is therefore a different shape -
+a vsys whose firewalls this engagement did not assess, a collection that recorded no node row,
+or a finding with no snapshot - and it names which, and prints what each failing vsys runs on.
 
 WHY IT IS A COMMAND. It has to be answered against the environment that produced the report, and
 the lab cannot stand in: all 17,555 of its findings resolve to an appliance, so it prints zero
@@ -43,7 +58,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from assessments import finding_registry
         from assessments.artifacts.health_check import (
-            firewalls_by_snapshot, plural, why_no_firewall_is_named)
+            FINDING_WITHOUT_A_SNAPSHOT, firewalls_by_snapshot, plural,
+            why_no_firewall_is_named)
 
         owners = firewalls_by_snapshot()
         findings = Counter()
@@ -58,9 +74,12 @@ class Command(BaseCommand):
 
         total = sum(kind.model.objects.count() for kind in finding_registry.FINDING_KINDS)
         unattributed = sum(findings.values())
+        snapshots = len([snapshot_id for snapshot_id in findings if snapshot_id is not None])
         self.stdout.write(f"findings in total:            {total:>9,}")
         self.stdout.write(f"findings naming no firewall:  {unattributed:>9,} over "
-                          f"{len(findings):,} {plural(len(findings), 'snapshot')}")
+                          f"{snapshots:,} {plural(snapshots, 'snapshot')}"
+                          + (f", and {findings[None]:,} recording no snapshot"
+                             if findings.get(None) else ""))
         if not unattributed:
             self.stdout.write(self.style.SUCCESS(
                 "\nEvery finding resolves to a firewall, so every Affected Devices line in "
@@ -70,6 +89,9 @@ class Command(BaseCommand):
         reasons = why_no_firewall_is_named()
         shapes = Counter()
         for snapshot_id, count in findings.items():
+            if snapshot_id is None:
+                shapes[FINDING_WITHOUT_A_SNAPSHOT] += count
+                continue
             shapes[reasons.get(snapshot_id, "unresolved for a reason this command cannot "
                                             "name - the snapshot is gone")] += count
         self.stdout.write("\nby cause, counted in findings:")
@@ -82,8 +104,70 @@ class Command(BaseCommand):
         for control_id, count in listed:
             self.stdout.write(f"  {count:>9,}  {control_id}")
 
+        self.points(findings)
+
         if options["snapshots"]:
             self.stdout.write("\nthe snapshots, worst first:")
             for snapshot_id, count in findings.most_common():
+                if snapshot_id is None:
+                    self.stdout.write(f"  {count:>9,}  {FINDING_WITHOUT_A_SNAPSHOT}")
+                    continue
                 self.stdout.write(f"  {count:>9,}  snapshot {snapshot_id}  "
+                                  f"{self.where(snapshot_id)}  "
                                   f"{reasons.get(snapshot_id, 'gone')}")
+
+    def where(self, snapshot_id) -> str:
+        """What the snapshot was read from, for one line of the listing."""
+        from optivedge_integrations.integrations.models import Snapshot
+
+        row = Snapshot.objects.filter(pk=snapshot_id).values_list(
+            "source_type", "enforcement_point__vsys_name").first()
+        if row is None:
+            return "snapshot gone"
+        source_type, vsys = row
+        return f"{source_type}{' ' + vsys if vsys else ''}"
+
+    def points(self, findings: Counter) -> None:
+        """The enforcement points behind the unattributed findings, and what each one knows.
+
+        THE LINES THAT NAME THE REPAIR. A point-scoped snapshot is attributed through the
+        firewalls its vsys runs on - its `EnforcementNode` rows - and failing those through its
+        appliance group's members in scope. Printing both, beside the point's own `in_scope`,
+        separates the repairs: nodes naming a firewall this engagement did not assess is a scope
+        declaration to widen, a group whose members have moved on is attribution the node path
+        now covers, and no node row at all is a collection that never recorded which appliances
+        the vsys runs on.
+        """
+        from optivedge_integrations.integrations.models import (
+            EnforcementNode, EnforcementPoint, Snapshot)
+
+        by_point = Counter()
+        for snapshot_id, count in findings.items():
+            if snapshot_id is None:
+                continue
+            point_id = Snapshot.objects.filter(pk=snapshot_id).values_list(
+                "enforcement_point_id", flat=True).first()
+            if point_id:
+                by_point[point_id] += count
+        if not by_point:
+            return
+        self.stdout.write(f"\nthe enforcement points behind them ({len(by_point)}):")
+        for point_id, count in by_point.most_common():
+            point = EnforcementPoint.objects.filter(pk=point_id).select_related(
+                "appliance_group").first()
+            nodes = [self.name_of(node.appliance) for node in EnforcementNode.objects.filter(
+                enforcement_point_id=point_id).select_related("appliance")]
+            group = point.appliance_group
+            members = ([self.name_of(appliance) for appliance in group.appliances.all()]
+                       if group else [])
+            self.stdout.write(
+                f"  {count:>9,}  {point.vsys_name} (point {point_id}), "
+                f"in_scope={point.in_scope}")
+            self.stdout.write(f"             runs on: {', '.join(nodes) or 'no node row'}")
+            self.stdout.write(f"             group:   {group.name if group else 'none'}"
+                              f"  members: {', '.join(members) or 'none'}")
+
+    @staticmethod
+    def name_of(appliance) -> str:
+        return (appliance.hostname or appliance.serial_number
+                or f"appliance {appliance.pk} with no name")

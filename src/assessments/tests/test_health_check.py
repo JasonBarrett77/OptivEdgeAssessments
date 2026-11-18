@@ -53,7 +53,7 @@ from optivedge.models import ApplicationEnvironment
 from django.contrib.contenttypes.models import ContentType
 
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DeviceGroup, EnforcementPoint, FieldProvenance,
+    Appliance, ApplianceGroup, DeviceGroup, EnforcementNode, EnforcementPoint, FieldProvenance,
     ManagementStation, Snapshot)
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -1969,7 +1969,7 @@ class CellPropertyTests(_SeededEstate):
 class NoFirewallNamedTests(_SeededEstate):
     """WHY a snapshot resolves to no firewall, which is what decides the repair.
 
-    The six shapes are three different problems: a collection that recorded an appliance or an
+    The shapes are three different problems: a collection that recorded an appliance or an
     enforcement point without enough to name it; a scope declaration that leaves a group's
     members out; and configuration that belongs to no appliance at all. `print_unattributed_
     findings` prints the counts per shape against the environment whose report disagreed with
@@ -2023,6 +2023,78 @@ class NoFirewallNamedTests(_SeededEstate):
 
         self.assertEqual(self.reason_for(appliance_group=empty),
                          health_check.GROUP_OUT_OF_SCOPE)
+
+    def test_a_point_whose_appliance_has_moved_to_another_group_still_names_it(self):
+        """The shape the node path exists for, and the one a production estate arrives at by
+        itself: a standalone joins an HA pair, so the appliance is regrouped and the group the
+        enforcement point names has nobody left in it. Through the group the vsys resolves to
+        nothing; through its node rows it resolves to the firewall it runs on, which is the
+        firewall whose configuration the snapshot holds.
+
+        The lab is in exactly this state - nine of its node rows - and attributes everything
+        only because those nine points carry no snapshot. Every pushed Panorama rule comes
+        through a point-scoped snapshot, which is why the controls that showed the gap in
+        production were all `security_rule` ones.
+        """
+        station = ManagementStation.objects.first()
+        appliance = Appliance.objects.exclude(hostname="").first()
+        left_behind = ApplianceGroup.objects.create(
+            management_station=station, name=f"standalone-{appliance.serial_number}",
+            group_type=ApplianceGroup.TYPE_STANDALONE)
+        point = EnforcementPoint.objects.create(
+            management_station=station, appliance_group=left_behind, vsys_name="vsys9",
+            in_scope=True)
+        EnforcementNode.objects.create(management_station=station, enforcement_point=point,
+                                       appliance=appliance)
+        snapshot = self.snapshot(enforcement_point=point)
+
+        self.assertEqual(health_check.firewalls_by_snapshot()[snapshot],
+                         (appliance.hostname,))
+        self.assertNotIn(snapshot, health_check.why_no_firewall_is_named())
+
+    def test_a_group_whose_appliances_have_moved_on_still_names_its_vsyss_firewalls(self):
+        """`show_pushed_shared_policy` is read from the group rather than from one of its
+        vsyses, so there is no point on the snapshot to resolve through - and when the
+        appliances have been regrouped out of the group it names, its members in scope are
+        nobody. The firewalls running the vsyses it owns are still the answer."""
+        station = ManagementStation.objects.first()
+        appliance = Appliance.objects.exclude(hostname="").first()
+        left_behind = ApplianceGroup.objects.create(
+            management_station=station, name="ha-pair-emptied",
+            group_type=ApplianceGroup.TYPE_HA_PAIR)
+        point = EnforcementPoint.objects.create(
+            management_station=station, appliance_group=left_behind, vsys_name="vsys9",
+            in_scope=True)
+        EnforcementNode.objects.create(management_station=station, enforcement_point=point,
+                                       appliance=appliance)
+        snapshot = self.snapshot(appliance_group=left_behind)
+
+        self.assertEqual(health_check.firewalls_by_snapshot()[snapshot],
+                         (appliance.hostname,))
+        self.assertNotIn(snapshot, health_check.why_no_firewall_is_named())
+
+    def test_a_point_whose_firewalls_this_engagement_did_not_assess(self):
+        """Nodes, and still no name - which says the gap is the scope declaration rather than
+        the collection, and is a different repair from either group shape."""
+        station = ManagementStation.objects.first()
+        assessed = EnforcementPoint.objects.create(
+            management_station=station, vsys_name="vsys1", in_scope=True,
+            appliance_group=ApplianceGroup.objects.first())
+        EnforcementNode.objects.create(
+            management_station=station, enforcement_point=assessed,
+            appliance=Appliance.objects.exclude(hostname="").first())
+        elsewhere = Appliance.objects.create(
+            management_station=station, hostname="fw-not-assessed", serial_number="S-NOT")
+        unassessed = EnforcementPoint.objects.create(
+            management_station=station, vsys_name="vsys2", in_scope=False,
+            appliance_group=ApplianceGroup.objects.create(
+                management_station=station, name="g-elsewhere",
+                group_type=ApplianceGroup.TYPE_STANDALONE))
+        EnforcementNode.objects.create(management_station=station,
+                                       enforcement_point=unassessed, appliance=elsewhere)
+
+        self.assertEqual(self.reason_for(enforcement_point=unassessed),
+                         health_check.POINT_WITHOUT_A_NAMED_NODE)
 
     def test_an_appliance_group_whose_members_have_no_name(self):
         """In scope and collected from, and still unable to label a pair: `firewall_label`

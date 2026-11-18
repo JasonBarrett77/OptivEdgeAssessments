@@ -58,8 +58,9 @@ from assessments.environment import get_application_environment
 from assessments.models import Control, ControlQuery, FindingControlQueryBase
 
 from optivedge_integrations.integrations.models import (
-    Appliance, ApplianceGroup, DecryptionRulebaseVerdict, DeviceGroup, FieldProvenance,
-    LicenceInventory, ManagementStation, ManagementPlaneAddressing, Snapshot)
+    Appliance, ApplianceGroup, DecryptionRulebaseVerdict, DeviceGroup, EnforcementNode,
+    EnforcementPoint, FieldProvenance, LicenceInventory, ManagementStation,
+    ManagementPlaneAddressing, Snapshot)
 
 from .docx import partials as p
 from . import scope
@@ -340,26 +341,107 @@ class Measured:
 def firewalls_by_snapshot() -> dict:
     """snapshot id -> the firewalls whose configuration that snapshot describes.
 
-    THREE PATHS, because a snapshot names its owner in three ways. It is taken from an
-    appliance; or from an enforcement point, which is a virtual system and belongs to the
-    appliance group it runs on; or from the group itself. Measured on the lab 2026-11-06: all
-    17,555 findings resolve, 8,439 of them to one appliance and 9,116 to an HA pair's two.
+    A snapshot names its owner in one of four ways, and they are tried in that order. It is
+    taken from an appliance, which names itself; or from an enforcement point, which is a
+    virtual system, and then from the FIREWALLS THAT VSYS RUNS ON - `named_nodes_in_scope`; or
+    from an appliance group, whose members in scope are the answer - `named_members_in_scope`;
+    or, where that group has no member left, from the firewalls running the vsyses it owns -
+    `named_nodes_by_group`. Measured on the lab 2026-11-06: all 17,555 findings resolve, 8,439
+    of them to one appliance and 9,116 to an HA pair's two.
+
+    THE TWO NODE PATHS ARE NEW, 2026-11-18, and they are both the same repair: an appliance
+    that has been REGROUPED leaves the group its snapshots and its enforcement points name,
+    and the group path then answers nothing for configuration whose owner the node table
+    states plainly. `named_nodes_in_scope` has the argument and the lab rows that are in that
+    state. Neither changes an answer the group path already gave: measured over the lab's 1,062
+    snapshots, 972 resolve either way, to the same firewalls, with 0 disagreements. Regrouping
+    the lab's `pan-fw-111` by hand - a standalone joining a pair - costs the group path 122
+    findings and the four paths 0, and 5 of those 122 are PAN-VLN-001, one of the controls the
+    production report showed the gap on.
 
     A snapshot taken from the management station resolves to nothing, which is correct - its 90
     snapshots carry no findings, because no control reads Panorama's own configuration.
     """
+    nodes = named_nodes_in_scope()
     members = named_members_in_scope()
+    group_nodes = named_nodes_by_group(nodes)
     owners = {}
-    for snapshot_id, hostname, serial, group_id, point_group_id in Snapshot.objects.values_list(
+    for (snapshot_id, hostname, serial, group_id, point_id,
+         point_group_id) in Snapshot.objects.values_list(
             "id", "appliance__hostname", "appliance__serial_number",
-            "appliance_group_id", "enforcement_point__appliance_group_id"):
+            "appliance_group_id", "enforcement_point_id",
+            "enforcement_point__appliance_group_id"):
         if hostname or serial:
             owners[snapshot_id] = (hostname or serial,)
+            continue
+        if point_id and nodes.get(point_id):
+            owners[snapshot_id] = tuple(sorted(nodes[point_id]))
             continue
         group = point_group_id or group_id
         if group and members.get(group):
             owners[snapshot_id] = tuple(sorted(members[group]))
+        elif group and group_nodes.get(group):
+            owners[snapshot_id] = tuple(sorted(group_nodes[group]))
     return owners
+
+
+def named_nodes_in_scope() -> dict:
+    """enforcement point id -> the names of the in-scope firewalls that vsys runs on.
+
+    THE NODE TABLE, WHICH IS WHERE SCOPE ITSELF LOOKS. `flows.get_in_scope_appliances` resolves
+    a point's appliances in a precedence - the point's own `appliance`, then its
+    `EnforcementNode` rows, and only then its appliance group's members - and attribution read
+    the LAST of those three, through a second join: the group's members as regrouped by each
+    APPLIANCE's own `appliance_group_id`. The two agree only while every appliance still sits
+    in the group its point names.
+
+    AN APPLIANCE THAT HAS BEEN REGROUPED BREAKS IT, and a standalone joining an HA pair is
+    exactly that move. The lab holds nine node rows in that state today: points 11 to 19 name
+    the group `standalone-013201001475`, which has no members left, while their node rows name
+    `fw-core-tpa-a` in the pair it joined. Through the group those nine points resolve to
+    nothing; through their nodes they resolve to the firewall they run on. They carry no
+    snapshot, which is the only reason the lab attributes all 17,555 of its findings.
+
+    IN SCOPE ONLY, for the reason `named_members_in_scope` is: a line in a client document
+    cannot name a firewall this engagement did not assess. A node whose appliance is out of
+    scope, or has neither a hostname nor a serial number, contributes no name - so a point all
+    of whose nodes are one of those resolves to nothing here and falls through to the group.
+    """
+    named = {pk: (hostname or serial)
+             for pk, hostname, serial in scope.appliances_in_scope().values_list(
+                 "pk", "hostname", "serial_number")
+             if hostname or serial}
+    nodes = defaultdict(list)
+    for point_id, appliance_id in EnforcementNode.objects.values_list(
+            "enforcement_point_id", "appliance_id"):
+        name = named.get(appliance_id)
+        if name:
+            nodes[point_id].append(name)
+    return nodes
+
+
+def named_nodes_by_group(nodes: dict) -> dict:
+    """appliance group id -> the names of the in-scope firewalls running the vsyses it owns.
+
+    THE SAME REPAIR AS `named_nodes_in_scope`, ONE SCOPE UP. `show_pushed_shared_policy` is
+    read from the group rather than from one of its vsyses, so its snapshot names an appliance
+    group and nothing else; when the appliances have been regrouped out of it, its members in
+    scope are nobody and the configuration has no owner - 29 of the lab's findings, measured by
+    regrouping `pan-fw-111` by hand.
+
+    IT IS THE LAST PATH TRIED, after the group's own members, because a group that still holds
+    its appliances is answering about itself and this is a question about its enforcement
+    points. The two cannot contradict each other where both answer: `EnforcementNode.clean`
+    requires a node's appliance to be in the point's group.
+
+    `nodes` is `named_nodes_in_scope`, passed in rather than called again: both callers need
+    it in its own right, and resolving scope walks every station's prefetched points.
+    """
+    groups = defaultdict(set)
+    for point_id, group_id in EnforcementPoint.objects.values_list("id", "appliance_group_id"):
+        if group_id and nodes.get(point_id):
+            groups[group_id].update(nodes[point_id])
+    return {group_id: sorted(names) for group_id, names in groups.items()}
 
 
 def named_members_in_scope() -> dict:
@@ -385,14 +467,24 @@ def named_members_in_scope() -> dict:
 
 #: The ways a snapshot can resolve to no firewall at all, in the order `why_no_firewall_is_named`
 #: tests them. Each one is a different repair, which is the whole reason for telling them apart:
-#: the first two are collection gaps, the next two are what this engagement declared in scope,
+#: the first two are collection gaps, the next three are what this engagement declared in scope,
 #: and the last two are configuration no appliance owns.
 APPLIANCE_WITHOUT_A_NAME = "an appliance with no hostname and no serial number"
 POINT_WITHOUT_A_GROUP = "an enforcement point belonging to no appliance group"
+POINT_WITHOUT_A_NAMED_NODE = ("an enforcement point whose own firewalls are out of this "
+                              "engagement's scope, or have no hostname or serial")
 GROUP_OUT_OF_SCOPE = "an appliance group with no member in scope"
 GROUP_WITHOUT_A_NAME = "an appliance group whose members in scope have no hostname or serial"
 FROM_THE_MANAGEMENT_STATION = "taken from the management station rather than from an appliance"
 NAMES_NOTHING = "names nothing at all"
+
+#: AND ONE THAT IS NOT ABOUT A SNAPSHOT AT ALL. `FindingBase.snapshot` is nullable - "a run
+#: predating this field, or a subject that normalization left without a snapshot", its own
+#: comment says - so a finding can carry no snapshot to be attributed THROUGH. That is not a
+#: snapshot this cannot explain, and `print_unattributed_findings` says so rather than reporting
+#: a snapshot it could not find.
+FINDING_WITHOUT_A_SNAPSHOT = ("a finding recording no snapshot at all, so there is nothing to "
+                              "attribute it through")
 
 
 def why_no_firewall_is_named() -> dict:
@@ -405,10 +497,22 @@ def why_no_firewall_is_named() -> dict:
     out, or configuration that genuinely belongs to no appliance. Jason found the arithmetic in
     production on 2026-11-10; this is how the next reader finds the cause.
 
-    Read-only, and it reads the same three paths `firewalls_by_snapshot` does so the two cannot
-    disagree about which snapshots resolved.
+    Read-only, and it reads the same four paths `firewalls_by_snapshot` does so the two cannot
+    disagree about which snapshots resolved - including both node paths, so a snapshot the node
+    table attributes is absent from this answer rather than reported as a group with nobody in
+    it.
+
+    A POINT THAT HAS NODES AND STILL NAMES NOBODY IS ITS OWN SHAPE, and it is the one that says
+    the gap is this engagement's scope rather than the collection: the vsys runs on firewalls
+    we know the names of and did not assess. It is tested before the group, because the node
+    rows are the more specific answer about the same point - the group is what attribution falls
+    back to.
     """
+    nodes = named_nodes_in_scope()
     members = named_members_in_scope()
+    group_nodes = named_nodes_by_group(nodes)
+    points_with_nodes = set(EnforcementNode.objects.values_list(
+        "enforcement_point_id", flat=True))
     in_scope = set(scope.appliances_in_scope().values_list("appliance_group_id", flat=True))
     reasons = {}
     for (snapshot_id, hostname, serial, appliance_id, station_id, group_id, point_id,
@@ -418,10 +522,14 @@ def why_no_firewall_is_named() -> dict:
             "enforcement_point__appliance_group_id"):
         if hostname or serial:
             continue
-        group = point_group_id or group_id
-        if group and members.get(group):
+        if point_id and nodes.get(point_id):
             continue
-        if group:
+        group = point_group_id or group_id
+        if group and (members.get(group) or group_nodes.get(group)):
+            continue
+        if point_id and point_id in points_with_nodes:
+            reasons[snapshot_id] = POINT_WITHOUT_A_NAMED_NODE
+        elif group:
             reasons[snapshot_id] = (GROUP_WITHOUT_A_NAME if group in in_scope
                                     else GROUP_OUT_OF_SCOPE)
         elif appliance_id:
@@ -1058,9 +1166,10 @@ def unnamed_report(detail: list) -> list:
     the Affected Devices line now ACCOUNTS for an unresolved finding instead of dropping it,
     and a
     reader of the build report should be told that some of these rows carry that clause before
-    a client asks why. The number to chase is the snapshots, not the findings: a snapshot that
-    names neither an appliance, nor an enforcement point belonging to an appliance group, nor
-    an appliance group with a member in scope, attributes everything read from it to nobody.
+    a client asks why. The number to chase is the snapshots, not the findings: a snapshot none
+    of `firewalls_by_snapshot`'s four paths answers for attributes everything read from it to
+    nobody. `print_unattributed_findings` says which snapshots those are, which of the shapes
+    each one is, and what the enforcement point behind it runs on.
     """
     total = sum(one.unnamed for one in detail)
     if not total:
